@@ -28,7 +28,7 @@ class EditorGestureTest {
             vm=EditorViewModel(app,File(app.filesDir,"acceptance/ui-"+UUID.randomUUID()))
             store.put("test",vm)
         }
-        compose.setContent {if(visible.value)Editor(vm)}
+        compose.setContent {StudioTheme {if(visible.value)Editor(vm)}}
         compose.waitUntil(20000){vm.state.project!=null}
         compose.runOnIdle{vm.select(2)}
         compose.waitForIdle()
