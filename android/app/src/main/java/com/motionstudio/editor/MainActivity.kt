@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -54,13 +56,21 @@ internal val Accent=Color(0xFF37D4BE)
 internal val Ink=Color(0xFFE6EAF2)
 internal val Muted=Color(0xFF9DA6B7)
 
-class MainActivity:ComponentActivity() {
-    private val model:EditorViewModel by viewModels()
+open class MainActivity:ComponentActivity() {
+    protected open fun initialProjectDirectory():File?=null
+    private val model:EditorViewModel by viewModels {object:ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T:ViewModel> create(modelClass:Class<T>):T {
+            require(modelClass==EditorViewModel::class.java)
+            return EditorViewModel(application,initialProjectDirectory()) as T
+        }
+    }}
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {StudioTheme {Editor(model)}}
     }
-    override fun onStop() { model.pause();super.onStop() }
+    override fun onStart(){super.onStart();model.resumePreview()}
+    override fun onStop() { model.suspendPreview();super.onStop() }
 }
 
 @Composable internal fun StudioTheme(content:@Composable ()->Unit) {
@@ -199,8 +209,9 @@ class MainActivity:ComponentActivity() {
                 val selectedCorners=previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).firstOrNull{it.first==vm.selected}?.second
                 val handleRadius=selectedCorners?.let{points->min(20.dp.toPx(),points.indices.minOf{(points[it]-points[(it+1)%points.size]).getDistance()}/3f)}?:0f
                 val resize=!vm.state.observing&&selectedCorners?.any{(it-down.position).getDistance()<=handleRadius}==true
-                if(!resize&&!vm.state.observing)previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).asReversed()
-                    .firstOrNull{insideQuad(down.position,it.second)}?.let{vm.select(it.first,false)}
+                val picked=if(!resize&&!vm.state.observing)previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).asReversed()
+                    .firstOrNull{insideQuad(down.position,it.second)}else null
+                if(vm.selected!=0L)picked?.let{vm.select(it.first,false)}
                 var total=Offset.Zero;var active=false
                 val at=floor(vm.frame).toInt();val objectId=vm.selected
                 var scale=vm.sampleValueFor(objectId,"scale") as? JSONArray
@@ -208,6 +219,10 @@ class MainActivity:ComponentActivity() {
                 val anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
                 val startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
                 var rotation=vm.sampleValueFor(objectId,"rotation") as? JSONArray
+                var azimuth=(vm.sampleValueFor(0,"azimuth") as? Number)?.toDouble()?:0.0
+                var elevation=(vm.sampleValueFor(0,"elevation") as? Number)?.toDouble()?:0.0
+                val cameraOrbit=vm.state.project?.getJSONObject("camera")?.getString("mode")=="orbit"
+                val observing=vm.state.observing
                 try {
                     do {
                         val event=awaitPointerEvent()
@@ -215,14 +230,17 @@ class MainActivity:ComponentActivity() {
                         val zoom=event.calculateZoom();val angle=event.calculateRotation()
                         var startedNow=false
                         if(!active&&(total.getDistance()>viewConfiguration.touchSlop||abs(zoom-1f)>.002f||abs(angle)>.1f)) {
-                            if(vm.editable()||vm.state.observing){vm.beginGesture();active=true;startedNow=true}
+                            if(vm.editable()||observing){if(!observing)vm.beginGesture();active=true;startedNow=true}
                         }
                         if(active) {
                             val movement=if(startedNow)total else pan
-                            if(vm.state.observing)vm.observe(true,movement.x*.18,movement.y*.18)
+                            if(observing)vm.navigate(movement.x,movement.y,zoom,event.changes.count{it.pressed}>1,size.width,size.height)
                             else if(objectId==0L) {
                                 if(abs(zoom-1f)>.002f)vm.dolly((zoom-1f)*800f)
-                                if(movement.getDistance()>.1f)vm.pan(movement.x*3f,-movement.y*3f)
+                                if(movement.getDistance()>.1f) {
+                                    if(cameraOrbit){azimuth+=movement.x*.18;elevation=(elevation-movement.y*.18).coerceIn(-89.0,89.0);vm.recordOrbit(azimuth,elevation,at)}
+                                    else vm.pan(movement.x*3f,-movement.y*3f)
+                                }
                             } else {
                                 if(resize&&anchor!=null&&initialScale!=null&&startRadius>1f) {
                                     val ratio=(event.changes.first().position-anchor).getDistance()/startRadius
@@ -243,7 +261,8 @@ class MainActivity:ComponentActivity() {
                             event.changes.forEach{it.consume()}
                         }
                     } while(event.changes.any{it.pressed})
-                } finally {if(active)vm.endGesture()}
+                } finally {if(active&&!observing)vm.endGesture()}
+                if(!active&&!observing)picked?.let{vm.select(it.first,false)}
             }
         })
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
@@ -258,6 +277,9 @@ class MainActivity:ComponentActivity() {
                 DropdownMenuItem(text={Text("侧视")},onClick={menu=false;vm.view(3)})
             }
         }
+        Text(if(vm.state.observing)"观察 · 不录入" else if(vm.selected==0L) {
+            if(vm.state.project?.getJSONObject("camera")?.getString("mode")=="orbit")"摄影机 · 环绕" else "摄影机 · 平移"
+        }else"图层 · 变换",Modifier.align(Alignment.BottomStart).padding(10.dp),color=Muted,fontSize=10.sp)
     }
 }
 @Composable private fun Transport(vm:EditorViewModel) {

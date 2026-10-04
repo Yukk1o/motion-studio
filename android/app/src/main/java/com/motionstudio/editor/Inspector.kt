@@ -94,6 +94,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
 
 @Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier) {
     var rename by remember{mutableStateOf(false)}
+    var anchor by remember{mutableStateOf(false)}
     var more by remember{mutableStateOf(false)}
     var curves by remember(vm.selected,vm.property){mutableStateOf(false)}
     BackHandler(enabled=curves){curves=false}
@@ -115,6 +116,8 @@ private class ValueDrag(private val vm:EditorViewModel) {
                 DropdownMenu(more,{more=false}) {
                     if(camera)DropdownMenuItem(text={Text(if(mode=="orbit")"切换位置路径" else "切换环绕轨道")},onClick={more=false;vm.cameraMode(mode!="orbit");vm.property=if(mode=="orbit")"position" else "radius"})
                     else {
+                        DropdownMenuItem(text={Text("锚点")},enabled=vm.editable(),onClick={more=false;anchor=true})
+                        DropdownMenuItem(text={Text("摄影机对准此图层")},onClick={more=false;vm.focusCameraOnSelection()})
                         DropdownMenuItem(text={Text("重命名")},onClick={more=false;rename=true})
                         DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
                         DropdownMenuItem(text={Text("上移图层")},onClick={more=false;vm.reorder(1)})
@@ -122,6 +125,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         DropdownMenuItem(text={Text("锁定 / 解锁")},onClick={more=false;vm.layer(vm.selected)?.let{vm.flags(vm.selected,it.getBoolean("visible"),!it.getBoolean("locked"))}})
                         DropdownMenuItem(text={Text("删除图层")},onClick={more=false;vm.deleteLayer()})
                     }
+                    if(vm.keys().isNotEmpty())DropdownMenuItem(text={Text("移除此属性动画")},enabled=vm.editable(),onClick={more=false;vm.animate()})
                 }
             }
             Tool(Icons.Default.Close,"关闭属性面板"){vm.panelOpen=false}
@@ -151,6 +155,21 @@ private class ValueDrag(private val vm:EditorViewModel) {
         }
     }
     if(rename)InputDialog("图层名称",vm.layer(vm.selected)?.optString("name")?:"",onDismiss={rename=false}){vm.rename(it);rename=false}
+    if(anchor)AnchorDialog(vm){anchor=false}
+}
+
+@Composable private fun AnchorDialog(vm:EditorViewModel,onDismiss:()->Unit) {
+    val value=vm.layer(vm.selected)?.getJSONObject("transform")?.getJSONArray("anchor")?:return
+    var x by remember{mutableStateOf(String.format(Locale.US,"%.2f",value.getDouble(0)*100))}
+    var y by remember{mutableStateOf(String.format(Locale.US,"%.2f",value.getDouble(1)*100))}
+    val nx=x.toDoubleOrNull();val ny=y.toDoubleOrNull()
+    AlertDialog(onDismissRequest=onDismiss,title={Text("锚点")},text={Column {
+        Text("修改后保持当前画面位置",color=Muted,fontSize=12.sp)
+        OutlinedTextField(x,{x=it},label={Text("X %")},modifier=Modifier.testTag("anchor-x"),singleLine=true)
+        OutlinedTextField(y,{y=it},label={Text("Y %")},modifier=Modifier.testTag("anchor-y"),singleLine=true)
+        TextButton(onClick={x="50";y="50"}){Text("居中")}
+    }},confirmButton={TextButton(enabled=nx!=null&&ny!=null&&nx.isFinite()&&ny.isFinite()&&abs(nx)<=100000&&abs(ny)<=100000,
+        onClick={vm.anchor(nx!!/100,ny!!/100);onDismiss()}){Text("确定")}},dismissButton={TextButton(onClick=onDismiss){Text("取消")}})
 }
 
 @Composable private fun ScrubField(vm:EditorViewModel,label:String,value:Double,axis:Int,modifier:Modifier) {

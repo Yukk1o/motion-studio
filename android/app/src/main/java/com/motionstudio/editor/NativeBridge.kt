@@ -12,6 +12,7 @@ object NativeBridge {
     @JvmStatic external fun history(id: Long, operation: Int): String
     @JvmStatic external fun seek(id: Long, frame: Double): String
     @JvmStatic external fun observe(id: Long, enabled: Boolean, azimuth: Double, elevation: Double): String
+    @JvmStatic external fun navigate(id: Long, dx: Double, dy: Double, zoom: Double, multi: Boolean, width: Int, height: Int): String
     @JvmStatic external fun view(id: Long, kind: Int): String
     @JvmStatic external fun save(id: Long): String
     @JvmStatic external fun surface(id: Long, surface: Surface?, width: Int, height: Int): String
