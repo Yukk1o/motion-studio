@@ -46,7 +46,9 @@ pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
             seen.insert(asset.path.to_lowercase()),
             "duplicate asset path",
         )?;
-        let path = root.join(&asset.path).canonicalize()?;
+        let path = root.join(&asset.path).canonicalize().map_err(|error| {
+            crate::Error::Invalid(format!("素材无法读取：{} ({error})", asset.path))
+        })?;
         ensure(
             path.starts_with(&base),
             "asset resolves outside project directory",

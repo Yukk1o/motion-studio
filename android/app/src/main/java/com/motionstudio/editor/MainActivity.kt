@@ -1,6 +1,9 @@
 package com.motionstudio.editor
 
 import android.os.Bundle
+import android.content.Intent
+import android.content.Context
+import android.net.Uri
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.ComponentActivity
@@ -8,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.viewModels
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
@@ -55,6 +59,12 @@ internal val Panel=Color(0xFF202431)
 internal val Accent=Color(0xFF37D4BE)
 internal val Ink=Color(0xFFE6EAF2)
 internal val Muted=Color(0xFF9DA6B7)
+private class CreateOutputDocument(private val mime:String):ActivityResultContract<String,Uri?>() {
+    override fun createIntent(context:Context,input:String)=Intent(Intent.ACTION_CREATE_DOCUMENT)
+        .addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE,input)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+    override fun parseResult(resultCode:Int,intent:Intent?):Uri?=if(resultCode==android.app.Activity.RESULT_OK)intent?.data else null
+}
 
 open class MainActivity:ComponentActivity() {
     protected open fun initialProjectDirectory():File?=null
@@ -90,20 +100,17 @@ open class MainActivity:ComponentActivity() {
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
-    var pendingFile by remember{mutableStateOf<File?>(null)}
-    val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->uri?.let(vm::importImage)}
-    val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri->uri?.let(vm::importProject)}
-    val pngSave=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")){uri->
-        val file=pendingFile
-        if(uri!=null&&file!=null)scope.launch(Dispatchers.IO){context.contentResolver.openOutputStream(uri)?.use{out->file.inputStream().use{it.copyTo(out)}}}
+    var library by remember{mutableStateOf(false)}
+    val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importImage)}
+    val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importProject)}
+    val pngSave=rememberLauncherForActivityResult(CreateOutputDocument("image/png")){uri->
+        vm.completeOutputSelection(uri)
     }
-    val projectSave=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")){uri->
-        val file=pendingFile
-        if(uri!=null&&file!=null)scope.launch(Dispatchers.IO){context.contentResolver.openOutputStream(uri)?.use{out->file.inputStream().use{it.copyTo(out)}}}
+    val projectSave=rememberLauncherForActivityResult(CreateOutputDocument("application/zip")){uri->
+        vm.completeOutputSelection(uri)
     }
-    val videoSave=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("video/mp4")){uri->
-        val file=pendingFile
-        if(uri!=null&&file!=null)scope.launch(Dispatchers.IO){context.contentResolver.openOutputStream(uri)?.use{out->file.inputStream().use{it.copyTo(out)}}}
+    val videoSave=rememberLauncherForActivityResult(CreateOutputDocument("video/mp4")){uri->
+        vm.completeOutputSelection(uri)
     }
     BackHandler(enabled=vm.panelOpen){vm.panelOpen=false}
     Surface(color=Background,modifier=Modifier.fillMaxSize()) {
@@ -121,9 +128,9 @@ open class MainActivity:ComponentActivity() {
                     Box {
                         Tool(Icons.Default.IosShare,"输出"){outputMenu=true}
                         DropdownMenu(outputMenu,{outputMenu=false}) {
-                            DropdownMenuItem(text={Text("视频 MP4")},onClick={outputMenu=false;vm.exportVideo{pendingFile=it;videoSave.launch("MotionStudio.mp4")}})
-                            DropdownMenuItem(text={Text("当前帧 PNG")},onClick={outputMenu=false;vm.output(true){pendingFile=it;pngSave.launch("motion-frame.png")}})
-                            DropdownMenuItem(text={Text("备份工程")},onClick={outputMenu=false;vm.output(false){pendingFile=it;projectSave.launch("MotionStudio.motion")}})
+                            DropdownMenuItem(text={Text("视频 MP4")},onClick={outputMenu=false;vm.exportVideo{vm.pendingOutput=it;vm.pendingOutputKind="video";videoSave.launch("MotionStudio.mp4")}})
+                            DropdownMenuItem(text={Text("当前帧 PNG")},onClick={outputMenu=false;vm.output(true){vm.pendingOutput=it;vm.pendingOutputKind="png";pngSave.launch("motion-frame.png")}})
+                            DropdownMenuItem(text={Text("备份工程")},onClick={outputMenu=false;vm.output(false){vm.pendingOutput=it;vm.pendingOutputKind="project";projectSave.launch("MotionStudio.motion")}})
                         }
                     }
                 }
@@ -138,7 +145,7 @@ open class MainActivity:ComponentActivity() {
                         border=BorderStroke(1.5.dp,Accent)) {Icon(Icons.Default.Add,"添加图层",tint=Accent)}
                     DropdownMenu(addMenu,{addMenu=false}) {
                         DropdownMenuItem(text={Text("矩形")},onClick={addMenu=false;vm.addRectangle()})
-                        DropdownMenuItem(text={Text("图片")},onClick={addMenu=false;imagePicker.launch("image/*")})
+                        DropdownMenuItem(text={Text("图片")},onClick={addMenu=false;imagePicker.launch(arrayOf("image/png","image/jpeg"))})
                         DropdownMenuItem(text={Text("文字")},onClick={addMenu=false;textDialog=true})
                     }
                 }
@@ -153,7 +160,18 @@ open class MainActivity:ComponentActivity() {
                     else Modifier.fillMaxWidth().height((availableHeight*.42f).coerceAtMost(304.dp)
                         .coerceAtMost(timelineHeight+8.dp)))
             }
-            if(vm.state.busy||vm.state.project==null) {
+            if(vm.state.project==null&&vm.loadFailed&&!vm.state.busy) {
+                Column(Modifier.fillMaxSize().background(Background).padding(24.dp),verticalArrangement=Arrangement.Center,
+                    horizontalAlignment=Alignment.CenterHorizontally) {
+                    Text("工程无法打开",color=Ink,fontSize=20.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text("原工程和素材已保留。可以恢复素材后重试，或导入备份。",color=Muted,fontSize=13.sp)
+                    TextButton(onClick=vm::retryOpen){Text("重试打开")}
+                    TextButton(onClick={vm.refreshProjects();library=true}){Text("打开其他工程")}
+                    TextButton(onClick={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入备份")}
+                    TextButton(onClick={vm.newProject(1080,1920,30)}){Text("新建工程")}
+                }
+            }else if(vm.state.busy||vm.state.project==null) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.4f)),contentAlignment=Alignment.Center) {
                     CircularProgressIndicator(color=Accent)
                 }
@@ -162,7 +180,10 @@ open class MainActivity:ComponentActivity() {
     }
     vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,
         title={Text("操作未完成")},text={Text(message)},
-        confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
+        confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}},
+        dismissButton={if(vm.pendingOutput!=null&&vm.outputPhase.startsWith("failed"))TextButton(onClick={vm.clearError()
+            when(vm.pendingOutputKind){"video"->videoSave.launch("MotionStudio.mp4");"project"->projectSave.launch("MotionStudio.motion");else->pngSave.launch("motion-frame.png")}
+        }){Text("重新选择位置")}else if(vm.state.project!=null)TextButton(onClick=vm::retryPreview){Text("重试预览")}})}
     if(textDialog)InputDialog("添加文字","Motion Studio",onDismiss={textDialog=false}){vm.addText(it);textDialog=false}
     if(vm.exporting)AlertDialog(onDismissRequest={},title={Text("导出视频")},
         text={Column{LinearProgressIndicator(progress={vm.exportProgress},modifier=Modifier.fillMaxWidth(),color=Accent)
@@ -172,16 +193,27 @@ open class MainActivity:ComponentActivity() {
         text={Column {
             Text(vm.state.project?.let{it.getInt("width").toString()+" × "+it.getInt("height")+"\n"+
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
-            TextButton(onClick={settings=false;projectPicker.launch("*/*")}){Text("导入工程")}
+            TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
+            TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
             Text("新建 6 秒合成",fontSize=12.sp,color=Muted)
             listOf(1080 to 1920,1920 to 1080,1080 to 1080).forEach{(w,h)->
                 Row {
-                    TextButton(onClick={settings=false;vm.newProject(w,h,30)}){Text(w.toString()+"×"+h+" / 30")}
-                    TextButton(onClick={settings=false;vm.newProject(w,h,60)}){Text("60 fps")}
+                    TextButton(onClick={settings=false;vm.newProject(w,h,30)},modifier=Modifier.testTag("new-"+w+"-"+h+"-30")){Text(w.toString()+"×"+h+" / 30")}
+                    TextButton(onClick={settings=false;vm.newProject(w,h,60)},modifier=Modifier.testTag("new-"+w+"-"+h+"-60")){Text("60 fps")}
                 }
             }
         }},
         confirmButton={TextButton(onClick={settings=false}){Text("完成")}})
+    if(library)AlertDialog(onDismissRequest={library=false},title={Text("打开工程")},
+        text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
+            if(vm.projects.isEmpty())Text("暂无其他已保存工程",color=Muted)
+            vm.projects.forEach{project->TextButton(onClick={library=false;vm.openProject(project.directory)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp)) {
+                Column(Modifier.fillMaxWidth()) {
+                    Text(project.name,color=Ink)
+                    Text(project.width.toString()+" × "+project.height+" · "+project.fps+" fps",color=Muted,fontSize=11.sp)
+                }
+            }}
+        }},confirmButton={TextButton(onClick={library=false}){Text("关闭")}})
 }
 
 @Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
