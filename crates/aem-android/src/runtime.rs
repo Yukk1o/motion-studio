@@ -66,7 +66,10 @@ struct Session {
 }
 impl Session {
     fn new(project: Project, root: PathBuf) -> Result<Self> {
-        let scene = Scene::new(&project);
+        let mut scene = Scene::new(&project);
+        scene
+            .sample(&project, 0.0, None)
+            .map_err(|e| e.to_string())?;
         let observer = Observer::new(project.width, project.height);
         Ok(Self {
             engine: Engine::new(project).map_err(|e| e.to_string())?,
@@ -208,9 +211,33 @@ impl Session {
             "opacity":l.transform.opacity.sample(f)})
             })
             .collect();
+        let projected: Vec<_> = self
+            .scene
+            .layers
+            .iter()
+            .filter_map(|layer| {
+                let mvp = self.scene.camera.view_projection * layer.model;
+                let corners = [[-0.5, 0.5], [0.5, 0.5], [0.5, -0.5], [-0.5, -0.5]].map(|[x, y]| {
+                    mvp.x_axis * (x * layer.size[0]) + mvp.y_axis * (y * layer.size[1]) + mvp.w_axis
+                });
+                if corners.iter().any(|c| !c.is_finite() || c.w <= 0.0) {
+                    return None;
+                }
+                let anchor = p
+                    .layers
+                    .iter()
+                    .find(|l| l.id == layer.id)
+                    .map(|l| self.scene.project_point(l.transform.position.sample(f)));
+                Some(
+                    json!({"id":layer.id,"anchor":anchor,"corners":corners.map(|c|[
+                (c.x/c.w*0.5+0.5)*p.width as f32,
+                (0.5-c.y/c.w*0.5)*p.height as f32])}),
+                )
+            })
+            .collect();
         json!({"project":p,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
-            "sampledLayers":layers,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
+            "sampledLayers":layers,"projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
             "renderError":self.last_error})
     }
 }
