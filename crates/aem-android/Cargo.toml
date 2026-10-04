@@ -12,6 +12,9 @@ aem-core = { path = "../aem-core" }
 aem-render = { path = "../aem-render" }
 serde_json.workspace = true
 pollster.workspace = true
+wgpu.workspace = true
+image.workspace = true
+bytemuck.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"

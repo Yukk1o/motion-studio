@@ -170,6 +170,15 @@ impl<T: Tween> Track<T> {
         self.keys.remove(index);
         Ok(())
     }
+    pub fn copy_key(&mut self, from: u32, to: u32) -> Result<()> {
+        let key = self
+            .keys
+            .iter()
+            .find(|k| k.frame == from)
+            .ok_or_else(|| crate::Error::Invalid("keyframe not found".into()))?
+            .clone();
+        self.upsert(to, key.value, key.ease)
+    }
     pub fn set_ease(&mut self, frame: u32, ease: Ease) -> Result<()> {
         let index = self
             .keys
