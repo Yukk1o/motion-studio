@@ -6,6 +6,9 @@ import java.nio.ByteBuffer
 object NativeBridge {
     init { System.loadLibrary("motion_engine") }
     @JvmStatic external fun create(root: String, project: String): Long
+    @JvmStatic external fun creationError():String
+    @JvmStatic external fun newProject(id:Long,project:String):String
+    @JvmStatic external fun openProject(id:Long,directory:String):String
     @JvmStatic external fun state(id: Long): String
     @JvmStatic external fun command(id: Long, json: String): String
     @JvmStatic external fun drag(id: Long, objectId: Long, dx: Double, dy: Double, width: Int, height: Int): String

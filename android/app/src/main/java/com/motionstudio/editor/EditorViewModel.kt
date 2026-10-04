@@ -1,6 +1,7 @@
 package com.motionstudio.editor
 
 import android.app.Application
+import android.content.Intent
 import android.graphics.*
 import android.net.Uri
 import android.os.Handler
@@ -18,6 +19,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.*
 
 data class StudioState(
@@ -26,10 +28,11 @@ data class StudioState(
     val observing: Boolean = false, val error: String? = null,
     val busy: Boolean = false, val saved: Boolean = false,
 )
+data class ProjectSummary(val directory:String,val name:String,val width:Int,val height:Int,val fps:Int,val modified:Long)
 
 private fun activeProjectDirectory(app:Application):File {
     val saved=app.getSharedPreferences("motion-studio",0).getString("activeProject","default")?:"default"
-    val name=if(saved=="default"||saved.matches(Regex("import-[0-9]+")))saved else "default"
+    val name=if(saved=="default"||saved.matches(Regex("(?:import|project)-[0-9]+")))saved else "default"
     return File(app.filesDir,"studio/"+name)
 }
 
@@ -42,11 +45,19 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var panelOpen by mutableStateOf(false)
     var timelineScale by mutableFloatStateOf(1.5f)
     var scaleLinked by mutableStateOf(true)
+    var loadFailed by mutableStateOf(false);private set
+    var projects by mutableStateOf<List<ProjectSummary>>(emptyList());private set
+    var lastSavedOutput by mutableStateOf<Uri?>(null);private set
+    var pendingOutput:File?=null
+    var pendingOutputKind:String="png"
+    var lastOutputSelection:Uri?=null;private set
+    @Volatile var outputPhase:String="idle";private set
+    val isClosed:Boolean get()=closed.get()
     var exporting by mutableStateOf(false); private set
     var exportProgress by mutableFloatStateOf(0f); private set
     private var exporter:VideoExporter?=null
     private val persistProjectSelection=projectDirectory==null
-    var root = (projectDirectory?:activeProjectDirectory(app)).apply { mkdirs() }; private set
+    var root = (projectDirectory?:activeProjectDirectory(app)).apply { mkdirs() }.canonicalFile; private set
     private val workerThread = HandlerThread("motion-render").apply { start() }
     private val worker = Handler(workerThread.looper)
     private val main = Handler(app.mainLooper)
@@ -54,6 +65,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private val closed = AtomicBoolean(false)
     private val queued = AtomicBoolean(false)
     private val surfaceReady = AtomicBoolean(false)
+    private val surfaceRequest=AtomicLong()
     private val dirty = AtomicBoolean(true)
     private val foreground=AtomicBoolean(true)
     private var currentSurface:Surface?=null
@@ -89,25 +101,51 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         worker.post {
             try {
                 id=NativeBridge.create(root.absolutePath,"")
-                check(id!=0L){"工程无法打开，请先备份工程文件"}
+                check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
                 publish(NativeBridge.state(id),root.resolve("project.json").exists())
-            } catch(e:Throwable) {fail(e.message?:"原生引擎初始化失败")}
+            } catch(e:Throwable) {main.post{loadFailed=true};fail(e.message?:"原生引擎初始化失败")}
         }
         Choreographer.getInstance().postFrameCallback(tick)
     }
-    private fun fail(message:String) {main.post {state=state.copy(error=message,busy=false)}}
+    private fun fail(message:String,surfaceGeneration:Long?=null) {main.post {
+        if(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())state=state.copy(error=message,busy=false)
+    }}
     fun clearError() {state=state.copy(error=null)}
-    private fun publish(raw:String,saved:Boolean?=null,repaint:Boolean=true) {
+    fun completeOutputSelection(uri:Uri?) {
+        lastOutputSelection=uri
+        if(uri==null){pendingOutput=null;return}
+        val file=pendingOutput
+        if(file==null){fail("导出源文件已失效，请重新导出");return}
+        saveOutput(file,uri)
+    }
+    fun saveOutput(file:File,uri:Uri) {
+        state=state.copy(busy=true);lastSavedOutput=null;outputPhase="queued"
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                outputPhase="opening"
+                val resolver=getApplication<Application>().contentResolver
+                runCatching{resolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)}
+                val output=resolver.openOutputStream(uri,"w")?:error("所选位置无法写入")
+                outputPhase="copying"
+                output.use{out->file.inputStream().use{it.copyTo(out)}}
+                outputPhase="completing"
+                withContext(Dispatchers.Main){lastSavedOutput=uri;pendingOutput=null;state=state.copy(busy=false)}
+                outputPhase="done"
+            }catch(e:Throwable){outputPhase="failed: "+e.javaClass.simpleName+": "+e.message
+                fail(if(e is SecurityException)"所选位置未授予写入权限，请重新选择文件夹。导出源文件已保留。" else "保存文件失败："+(e.message?:"请重新选择位置"))}
+        }
+    }
+    private fun publish(raw:String,saved:Boolean?=null,repaint:Boolean=true,surfaceGeneration:Long?=null) {
         try {
             val r=JSONObject(raw)
-            if(!r.optBoolean("ok")) {fail(r.optString("error","操作失败"));return}
+            if(!r.optBoolean("ok")) {fail(r.optString("error","操作失败"),surfaceGeneration);return}
             val d=r.getJSONObject("data")
             main.post {
-                if(!closed.get()) {
+                if(!closed.get()&&(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())) {
                     val savedState=saved?:if(state.sample!=null&&state.sample!!.optLong("revision")!=d.optLong("revision"))false else state.saved
                     state=StudioState(d.getJSONObject("project"),d,d.optBoolean("canUndo"),
                         d.optBoolean("canRedo"),d.optBoolean("observing"),
-                        if(d.isNull("renderError"))null else d.optString("renderError"),false,savedState)
+                        if(d.isNull("renderError"))state.error else d.optString("renderError"),false,savedState)
                     if(d.has("root")) {
                         val nextRoot=File(d.getString("root"))
                         if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false}
@@ -135,16 +173,26 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun attach(surface:Surface,width:Int,height:Int) {
         currentSurface=surface;surfaceWidth=width;surfaceHeight=height
+        val request=surfaceRequest.incrementAndGet()
         surfaceReady.set(false)
-        invoke {
-            val result=NativeBridge.surface(id,surface,width,height)
-            surfaceReady.set(JSONObject(result).optBoolean("ok"));result
+        worker.post {
+            if(id==0L||closed.get()||request!=surfaceRequest.get()||!surface.isValid)return@post
+            try {
+                val result=NativeBridge.surface(id,surface,width,height)
+                if(request==surfaceRequest.get()&&surface.isValid) {
+                    val success=JSONObject(result).optBoolean("ok")
+                    surfaceReady.set(success)
+                    if(success)main.post{loadFailed=false}
+                    publish(result,surfaceGeneration=request)
+                }
+            }catch(error:Throwable){if(request==surfaceRequest.get())fail(error.message?:"预览初始化失败",request)}
         }
     }
     fun detach() {
+        val request=surfaceRequest.incrementAndGet()
         currentSurface=null
         surfaceReady.set(false)
-        worker.post {if(id!=0L)NativeBridge.surface(id,null,0,0)}
+        worker.post {if(id!=0L&&request==surfaceRequest.get())NativeBridge.surface(id,null,0,0)}
     }
     fun pause() {
         if(playing) {playing=false;val f=frame;invoke {NativeBridge.seek(id,f)}}
@@ -153,6 +201,55 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun resumePreview(){foreground.set(true);dirty.set(true)}
     fun refreshDiagnostics(){invoke(repaint=false){NativeBridge.state(id)}}
     fun retryPreview(){currentSurface?.takeIf{it.isValid}?.let{clearError();attach(it,surfaceWidth,surfaceHeight)}}
+    private fun attachRecoveredSession():String {
+        return currentSurface?.takeIf{it.isValid}?.let{surface->
+            val result=NativeBridge.surface(id,surface,surfaceWidth,surfaceHeight)
+            val envelope=JSONObject(result);surfaceReady.set(envelope.optBoolean("ok"))
+            check(envelope.optBoolean("ok")){envelope.optString("error","预览初始化失败")};result
+        }?:NativeBridge.state(id)
+    }
+    fun retryOpen() {
+        if(id!=0L){clearError();retryPreview();return}
+        state=state.copy(busy=true,error=null)
+        worker.post {
+            try {
+                id=NativeBridge.create(root.absolutePath,"");check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
+                val result=attachRecoveredSession();main.post{loadFailed=false};publish(result,true)
+            }catch(e:Throwable){fail(e.message?:"工程重试失败")}
+        }
+    }
+    fun refreshProjects() {
+        val active=root;val parent=active.parentFile?:return
+        viewModelScope.launch(Dispatchers.IO) {
+            val library=parent.canonicalFile
+            val items=parent.listFiles().orEmpty().filter{it.isDirectory&&(it.name==active.name||it.name=="default"||it.name.matches(Regex("(?:project|import)-[0-9]+")))}
+                .mapNotNull{folder->runCatching {
+                    if(folder.canonicalFile.parentFile!=library)return@runCatching null
+                    val file=File(folder,"project.json");if(!file.isFile||file.length()>16*1024*1024)return@runCatching null
+                    val json=JSONObject(file.readText())
+                    ProjectSummary(folder.name,json.optString("name",folder.name),json.optInt("width"),json.optInt("height"),json.optInt("fps"),file.lastModified())
+                }.getOrNull()}.sortedByDescending{it.modified}
+            withContext(Dispatchers.Main){projects=items}
+        }
+    }
+    fun openProject(directory:String) {
+        pause();state=state.copy(busy=true,error=null)
+        worker.post {
+            try {
+                if(id==0L) {
+                    val parent=root.parentFile!!.canonicalFile
+                    val file=File(parent,directory).canonicalFile
+                    check(file.parentFile==parent){"工程目录无效"}
+                    id=NativeBridge.create(file.absolutePath,"");check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
+                    val result=attachRecoveredSession();main.post{loadFailed=false};publish(result,true)
+                }else {
+                    val result=NativeBridge.openProject(id,directory)
+                    if(JSONObject(result).optBoolean("ok"))main.post{loadFailed=false}
+                    publish(result,true)
+                }
+            }catch(e:Throwable){fail(e.message?:"打开工程失败")}
+        }
+    }
     fun togglePlay() {
         if(playing)pause() else if(state.project!=null) {
             startFrame=frame;startNanos=System.nanoTime();playing=true
@@ -374,7 +471,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun newProject(width:Int,height:Int,fps:Int=30) {
-        pause();frame=0.0
+        pause();state=state.copy(busy=true,error=null)
         val target=JSONArray(listOf(width/2f,height/2f,0))
         val distance=height/(2*tan(Math.toRadians(22.5)))
         val camera=JSONObject().put("mode","position").put("position",channel(JSONArray(listOf(width/2f,height/2f,-distance))))
@@ -383,17 +480,51 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val project=JSONObject().put("version",1).put("name","新建工程").put("width",width).put("height",height)
             .put("fps",fps).put("frames",fps*6).put("background",JSONArray(listOf(.05,.06,.09,1)))
             .put("camera",camera).put("assets",JSONArray()).put("layers",JSONArray())
-        invoke(true){NativeBridge.replace(id,project.toString())}
-        selected=0L;property="position";panelOpen=false
+        worker.post {
+            try {
+                if(id==0L) {
+                    val destination=File(root.parentFile,"project-"+System.nanoTime()).apply{mkdirs()}
+                    id=NativeBridge.create(destination.absolutePath,project.toString());check(id!=0L){NativeBridge.creationError()}
+                    val saved=JSONObject(NativeBridge.save(id));check(saved.optBoolean("ok")){saved.optString("error")}
+                    val result=attachRecoveredSession();main.post{loadFailed=false};publish(result,true)
+                }else {
+                    val result=NativeBridge.newProject(id,project.toString())
+                    if(JSONObject(result).optBoolean("ok"))main.post{loadFailed=false;selected=0L;property="position";panelOpen=false}
+                    publish(result,true)
+                }
+            }catch(e:Throwable){fail(e.message?:"新建工程失败")}
+        }
     }
     fun importProject(uri:Uri) {
         pause();state=state.copy(busy=true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val file=File(root,"incoming-"+UUID.randomUUID()+".motion")
-                getApplication<Application>().contentResolver.openInputStream(uri)?.use{input->file.outputStream().use{input.copyTo(it)}}
-                    ?:error("无法打开工程文件")
-                invoke(true){NativeBridge.importProject(id,file.absolutePath)}
+                val file=File(root.parentFile,"incoming-"+UUID.randomUUID()+".motion")
+                try {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use{input->file.outputStream().use{out->
+                        val buffer=ByteArray(32*1024);var total=0L
+                        while(true){val read=input.read(buffer);if(read<0)break;total+=read;check(total<=512L*1024*1024){"工程包超过 512 MiB"};out.write(buffer,0,read)}
+                    }}?:error("无法打开工程文件")
+                }catch(error:Throwable){file.delete();throw error}
+                worker.post {
+                    val recovering=id==0L
+                    var temporary:File?=null
+                    try {
+                        if(recovering) {
+                            temporary=File(root.parentFile,"project-"+System.nanoTime()).apply{mkdirs()}
+                            id=NativeBridge.create(temporary!!.absolutePath,"");check(id!=0L){NativeBridge.creationError()}
+                        }
+                        val result=NativeBridge.importProject(id,file.absolutePath)
+                        val envelope=JSONObject(result)
+                        check(envelope.optBoolean("ok")){envelope.optString("error","工程导入失败")}
+                        val saved=NativeBridge.save(id);check(JSONObject(saved).optBoolean("ok")){JSONObject(saved).optString("error")}
+                        val stateResult=if(recovering)attachRecoveredSession()else saved
+                        main.post{loadFailed=false};publish(stateResult,true)
+                    }catch(e:Throwable) {
+                        if(recovering&&id!=0L){NativeBridge.destroy(id);id=0L}
+                        fail(e.message?:"工程导入失败")
+                    }finally {file.delete();temporary?.delete()}
+                }
             } catch(e:Throwable){fail(e.message?:"工程导入失败")}
         }
     }
