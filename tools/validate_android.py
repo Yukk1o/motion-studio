@@ -17,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial", required=True)
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--classes", default="com.motionstudio.editor.AcceptanceInstrumentedTest,com.motionstudio.editor.EditorGestureTest,com.motionstudio.editor.PropertyOverlayTest")
+    parser.add_argument("--classes", default="com.motionstudio.editor.AcceptanceInstrumentedTest,com.motionstudio.editor.EditorGestureTest,com.motionstudio.editor.PropertyOverlayTest,com.motionstudio.editor.MotionInteractionTest")
     args = parser.parse_args()
     shared = next(p for p in [ROOT, *ROOT.parents] if (p / ".tools/environment.json").exists())
     config = json.loads((shared / ".tools/environment.json").read_text(encoding="utf-8"))
