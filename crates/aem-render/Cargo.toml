@@ -1,0 +1,19 @@
+[package]
+name = "aem-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aem-core = { path = "../aem-core" }
+wgpu.workspace = true
+glam.workspace = true
+bytemuck.workspace = true
+image.workspace = true
+pollster.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3.17"
+

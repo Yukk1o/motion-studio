@@ -1,0 +1,10 @@
+/target/
+/.tools/
+/artifacts/
+/.research/
+/.worktrees/
+/android/.gradle/
+/android/local.properties
+/android/**/build/
+/android/app/src/main/jniLibs/
+*.tmp
