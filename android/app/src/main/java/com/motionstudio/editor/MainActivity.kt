@@ -48,11 +48,11 @@ import java.io.File
 import java.util.Locale
 import kotlin.math.*
 
-private val Background=Color(0xFF171A26)
-private val Panel=Color(0xFF202431)
-private val Accent=Color(0xFF37D4BE)
-private val Ink=Color(0xFFE6EAF2)
-private val Muted=Color(0xFF9DA6B7)
+internal val Background=Color(0xFF171A26)
+internal val Panel=Color(0xFF202431)
+internal val Accent=Color(0xFF37D4BE)
+internal val Ink=Color(0xFFE6EAF2)
+internal val Muted=Color(0xFF9DA6B7)
 
 class MainActivity:ComponentActivity() {
     private val model:EditorViewModel by viewModels()
@@ -68,7 +68,7 @@ class MainActivity:ComponentActivity() {
         onSurface=Ink,onBackground=Ink),content=content)
 }
 
-@Composable private fun Tool(icon:ImageVector,label:String,enabled:Boolean=true,action:()->Unit) {
+@Composable internal fun Tool(icon:ImageVector,label:String,enabled:Boolean=true,action:()->Unit) {
     IconButton(onClick=action,enabled=enabled,modifier=Modifier.size(48.dp)) {
         Icon(icon,label,tint=if(enabled)Ink else Muted.copy(alpha=.35f),modifier=Modifier.size(22.dp))
     }
@@ -120,13 +120,7 @@ class MainActivity:ComponentActivity() {
                 Preview(vm,Modifier.weight(1f).fillMaxWidth())
                 Transport(vm)
                 Timeline(vm,Modifier.fillMaxWidth().height(timelineHeight))
-                Row(Modifier.fillMaxWidth().height(52.dp).background(Panel).padding(horizontal=16.dp),
-                    verticalAlignment=Alignment.CenterVertically) {
-                    Icon(if(vm.selected==0L)Icons.Default.Videocam else Icons.Default.Layers,null,Modifier.size(22.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(if(vm.selected==0L)"摄影机 1" else vm.layer(vm.selected)?.optString("name")?:"图层",Modifier.weight(1f),fontSize=13.sp)
-                    TextButton(onClick={vm.panelOpen=true}){Text("编辑参数",color=Accent,fontSize=12.sp)}
-                }
+                EditorFooter(vm)
             }
             if(!vm.panelOpen) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {
@@ -190,26 +184,66 @@ class MainActivity:ComponentActivity() {
                 override fun surfaceDestroyed(holder:SurfaceHolder){vm.detach()}
             })
         }},modifier=Modifier.fillMaxSize())
-        Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(vm.selected,vm.state.observing) {
+        Canvas(Modifier.fillMaxSize()) {
+            if(!vm.playing&&vm.selected!=0L) {
+                previewPolygons(vm,size.width,size.height).firstOrNull{it.first==vm.selected}?.second?.let{points->
+                    val outline=Path().apply{moveTo(points[0].x,points[0].y);points.drop(1).forEach{lineTo(it.x,it.y)};close()}
+                    drawPath(outline,Accent,style=androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
+                    points.forEach{drawRect(Ink,Offset(it.x-3.dp.toPx(),it.y-3.dp.toPx()),Size(6.dp.toPx(),6.dp.toPx()))}
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(Unit) {
             awaitEachGesture {
-                awaitFirstDown(requireUnconsumed=false)
-                vm.beginGesture()
-                do {
-                    val event=awaitPointerEvent()
-                    val pan=event.calculatePan()
-                    val zoom=event.calculateZoom()
-                    if(pan.getDistance()>0.1f||abs(zoom-1f)>.002f) {
-                        if(vm.state.observing)vm.observe(true,pan.x*.18,pan.y*.18)
-                        else if(vm.selected==0L) {
-                            if(abs(zoom-1f)>.002f)vm.dolly((zoom-1f)*800f)
-                            if(pan.getDistance()>.1f)vm.pan(pan.x*3f,-pan.y*3f)
-                        } else {
-                            vm.moveLayer(pan.x,pan.y,size.width,size.height)
+                val down=awaitFirstDown()
+                val selectedCorners=previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).firstOrNull{it.first==vm.selected}?.second
+                val handleRadius=selectedCorners?.let{points->min(20.dp.toPx(),points.indices.minOf{(points[it]-points[(it+1)%points.size]).getDistance()}/3f)}?:0f
+                val resize=!vm.state.observing&&selectedCorners?.any{(it-down.position).getDistance()<=handleRadius}==true
+                if(!resize&&!vm.state.observing)previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).asReversed()
+                    .firstOrNull{insideQuad(down.position,it.second)}?.let{vm.select(it.first,false)}
+                var total=Offset.Zero;var active=false
+                val at=floor(vm.frame).toInt();val objectId=vm.selected
+                var scale=vm.sampleValueFor(objectId,"scale") as? JSONArray
+                val initialScale=scale?.let{JSONArray(it.toString())}
+                val anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
+                val startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
+                var rotation=vm.sampleValueFor(objectId,"rotation") as? JSONArray
+                try {
+                    do {
+                        val event=awaitPointerEvent()
+                        val pan=event.calculatePan();total+=pan
+                        val zoom=event.calculateZoom();val angle=event.calculateRotation()
+                        var startedNow=false
+                        if(!active&&(total.getDistance()>viewConfiguration.touchSlop||abs(zoom-1f)>.002f||abs(angle)>.1f)) {
+                            if(vm.editable()||vm.state.observing){vm.beginGesture();active=true;startedNow=true}
                         }
-                        event.changes.forEach{it.consume()}
-                    }
-                } while(event.changes.any{it.pressed})
-                vm.endGesture()
+                        if(active) {
+                            val movement=if(startedNow)total else pan
+                            if(vm.state.observing)vm.observe(true,movement.x*.18,movement.y*.18)
+                            else if(objectId==0L) {
+                                if(abs(zoom-1f)>.002f)vm.dolly((zoom-1f)*800f)
+                                if(movement.getDistance()>.1f)vm.pan(movement.x*3f,-movement.y*3f)
+                            } else {
+                                if(resize&&anchor!=null&&initialScale!=null&&startRadius>1f) {
+                                    val ratio=(event.changes.first().position-anchor).getDistance()/startRadius
+                                    scale=JSONArray(initialScale.toString()).put(0,(initialScale.getDouble(0)*ratio).coerceIn(-100000.0,100000.0))
+                                        .put(1,(initialScale.getDouble(1)*ratio).coerceIn(-100000.0,100000.0))
+                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false)
+                                } else if(movement.getDistance()>.1f)vm.moveLayer(movement.x,movement.y,size.width,size.height)
+                                if(!resize&&abs(zoom-1f)>.002f)scale?.let{old->
+                                    scale=JSONArray(old.toString()).put(0,(old.getDouble(0)*zoom).coerceIn(-100000.0,100000.0))
+                                        .put(1,(old.getDouble(1)*zoom).coerceIn(-100000.0,100000.0))
+                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false)
+                                }
+                                if(!resize&&abs(angle)>.1f)rotation?.let{old->
+                                    rotation=JSONArray(old.toString()).put(2,old.getDouble(2)+angle)
+                                    vm.setPropertyValue(objectId,"rotation",at,rotation!!,false)
+                                }
+                            }
+                            event.changes.forEach{it.consume()}
+                        }
+                    } while(event.changes.any{it.pressed})
+                } finally {if(active)vm.endGesture()}
             }
         })
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
@@ -234,193 +268,12 @@ class MainActivity:ComponentActivity() {
         Tool(Icons.Default.SkipPrevious,"上一帧"){vm.step(-1)}
         Tool(if(vm.playing)Icons.Default.Pause else Icons.Default.PlayArrow,"播放/暂停",action=vm::togglePlay)
         Tool(Icons.Default.SkipNext,"下一帧"){vm.step(1)}
-        Tool(Icons.Default.Diamond,"添加关键帧",action=vm::addKey)
+        Tool(Icons.Default.Diamond,if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧",vm.editable(),vm::toggleKey)
         Tool(Icons.Default.CropFree,"观察视图"){vm.observe(!vm.state.observing)}
     }
 }
 
-private data class TimelineRow(val id:Long,val name:String,val color:Color,val visible:Boolean,val locked:Boolean,val track:JSONObject?)
-@Composable private fun Timeline(vm:EditorViewModel,modifier:Modifier) {
-    val context=LocalContext.current
-    val density=context.resources.displayMetrics.density
-    val p=vm.state.project
-    val rows=buildList {
-        if(p!=null) {
-            add(TimelineRow(0,"摄影机 1",Color(0xFFE5C17E),true,false,p.getJSONObject("camera").optJSONObject(if(vm.selected==0L)vm.property else "position")))
-            val layers=p.getJSONArray("layers")
-            for(i in layers.length()-1 downTo 0) {
-                val l=layers.getJSONObject(i)
-                add(TimelineRow(l.getLong("id"),l.getString("name"),listOf(Color(0xFF6EADE8),Color(0xFFAD9DE0),Color(0xFF67BFAF))[i%3],
-                    l.getBoolean("visible"),l.getBoolean("locked"),l.getJSONObject("transform").optJSONObject(if(vm.selected==l.getLong("id"))vm.property else "position")))
-            }
-        }
-    }
-    var vertical by remember{mutableFloatStateOf(0f)}
-    var editKey by remember{mutableStateOf<Int?>(null)}
-    Canvas(modifier.testTag("timeline").pointerInput(rows,vm.timelineScale) {
-        detectTapGestures(onTap={pos->
-            val r=((pos.y-44*density+vertical)/(52*density)).toInt()
-            if(pos.y>=44*density&&r in rows.indices) {
-                val row=rows[r]
-                if(pos.x<48*density&&row.id!=0L)vm.flags(row.id,!row.visible,row.locked)
-                else {
-                    val scale=vm.timelineScale*density
-                    val key=row.track?.optJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it).getInt("frame")}
-                        .firstOrNull{abs(size.width/2f+(it-vm.frame)*scale-pos.x)<16*density}}
-                    vm.select(row.id);key?.let{vm.seek(it.toDouble())}
-                }
-            }
-        },onLongPress={pos->
-            val r=((pos.y-44*density+vertical)/(52*density)).toInt()
-            if(r in rows.indices) {
-                val row=rows[r]
-                val key=row.track?.optJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it).getInt("frame")}
-                    .firstOrNull{abs(size.width/2f+(it-vm.frame)*vm.timelineScale*density-pos.x)<24*density}}
-                if(key!=null){vm.select(row.id);editKey=key}
-            }
-        })
-    }.pointerInput(vm.timelineScale,rows.size) {
-        detectTransformGestures{_,pan,zoom,_->
-            if(abs(zoom-1)>0.01f)vm.timelineScale=(vm.timelineScale*zoom).coerceIn(.4f,12f)
-            else if(abs(pan.x)>abs(pan.y))vm.seek(vm.frame-pan.x/(vm.timelineScale*density))
-            else vertical=(vertical-pan.y).coerceIn(0f,max(0f,rows.size*52*density-size.height+44*density))
-        }
-    }) {
-        val rowHeight=52*density;val head=44*density
-        val center=size.width/2;val scale=vm.timelineScale*density
-        val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{color=android.graphics.Color.LTGRAY;textSize=11*density}
-        val startFrame=max(0,(vm.frame-center/scale).toInt())
-        val endFrame=min((p?.optInt("frames")?:180),ceil(vm.frame+center/scale).toInt())
-        for(f in startFrame..endFrame) {
-            val x=center+(f-vm.frame).toFloat()*scale
-            if(f%5==0)drawLine(Muted.copy(alpha=.5f),Offset(x,0f),Offset(x,if(f%30==0)13*density else 7*density),density)
-        }
-        val fps=p?.optInt("fps")?:30
-        val current=floor(vm.frame).toInt()
-        val time=String.format(Locale.US,"%02d:%02d:%02d",current/fps/60,current/fps%60,current%fps)
-        drawRoundRect(Panel,Offset(center-48*density,16*density),Size(96*density,23*density),androidx.compose.ui.geometry.CornerRadius(4*density))
-        paint.textAlign=android.graphics.Paint.Align.CENTER
-        drawContext.canvas.nativeCanvas.drawText(time,center,32*density,paint)
-        clipRect(top=head) {
-        rows.forEachIndexed{index,row->
-            val y=head+index*rowHeight-vertical
-            if(y+rowHeight<head||y>size.height)return@forEachIndexed
-            val x=center-vm.frame.toFloat()*scale
-            val length=(p?.optInt("frames")?:180)*scale
-            drawRoundRect(row.color.copy(alpha=if(row.visible)1f else .3f),Offset(max(49*density,x),y+7*density),
-                Size(max(0f,min(size.width-12*density,x+length)-max(49*density,x)),30*density),androidx.compose.ui.geometry.CornerRadius(4*density))
-            paint.color=android.graphics.Color.rgb(23,33,41);paint.textAlign=android.graphics.Paint.Align.LEFT;paint.textSize=12*density
-            drawContext.canvas.nativeCanvas.drawText(row.name,max(58*density,x+12*density),y+27*density,paint)
-            drawCircle(if(row.visible)Ink else Muted,8*density,Offset(23*density,y+25*density),style=androidx.compose.ui.graphics.drawscope.Stroke(1.4f*density))
-            drawCircle(Ink,2*density,Offset(23*density,y+25*density))
-            row.track?.optJSONArray("keys")?.let{a->
-                for(i in 0 until a.length()) {
-                    val f=a.getJSONObject(i).getInt("frame");val kx=center+(f-vm.frame).toFloat()*scale
-                    val ky=y+43*density
-                    val path=Path().apply{moveTo(kx,ky-5*density);lineTo(kx+5*density,ky);lineTo(kx,ky+5*density);lineTo(kx-5*density,ky);close()}
-                    drawPath(path,Accent)
-                }
-            }
-        }
-        }
-        drawLine(Ink.copy(alpha=.65f),Offset(center,head),Offset(center,size.height),density)
-    }
-    editKey?.let{key->var target by remember(key){mutableStateOf(key.toString())}
-        AlertDialog(onDismissRequest={editKey=null},title={Text("关键帧 "+key)},
-            text={Column {
-                OutlinedTextField(target,{target=it},label={Text("目标帧")})
-                TextButton(onClick={target.toIntOrNull()?.let{vm.copyKey(key,it)};editKey=null}){Text("复制到目标帧")}
-            }},
-            confirmButton={TextButton(onClick={target.toIntOrNull()?.let{vm.moveKey(key,it)};editKey=null}){Text("移动")}},
-            dismissButton={TextButton(onClick={vm.deleteKey(key);editKey=null}){Text("删除")}})
-    }
-}
-
-@Composable private fun Properties(vm:EditorViewModel,modifier:Modifier) {
-    var rename by remember{mutableStateOf(false)}
-    var more by remember{mutableStateOf(false)}
-    var ease by remember{mutableStateOf(false)}
-    val camera=vm.selected==0L
-    val mode=vm.state.project?.optJSONObject("camera")?.optString("mode")?:"position"
-    val choices=if(camera) {
-        if(mode=="orbit")listOf("radius" to "距离","azimuth" to "方位","elevation" to "俯仰","target" to "目标点","fov" to "视角","roll" to "滚转")
-        else listOf("position" to "位置","target" to "目标点","fov" to "视角","roll" to "滚转")
-    } else listOf("position" to "位置","rotation" to "旋转","scale" to "缩放","opacity" to "透明度")
-    Column(modifier.testTag("properties-panel").background(Panel,RoundedCornerShape(topStart=12.dp,topEnd=12.dp))
-        .pointerInput(Unit) {
-            // This pointer node claims the panel's hit region over its siblings.
-            // Leave events unconsumed so child controls and scrolling still work.
-            awaitPointerEventScope {while(true)awaitPointerEvent()}
-        }.padding(horizontal=16.dp)) {
-        Box(Modifier.fillMaxWidth().height(12.dp),contentAlignment=Alignment.Center){Box(Modifier.size(36.dp,3.dp).background(Muted.copy(alpha=.4f),RoundedCornerShape(2.dp)))}
-        Row(Modifier.fillMaxWidth().height(48.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(if(camera)"摄影机 1" else vm.layer(vm.selected)?.optString("name")?:"图层",Modifier.weight(1f),fontSize=16.sp)
-            TextButton(onClick=vm::animate){Text(if(vm.keys().isEmpty())"动画 关" else "动画 开",fontSize=12.sp,color=Accent)}
-            Box {
-                Tool(Icons.Default.MoreVert,"图层操作"){more=true}
-                DropdownMenu(more,{more=false}) {
-                    if(camera)DropdownMenuItem(text={Text(if(mode=="orbit")"切换位置路径" else "切换环绕轨道")},onClick={more=false;vm.cameraMode(mode!="orbit");vm.property=if(mode=="orbit")"position" else "radius"})
-                    else {
-                        DropdownMenuItem(text={Text("重命名")},onClick={more=false;rename=true})
-                        DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
-                        DropdownMenuItem(text={Text("上移图层")},onClick={more=false;vm.reorder(1)})
-                        DropdownMenuItem(text={Text("下移图层")},onClick={more=false;vm.reorder(-1)})
-                        DropdownMenuItem(text={Text("锁定 / 解锁")},onClick={more=false;vm.layer(vm.selected)?.let{vm.flags(vm.selected,it.getBoolean("visible"),!it.getBoolean("locked"))}})
-                        DropdownMenuItem(text={Text("删除图层")},onClick={more=false;vm.deleteLayer()})
-                    }
-                }
-            }
-            Tool(Icons.Default.Close,"关闭属性面板"){vm.panelOpen=false}
-        }
-        Column(Modifier.weight(1f).fillMaxWidth().testTag("property-values").verticalScroll(rememberScrollState())) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            choices.forEach{(key,label)->TextButton(onClick={vm.pause();vm.property=key},modifier=Modifier.height(48.dp)){
-                Text(label,fontSize=12.sp,color=if(vm.property==key)Accent else Muted)
-            }}
-        }
-        val sampled=vm.sampleValue()
-        if(sampled is JSONArray) {
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                for(i in 0 until min(3,sampled.length())) {
-                    NumericField(listOf("X","Y","Z")[i],sampled.optDouble(i),Modifier.weight(1f)) {value->
-                        val arr=JSONArray(sampled.toString());arr.put(i,value);vm.setValue(arr)
-                    }
-                }
-            }
-        } else if(sampled is Number) {
-            NumericField(choices.firstOrNull{it.first==vm.property}?.second?:"数值",sampled.toDouble(),Modifier.fillMaxWidth()) {vm.setValue(it)}
-        }
-        Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text("点按输入精确值",Modifier.weight(1f),fontSize=11.sp,color=Muted)
-            TextButton(onClick={ease=true}){Text("缓动",fontSize=12.sp,color=Accent)}
-        }
-        }
-        Row(Modifier.fillMaxWidth().height(56.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            Tool(Icons.Default.SkipPrevious,"上一关键帧"){vm.jumpKey(false)}
-            Button(onClick=vm::addKey,modifier=Modifier.weight(1f).height(48.dp),shape=RoundedCornerShape(5.dp)){Text("+ 添加关键帧",fontSize=12.sp,color=Background)}
-            Tool(Icons.Default.SkipNext,"下一关键帧"){vm.jumpKey(true)}
-        }
-    }
-    if(rename)InputDialog("图层名称",vm.layer(vm.selected)?.optString("name")?:"",onDismiss={rename=false}){vm.rename(it);rename=false}
-    if(ease)AlertDialog(onDismissRequest={ease=false},title={Text("关键帧缓动")},
-        text={Column{listOf("linear" to "线性","in" to "缓入","out" to "缓出","in_out" to "缓入缓出","hold" to "保持").forEach{(key,label)->
-            TextButton(onClick={vm.ease(key);ease=false},modifier=Modifier.fillMaxWidth()){Text(label)}
-        }}},confirmButton={TextButton(onClick={ease=false}){Text("取消")}})
-}
-@Composable private fun NumericField(label:String,value:Double,modifier:Modifier,onValue:(Double)->Unit) {
-    var edit by remember{mutableStateOf(false)}
-    Column(modifier) {
-        Text(label,fontSize=11.sp,color=Muted,modifier=Modifier.height(20.dp))
-        Surface(color=Background,shape=RoundedCornerShape(5.dp),modifier=Modifier.fillMaxWidth().height(48.dp).clickable{edit=true}) {
-            Box(contentAlignment=Alignment.Center){Text(String.format(Locale.US,"%.1f",value),fontSize=15.sp,fontFamily=FontFamily.Monospace)}
-        }
-    }
-    if(edit)InputDialog(label,String.format(Locale.US,"%.3f",value),onDismiss={edit=false}) {input->
-        val number=input.replace(',','.').toDoubleOrNull()
-        if(number!=null&&number.isFinite()){onValue(number);edit=false}
-    }
-}
-@Composable private fun InputDialog(title:String,initial:String,onDismiss:()->Unit,onConfirm:(String)->Unit) {
+@Composable internal fun InputDialog(title:String,initial:String,onDismiss:()->Unit,onConfirm:(String)->Unit) {
     var value by remember(initial){mutableStateOf(initial)}
     AlertDialog(onDismissRequest=onDismiss,title={Text(title)},
         text={OutlinedTextField(value,{value=it},singleLine=true)},
