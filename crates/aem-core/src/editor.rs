@@ -1,4 +1,4 @@
-use crate::{ensure, CameraMode, Ease, Error, Layer, Project, Result, Track};
+use crate::{ensure, Asset, CameraMode, Content, Ease, Error, Layer, Project, Result, Track};
 use glam::{EulerRot, Quat, Vec3};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -21,6 +21,20 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    CopyKey {
+        object: u64,
+        property: Property,
+        from: u32,
+        to: u32,
+    },
+    RegisterAsset {
+        asset: Asset,
+    },
+    Content {
+        object: u64,
+        content: Content,
+        size: [f32; 2],
+    },
     SetVector {
         object: u64,
         property: Property,
@@ -101,6 +115,12 @@ enum Channel<'a> {
     Vector(&'a mut Track<[f32; 3]>),
 }
 impl Channel<'_> {
+    fn copy_key(self, from: u32, to: u32) -> Result<()> {
+        match self {
+            Self::Scalar(t) => t.copy_key(from, to),
+            Self::Vector(t) => t.copy_key(from, to),
+        }
+    }
     fn animate(self, frame: u32, enabled: bool) -> Result<()> {
         match self {
             Self::Scalar(t) => t.set_animated(frame, enabled),
@@ -171,6 +191,16 @@ fn channel(project: &mut Project, object: u64, property: Property) -> Result<Cha
 fn apply_to(project: &mut Project, command: Command) -> Result<()> {
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
     match command {
+        Command::CopyKey {
+            object,
+            property,
+            from,
+            to,
+        } => {
+            valid_frame(from)?;
+            valid_frame(to)?;
+            channel(project, object, property)?.copy_key(from, to)?;
+        }
         Command::SetVector {
             object,
             property,
@@ -230,6 +260,19 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
         } => {
             valid_frame(frame)?;
             channel(project, object, property)?.ease(frame, ease)?;
+        }
+        Command::RegisterAsset { asset } => project.assets.push(asset),
+        Command::Content {
+            object,
+            content,
+            size,
+        } => {
+            let layer = project.layer_mut(object)?;
+            if layer.locked {
+                return Err(Error::Locked(object));
+            }
+            layer.content = content;
+            layer.size = size;
         }
         Command::Add { layer } => project.layers.push(layer),
         Command::Delete { object } => {

@@ -108,6 +108,32 @@ fn gpu_sorting_transparency_png_orientation_and_resource_reuse() {
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 1, 1), [255, 0, 0, 255]);
 
+    let cache_bytes = renderer.texture_bytes();
+    let mut invalid_project = p.clone();
+    invalid_project.assets[0].width = 3;
+    assert!(renderer
+        .replace_assets(&invalid_project, tmp.path())
+        .is_err());
+    assert_eq!(renderer.texture_bytes(), cache_bytes);
+    let (out, _) = renderer.capture(&scene, &target).unwrap();
+    assert_color(pixel(&out, 1, 1), [255, 0, 0, 255]);
+    // Replacing the project must reload identical IDs from their new resources.
+    image::save_buffer(
+        tmp.path().join("assets/b.png"),
+        &[0, 255, 0, 255],
+        1,
+        1,
+        image::ColorType::Rgba8,
+    )
+    .unwrap();
+    let mut replacement = p.clone();
+    replacement.assets[0].path = "assets/b.png".into();
+    replacement.assets[0].width = 1;
+    replacement.assets[0].height = 1;
+    renderer.replace_assets(&replacement, tmp.path()).unwrap();
+    let (out, _) = renderer.capture(&scene, &target).unwrap();
+    assert_color(pixel(&out, 1, 1), [0, 255, 0, 255]);
+
     p.background = [0.0; 4];
     p.layers[0].content = Content::Solid {
         color: [1.0, 0.0, 0.0, 0.5],
