@@ -4,10 +4,14 @@
 /.research/
 /.worktrees/
 /android/.gradle/
+/android/.kotlin/
+/android/hs_err_pid*.log
+/android/replay_pid*.log
 /android/local.properties
 /android/**/build/
 /android/app/src/main/jniLibs/
 *.tmp
+__pycache__/
 
 # Local reference material is excluded from version control.
 /design/ardot-handoff.json

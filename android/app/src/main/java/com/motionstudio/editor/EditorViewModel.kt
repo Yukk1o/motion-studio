@@ -51,6 +51,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var pendingOutput:File?=null
     var pendingOutputKind:String="png"
     var lastOutputSelection:Uri?=null;private set
+    var lastGpuFailure:String?=null;private set
     @Volatile var outputPhase:String="idle";private set
     val isClosed:Boolean get()=closed.get()
     var exporting by mutableStateOf(false); private set
@@ -88,7 +89,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     try { if(id!=0L && foreground.get() && surfaceReady.get() && !NativeBridge.render(id,target)) {
                         val envelope=JSONObject(NativeBridge.state(id))
                         val error=envelope.optJSONObject("data")?.optString("renderError","")?.takeIf{it!="null"&&it.isNotBlank()}
-                        if(error!=null){surfaceReady.set(false);fail(error)}else dirty.set(true)
+                        if(error!=null){surfaceReady.set(false);main.post{lastGpuFailure=error};fail("预览暂不可用，请重试预览。工程数据已保留。")}else dirty.set(true)
                     } }
                     catch(e:Throwable) { fail(e.message?:"预览失败") }
                     finally { queued.set(false) }
@@ -182,7 +183,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 if(request==surfaceRequest.get()&&surface.isValid) {
                     val success=JSONObject(result).optBoolean("ok")
                     surfaceReady.set(success)
-                    if(success)main.post{loadFailed=false}
+                    if(success)main.post{loadFailed=false;lastGpuFailure=null}
                     publish(result,surfaceGeneration=request)
                 }
             }catch(error:Throwable){if(request==surfaceRequest.get())fail(error.message?:"预览初始化失败",request)}
@@ -201,6 +202,14 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun resumePreview(){foreground.set(true);dirty.set(true)}
     fun refreshDiagnostics(){invoke(repaint=false){NativeBridge.state(id)}}
     fun retryPreview(){currentSurface?.takeIf{it.isValid}?.let{clearError();attach(it,surfaceWidth,surfaceHeight)}}
+    fun injectGraphicsFault(kind:Int) {
+        require(getApplication<Application>().applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE!=0){"Diagnostics require a debug application"}
+        require(state.sample?.optBoolean("diagnosticsEnabled")==true){"This native build excludes GPU diagnostic injection"}
+        worker.post {
+            val result=JSONObject(NativeBridge.injectGraphicsFault(id,kind))
+            if(!result.optBoolean("ok"))fail(result.optString("error"))else dirty.set(true)
+        }
+    }
     private fun attachRecoveredSession():String {
         return currentSurface?.takeIf{it.isValid}?.let{surface->
             val result=NativeBridge.surface(id,surface,surfaceWidth,surfaceHeight)

@@ -17,6 +17,8 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -42,6 +44,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
@@ -118,12 +123,16 @@ open class MainActivity:ComponentActivity() {
             val wide=maxWidth>maxHeight
             val availableHeight=maxHeight
             val availableWidth=maxWidth
+            val split=wide&&availableWidth>=552.dp
+            val sideWidth=if(split)(availableWidth*.48f).coerceIn(248.dp,320.dp).coerceAtMost(availableWidth-304.dp) else 0.dp
             val timelineHeight=if(wide)(availableHeight*.3f).coerceAtMost(132.dp)
                 else (availableHeight*.38f).coerceAtMost(300.dp)
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Tool(Icons.AutoMirrored.Filled.ArrowBack,"收起属性"){vm.panelOpen=false}
-                    Text(vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp)
+                    Tool(Icons.AutoMirrored.Filled.ArrowBack,if(vm.panelOpen)"收起属性" else "工程列表") {
+                        if(vm.panelOpen)vm.panelOpen=false else {vm.refreshProjects();library=true}
+                    }
+                    Text(vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                     Tool(Icons.Default.Settings,"合成设置"){settings=true}
                     Box {
                         Tool(Icons.Default.IosShare,"输出"){outputMenu=true}
@@ -134,10 +143,21 @@ open class MainActivity:ComponentActivity() {
                         }
                     }
                 }
-                Preview(vm,Modifier.weight(1f).fillMaxWidth())
-                Transport(vm)
-                Timeline(vm,Modifier.fillMaxWidth().height(timelineHeight))
-                EditorFooter(vm)
+                if(split)Row(Modifier.weight(1f).fillMaxWidth()) {
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        Preview(vm,Modifier.weight(1f).fillMaxWidth())
+                        Transport(vm)
+                    }
+                    Column(Modifier.width(sideWidth).fillMaxHeight()) {
+                        Timeline(vm,Modifier.weight(1f).fillMaxWidth())
+                        EditorFooter(vm)
+                    }
+                }else {
+                    Preview(vm,Modifier.weight(1f).fillMaxWidth())
+                    Transport(vm)
+                    Timeline(vm,Modifier.fillMaxWidth().height(timelineHeight))
+                    EditorFooter(vm)
+                }
             }
             if(!vm.panelOpen) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {
@@ -156,7 +176,8 @@ open class MainActivity:ComponentActivity() {
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
-                Properties(vm,if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
+                Properties(vm,if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-44.dp).coerceAtLeast(0.dp))
+                    else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
                     else Modifier.fillMaxWidth().height((availableHeight*.42f).coerceAtMost(304.dp)
                         .coerceAtMost(timelineHeight+8.dp)))
             }
@@ -190,7 +211,7 @@ open class MainActivity:ComponentActivity() {
             Spacer(Modifier.height(12.dp));Text((vm.exportProgress*100).toInt().toString()+"% · 本机编码")}},
         confirmButton={},dismissButton={TextButton(onClick=vm::cancelExport){Text("取消导出")}})
     if(settings)AlertDialog(onDismissRequest={settings=false},title={Text("Motion Studio · 合成")},
-        text={Column {
+        text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
             Text(vm.state.project?.let{it.getInt("width").toString()+" × "+it.getInt("height")+"\n"+
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
             TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
@@ -315,22 +336,41 @@ open class MainActivity:ComponentActivity() {
     }
 }
 @Composable private fun Transport(vm:EditorViewModel) {
-    Row(Modifier.fillMaxWidth().height(48.dp).testTag("transport").padding(horizontal=8.dp),
+    var more by remember{mutableStateOf(false)}
+    BoxWithConstraints(Modifier.fillMaxWidth().height(48.dp).testTag("transport")) {
+    val compact=maxWidth<352.dp
+    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),
         horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
         Tool(Icons.AutoMirrored.Filled.Undo,"撤销",vm.state.canUndo,vm::undo)
         Tool(Icons.AutoMirrored.Filled.Redo,"重做",vm.state.canRedo,vm::redo)
         Tool(Icons.Default.SkipPrevious,"上一帧"){vm.step(-1)}
         Tool(if(vm.playing)Icons.Default.Pause else Icons.Default.PlayArrow,"播放/暂停",action=vm::togglePlay)
         Tool(Icons.Default.SkipNext,"下一帧"){vm.step(1)}
-        Tool(Icons.Default.Diamond,if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧",vm.editable(),vm::toggleKey)
-        Tool(Icons.Default.CropFree,"观察视图"){vm.observe(!vm.state.observing)}
+        if(!compact) {
+            Tool(Icons.Default.Diamond,if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧",vm.editable(),vm::toggleKey)
+            Tool(Icons.Default.CropFree,"观察视图"){vm.observe(!vm.state.observing)}
+        }else Box {
+            Tool(Icons.Default.MoreHoriz,"更多播放操作"){more=true}
+            DropdownMenu(more,{more=false}) {
+                DropdownMenuItem(text={Text(if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧")},enabled=vm.editable(),onClick={more=false;vm.toggleKey()})
+                DropdownMenuItem(text={Text("观察视图")},onClick={more=false;vm.observe(!vm.state.observing)})
+            }
+        }
+    }
     }
 }
 
-@Composable internal fun InputDialog(title:String,initial:String,onDismiss:()->Unit,onConfirm:(String)->Unit) {
+@Composable internal fun InputDialog(title:String,initial:String,onDismiss:()->Unit,numeric:Boolean=false,onConfirm:(String)->Unit) {
     var value by remember(initial){mutableStateOf(initial)}
     AlertDialog(onDismissRequest=onDismiss,title={Text(title)},
-        text={OutlinedTextField(value,{value=it},singleLine=true)},
+        text={Column {
+            OutlinedTextField(value,{value=it},singleLine=true,modifier=Modifier.fillMaxWidth(),
+                keyboardOptions=KeyboardOptions(keyboardType=if(numeric)KeyboardType.Decimal else KeyboardType.Text,imeAction=ImeAction.Done),
+                keyboardActions=KeyboardActions(onDone={onConfirm(value)}))
+            if(numeric)TextButton(onClick={value=if(value.startsWith("-"))value.drop(1) else "-"+value},modifier=Modifier.heightIn(min=48.dp)) {
+                Text("切换正负号")
+            }
+        }},
         confirmButton={TextButton(onClick={onConfirm(value)}){Text("确定")}},
         dismissButton={TextButton(onClick=onDismiss){Text("取消")}})
 }
