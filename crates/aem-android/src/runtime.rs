@@ -12,6 +12,7 @@ use raw_window_handle::{
 };
 use serde_json::{json, Value};
 use std::{
+    cell::RefCell,
     collections::HashMap,
     path::PathBuf,
     sync::{
@@ -24,6 +25,7 @@ use std::{
 type Result<T> = std::result::Result<T, String>;
 static NEXT: AtomicI64 = AtomicI64::new(1);
 static SESSIONS: OnceLock<Mutex<HashMap<i64, Session>>> = OnceLock::new();
+thread_local! {static CREATION_ERROR:RefCell<String>=const {RefCell::new(String::new())};}
 fn sessions() -> &'static Mutex<HashMap<i64, Session>> {
     SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
@@ -70,6 +72,23 @@ struct Session {
     surface_epoch: u64,
 }
 impl Session {
+    fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
+        if let Some(g) = &mut self.graphics {
+            g.renderer
+                .replace_assets(engine.project(), &root)
+                .map_err(|e| e.to_string())?;
+        }
+        self.scene = Scene::new(engine.project());
+        self.observer = Observer::new(engine.project().width, engine.project().height);
+        self.engine = engine;
+        self.root = root;
+        self.frame = 0.0;
+        self.observing = false;
+        self.last_presented_frame = None;
+        self.last_error = None;
+        self.view_revision += 1;
+        self.sample()
+    }
     fn new(project: Project, root: PathBuf) -> Result<Self> {
         let mut scene = Scene::new(&project);
         scene
@@ -319,7 +338,30 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_create(
             .insert(id, session);
         Ok(id)
     }));
-    result.ok().and_then(std::result::Result::ok).unwrap_or(0)
+    match result {
+        Ok(Ok(id)) => {
+            CREATION_ERROR.with(|e| e.borrow_mut().clear());
+            id
+        }
+        Ok(Err(error)) => {
+            CREATION_ERROR.with(|e| *e.borrow_mut() = error);
+            0
+        }
+        Err(_) => {
+            CREATION_ERROR.with(|e| *e.borrow_mut() = "原生工程初始化失败".into());
+            0
+        }
+    }
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_creationError(
+    env: JNIEnv,
+    _class: JClass,
+) -> jstring {
+    CREATION_ERROR.with(|e| {
+        env.new_string(e.borrow().as_str())
+            .map_or(std::ptr::null_mut(), |s| s.into_raw())
+    })
 }
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_state(
@@ -687,6 +729,88 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_pack(
     })
 }
 #[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_newProject(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    text: JString,
+) -> jstring {
+    let text = read_string(&mut env, &text);
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            let project: Project = serde_json::from_str(&text?).map_err(|e| e.to_string())?;
+            if !project.assets.is_empty() {
+                return Err("new project must have no external assets".into());
+            }
+            let engine = Engine::new(project).map_err(|e| e.to_string())?;
+            let parent = s.root.parent().ok_or("project parent is missing")?;
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| e.to_string())?
+                .as_nanos();
+            let destination = parent.join(format!("project-{stamp}"));
+            if aem_core::storage::validate_assets(&s.root, s.engine.project()).is_ok() {
+                aem_core::storage::save(&s.root, s.engine.project()).map_err(|e| e.to_string())?;
+            }
+            std::fs::create_dir(&destination).map_err(|e| e.to_string())?;
+            aem_core::storage::save(&destination, engine.project()).map_err(|e| e.to_string())?;
+            s.replace_project(engine, destination)?;
+            Ok(s.snapshot())
+        })
+    })
+}
+fn project_name_allowed(name: &str, current: &str) -> bool {
+    name == current
+        || name == "default"
+        || ["project-", "import-"].iter().any(|prefix| {
+            name.strip_prefix(*prefix).is_some_and(|suffix| {
+                !suffix.is_empty() && suffix.bytes().all(|b| b.is_ascii_digit())
+            })
+        })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_openProject(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    directory: JString,
+) -> jstring {
+    let name = read_string(&mut env, &directory);
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            let name = name?;
+            let current = s
+                .root
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or("invalid active project directory")?;
+            if !project_name_allowed(&name, current) || name.contains('/') || name.contains('\\') {
+                return Err("invalid project directory".into());
+            }
+            let parent = s
+                .root
+                .parent()
+                .ok_or("project parent is missing")?
+                .canonicalize()
+                .map_err(|e| e.to_string())?;
+            let destination = parent
+                .join(&name)
+                .canonicalize()
+                .map_err(|e| e.to_string())?;
+            if destination.parent() != Some(parent.as_path()) {
+                return Err("project resolves outside its library".into());
+            }
+            let project = aem_core::storage::load(&destination).map_err(|e| e.to_string())?;
+            let engine = Engine::new(project).map_err(|e| e.to_string())?;
+            if aem_core::storage::validate_assets(&s.root, s.engine.project()).is_ok() {
+                aem_core::storage::save(&s.root, s.engine.project()).map_err(|e| e.to_string())?;
+            }
+            s.replace_project(engine, destination)?;
+            Ok(s.snapshot())
+        })
+    })
+}
+#[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_replace(
     mut env: JNIEnv,
     _class: JClass,
@@ -699,19 +823,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_replace(
             let project: Project = serde_json::from_str(&text?).map_err(|e| e.to_string())?;
             aem_core::storage::validate_assets(&s.root, &project).map_err(|e| e.to_string())?;
             let engine = Engine::new(project).map_err(|e| e.to_string())?;
-            if let Some(g) = &mut s.graphics {
-                g.renderer
-                    .replace_assets(engine.project(), &s.root)
-                    .map_err(|e| e.to_string())?;
-            }
-            s.scene = Scene::new(engine.project());
-            s.observer = Observer::new(engine.project().width, engine.project().height);
-            s.engine = engine;
-            s.last_presented_frame = None;
-            s.view_revision += 1;
-            s.frame = 0.0;
-            s.observing = false;
-            s.sample()?;
+            s.replace_project(engine, s.root.clone())?;
             Ok(s.snapshot())
         })
     })
@@ -736,20 +848,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_importProject(
             let project = aem_core::storage::import_package(&input, &destination)
                 .map_err(|e| e.to_string())?;
             let engine = Engine::new(project).map_err(|e| e.to_string())?;
-            if let Some(g) = &mut s.graphics {
-                g.renderer
-                    .replace_assets(engine.project(), &destination)
-                    .map_err(|e| e.to_string())?;
-            }
-            s.scene = Scene::new(engine.project());
-            s.observer = Observer::new(engine.project().width, engine.project().height);
-            s.engine = engine;
-            s.root = destination;
-            s.last_presented_frame = None;
-            s.view_revision += 1;
-            s.frame = 0.0;
-            s.observing = false;
-            s.sample()?;
+            s.replace_project(engine, destination)?;
             Ok(s.snapshot())
         })
     })
