@@ -1,7 +1,13 @@
 use aem_core::{Project, Scene, MAX_LAYERS};
 use bytemuck::{Pod, Zeroable};
 use image::ImageReader;
-use std::{collections::HashMap, num::NonZeroU64, path::Path, sync::mpsc, time::Instant};
+use std::{
+    collections::HashMap,
+    num::NonZeroU64,
+    path::Path,
+    sync::{mpsc, Arc, Mutex},
+    time::Instant,
+};
 
 const TEXTURE_BUDGET: u64 = 128 * 1024 * 1024;
 const CAPTURE_PIXEL_LIMIT: u64 = 16 * 1024 * 1024;
@@ -61,6 +67,7 @@ pub struct Renderer {
     images: HashMap<u64, GpuImage>,
     texture_bytes: u64,
     pub target_format: wgpu::TextureFormat,
+    gpu_failure: Arc<Mutex<Option<String>>>,
 }
 
 impl Renderer {
@@ -90,6 +97,17 @@ impl Renderer {
                 None,
             )
             .await?;
+        let gpu_failure = Arc::new(Mutex::new(None));
+        let lost = gpu_failure.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            *lost.lock().unwrap_or_else(|e| e.into_inner()) =
+                Some(format!("GPU device lost: {reason:?}: {message}"));
+        });
+        let uncaptured = gpu_failure.clone();
+        device.on_uncaptured_error(Box::new(move |error| {
+            *uncaptured.lock().unwrap_or_else(|e| e.into_inner()) =
+                Some(format!("GPU error: {error}"));
+        }));
         let alignment = device.limits().min_uniform_buffer_offset_alignment as usize;
         let uniform_stride = (DRAW_SIZE as usize).div_ceil(alignment) * alignment;
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -204,6 +222,7 @@ impl Renderer {
             images: HashMap::new(),
             texture_bytes: 0,
             target_format: format,
+            gpu_failure,
         };
         renderer.upload_image(0, 1, 1, &[255; 4])?;
         Ok(renderer)
@@ -215,10 +234,24 @@ impl Renderer {
     pub fn texture_bytes(&self) -> u64 {
         self.texture_bytes
     }
+    pub fn gpu_error(&self) -> Option<String> {
+        self.gpu_failure
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+    pub fn check_health(&self) -> Result<()> {
+        if let Some(error) = self.gpu_error() {
+            Err(RenderError::Invalid(error))
+        } else {
+            Ok(())
+        }
+    }
     pub fn image_count(&self) -> usize {
         self.images.len()
     }
     pub fn upload_image(&mut self, id: u64, width: u32, height: u32, rgba: &[u8]) -> Result<()> {
+        self.check_health()?;
         let bytes = u64::from(width) * u64::from(height) * 4;
         if width == 0
             || height == 0
@@ -363,6 +396,7 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> Result<RenderStats> {
+        self.check_health()?;
         if width == 0 || height == 0 || scene.layers.len() > MAX_LAYERS {
             return Err(RenderError::Invalid(
                 "invalid render target or layer count".into(),
@@ -445,6 +479,7 @@ impl Renderer {
             }
         }
         self.queue.submit(Some(encoder.finish()));
+        self.check_health()?;
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
             draw_calls: scene.layers.len() as u32,
@@ -453,6 +488,7 @@ impl Renderer {
         })
     }
     pub fn capture_target(&self, width: u32, height: u32) -> Result<CaptureTarget> {
+        self.check_health()?;
         if width == 0
             || height == 0
             || u64::from(width) * u64::from(height) > CAPTURE_PIXEL_LIMIT
