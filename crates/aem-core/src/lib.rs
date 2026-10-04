@@ -7,7 +7,7 @@ mod scene;
 pub mod storage;
 
 pub use animation::{Ease, Keyframe, Track, Tween};
-pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, Observer};
+pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer};
 pub use editor::{Command, Engine, Property};
 pub use model::{Asset, Content, Layer, Project, Transform, MAX_FRAMES, MAX_LAYERS};
 pub use scene::{DrawLayer, Scene};

@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- AndroidX tests do not use the deprecated framework test runner.
+             MuMu omits its optional shared libraries. -->
+        <uses-library android:name="android.test.runner" android:required="false"
+            tools:replace="android:required" />
+    </application>
+</manifest>

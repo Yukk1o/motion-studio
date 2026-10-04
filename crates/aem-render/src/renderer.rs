@@ -47,6 +47,7 @@ pub struct RenderStats {
 }
 
 pub struct Renderer {
+    pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub adapter_info: wgpu::AdapterInfo,
@@ -189,6 +190,7 @@ impl Renderer {
             cache: None,
         });
         let mut renderer = Self {
+            adapter,
             device,
             queue,
             adapter_info,
@@ -338,6 +340,22 @@ impl Renderer {
         self.images.retain(|id, _| *id == 0);
         self.texture_bytes = self.images.get(&0).map_or(0, |t| t.bytes);
     }
+    /// New projects may reuse asset IDs from another directory. Load into a
+    /// separate cache and keep the visible project's resources on failure.
+    pub fn replace_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
+        let mut previous = std::mem::take(&mut self.images);
+        let previous_bytes = self.texture_bytes;
+        self.images
+            .insert(0, previous.remove(&0).expect("solid texture exists"));
+        self.texture_bytes = 4;
+        if let Err(error) = self.synchronize_assets(project, root) {
+            previous.insert(0, self.images.remove(&0).expect("solid texture exists"));
+            self.images = previous;
+            self.texture_bytes = previous_bytes;
+            return Err(error);
+        }
+        Ok(())
+    }
     pub fn draw(
         &mut self,
         scene: &Scene,
@@ -454,7 +472,9 @@ impl Renderer {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: self.target_format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
         let view = texture.create_view(&Default::default());
@@ -550,6 +570,17 @@ impl Renderer {
             }
         }
         Ok((pixels, stats))
+    }
+}
+
+/// Convert straight-alpha sRGB bytes for correct filtered GPU compositing.
+/// This work belongs to resource loading, never the preview frame loop.
+pub fn premultiply_pixels(rgba: &mut [u8]) {
+    for pixel in rgba.chunks_exact_mut(4) {
+        let alpha = pixel[3] as f32 / 255.0;
+        for c in &mut pixel[..3] {
+            *c = (linear_to_srgb(srgb_to_linear(*c as f32 / 255.0) * alpha) * 255.0).round() as u8;
+        }
     }
 }
 
