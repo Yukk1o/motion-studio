@@ -55,6 +55,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private val queued = AtomicBoolean(false)
     private val surfaceReady = AtomicBoolean(false)
     private val dirty = AtomicBoolean(true)
+    private val foreground=AtomicBoolean(true)
+    private var currentSurface:Surface?=null
+    private var surfaceWidth=0
+    private var surfaceHeight=0
     private var startNanos = 0L
     private var startFrame = 0.0
     private val tick = object : Choreographer.FrameCallback {
@@ -65,11 +69,15 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 frame = (startFrame + (time-startNanos)/1e9*p.getInt("fps")) % p.getInt("frames")
                 dirty.set(true)
             }
-            if (dirty.get() && surfaceReady.get() && queued.compareAndSet(false,true)) {
+            if (foreground.get() && dirty.get() && surfaceReady.get() && queued.compareAndSet(false,true)) {
                 dirty.set(false)
                 val target=frame
                 worker.post {
-                    try { if(id!=0L && surfaceReady.get() && !NativeBridge.render(id,target)) dirty.set(true) }
+                    try { if(id!=0L && foreground.get() && surfaceReady.get() && !NativeBridge.render(id,target)) {
+                        val envelope=JSONObject(NativeBridge.state(id))
+                        val error=envelope.optJSONObject("data")?.optString("renderError","")?.takeIf{it!="null"&&it.isNotBlank()}
+                        if(error!=null){surfaceReady.set(false);fail(error)}else dirty.set(true)
+                    } }
                     catch(e:Throwable) { fail(e.message?:"预览失败") }
                     finally { queued.set(false) }
                 }
@@ -89,16 +97,17 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     private fun fail(message:String) {main.post {state=state.copy(error=message,busy=false)}}
     fun clearError() {state=state.copy(error=null)}
-    private fun publish(raw:String,saved:Boolean=false) {
+    private fun publish(raw:String,saved:Boolean?=null,repaint:Boolean=true) {
         try {
             val r=JSONObject(raw)
             if(!r.optBoolean("ok")) {fail(r.optString("error","操作失败"));return}
             val d=r.getJSONObject("data")
             main.post {
                 if(!closed.get()) {
+                    val savedState=saved?:if(state.sample!=null&&state.sample!!.optLong("revision")!=d.optLong("revision"))false else state.saved
                     state=StudioState(d.getJSONObject("project"),d,d.optBoolean("canUndo"),
                         d.optBoolean("canRedo"),d.optBoolean("observing"),
-                        if(d.isNull("renderError"))null else d.optString("renderError"),false,saved)
+                        if(d.isNull("renderError"))null else d.optString("renderError"),false,savedState)
                     if(d.has("root")) {
                         val nextRoot=File(d.getString("root"))
                         if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false}
@@ -108,23 +117,24 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     }
                     // Seek updates the UI immediately. Older worker replies must
                     // not pull the playhead back while the user is scrubbing.
-                    dirty.set(true)
+                    if(repaint)dirty.set(true)
                 }
             }
         } catch(e:Throwable){fail(e.message?:"状态读取失败")}
     }
-    private fun invoke(save:Boolean=false,operation:()->String) {
+    private fun invoke(save:Boolean=false,repaint:Boolean=true,operation:()->String) {
         if(closed.get())return
         worker.post {
             if(id==0L||closed.get())return@post
             try {
                 val result=operation()
                 if(save&&JSONObject(result).optBoolean("ok"))publish(NativeBridge.save(id),true)
-                else publish(result)
+                else publish(result,repaint=repaint)
             } catch(e:Throwable){fail(e.message?:"操作失败")}
         }
     }
     fun attach(surface:Surface,width:Int,height:Int) {
+        currentSurface=surface;surfaceWidth=width;surfaceHeight=height
         surfaceReady.set(false)
         invoke {
             val result=NativeBridge.surface(id,surface,width,height)
@@ -132,12 +142,17 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun detach() {
+        currentSurface=null
         surfaceReady.set(false)
         worker.post {if(id!=0L)NativeBridge.surface(id,null,0,0)}
     }
     fun pause() {
         if(playing) {playing=false;val f=frame;invoke {NativeBridge.seek(id,f)}}
     }
+    fun suspendPreview(){pause();foreground.set(false)}
+    fun resumePreview(){foreground.set(true);dirty.set(true)}
+    fun refreshDiagnostics(){invoke(repaint=false){NativeBridge.state(id)}}
+    fun retryPreview(){currentSurface?.takeIf{it.isValid}?.let{clearError();attach(it,surfaceWidth,surfaceHeight)}}
     fun togglePlay() {
         if(playing)pause() else if(state.project!=null) {
             startFrame=frame;startNanos=System.nanoTime();playing=true
@@ -166,7 +181,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun edit(command:JSONObject,save:Boolean=true) {
         pause();invoke(save){NativeBridge.command(id,command.toString())}
     }
-    fun editBatch(commands:JSONArray) {pause();invoke(true){NativeBridge.command(id,commands.toString())}}
+    fun editBatch(commands:JSONArray,save:Boolean=true) {pause();invoke(save){NativeBridge.command(id,commands.toString())}}
     fun undo() {pause();invoke(true){NativeBridge.history(id,0)}}
     fun redo() {pause();invoke(true){NativeBridge.history(id,1)}}
     fun beginGesture() {pause();invoke{NativeBridge.history(id,2)}}
@@ -237,6 +252,30 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun observe(enabled:Boolean,azimuth:Double=0.0,elevation:Double=0.0) {
         pause();invoke{NativeBridge.observe(id,enabled,azimuth,elevation)}
+    }
+    fun navigate(dx:Float,dy:Float,zoom:Float,multi:Boolean,width:Int,height:Int) {
+        pause();invoke{NativeBridge.navigate(id,dx.toDouble(),dy.toDouble(),zoom.toDouble(),multi,width,height)}
+    }
+    fun recordOrbit(azimuth:Double,elevation:Double,at:Int) {
+        editBatch(JSONArray().put(JSONObject().put("op","set_scalar").put("object",0).put("property","azimuth").put("frame",at).put("value",azimuth))
+            .put(JSONObject().put("op","set_scalar").put("object",0).put("property","elevation").put("frame",at).put("value",elevation.coerceIn(-89.0,89.0))),false)
+    }
+    fun anchor(x:Double,y:Double) {if(selected!=0L)edit(JSONObject().put("op","anchor").put("object",selected).put("anchor",JSONArray(listOf(x,y))))}
+    fun focusCameraOnSelection() {
+        if(selected==0L)return
+        val target=sampleValueFor(selected,"position") as? JSONArray?:return
+        val camera=state.project?.getJSONObject("camera")?:return
+        val at=floor(frame).toInt()
+        val commands=JSONArray().put(JSONObject().put("op","set_vector").put("object",0).put("property","target").put("frame",at).put("value",target))
+        if(camera.getString("mode")=="orbit") {
+            val eye=state.sample?.getJSONObject("sampledCamera")?.getJSONArray("position")?:return
+            val dx=eye.getDouble(0)-target.getDouble(0);val dy=eye.getDouble(1)-target.getDouble(1);val dz=eye.getDouble(2)-target.getDouble(2)
+            val radius=sqrt(dx*dx+dy*dy+dz*dz)
+            if(radius<1){fail("目标点距离摄影机太近");return}
+            val values=listOf("radius" to radius,"azimuth" to Math.toDegrees(atan2(dx,-dz)),"elevation" to Math.toDegrees(asin((-dy/radius).coerceIn(-1.0,1.0))).coerceIn(-89.0,89.0))
+            values.forEach{(key,value)->commands.put(JSONObject().put("op","set_scalar").put("object",0).put("property",key).put("frame",at).put("value",value))}
+        }
+        editBatch(commands);selected=0;property="target";panelOpen=true
     }
     fun view(kind:Int) {pause();invoke{NativeBridge.view(id,kind)}}
     fun dolly(amount:Float)=edit(JSONObject().put("op","dolly").put("frame",floor(frame).toInt()).put("amount",amount),false)

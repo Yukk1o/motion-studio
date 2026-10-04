@@ -63,6 +63,11 @@ struct Session {
     presented: u64,
     last_cpu_us: u64,
     last_error: Option<String>,
+    last_presented_frame: Option<f64>,
+    last_presented_revision: u64,
+    view_revision: u64,
+    last_presented_view_revision: u64,
+    surface_epoch: u64,
 }
 impl Session {
     fn new(project: Project, root: PathBuf) -> Result<Self> {
@@ -83,6 +88,11 @@ impl Session {
             presented: 0,
             last_cpu_us: 0,
             last_error: None,
+            last_presented_frame: None,
+            last_presented_revision: 0,
+            view_revision: 0,
+            last_presented_view_revision: 0,
+            surface_epoch: 0,
         })
     }
     fn check_thread(&self) -> Result<()> {
@@ -150,6 +160,8 @@ impl Session {
             _instance: instance,
         });
         self.last_error = None;
+        self.surface_epoch += 1;
+        self.last_presented_frame = None;
         Ok(())
     }
     fn render(&mut self, frame: f64) -> Result<bool> {
@@ -181,6 +193,10 @@ impl Session {
         output.present();
         self.presented += 1;
         self.last_cpu_us = stats.cpu_prepare_us;
+        self.last_presented_frame = Some(frame);
+        self.last_presented_revision = self.engine.revision();
+        self.last_presented_view_revision = self.view_revision;
+        self.last_error = None;
         Ok(true)
     }
     fn sample(&mut self) -> Result<()> {
@@ -238,7 +254,12 @@ impl Session {
         json!({"project":p,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
             "sampledLayers":layers,"projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
-            "renderError":self.last_error})
+            "renderError":self.last_error,"lastPresentedFrame":self.last_presented_frame,
+            "lastPresentedRevision":self.last_presented_revision,"viewRevision":self.view_revision,
+            "lastPresentedViewRevision":self.last_presented_view_revision,"surfaceEpoch":self.surface_epoch,
+            "observationView":match self.observer.view {aem_core::ObservationView::Free=>"free",aem_core::ObservationView::Top=>"top",aem_core::ObservationView::Side=>"side"},
+            "graphics":self.graphics.as_ref().map(|g|json!({"width":g.config.width,"height":g.config.height,"adapter":g.renderer.adapter_info.name,
+                "backend":format!("{:?}",g.renderer.adapter_info.backend),"textureBytes":g.renderer.texture_bytes()}))})
     }
 }
 fn with_session<T>(id: i64, operation: impl FnOnce(&mut Session) -> Result<T>) -> Result<T> {
@@ -461,6 +482,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_observe(
     string_result(&mut env, || {
         with_session(id, |s| {
             s.observing = enabled != 0;
+            s.view_revision += 1;
             if s.observer.view == aem_core::ObservationView::Free {
                 s.observer
                     .orbit(az as f32, el as f32)
@@ -475,6 +497,47 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_observe(
                     )
                     .map_err(|e| e.to_string())?;
             }
+            s.sample()?;
+            Ok(s.snapshot())
+        })
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_navigate(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    dx: jdouble,
+    dy: jdouble,
+    zoom: jdouble,
+    multi: jboolean,
+    width: jint,
+    height: jint,
+) -> jstring {
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            if !s.observing || width <= 0 || height <= 0 || !dx.is_finite() || !dy.is_finite() {
+                return Err("invalid observation navigation".into());
+            }
+            s.observer.zoom(zoom as f32).map_err(|e| e.to_string())?;
+            if multi != 0 || s.observer.view != aem_core::ObservationView::Free {
+                s.sample()?;
+                let target = s.observer.camera.target.value;
+                let delta = s
+                    .scene
+                    .screen_translation(
+                        target,
+                        [dx as f32, dy as f32],
+                        [width as u32, height as u32],
+                    )
+                    .map_err(|e| e.to_string())?;
+                s.observer.camera.target.value = std::array::from_fn(|i| target[i] - delta[i]);
+            } else {
+                s.observer
+                    .orbit(dx as f32 * 0.18, dy as f32 * 0.18)
+                    .map_err(|e| e.to_string())?;
+            }
+            s.view_revision += 1;
             s.sample()?;
             Ok(s.snapshot())
         })
@@ -503,6 +566,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_view(
     string_result(&mut env, || {
         with_session(id, |s| {
             s.observing = kind != 0;
+            s.view_revision += 1;
             s.observer.view = match kind {
                 0 | 1 => aem_core::ObservationView::Free,
                 2 => aem_core::ObservationView::Top,
@@ -643,6 +707,8 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_replace(
             s.scene = Scene::new(engine.project());
             s.observer = Observer::new(engine.project().width, engine.project().height);
             s.engine = engine;
+            s.last_presented_frame = None;
+            s.view_revision += 1;
             s.frame = 0.0;
             s.observing = false;
             s.sample()?;
@@ -679,6 +745,8 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_importProject(
             s.observer = Observer::new(engine.project().width, engine.project().height);
             s.engine = engine;
             s.root = destination;
+            s.last_presented_frame = None;
+            s.view_revision += 1;
             s.frame = 0.0;
             s.observing = false;
             s.sample()?;

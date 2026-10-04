@@ -2,8 +2,6 @@
 
 仅面向 Android 的图层动效与 3D 摄影机编辑器，目标技术栈为 Kotlin/Jetpack Compose、Rust、wgpu 和 MediaCodec。
 
-Android 应用已接入 Rust/JNI 和真实 GPU 预览，可编辑图层与摄影机关键帧、导入图片和文字、保存工程、输出 PNG 与 MP4。可直接选择图层、滑动数值与变换操作区、拖动关键帧、等比缩放和编辑区间缓动；属性编辑叠加在原界面上。Motion Studio 已在 MuMu 上运行；24 项 Rust/GPU 检查和 18 项 Android 集成检查通过。完整 A1–A13 验收尚未完成，虚拟机结果不替代双真机持续性能验证。
-
 
 本地工具链配置位于 `.tools/environment.json`。`tools/bootstrap_android.py` 负责项目内的独立工具链准备，不修改系统 PATH。
 
