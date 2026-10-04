@@ -5,6 +5,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -17,6 +18,13 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -50,12 +58,14 @@ class MainActivity:ComponentActivity() {
     private val model:EditorViewModel by viewModels()
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            MaterialTheme(colorScheme=darkColorScheme(primary=Accent,background=Background,surface=Panel,
-                onSurface=Ink,onBackground=Ink)) { Editor(model) }
-        }
+        setContent {StudioTheme {Editor(model)}}
     }
     override fun onStop() { model.pause();super.onStop() }
+}
+
+@Composable internal fun StudioTheme(content:@Composable ()->Unit) {
+    MaterialTheme(colorScheme=darkColorScheme(primary=Accent,background=Background,surface=Panel,
+        onSurface=Ink,onBackground=Ink),content=content)
 }
 
 @Composable private fun Tool(icon:ImageVector,label:String,enabled:Boolean=true,action:()->Unit) {
@@ -85,10 +95,14 @@ class MainActivity:ComponentActivity() {
         val file=pendingFile
         if(uri!=null&&file!=null)scope.launch(Dispatchers.IO){context.contentResolver.openOutputStream(uri)?.use{out->file.inputStream().use{it.copyTo(out)}}}
     }
+    BackHandler(enabled=vm.panelOpen){vm.panelOpen=false}
     Surface(color=Background,modifier=Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
             val wide=maxWidth>maxHeight
             val availableHeight=maxHeight
+            val availableWidth=maxWidth
+            val timelineHeight=if(wide)(availableHeight*.3f).coerceAtMost(132.dp)
+                else (availableHeight*.38f).coerceAtMost(300.dp)
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     Tool(Icons.AutoMirrored.Filled.ArrowBack,"收起属性"){vm.panelOpen=false}
@@ -103,29 +117,15 @@ class MainActivity:ComponentActivity() {
                         }
                     }
                 }
-                if(wide) {
-                    Row(Modifier.weight(1f).fillMaxWidth()) {
-                        Column(Modifier.weight(1f)) {
-                            Preview(vm,Modifier.weight(1f).fillMaxWidth())
-                            Transport(vm)
-                        }
-                        if(vm.panelOpen)Properties(vm,Modifier.width(300.dp).fillMaxHeight())
-                    }
-                    Timeline(vm,Modifier.fillMaxWidth().height((availableHeight*.3f).coerceAtMost(132.dp)))
-                } else {
-                    Preview(vm,Modifier.weight(1f).fillMaxWidth())
-                    Transport(vm)
-                    Timeline(vm,Modifier.fillMaxWidth().height(if(vm.panelOpen)(availableHeight*.20f).coerceAtMost(140.dp) else (availableHeight*.38f).coerceAtMost(300.dp)))
-                    if(vm.panelOpen)Properties(vm,Modifier.fillMaxWidth().height((availableHeight*.42f).coerceAtMost(304.dp)))
-                }
-                if(!vm.panelOpen) {
-                    Row(Modifier.fillMaxWidth().height(52.dp).background(Panel).padding(horizontal=16.dp),
-                        verticalAlignment=Alignment.CenterVertically) {
-                        Icon(if(vm.selected==0L)Icons.Default.Videocam else Icons.Default.Layers,null,Modifier.size(22.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text(if(vm.selected==0L)"摄影机 1" else vm.layer(vm.selected)?.optString("name")?:"图层",Modifier.weight(1f),fontSize=13.sp)
-                        TextButton(onClick={vm.panelOpen=true}){Text("编辑参数",color=Accent,fontSize=12.sp)}
-                    }
+                Preview(vm,Modifier.weight(1f).fillMaxWidth())
+                Transport(vm)
+                Timeline(vm,Modifier.fillMaxWidth().height(timelineHeight))
+                Row(Modifier.fillMaxWidth().height(52.dp).background(Panel).padding(horizontal=16.dp),
+                    verticalAlignment=Alignment.CenterVertically) {
+                    Icon(if(vm.selected==0L)Icons.Default.Videocam else Icons.Default.Layers,null,Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(if(vm.selected==0L)"摄影机 1" else vm.layer(vm.selected)?.optString("name")?:"图层",Modifier.weight(1f),fontSize=13.sp)
+                    TextButton(onClick={vm.panelOpen=true}){Text("编辑参数",color=Accent,fontSize=12.sp)}
                 }
             }
             if(!vm.panelOpen) {
@@ -138,6 +138,16 @@ class MainActivity:ComponentActivity() {
                         DropdownMenuItem(text={Text("文字")},onClick={addMenu=false;textDialog=true})
                     }
                 }
+            }
+            // This sibling overlays the stable editor; it never changes Surface
+            // or timeline constraints and adds no scrim over the preview.
+            AnimatedVisibility(visible=vm.panelOpen,
+                modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
+                enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
+                exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
+                Properties(vm,if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
+                    else Modifier.fillMaxWidth().height((availableHeight*.42f).coerceAtMost(304.dp)
+                        .coerceAtMost(timelineHeight+8.dp)))
             }
             if(vm.state.busy||vm.state.project==null) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.4f)),contentAlignment=Alignment.Center) {
@@ -217,7 +227,7 @@ class MainActivity:ComponentActivity() {
     }
 }
 @Composable private fun Transport(vm:EditorViewModel) {
-    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),
+    Row(Modifier.fillMaxWidth().height(48.dp).testTag("transport").padding(horizontal=8.dp),
         horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
         Tool(Icons.AutoMirrored.Filled.Undo,"撤销",vm.state.canUndo,vm::undo)
         Tool(Icons.AutoMirrored.Filled.Redo,"重做",vm.state.canRedo,vm::redo)
@@ -247,7 +257,7 @@ private data class TimelineRow(val id:Long,val name:String,val color:Color,val v
     }
     var vertical by remember{mutableFloatStateOf(0f)}
     var editKey by remember{mutableStateOf<Int?>(null)}
-    Canvas(modifier.pointerInput(rows,vm.timelineScale) {
+    Canvas(modifier.testTag("timeline").pointerInput(rows,vm.timelineScale) {
         detectTapGestures(onTap={pos->
             val r=((pos.y-44*density+vertical)/(52*density)).toInt()
             if(pos.y>=44*density&&r in rows.indices) {
@@ -336,7 +346,12 @@ private data class TimelineRow(val id:Long,val name:String,val color:Color,val v
         if(mode=="orbit")listOf("radius" to "距离","azimuth" to "方位","elevation" to "俯仰","target" to "目标点","fov" to "视角","roll" to "滚转")
         else listOf("position" to "位置","target" to "目标点","fov" to "视角","roll" to "滚转")
     } else listOf("position" to "位置","rotation" to "旋转","scale" to "缩放","opacity" to "透明度")
-    Column(modifier.background(Panel,RoundedCornerShape(topStart=12.dp,topEnd=12.dp)).padding(horizontal=16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier.testTag("properties-panel").background(Panel,RoundedCornerShape(topStart=12.dp,topEnd=12.dp))
+        .pointerInput(Unit) {
+            // This pointer node claims the panel's hit region over its siblings.
+            // Leave events unconsumed so child controls and scrolling still work.
+            awaitPointerEventScope {while(true)awaitPointerEvent()}
+        }.padding(horizontal=16.dp)) {
         Box(Modifier.fillMaxWidth().height(12.dp),contentAlignment=Alignment.Center){Box(Modifier.size(36.dp,3.dp).background(Muted.copy(alpha=.4f),RoundedCornerShape(2.dp)))}
         Row(Modifier.fillMaxWidth().height(48.dp),verticalAlignment=Alignment.CenterVertically) {
             Text(if(camera)"摄影机 1" else vm.layer(vm.selected)?.optString("name")?:"图层",Modifier.weight(1f),fontSize=16.sp)
@@ -355,7 +370,9 @@ private data class TimelineRow(val id:Long,val name:String,val color:Color,val v
                     }
                 }
             }
+            Tool(Icons.Default.Close,"关闭属性面板"){vm.panelOpen=false}
         }
+        Column(Modifier.weight(1f).fillMaxWidth().testTag("property-values").verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             choices.forEach{(key,label)->TextButton(onClick={vm.pause();vm.property=key},modifier=Modifier.height(48.dp)){
                 Text(label,fontSize=12.sp,color=if(vm.property==key)Accent else Muted)
@@ -376,6 +393,7 @@ private data class TimelineRow(val id:Long,val name:String,val color:Color,val v
         Row(Modifier.fillMaxWidth().height(44.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("点按输入精确值",Modifier.weight(1f),fontSize=11.sp,color=Muted)
             TextButton(onClick={ease=true}){Text("缓动",fontSize=12.sp,color=Accent)}
+        }
         }
         Row(Modifier.fillMaxWidth().height(56.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             Tool(Icons.Default.SkipPrevious,"上一关键帧"){vm.jumpKey(false)}
