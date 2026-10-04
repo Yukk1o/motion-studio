@@ -205,15 +205,68 @@ impl Camera {
 }
 
 /// Observer state is deliberately absent from Project and undo/save history.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ObservationView {
+    Free,
+    Top,
+    Side,
+}
 #[derive(Clone, Debug)]
 pub struct Observer {
     pub camera: Camera,
+    pub view: ObservationView,
 }
 impl Observer {
     pub fn new(width: u32, height: u32) -> Self {
         let mut camera = Camera::new(width, height);
         camera.mode = CameraMode::Orbit;
-        Self { camera }
+        Self {
+            camera,
+            view: ObservationView::Free,
+        }
+    }
+    pub fn pose(&self, width: u32, height: u32) -> CameraPose {
+        if self.view == ObservationView::Free {
+            return self.camera.pose(0.0, width, height);
+        }
+        let target = to_world(self.camera.target.value, width, height);
+        let distance = self.camera.radius.value;
+        let (eye, up) = if self.view == ObservationView::Top {
+            (target + Vec3::Y * distance, Vec3::Z)
+        } else {
+            (target + Vec3::X * distance, Vec3::Y)
+        };
+        let half_height = distance * (self.camera.fov.value.to_radians() / 2.0).tan();
+        let half_width = half_height * width as f32 / height as f32;
+        CameraPose {
+            eye,
+            target,
+            view_projection: Mat4::orthographic_rh(
+                -half_width,
+                half_width,
+                -half_height,
+                half_height,
+                0.5,
+                100_000.0,
+            ) * Mat4::look_at_rh(eye, target, up),
+        }
+    }
+    pub fn pan(&mut self, x: f32, y: f32, width: u32, height: u32) -> Result<()> {
+        ensure(
+            x.is_finite() && y.is_finite() && x.abs() <= 1_000_000.0 && y.abs() <= 1_000_000.0,
+            "invalid observation pan",
+        )?;
+        let p = self.pose(width, height);
+        let forward = (p.target - p.eye).normalize();
+        let base_up = if self.view == ObservationView::Top {
+            Vec3::Z
+        } else {
+            Vec3::Y
+        };
+        let right = forward.cross(base_up).normalize();
+        let up = right.cross(forward).normalize();
+        self.camera.target.value = to_project(p.target + right * x + up * y, width, height);
+        Ok(())
     }
     pub fn orbit(&mut self, azimuth_delta: f32, elevation_delta: f32) -> Result<()> {
         ensure(

@@ -14,11 +14,14 @@ version = "0.1.0"
 dependencies = [
  "aem-core",
  "aem-render",
+ "bytemuck",
+ "image",
  "jni",
  "ndk",
  "pollster",
  "raw-window-handle",
  "serde_json",
+ "wgpu",
 ]
 
 [[package]]

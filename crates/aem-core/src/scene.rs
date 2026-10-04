@@ -42,7 +42,7 @@ impl Scene {
         )?;
         self.camera = observer.map_or_else(
             || project.camera.pose(frame, project.width, project.height),
-            |o| o.camera.pose(0.0, project.width, project.height),
+            |o| o.pose(project.width, project.height),
         );
         self.width = project.width;
         self.height = project.height;
@@ -97,6 +97,44 @@ impl Scene {
             (0.5 - ndc.y * 0.5) * self.height as f32,
             ndc.z,
         ]
+    }
+    /// Convert a preview drag to translation in the camera's view plane.
+    /// Constant clip depth keeps front-facing planes at the same apparent scale.
+    /// The UI's currently selected property never participates in this calculation.
+    pub fn screen_translation(
+        &self,
+        point: [f32; 3],
+        delta: [f32; 2],
+        viewport: [u32; 2],
+    ) -> Result<[f32; 3]> {
+        ensure(
+            viewport.into_iter().all(|v| v > 0)
+                && point.into_iter().chain(delta).all(f32::is_finite),
+            "invalid preview drag",
+        )?;
+        let scale =
+            (viewport[0] as f64 / self.width as f64).min(viewport[1] as f64 / self.height as f64);
+        let vp = self.camera.view_projection.as_dmat4();
+        let world = to_world(point, self.width, self.height).as_dvec3();
+        let mut clip = vp * world.extend(1.0);
+        ensure(
+            clip.is_finite() && clip.w > 1.0e-8,
+            "drag target is behind the camera",
+        )?;
+        clip.x += 2.0 * delta[0] as f64 / (self.width as f64 * scale) * clip.w;
+        clip.y -= 2.0 * delta[1] as f64 / (self.height as f64 * scale) * clip.w;
+        let moved = vp.inverse() * clip;
+        ensure(
+            moved.is_finite() && moved.w.abs() > 1.0e-8,
+            "invalid drag projection",
+        )?;
+        let offset = moved.truncate() / moved.w - world;
+        let result = [offset.x as f32, -offset.y as f32, -offset.z as f32];
+        ensure(
+            result.into_iter().all(f32::is_finite),
+            "drag exceeds numeric range",
+        )?;
+        Ok(result)
     }
 }
 
