@@ -37,7 +37,7 @@ impl Scene {
         observer: Option<&Observer>,
     ) -> Result<()> {
         ensure(
-            frame.is_finite() && frame >= 0.0 && frame <= f64::from(project.frames - 1),
+            frame.is_finite() && frame >= 0.0 && frame < f64::from(project.frames),
             "invalid sample time",
         )?;
         self.camera = observer.map_or_else(
