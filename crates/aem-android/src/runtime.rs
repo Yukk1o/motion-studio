@@ -189,6 +189,8 @@ impl Session {
         let Some(g) = &mut self.graphics else {
             return Ok(false);
         };
+        g.renderer.device.poll(wgpu::Maintain::Poll);
+        g.renderer.check_health().map_err(|e| e.to_string())?;
         let output = match g.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -209,6 +211,7 @@ impl Session {
             .map_err(|e| e.to_string())?;
         let view = output.texture.create_view(&Default::default());
         g.presenter.draw(&g.renderer, &view);
+        g.renderer.check_health().map_err(|e| e.to_string())?;
         output.present();
         self.presented += 1;
         self.last_cpu_us = stats.cpu_prepare_us;
@@ -276,6 +279,7 @@ impl Session {
             "renderError":self.last_error,"lastPresentedFrame":self.last_presented_frame,
             "lastPresentedRevision":self.last_presented_revision,"viewRevision":self.view_revision,
             "lastPresentedViewRevision":self.last_presented_view_revision,"surfaceEpoch":self.surface_epoch,
+            "diagnosticsEnabled":cfg!(feature="diagnostics"),
             "observationView":match self.observer.view {aem_core::ObservationView::Free=>"free",aem_core::ObservationView::Top=>"top",aem_core::ObservationView::Side=>"side"},
             "graphics":self.graphics.as_ref().map(|g|json!({"width":g.config.width,"height":g.config.height,"adapter":g.renderer.adapter_info.name,
                 "backend":format!("{:?}",g.renderer.adapter_info.backend),"textureBytes":g.renderer.texture_bytes()}))})
@@ -646,6 +650,44 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_surface(
             }
             Ok(s.snapshot())
         })
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_injectGraphicsFault(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    kind: jint,
+) -> jstring {
+    string_result(&mut env, || {
+        #[cfg(not(feature = "diagnostics"))]
+        {
+            let _ = (id, kind);
+            Err("GPU fault injection is not included in this build".into())
+        }
+        #[cfg(feature = "diagnostics")]
+        {
+            with_session(id, |s| {
+                let g = s.graphics.as_ref().ok_or("no active GPU surface")?;
+                match kind {
+                    0 => {
+                        g.renderer.device.destroy();
+                        g.renderer.device.poll(wgpu::Maintain::Wait);
+                    }
+                    1 => {
+                        let _ = g.renderer.device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("diagnostic invalid mapped size"),
+                            size: 1,
+                            usage: wgpu::BufferUsages::COPY_DST,
+                            mapped_at_creation: true,
+                        });
+                    }
+                    _ => return Err("unknown GPU diagnostic fault".into()),
+                }
+                g.renderer.device.poll(wgpu::Maintain::Poll);
+                Ok(json!({"diagnostics":true,"kind":kind,"gpuError":g.renderer.gpu_error()}))
+            })
+        }
     })
 }
 #[no_mangle]

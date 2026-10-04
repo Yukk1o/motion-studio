@@ -21,6 +21,10 @@ import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,8 +146,13 @@ private class ValueDrag(private val vm:EditorViewModel) {
             if(curves)CurveEditor(vm,Modifier.weight(1f).fillMaxHeight())
             else Column(Modifier.weight(1f).fillMaxHeight().testTag("property-values")) {
                 Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState())) {
-                    choices.forEach{(key,label)->TextButton(onClick={vm.pause();vm.property=key},modifier=Modifier.height(48.dp)) {
-                        Text(label,fontSize=12.sp,color=if(vm.property==key)Accent else Muted)
+                    choices.forEach{(key,label)->TextButton(onClick={vm.pause();vm.property=key},modifier=Modifier.height(48.dp)
+                        .testTag("property-tab-"+key).semantics{selected=vm.property==key;role=Role.Tab}) {
+                        Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                            Text(label,fontSize=12.sp,lineHeight=16.sp,maxLines=1,color=if(vm.property==key)Accent else Muted)
+                            Spacer(Modifier.height(4.dp))
+                            Box(Modifier.height(2.dp).width(24.dp).background(if(vm.property==key)Accent else Color.Transparent))
+                        }
                     }}
                 }
                 val value=vm.sampleValue()
@@ -178,16 +187,17 @@ private class ValueDrag(private val vm:EditorViewModel) {
     val density=LocalDensity.current.density
     val factor=if(vm.property=="opacity")100.0 else 1.0
     val key=vm.property;val objectId=vm.selected;val frame=floor(vm.frame).toInt()
-    Surface(color=Background,shape=RoundedCornerShape(4.dp),modifier=modifier.height(48.dp).testTag("value-"+label)
+    Surface(color=Background,shape=RoundedCornerShape(4.dp),modifier=modifier.heightIn(min=56.dp).testTag("value-"+label)
         .draggable(rememberDraggableState{delta->drag?.adjust(axis,delta/density.toDouble())},Orientation.Horizontal,
             enabled=vm.editable(),onDragStarted={drag=ValueDrag(vm);vm.beginGesture()},onDragStopped={vm.endGesture();drag=null})
         .clickable(enabled=vm.editable()){vm.pause();editing=true}) {
-        Column(Modifier.padding(horizontal=6.dp),verticalArrangement=Arrangement.Center) {
-            Text(label+(if(key=="scale"||key=="opacity")" %" else if(key=="rotation"||key=="fov"||key=="roll")" °" else ""),color=Muted,fontSize=9.sp)
-            Text(String.format(Locale.US,"%.1f",value*factor),color=if(vm.editable())Ink else Muted,fontSize=14.sp,fontFamily=FontFamily.Monospace,maxLines=1)
+        Column(Modifier.padding(horizontal=6.dp,vertical=6.dp),verticalArrangement=Arrangement.Center) {
+            Text(label+(if(key=="scale"||key=="opacity")" %" else if(key=="rotation"||key=="fov"||key=="roll")" °" else ""),color=Muted,fontSize=11.sp,lineHeight=14.sp,maxLines=1)
+            Text(String.format(Locale.US,"%.1f",value*factor),modifier=Modifier.testTag("number-"+label),color=if(vm.editable())Ink else Muted,
+                fontSize=14.sp,lineHeight=18.sp,fontFamily=FontFamily.Monospace,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
     }
-    if(editing)InputDialog(label,String.format(Locale.US,"%.3f",value*factor),onDismiss={editing=false}){input->
+    if(editing)InputDialog(label,String.format(Locale.US,"%.3f",value*factor),onDismiss={editing=false},numeric=true){input->
         val number=input.replace(',','.').toDoubleOrNull()
         if(number!=null&&number.isFinite()) {
             val original=vm.sampleValue()
@@ -228,11 +238,11 @@ private class ValueDrag(private val vm:EditorViewModel) {
         Text(if(!vm.editable())"图层已锁定" else when(vm.property) {
             "position","target"->if(zAxis)"上下滑动调整 Z" else "滑动移动 · XY"
             "rotation"->"滑动旋转 · Z";"scale"->"滑动缩放";"opacity"->"滑动调整透明度";else->"滑动调节数值"
-        },color=Muted,fontSize=10.sp)
-        if(vm.editable())Text("数值可滑动 · 点按输入",color=Muted.copy(alpha=.6f),fontSize=8.sp)
+        },color=Muted,fontSize=12.sp,lineHeight=18.sp)
+        if(vm.editable())Text("数值可滑动 · 点按输入",color=Muted.copy(alpha=.7f),fontSize=10.sp,lineHeight=14.sp)
         }
         if(vm.property in listOf("position","target"))TextButton(onClick={zAxis=!zAxis},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
-            Text(if(zAxis)"XY" else "Z",color=Accent,fontSize=11.sp)
+            Text(if(zAxis)"XY" else "Z",color=Accent,fontSize=11.sp,lineHeight=14.sp)
         }
         if(vm.property=="scale")IconButton(onClick={vm.scaleLinked=!vm.scaleLinked},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
             Icon(if(vm.scaleLinked)Icons.Default.Link else Icons.Default.LinkOff,"锁定缩放比例",tint=Accent,modifier=Modifier.size(18.dp))
@@ -246,7 +256,7 @@ private fun easingValue(mode:String,t:Float)=when(mode){"in"->t*t;"out"->1-(1-t)
     val segment=vm.easingSegment()
     val selected=segment?.first?.optString("ease")?:"linear"
     Column(modifier) {
-        Text(segment?.let{"帧 "+it.first.getInt("frame")+" → "+it.second.getInt("frame")}?:"请移到两个关键帧之间",color=Muted,fontSize=10.sp)
+        Text(segment?.let{"帧 "+it.first.getInt("frame")+" → "+it.second.getInt("frame")}?:"请移到两个关键帧之间",color=Muted,fontSize=10.sp,lineHeight=14.sp)
         Canvas(Modifier.weight(1f).fillMaxWidth().padding(12.dp).testTag("easing-graph")) {
             for(i in 0..4) {
                 drawLine(Muted.copy(alpha=.16f),Offset(0f,size.height*i/4),Offset(size.width,size.height*i/4),1f)
@@ -261,7 +271,7 @@ private fun easingValue(mode:String,t:Float)=when(mode){"in"->t*t;"out"->1-(1-t)
         }
         Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState())) {
             easeNames.forEach{(key,label)->TextButton(onClick={vm.ease(key)},enabled=segment!=null,modifier=Modifier.height(48.dp)) {
-                Text(label,fontSize=11.sp,color=if(selected==key)Accent else Muted)
+                Text(label,fontSize=11.sp,lineHeight=14.sp,maxLines=1,color=if(selected==key)Accent else Muted)
             }}
         }
     }

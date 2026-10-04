@@ -15,8 +15,12 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--abis",default="arm64-v8a,x86_64")
     parser.add_argument("--rust-only",action="store_true")
+    parser.add_argument("--diagnostics",action="store_true",help="Enable opt-in GPU fault injection for the debug acceptance build")
     parser.add_argument("--task",nargs="+",default=["assembleDebug"])
     args=parser.parse_args()
+    diagnostics=args.diagnostics or any(task.endswith("AndroidTest") for task in args.task)
+    if diagnostics and any("Release" in task for task in args.task):
+        raise RuntimeError("Release tasks must be built without GPU diagnostic injection")
     shared=next((p for p in [ROOT,*ROOT.parents] if (p/".tools/environment.json").exists()),None)
     if shared is None:
         raise RuntimeError("Run tools/bootstrap_android.py in the main worktree first")
@@ -40,7 +44,8 @@ def main():
         build_env[prefix+"_LINKER"]=str(toolchain/"clang.exe")
         build_env[prefix+"_RUSTFLAGS"]=f"-Clink-arg=--target={clang_target} -Clink-arg=-Wl,-z,max-page-size=16384"
         print(f"Building native runtime for {abi}",flush=True)
-        subprocess.run(["cargo","build","--locked","-p","aem-android","--target",target,"--release"],cwd=ROOT,env=build_env,check=True)
+        features=["--features","diagnostics"] if diagnostics else []
+        subprocess.run(["cargo","build","--locked","-p","aem-android","--target",target,"--release",*features],cwd=ROOT,env=build_env,check=True)
         destination=ROOT/"android/app/src/main/jniLibs"/abi
         destination.mkdir(parents=True,exist_ok=True)
         shutil.copy2(shared/"target"/target/"release/libaem_android.so",destination/"libmotion_engine.so")
