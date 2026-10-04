@@ -155,6 +155,15 @@ impl Camera {
     }
     /// Bake on integer frames to preserve an existing animation when modes change.
     pub fn convert_mode(&mut self, mode: CameraMode, frames: u32) -> Result<()> {
+        fn keep_static<T: crate::Tween>(track: &mut Track<T>) {
+            if let Some(first) = track.keys.first() {
+                let value = first.value;
+                if track.keys.iter().all(|key| key.value == value) {
+                    track.value = value;
+                    track.keys.clear();
+                }
+            }
+        }
         if self.mode == mode {
             return Ok(());
         }
@@ -167,6 +176,7 @@ impl Camera {
                     crate::Ease::Linear,
                 )?;
             }
+            keep_static(&mut positions);
             self.position = positions;
         } else {
             let mut radius = Track::constant(1.0);
@@ -195,6 +205,9 @@ impl Camera {
                 elevation.upsert(frame, el, crate::Ease::Linear)?;
                 previous_azimuth = Some(az);
             }
+            keep_static(&mut radius);
+            keep_static(&mut azimuth);
+            keep_static(&mut elevation);
             self.radius = radius;
             self.azimuth = azimuth;
             self.elevation = elevation;
@@ -279,6 +292,11 @@ impl Observer {
         self.camera.azimuth.value = (self.camera.azimuth.value + azimuth_delta).rem_euclid(360.0);
         self.camera.elevation.value =
             (self.camera.elevation.value + elevation_delta).clamp(-89.0, 89.0);
+        Ok(())
+    }
+    pub fn zoom(&mut self, ratio: f32) -> Result<()> {
+        ensure(ratio.is_finite() && ratio > 0.0, "invalid observation zoom")?;
+        self.camera.radius.value = (self.camera.radius.value / ratio).clamp(1.0, 10_000_000.0);
         Ok(())
     }
 }
