@@ -1,0 +1,21 @@
+/target/
+/.tools/
+/artifacts/
+/.research/
+/.worktrees/
+/android/.gradle/
+/android/local.properties
+/android/**/build/
+/android/app/src/main/jniLibs/
+*.tmp
+
+# Local reference material is excluded from version control.
+/design/ardot-handoff.json
+/docs/am-interaction-study.md
+/docs/amx-study.md
+/docs/effect-roadmap.md
+/tools/analyze_apk.py
+/tools/decode_apk_resources.py
+/tools/summarize_effects.py
+/docs/
+/design/

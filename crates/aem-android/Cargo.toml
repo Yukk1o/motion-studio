@@ -1,0 +1,20 @@
+[package]
+name = "aem-android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aem-core = { path = "../aem-core" }
+aem-render = { path = "../aem-render" }
+serde_json.workspace = true
+pollster.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk = "0.9"
+raw-window-handle = "0.6"
+
