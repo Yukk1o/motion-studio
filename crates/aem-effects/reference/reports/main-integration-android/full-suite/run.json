@@ -13,32 +13,35 @@
   "junitPassed": false,
   "reports": {
     "files/acceptance/axis-api-556ac476-4097-490e-87ad-e486efaf38a6/axis-response.json": "01-axis-response.json",
-    "files/acceptance/axis-api-556ac476-4097-490e-87ad-e486efaf38a6/project.json": "02-project.json",
     "files/acceptance/axis-api-b837fe93-08f1-4520-b4b9-94608c2fc3e7/axis-encoded-parity.json": "03-axis-encoded-parity.json",
     "files/acceptance/axis-api-b837fe93-08f1-4520-b4b9-94608c2fc3e7/exports/motion-1791208199489-report.json": "04-motion-1791208199489-report.json",
     "files/acceptance/clips-7849113b-664d-4ca4-b90e-13c9c64a5f81/interface-response.json": "05-interface-response.json",
-    "files/acceptance/clips-7849113b-664d-4ca4-b90e-13c9c64a5f81/project.json": "06-project.json",
     "files/acceptance/clips-a7de62f1-8917-4f85-aed2-12735821842e/encoded-boundaries.json": "07-encoded-boundaries.json",
     "files/acceptance/clips-a7de62f1-8917-4f85-aed2-12735821842e/exports/motion-1791208251778-report.json": "08-motion-1791208251778-report.json",
     "files/acceptance/export-cancel-25baf03d-8c52-4f38-b5ef-030861cbeafb/exports/motion-1791208208618-report.json": "09-motion-1791208208618-report.json",
     "files/acceptance/export-cancel-25baf03d-8c52-4f38-b5ef-030861cbeafb/exports/motion-1791208209242-report.json": "10-motion-1791208209242-report.json",
     "files/acceptance/export-cancel-25baf03d-8c52-4f38-b5ef-030861cbeafb/exports/motion-1791208210871-report.json": "11-motion-1791208210871-report.json",
     "files/acceptance/export-cancel-25baf03d-8c52-4f38-b5ef-030861cbeafb/exports/motion-1791208214824-report.json": "12-motion-1791208214824-report.json",
-    "files/acceptance/export-cancel-25baf03d-8c52-4f38-b5ef-030861cbeafb/project.json": "13-project.json",
     "files/acceptance/export-cancel-25baf03d-8c52-4f38-b5ef-030861cbeafb/repeated-cancellation.json": "14-repeated-cancellation.json",
     "files/acceptance/export-parity-b55a4c95-5743-4a2d-bce3-0bf2e0492c1f/export-parity-report.json": "15-export-parity-report.json",
     "files/acceptance/export-parity-b55a4c95-5743-4a2d-bce3-0bf2e0492c1f/exports/motion-1791208223239-report.json": "16-motion-1791208223239-report.json",
     "files/acceptance/export-parity-b55a4c95-5743-4a2d-bce3-0bf2e0492c1f/frame-comparisons.json": "17-frame-comparisons.json",
-    "files/acceptance/export-parity-b55a4c95-5743-4a2d-bce3-0bf2e0492c1f/project.json": "18-project.json",
     "files/acceptance/export-playback-b47cf68d-0aa5-40af-b7d9-f5711acfefa4/exports/motion-1791208237766-report.json": "19-motion-1791208237766-report.json",
-    "files/acceptance/export-playback-b47cf68d-0aa5-40af-b7d9-f5711acfefa4/project.json": "20-project.json",
     "files/acceptance/export-playback-b47cf68d-0aa5-40af-b7d9-f5711acfefa4/surface-playback.json": "21-surface-playback.json",
-    "files/effects-test/4f9352ef-c604-48c7-b299-fb23d6dfa474/plugins/disabled.json": "22-disabled.json",
     "files/effects-test/4f9352ef-c604-48c7-b299-fb23d6dfa474/project/effects-report.json": "23-effects-report.json",
     "files/effects-test/4f9352ef-c604-48c7-b299-fb23d6dfa474/project/exports/motion-1791208201101-report.json": "24-motion-1791208201101-report.json",
     "files/effects-test/56f9fdec-65d2-4278-8375-70c7c5501e73/project/gles-wgpu-report.json": "25-gles-wgpu-report.json",
-    "files/effects-test/82e17881-54ea-4704-af37-586619e08c0f/project/exports/motion-1791208208314-report.json": "26-motion-1791208208314-report.json",
-    "files/effects-test/896a54d5-81f5-4cb0-8c62-e2f65082895c/plugins/disabled.json": "27-disabled.json"
+    "files/effects-test/82e17881-54ea-4704-af37-586619e08c0f/project/exports/motion-1791208208314-report.json": "26-motion-1791208208314-report.json"
   },
-  "source_commit": "d98a6170b8e276573a7ac4cb03cf4fd618d4277c"
+  "source_commit": "d98a6170b8e276573a7ac4cb03cf4fd618d4277c",
+  "omitted_non_report_files": [
+    "files/acceptance/axis-api-556ac476-4097-490e-87ad-e486efaf38a6/project.json",
+    "files/acceptance/clips-7849113b-664d-4ca4-b90e-13c9c64a5f81/project.json",
+    "files/acceptance/export-cancel-25baf03d-8c52-4f38-b5ef-030861cbeafb/project.json",
+    "files/acceptance/export-parity-b55a4c95-5743-4a2d-bce3-0bf2e0492c1f/project.json",
+    "files/acceptance/export-playback-b47cf68d-0aa5-40af-b7d9-f5711acfefa4/project.json",
+    "files/effects-test/4f9352ef-c604-48c7-b299-fb23d6dfa474/plugins/disabled.json",
+    "files/effects-test/896a54d5-81f5-4cb0-8c62-e2f65082895c/plugins/disabled.json"
+  ],
+  "note": "Generated project/disabled-state copies omitted from the PR; test fixtures are in source, response examples and all result reports are retained. Original captures remain in local artifacts."
 }
