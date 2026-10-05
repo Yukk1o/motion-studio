@@ -10,7 +10,8 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
 const MAX_JSON: u64 = 16 * 1024 * 1024;
 const MAX_ASSET: u64 = 64 * 1024 * 1024;
-const MAX_PACKAGE: u64 = 512 * 1024 * 1024;
+pub const MAX_MEDIA_ASSET: u64 = 512 * 1024 * 1024;
+pub const MAX_PACKAGE: u64 = 4 * 1024 * 1024 * 1024;
 
 pub fn validate_relative_path(path: &str) -> Result<()> {
     ensure(
@@ -39,22 +40,37 @@ fn read_json(path: &Path) -> Result<Project> {
 pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
     let base = root.canonicalize()?;
     let mut seen = HashSet::new();
-    for asset in &project.assets {
-        validate_relative_path(&asset.path)?;
+    let mut total = 0u64;
+    for (asset_path, limit, bytes) in project
+        .assets
+        .iter()
+        .map(|a| (&a.path, MAX_ASSET, None))
+        .chain(
+            project
+                .audio_assets
+                .iter()
+                .map(|a| (&a.path, MAX_MEDIA_ASSET, Some(a.bytes))),
+        )
+    {
+        validate_relative_path(asset_path)?;
         ensure(
-            seen.insert(asset.path.to_lowercase()),
+            seen.insert(asset_path.to_lowercase()),
             "duplicate asset path",
         )?;
-        let path = root.join(&asset.path).canonicalize().map_err(|error| {
-            crate::Error::Invalid(format!("素材无法读取：{} ({error})", asset.path))
+        let path = root.join(asset_path).canonicalize().map_err(|error| {
+            crate::Error::Invalid(format!("素材无法读取：{asset_path} ({error})"))
         })?;
         ensure(
             path.starts_with(&base),
             "asset resolves outside project directory",
         )?;
         let meta = path.metadata()?;
+        total = total
+            .checked_add(meta.len())
+            .ok_or_else(|| crate::Error::Invalid("project resource size overflow".into()))?;
+        ensure(total <= MAX_PACKAGE, "project resource budget exceeded")?;
         ensure(
-            meta.is_file() && meta.len() <= MAX_ASSET,
+            meta.is_file() && meta.len() <= limit && bytes.is_none_or(|n| n == meta.len()),
             "asset is invalid or too large",
         )?;
     }
@@ -96,11 +112,16 @@ pub fn export_package(root: &Path, project: &Project, output: &Path) -> Result<(
     zip.start_file("project.json", options)?;
     zip.write_all(&serde_json::to_vec_pretty(project)?)?;
     let mut total = 0;
-    for asset in &project.assets {
-        total += fs::metadata(root.join(&asset.path))?.len();
+    for path in project
+        .assets
+        .iter()
+        .map(|a| &a.path)
+        .chain(project.audio_assets.iter().map(|a| &a.path))
+    {
+        total += fs::metadata(root.join(path))?.len();
         ensure(total <= MAX_PACKAGE, "package resource budget exceeded")?;
-        zip.start_file(&asset.path, options)?;
-        std::io::copy(&mut File::open(root.join(&asset.path))?, &mut zip)?;
+        zip.start_file(path, options)?;
+        std::io::copy(&mut File::open(root.join(path))?, &mut zip)?;
     }
     let file = zip.finish()?;
     file.sync_all()?;
@@ -148,7 +169,7 @@ pub fn import_package(input: &Path, destination: &Path) -> Result<Project> {
         let limit = if name == "project.json" {
             MAX_JSON
         } else {
-            MAX_ASSET
+            MAX_MEDIA_ASSET
         };
         ensure(
             entry.size() <= limit,
@@ -175,6 +196,7 @@ pub fn import_package(input: &Path, destination: &Path) -> Result<Project> {
         .assets
         .iter()
         .map(|a| a.path.to_lowercase())
+        .chain(project.audio_assets.iter().map(|a| a.path.to_lowercase()))
         .chain(std::iter::once("project.json".into()))
         .collect();
     ensure(

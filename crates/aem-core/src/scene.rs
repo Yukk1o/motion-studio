@@ -138,7 +138,7 @@ impl Scene {
             1.0,
         );
         for (order, layer) in project.layers.iter().enumerate() {
-            if matches!(layer.content, Content::Null) {
+            if matches!(layer.content, Content::Null | Content::Audio { .. }) {
                 continue;
             }
             if !layer.active(frame, project.frames) {
@@ -154,7 +154,7 @@ impl Scene {
             }
             let center = self.node_world[order].w_axis.truncate();
             let (color, asset) = match &layer.content {
-                Content::Null => unreachable!(),
+                Content::Null | Content::Audio { .. } => unreachable!(),
                 Content::Solid { color } => (*color, None),
                 Content::Image { asset } => ([1.0; 4], Some(*asset)),
                 Content::Text {

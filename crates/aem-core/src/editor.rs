@@ -23,6 +23,16 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    RegisterAudioAsset {
+        asset: crate::AudioAsset,
+    },
+    SetAudio {
+        object: u64,
+        #[serde(default)]
+        volume: Option<f32>,
+        #[serde(default)]
+        muted: Option<bool>,
+    },
     #[serde(rename = "set_layer_3d")]
     SetLayer3d {
         object: u64,
@@ -267,6 +277,10 @@ fn channel(project: &mut Project, object: u64, property: Property) -> Result<Cha
         });
     }
     let layer = project.layer_mut(object)?;
+    ensure(
+        !matches!(layer.content, Content::Audio { .. }),
+        "audio has no spatial or opacity properties",
+    )?;
     if layer.locked {
         return Err(Error::Locked(object));
     }
@@ -317,6 +331,23 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
     let mut result = None;
     match command {
+        Command::RegisterAudioAsset { asset } => project.audio_assets.push(asset),
+        Command::SetAudio {
+            object,
+            volume,
+            muted,
+        } => {
+            let layer = editable_clip(project, object)?;
+            let Content::Audio { audio } = &mut layer.content else {
+                return Err(Error::Invalid("object has no audio".into()));
+            };
+            if let Some(volume) = volume {
+                audio.volume = volume;
+            }
+            if let Some(muted) = muted {
+                audio.muted = muted;
+            }
+        }
         Command::SetLayer3d { object, enabled } => {
             let layer = project.layer_mut(object)?;
             if layer.locked {
@@ -808,6 +839,26 @@ impl Engine {
     }
     /// All edits either commit together or restore the pre-edit state.
     pub fn apply_batch(&mut self, commands: Vec<Command>) -> Result<Vec<EditResult>> {
+        self.apply_batch_inner(commands, None)
+    }
+    /// Publish history and revision only after the project file is saved successfully.
+    /// Used by media imports after their owned source has been staged and validated.
+    pub fn apply_batch_saved(
+        &mut self,
+        commands: Vec<Command>,
+        root: &std::path::Path,
+    ) -> Result<Vec<EditResult>> {
+        ensure(
+            self.gesture.is_none(),
+            "finish the active gesture before importing media",
+        )?;
+        self.apply_batch_inner(commands, Some(root))
+    }
+    fn apply_batch_inner(
+        &mut self,
+        commands: Vec<Command>,
+        root: Option<&std::path::Path>,
+    ) -> Result<Vec<EditResult>> {
         let before = self.project.clone();
         let mut results = Vec::new();
         for command in commands {
@@ -821,6 +872,12 @@ impl Engine {
             }
         }
         if before != self.project {
+            if let Some(root) = root {
+                if let Err(error) = crate::storage::save(root, &self.project) {
+                    self.project = before;
+                    return Err(error);
+                }
+            }
             if self.gesture.is_none() {
                 self.push_undo(before);
                 self.redo.clear();
