@@ -76,12 +76,7 @@ impl Camera {
         self.position.validate(frames)?;
         self.target.validate(frames)?;
         for track in [&self.position, &self.target] {
-            for value in std::iter::once(track.value).chain(track.keys.iter().map(|k| k.value)) {
-                ensure(
-                    value.into_iter().all(|v| v.abs() <= 10_000_000.0),
-                    "camera position exceeds its numeric range",
-                )?;
-            }
+            track.validate_bound(10_000_000.0)?;
         }
         for track in [
             &self.roll,

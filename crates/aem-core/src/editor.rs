@@ -23,6 +23,17 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    SeparateDimensions {
+        object: u64,
+        property: Property,
+    },
+    SetComponent {
+        object: u64,
+        property: Property,
+        axis: crate::Axis,
+        frame: u32,
+        value: f32,
+    },
     MoveLayerClip {
         object: u64,
         in_frame: u32,
@@ -39,6 +50,8 @@ pub enum Command {
     Curve {
         object: u64,
         property: Property,
+        #[serde(default)]
+        axis: Option<crate::Axis>,
         frame: u32,
         easing: Easing,
     },
@@ -55,6 +68,8 @@ pub enum Command {
     CopyKey {
         object: u64,
         property: Property,
+        #[serde(default)]
+        axis: Option<crate::Axis>,
         from: u32,
         to: u32,
     },
@@ -81,23 +96,31 @@ pub enum Command {
     Animate {
         object: u64,
         property: Property,
+        #[serde(default)]
+        axis: Option<crate::Axis>,
         frame: u32,
         enabled: bool,
     },
     MoveKey {
         object: u64,
         property: Property,
+        #[serde(default)]
+        axis: Option<crate::Axis>,
         from: u32,
         to: u32,
     },
     DeleteKey {
         object: u64,
         property: Property,
+        #[serde(default)]
+        axis: Option<crate::Axis>,
         frame: u32,
     },
     Ease {
         object: u64,
         property: Property,
+        #[serde(default)]
+        axis: Option<crate::Axis>,
         frame: u32,
         ease: Ease,
     },
@@ -139,6 +162,31 @@ pub enum Command {
         x: f32,
         y: f32,
     },
+}
+
+/// Composition routing is explicit even while the engine has one composition.
+/// Omitting it always means comp-main, never an editor's current selection.
+pub fn parse_commands(text: &str) -> Result<Vec<Command>> {
+    let value: serde_json::Value = serde_json::from_str(text)?;
+    let requests = match value {
+        serde_json::Value::Array(values) => values,
+        value => vec![value],
+    };
+    requests
+        .into_iter()
+        .map(|mut value| {
+            let object = value
+                .as_object_mut()
+                .ok_or_else(|| Error::Invalid("command must be an object".into()))?;
+            if let Some(composition) = object.remove("composition") {
+                ensure(
+                    composition.as_str() == Some("comp-main"),
+                    "composition does not exist; this engine supports comp-main only",
+                )?;
+            }
+            Ok(serde_json::from_value(value)?)
+        })
+        .collect()
 }
 
 enum Channel<'a> {
@@ -225,6 +273,21 @@ fn channel(project: &mut Project, object: u64, property: Property) -> Result<Cha
         }
     })
 }
+fn axis_channel(
+    project: &mut Project,
+    object: u64,
+    property: Property,
+    axis: Option<crate::Axis>,
+) -> Result<Channel<'_>> {
+    let c = channel(project, object, property)?;
+    match (c, axis) {
+        (Channel::Vector(t), Some(axis)) => Ok(Channel::Scalar(t.axis_mut(axis)?)),
+        (Channel::Scalar(_), Some(_)) => {
+            Err(Error::Invalid("scalar property has no XYZ axis".into()))
+        }
+        (c, None) => Ok(c),
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
@@ -245,6 +308,29 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
     let mut result = None;
     match command {
+        Command::SeparateDimensions { object, property } => {
+            match channel(project, object, property)? {
+                Channel::Vector(t) => t.separate()?,
+                _ => {
+                    return Err(Error::Invalid(
+                        "only vector properties can separate dimensions".into(),
+                    ))
+                }
+            }
+        }
+        Command::SetComponent {
+            object,
+            property,
+            axis,
+            frame,
+            value,
+        } => {
+            let frame = project.edit_frame(object, frame)?;
+            match axis_channel(project, object, property, Some(axis))? {
+                Channel::Scalar(t) => t.set_at(frame, value)?,
+                _ => unreachable!(),
+            }
+        }
         Command::MoveLayerClip { object, in_frame } => {
             let frames = project.frames;
             let layer = editable_clip(project, object)?;
@@ -324,16 +410,18 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
         Command::Curve {
             object,
             property,
+            axis,
             frame,
             easing,
         } => {
             valid_frame(frame)?;
             let frame = project.edit_frame(object, frame)?;
-            channel(project, object, property)?.curve(frame, easing)?;
+            axis_channel(project, object, property, axis)?.curve(frame, easing)?;
         }
         Command::CopyKey {
             object,
             property,
+            axis,
             from,
             to,
         } => {
@@ -341,7 +429,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             valid_frame(to)?;
             let from = project.edit_frame(object, from)?;
             let to = project.edit_frame(object, to)?;
-            channel(project, object, property)?.copy_key(from, to)?;
+            axis_channel(project, object, property, axis)?.copy_key(from, to)?;
         }
         Command::SetVector {
             object,
@@ -372,16 +460,18 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
         Command::Animate {
             object,
             property,
+            axis,
             frame,
             enabled,
         } => {
             valid_frame(frame)?;
             let frame = project.edit_frame(object, frame)?;
-            channel(project, object, property)?.animate(frame, enabled)?;
+            axis_channel(project, object, property, axis)?.animate(frame, enabled)?;
         }
         Command::MoveKey {
             object,
             property,
+            axis,
             from,
             to,
         } => {
@@ -389,26 +479,28 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             valid_frame(to)?;
             let from = project.edit_frame(object, from)?;
             let to = project.edit_frame(object, to)?;
-            channel(project, object, property)?.move_key(from, to)?;
+            axis_channel(project, object, property, axis)?.move_key(from, to)?;
         }
         Command::DeleteKey {
             object,
             property,
+            axis,
             frame,
         } => {
             valid_frame(frame)?;
             let frame = project.edit_frame(object, frame)?;
-            channel(project, object, property)?.delete_key(frame)?;
+            axis_channel(project, object, property, axis)?.delete_key(frame)?;
         }
         Command::Ease {
             object,
             property,
+            axis,
             frame,
             ease,
         } => {
             valid_frame(frame)?;
             let frame = project.edit_frame(object, frame)?;
-            channel(project, object, property)?.ease(frame, ease)?;
+            axis_channel(project, object, property, axis)?.ease(frame, ease)?;
         }
         Command::RegisterAsset { asset } => project.assets.push(asset),
         Command::Content {
@@ -592,9 +684,9 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 let pos = old.transform.position.sample(frame);
                 [pos[0] + delta.x, pos[1] - delta.y, pos[2] - delta.z]
             };
-            let animated = !old.transform.position.keys.is_empty()
-                || !old.transform.rotation.keys.is_empty()
-                || !old.transform.scale.keys.is_empty();
+            let animated = old.transform.position.is_animated()
+                || old.transform.rotation.is_animated()
+                || old.transform.scale.is_animated();
             let mut position = Track::constant(compensate(0.0));
             if animated {
                 let first = old.clip(project.frames).edit_frame(0)?;
@@ -602,11 +694,9 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 let key_frames = old
                     .transform
                     .position
-                    .keys
-                    .iter()
-                    .map(|k| k.frame)
-                    .chain(old.transform.rotation.keys.iter().map(|k| k.frame))
-                    .chain(old.transform.scale.keys.iter().map(|k| k.frame));
+                    .key_frames()
+                    .chain(old.transform.rotation.key_frames())
+                    .chain(old.transform.scale.key_frames());
                 let (first, last) =
                     key_frames.fold((first, last), |(a, b), f| (a.min(f), b.max(f)));
                 ensure(
@@ -616,6 +706,9 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 for frame in first..=last {
                     position.upsert(frame, compensate(f64::from(frame)), Ease::Linear)?;
                 }
+            }
+            if old.transform.position.axes.is_some() {
+                position.separate()?;
             }
             let layer = project.layer_mut(object)?;
             layer.transform.position = position;

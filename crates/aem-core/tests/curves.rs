@@ -131,6 +131,7 @@ fn pasting_between_vector_scalar_and_camera_preserves_target_values_times_and_un
         (0, Property::Fov),
     ] {
         e.apply(Command::Animate {
+            axis: None,
             object,
             property,
             frame: 12,
@@ -138,6 +139,7 @@ fn pasting_between_vector_scalar_and_camera_preserves_target_values_times_and_un
         })
         .unwrap();
         e.apply(Command::CopyKey {
+            axis: None,
             object,
             property,
             from: 12,
@@ -150,6 +152,7 @@ fn pasting_between_vector_scalar_and_camera_preserves_target_values_times_and_un
         curve: Some(quadratic(CurveSpace::Velocity, [0.2, 3.0], 0.0)),
     };
     e.apply(Command::Curve {
+        axis: None,
         object: 2,
         property: Property::Position,
         frame: 12,
@@ -159,6 +162,7 @@ fn pasting_between_vector_scalar_and_camera_preserves_target_values_times_and_un
     let before = e.snapshot();
     for (object, property) in [(3, Property::Opacity), (0, Property::Fov)] {
         e.apply(Command::Curve {
+            axis: None,
             object,
             property,
             frame: 12,
@@ -193,6 +197,7 @@ fn pasting_between_vector_scalar_and_camera_preserves_target_values_times_and_un
     let before = e.snapshot();
     assert!(e
         .apply(Command::Curve {
+            axis: None,
             object: 3,
             property: Property::Opacity,
             frame: 72,
