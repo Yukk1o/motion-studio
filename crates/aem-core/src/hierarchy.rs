@@ -114,7 +114,13 @@ fn node(
         );
         (projection.inverse() * pose.view_projection).inverse()
     } else {
-        prefix * crate::scene::pivot_matrix(&p.layers[index], frame, p.width, p.height)
+        let layer = &p.layers[index];
+        let prefix = if layer.three_d {
+            prefix
+        } else {
+            crate::scene::flat_matrix(prefix)
+        };
+        prefix * crate::scene::pivot_matrix(layer, frame, p.width, p.height)
     };
     ensure(value.is_finite(), "invalid parent transform")?;
     world[index] = value;
