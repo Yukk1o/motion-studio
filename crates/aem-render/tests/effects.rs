@@ -95,6 +95,42 @@ fn strict_plan_checks_hidden_layers_and_binary_buffer_bounds() {
 }
 
 #[test]
+fn effect_outputs_preserve_crossing_plane_batches_in_both_stack_orders() {
+    let mut p = Project::new(256, 256, 30, 60).unwrap();
+    p.background = [0.0, 0.0, 0.0, 1.0];
+    for (id, angle, tint) in [
+        (1, 45.0, [1.0, 0.0, 0.0, 1.0]),
+        (2, -45.0, [0.0, 0.0, 1.0, 1.0]),
+    ] {
+        let mut layer = Layer::solid(id, "cross", [256.0; 2], [128.0, 128.0, 0.0], tint);
+        layer.three_d = true;
+        layer.transform.rotation.value[1] = angle;
+        layer.effects.push(instance("brightness_contrast", id));
+        p.layers.push(layer);
+    }
+    p.rebuild_plugin_dependencies();
+    let mut scene = Scene::new(&p);
+    let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
+    let target = renderer.capture_target(256, 256).unwrap();
+    let mut builder = PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    for _ in 0..2 {
+        scene.sample(&p, 0.0, None).unwrap();
+        let plan = builder.build(&scene, &[0, 0], 256, 256, true).unwrap();
+        assert_eq!(plan.batches.len(), 3);
+        let mut bytes = vec![0; plan.buffer_bytes(&scene)];
+        plan.write(&scene, &mut bytes).unwrap();
+        assert_eq!(u32::from_ne_bytes(bytes[4..8].try_into().unwrap()), 2);
+        assert_eq!(u32::from_ne_bytes(bytes[56..60].try_into().unwrap()), 3);
+        let (pixels, _) = renderer.capture(&scene, &target).unwrap();
+        let left = &pixels[(128 * 256 + 96) * 4..(128 * 256 + 96) * 4 + 4];
+        let right = &pixels[(128 * 256 + 160) * 4..(128 * 256 + 160) * 4 + 4];
+        assert!(left[2] > 245 && left[0] < 8, "{left:?}");
+        assert!(right[0] > 245 && right[2] < 8, "{right:?}");
+        p.layers.swap(0, 1);
+    }
+}
+
+#[test]
 fn over_budget_effect_is_reported_and_preview_keeps_input() {
     let mut p = fixture();
     p.layers[0].size = [4096.0; 2];

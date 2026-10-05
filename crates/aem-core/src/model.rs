@@ -267,7 +267,7 @@ impl Project {
             "unsupported project format",
         )?;
         ensure(
-            self.version == 2 || self.layers.iter().all(|l| l.effects.is_empty()),
+            self.version >= 2 || self.layers.iter().all(|l| l.effects.is_empty()),
             "version 1 projects cannot contain effects",
         )?;
         ensure(

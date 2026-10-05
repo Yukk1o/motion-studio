@@ -108,9 +108,14 @@ open class MainActivity:ComponentActivity() {
     var settings by remember{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
     var library by remember{mutableStateOf(false)}
+    var videoImport by remember{mutableStateOf(false)}
+    var keepSound by remember{mutableStateOf(true)}
     var curveExpanded by remember{mutableStateOf(false)}
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importImage)}
     val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importProject)}
+    val audioPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"audio")}}
+    val videoPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"video",keepSound)}}
+    val pluginPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::installPlugin)}
     val pngSave=rememberLauncherForActivityResult(CreateOutputDocument("image/png")){uri->
         vm.completeOutputSelection(uri)
     }
@@ -176,15 +181,16 @@ open class MainActivity:ComponentActivity() {
             }
             // This sibling overlays the stable editor; it never changes Surface
             // or timeline constraints and adds no scrim over the preview.
+            val propertyBounds=if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-(if(curveExpanded)0.dp else 44.dp)).coerceAtLeast(0.dp))
+                else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
+                else Modifier.fillMaxWidth().height(if(curveExpanded||vm.effectsOpen)(availableHeight*.64f).coerceAtMost(440.dp)
+                    else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp))
             AnimatedVisibility(visible=vm.panelOpen&&(vm.selected!=0L||vm.hasCamera()),
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
-                Properties(vm,if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-(if(curveExpanded)0.dp else 44.dp)).coerceAtLeast(0.dp))
-                    else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
-                    else Modifier.fillMaxWidth().height(if(curveExpanded)(availableHeight*.64f).coerceAtMost(440.dp)
-                        else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp)),
-                    onCurveMode={curveExpanded=it})
+                if(vm.effectsOpen)EffectsPanel(vm,propertyBounds,onCurveMode={curveExpanded=it}){vm.effectsOpen=false;vm.property="position";vm.panelOpen=false}
+                else Properties(vm,propertyBounds,onCurveMode={curveExpanded=it})
             }
             if(vm.state.project==null&&vm.loadFailed&&!vm.state.busy) {
                 Column(Modifier.fillMaxSize().background(Background).padding(24.dp),verticalArrangement=Arrangement.Center,
@@ -208,6 +214,8 @@ open class MainActivity:ComponentActivity() {
         addMenu=false
         when(kind) {
             "image"->imagePicker.launch(arrayOf("image/png","image/jpeg"))
+            "audio"->audioPicker.launch(arrayOf("audio/*","application/octet-stream"))
+            "video"->videoImport=true
             "text"->textDialog=true
             "solid"->vm.addRectangle()
             "null"->vm.addNull()
@@ -221,6 +229,14 @@ open class MainActivity:ComponentActivity() {
             when(vm.pendingOutputKind){"video"->videoSave.launch("MotionStudio.mp4");"project"->projectSave.launch("MotionStudio.motion");else->pngSave.launch("motion-frame.png")}
         }){Text("重新选择位置")}else if(vm.state.project!=null)TextButton(onClick=vm::retryPreview){Text("重试预览")}})}
     if(textDialog)InputDialog("添加文字","Motion Studio",onDismiss={textDialog=false}){vm.addText(it);textDialog=false}
+    if(videoImport)AlertDialog(onDismissRequest={videoImport=false},title={Text("导入视频")},text={Column{Text("支持 MP4 / H.264，最多 1080p。",color=Muted)
+        Row(verticalAlignment=Alignment.CenterVertically){Checkbox(keepSound,{keepSound=it});Text("保留原声")}}},confirmButton={TextButton(onClick={videoImport=false;videoPicker.launch(arrayOf("video/mp4","application/octet-stream"))}){Text("选择视频")}},dismissButton={TextButton(onClick={videoImport=false}){Text("取消")}})
+    vm.importTask?.let{task->AlertDialog(onDismissRequest={},title={Text("导入媒体")},text={Column {
+        val phase=when(task.optString("phase")){"opening"->"打开文件";"copying"->"保存素材";"probing"->"检查画面";"decoding","decoding_audio"->"解码声音";"waveform"->"生成波形";"awaiting_commit"->"保存片段";else->"准备素材"}
+        Text(phase);Spacer(Modifier.height(12.dp));LinearProgressIndicator(progress={task.optDouble("progress").toFloat().coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
+    }},confirmButton={},dismissButton={TextButton(onClick=vm::cancelMediaImport){Text("取消导入")}})}
+    vm.mediaNotice?.let{notice->AlertDialog(onDismissRequest=vm::clearMediaNotice,title={Text("导入完成")},text={Text(notice)},confirmButton={TextButton(onClick=vm::clearMediaNotice){Text("知道了")}})}
+    if(vm.pluginsOpen)PluginsPanel(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onDismiss={vm.pluginsOpen=false})
     if(vm.exporting)AlertDialog(onDismissRequest={},title={Text("导出视频")},
         text={Column{LinearProgressIndicator(progress={vm.exportProgress},modifier=Modifier.fillMaxWidth(),color=Accent)
             Spacer(Modifier.height(12.dp));Text((vm.exportProgress*100).toInt().toString()+"% · 本机编码")}},
@@ -231,6 +247,8 @@ open class MainActivity:ComponentActivity() {
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
             TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
+            TextButton(onClick={settings=false;vm.pluginsOpen=true},modifier=Modifier.testTag("open-plugins")){Text("效果包")}
+            if(vm.state.project?.optJSONArray("audio_assets")?.length()?.let{it>0}==true||vm.state.project?.optJSONArray("video_assets")?.length()?.let{it>0}==true)TextButton(onClick={settings=false;vm.prepareMediaCaches(true)}){Text("重建媒体缓存")}
             Text("预览清晰度",fontSize=12.sp,color=Muted)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 listOf("自动","清晰","流畅","省电").forEachIndexed{mode,label->

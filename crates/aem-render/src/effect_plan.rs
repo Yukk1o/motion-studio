@@ -8,7 +8,7 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 1;
+pub const PLAN_VERSION: u32 = 2;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 8;
 #[repr(C)]
@@ -56,6 +56,8 @@ pub struct EffectFramePlan {
     pub height: u32,
     pub slots: u32,
     pub diagnostics: Vec<String>,
+    pub vertices: Vec<aem_core::PlaneVertex>,
+    pub batches: Vec<aem_core::PlaneBatch>,
 }
 impl EffectFramePlan {
     pub fn buffer_bytes(&self, scene: &Scene) -> usize {
@@ -63,6 +65,7 @@ impl EffectFramePlan {
             + self.passes.len() * 32
             + self.passes.len() * shader::UNIFORM_BYTES
             + scene.curve_luts.len() * 1024
+            + self.batches.len() * 12 + self.vertices.len() * 20
     }
     pub fn write(&self, scene: &Scene, out: &mut [u8]) -> Result<usize, String> {
         let size = self.buffer_bytes(scene);
@@ -73,6 +76,8 @@ impl EffectFramePlan {
         let pass_offset = draw_offset + self.draws.len() * 128;
         let uniform_offset = pass_offset + self.passes.len() * 32;
         let lut_offset = uniform_offset + self.passes.len() * shader::UNIFORM_BYTES;
+        let batch_offset = lut_offset + scene.curve_luts.len() * 1024;
+        let vertex_offset = batch_offset + self.batches.len() * 12;
         let header = [
             PLAN_MAGIC,
             PLAN_VERSION,
@@ -87,9 +92,9 @@ impl EffectFramePlan {
             self.slots,
             lut_offset as u32,
             scene.curve_luts.len() as u32,
-            0,
-            0,
-            0,
+            batch_offset as u32,
+            self.batches.len() as u32,
+            vertex_offset as u32,
         ];
         out[..64].copy_from_slice(bytemuck::cast_slice(&header));
         for (i, d) in self.draws.iter().enumerate() {
@@ -125,6 +130,14 @@ impl EffectFramePlan {
                 }
             }
         }
+        for (i, batch) in self.batches.iter().enumerate() {
+            let data = [batch.layer as u32, batch.vertices.start, batch.vertices.end - batch.vertices.start];
+            out[batch_offset+i*12..batch_offset+(i+1)*12].copy_from_slice(bytemuck::cast_slice(&data));
+        }
+        for (i, v) in self.vertices.iter().enumerate() {
+            let data = [v.position[0],v.position[1],v.position[2],v.uv[0],v.uv[1]];
+            out[vertex_offset+i*20..vertex_offset+(i+1)*20].copy_from_slice(bytemuck::cast_slice(&data));
+        }
         Ok(size)
     }
 }
@@ -142,6 +155,8 @@ pub struct PlanBuilder {
     pub programs: Vec<EffectProgram>,
     resolved: Vec<Option<Resolved>>,
     pub frame: EffectFramePlan,
+    geometry: aem_core::PlaneCompositor,
+    sizes: Vec<[f32; 2]>,
 }
 fn utility(code: &str) -> Result<Arc<shader::CompiledShader>, String> {
     shader::compile(code, "main_fx")
@@ -255,6 +270,8 @@ impl PlanBuilder {
             ],
             resolved: Vec::new(),
             frame: EffectFramePlan::default(),
+            geometry: aem_core::PlaneCompositor::new(),
+            sizes: Vec::with_capacity(aem_core::MAX_LAYERS),
         })
     }
     pub fn set_registry(&mut self, registry: Registry) {
@@ -598,7 +615,7 @@ impl PlanBuilder {
                 }
             }
             let mut words = [0.0; 32];
-            let mvp = scene.camera.view_projection * layer.model;
+            let mvp = layer.view_projection;
             words[..16].copy_from_slice(&mvp.to_cols_array());
             words[16..20].copy_from_slice(&if materialized {
                 [1.0; 4]
@@ -613,7 +630,7 @@ impl PlanBuilder {
             words[20] = region[2];
             words[21] = region[3];
             words[22] = layer.opacity;
-            words[24] = asset as f32;
+            words[24] = if layer.video.is_some() { -(layer.order as f32 + 1.0) } else { asset as f32 };
             words[25] = 1.0;
             words[26] = 1.0;
             words[27] = if materialized { 0.0 } else { -1.0 };
@@ -634,6 +651,11 @@ impl PlanBuilder {
                 }
             }
         }
+        self.sizes.clear();
+        self.sizes.extend(self.frame.draws.iter().map(|d| [d.words[20],d.words[21]]));
+        self.geometry.prepare_with_sizes(scene, &self.sizes).map_err(|e|e.to_string())?;
+        self.frame.vertices.clone_from(&self.geometry.vertices);
+        self.frame.batches.clone_from(&self.geometry.batches);
         Ok(&self.frame)
     }
 }

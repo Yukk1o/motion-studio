@@ -28,6 +28,8 @@ import androidx.compose.ui.res.vectorResource
         "Diamond"->R.drawable.ic_editor_diamond
         "Videocam"->R.drawable.ic_editor_camera
         "Image"->R.drawable.ic_editor_image
+        "Movie"->R.drawable.ic_editor_movie
+        "Audiotrack"->R.drawable.ic_editor_audio
         "TextFields"->R.drawable.ic_editor_text
         "Rectangle"->R.drawable.ic_editor_rectangle
         "ControlCamera"->R.drawable.ic_editor_controller

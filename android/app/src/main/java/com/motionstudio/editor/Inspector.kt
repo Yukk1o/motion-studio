@@ -40,6 +40,15 @@ import java.util.Locale
 import kotlin.math.*
 
 @Composable internal fun EditorFooter(vm:EditorViewModel) {
+    if(vm.contentKind()=="audio") {
+        Row(Modifier.fillMaxWidth().heightIn(min=52.dp).background(Panel).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+            Text(objectName(vm,vm.selected),Modifier.weight(1f),color=Ink,maxLines=1,overflow=TextOverflow.Ellipsis)
+            TextButton(onClick={vm.openProperty("audio")},modifier=Modifier.height(48.dp)){Text("声音")}
+            TextButton(onClick=vm::duplicate,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("复制")}
+            TextButton(onClick=vm::deleteLayer,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("删除")}
+        }
+        return
+    }
     var more by remember{mutableStateOf(false)}
     Row(Modifier.fillMaxWidth().height(52.dp).background(Panel).padding(horizontal=8.dp)
         .then(if(vm.panelOpen)Modifier.clearAndSetSemantics{}else Modifier),verticalAlignment=Alignment.CenterVertically) {
@@ -65,6 +74,8 @@ import kotlin.math.*
             Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
             DropdownMenu(more,{more=false}) {
                 if(vm.selected!=0L) {
+                    if(vm.contentKind() in listOf("solid","image","text"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
+                    if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.openProperty("audio")})
                     DropdownMenuItem(text={Text("透明度")},onClick={more=false;vm.openProperty("opacity")})
                     DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
                     DropdownMenuItem(text={Text("删除图层")},onClick={more=false;vm.deleteLayer()})
@@ -114,6 +125,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
 }
 
 @Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier,onCurveMode:(Boolean)->Unit={}) {
+    if(vm.contentKind()=="audio"||vm.property=="audio") {AudioProperties(vm,modifier);return}
     var rename by remember{mutableStateOf(false)}
     var anchor by remember{mutableStateOf(false)}
     var more by remember{mutableStateOf(false)}
@@ -157,6 +169,8 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         DropdownMenuItem(text={Text("删除摄影机")},onClick={more=false;vm.deleteLayer()})
                     }
                     else {
+                        if(vm.contentKind() in listOf("solid","image","text"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
+                        if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.property="audio"})
                         DropdownMenuItem(text={Text("锚点")},enabled=vm.editable(),onClick={more=false;anchor=true})
                         DropdownMenuItem(text={Text("摄影机对准此图层")},onClick={more=false;vm.focusCameraOnSelection()})
                         DropdownMenuItem(text={Text("重命名")},onClick={more=false;rename=true})

@@ -499,7 +499,7 @@ impl GpuState {
         index: usize,
         frame: &EffectFramePlan,
         assets: &[u64],
-        images: &HashMap<u64, GpuImage>,
+        images: &HashMap<crate::renderer::TextureKey, GpuImage>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
@@ -514,7 +514,7 @@ impl GpuState {
         if self.bindings[index].as_ref().is_none_or(|v| v.key != key) {
             let view = |id: i32| -> &wgpu::TextureView {
                 if id < 0 {
-                    &images[&assets[(-id - 1) as usize]].view
+                    &images[&crate::renderer::TextureKey::Static(assets[(-id - 1) as usize])].view
                 } else {
                     &self.pool[id as usize].as_ref().unwrap().view
                 }

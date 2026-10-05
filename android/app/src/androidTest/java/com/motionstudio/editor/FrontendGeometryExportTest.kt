@@ -36,6 +36,34 @@ class FrontendGeometryExportTest {
     private fun photo(bitmap:Bitmap,file:File){file.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}}
     private fun root()=File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"acceptance/geometry-export-"+UUID.randomUUID()).apply{mkdirs()}
 
+    @Test fun effectChainsRetainCrossingGeometryDuringPreviewAndEncodedExport() {
+        val root=root();val session=NativeBridge.create(root.absolutePath,crossingFrontendFixture().put("frames",12).toString());assertTrue(session>0)
+        try {
+            val packages=data(NativeBridge.plugin(session,"{\"op\":\"catalogue\"}")).getJSONArray("packages").objects()
+            val pkg=packages.first{it.getJSONObject("manifest").getString("version")=="1.1.0"}
+            val m=pkg.getJSONObject("manifest")
+            for(id in listOf(1,2))data(NativeBridge.plugin(session,JSONObject().put("op","add").put("object",id).put("plugin",m.getString("id")).put("version",m.getString("version")).put("hash",pkg.getString("hash")).put("effect","brightness_contrast").toString()))
+            val capture=BitmapFactory.decodeFile(data(NativeBridge.capture(session)).getString("path"))
+            photo(capture,File(root,"effects-reference.png"))
+            val project=data(NativeBridge.state(session)).getJSONObject("project").toString()
+            val video=VideoExporter(root,project).run{_,_->}
+            val retriever=MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(video.absolutePath)
+                for(f in listOf(0,6,11)) {
+                    val frame=retriever.getFrameAtIndex(f)?:error("Encoded frame missing")
+                    try {
+                        photo(frame,File(root,"effects-encoded-$f.png"))
+                        for(x in listOf(96,160)) {
+                            val a=capture.getPixel(x,128);val b=frame.getPixel(x,128)
+                            for(component in listOf(Color::red,Color::green,Color::blue))assertTrue("Effect/geometry mismatch at $f x=$x: $a vs $b",abs(component(a)-component(b))<=6)
+                        }
+                    }finally{frame.recycle()}
+                }
+            }finally{retriever.release();capture.recycle()}
+        }finally{NativeBridge.destroy(session)}
+    }
+
     @Test fun opaqueAndTransparentCrossingsEncodeInDepthOrderAndFreezeAgainstLiveEdits() {
         for(alpha in listOf(1.0,.5)) {
             val root=root();val session=NativeBridge.create(root.absolutePath,crossingFrontendFixture(alpha).toString());assertTrue(session>0)
