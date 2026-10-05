@@ -48,6 +48,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var panelOpen by mutableStateOf(false)
     var timelineScale by mutableFloatStateOf(1.5f)
     var scaleLinked by mutableStateOf(true)
+    var rotationAxis by mutableIntStateOf(2)
     var curveClipboard by mutableStateOf<String?>(null); private set
     var previewMode by mutableIntStateOf(if(projectDirectory==null)app.getSharedPreferences("motion-studio",0).getInt("previewMode",0).coerceIn(0,3) else 0);private set
     var previewInfo by mutableStateOf<JSONObject?>(null);private set

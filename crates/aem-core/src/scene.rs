@@ -66,14 +66,15 @@ impl Scene {
                     self.effects[effect_index] = crate::SampledEffect::new(layer.id, e);
                 }
                 let sampled = &mut self.effects[effect_index];
+                sampled.local_frame = layer.local_frame(frame);
                 sampled.enabled = e.enabled;
                 sampled.seed = e.seed;
                 sampled.lut = None;
                 for (i, p) in e.params.values().enumerate() {
-                    sampled.values[i] = p.sample(frame);
+                    sampled.values[i] = p.sample(sampled.local_frame);
                     if let Some(c) = p.curve.as_ref().filter(|_| e.enabled) {
                         sampled.lut = Some(self.curve_luts.len());
-                        self.curve_luts.push(c.sample(frame));
+                        self.curve_luts.push(c.sample(sampled.local_frame));
                     }
                 }
                 effect_index += 1;
@@ -113,10 +114,14 @@ impl Scene {
             if matches!(layer.content, Content::Null) {
                 continue;
             }
-            if !layer.visible {
+            if !layer.active(frame, project.frames) {
                 continue;
             }
-            let opacity = layer.transform.opacity.sample(frame).clamp(0.0, 1.0);
+            let opacity = layer
+                .transform
+                .opacity
+                .sample(layer.local_frame(frame))
+                .clamp(0.0, 1.0);
             if opacity <= 0.0 {
                 continue;
             }
@@ -221,6 +226,7 @@ pub(crate) fn geometry_offset(layer: &Layer) -> Mat4 {
     ))
 }
 pub(crate) fn pivot_matrix(layer: &Layer, frame: f64, width: u32, height: u32) -> Mat4 {
+    let frame = layer.local_frame(frame);
     let t = &layer.transform;
     let rotation = t.rotation.sample(frame);
     let quaternion = Quat::from_euler(

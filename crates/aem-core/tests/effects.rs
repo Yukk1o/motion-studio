@@ -264,3 +264,195 @@ fn disabled_curves_keep_saved_keys_without_materializing_parameter_resources() {
     scene.sample(engine.project(), 0.0, None).unwrap();
     assert_eq!(scene.curve_luts.len(), 1);
 }
+
+#[test]
+fn effect_keys_follow_clip_local_time_through_trim_move_split_and_undo() {
+    let (mut engine, id) = fixture("tint");
+    apply(
+        &mut engine,
+        EffectAction::Set {
+            effect: id,
+            param: "p0003".into(),
+            frame: 0,
+            value: [0.0; 4],
+        },
+    );
+    apply(
+        &mut engine,
+        EffectAction::Animate {
+            effect: id,
+            param: "p0003".into(),
+            frame: 0,
+            enabled: true,
+        },
+    );
+    apply(
+        &mut engine,
+        EffectAction::Set {
+            effect: id,
+            param: "p0003".into(),
+            frame: 30,
+            value: [100.0, 0.0, 0.0, 0.0],
+        },
+    );
+    engine
+        .apply(Command::TrimLayerClip {
+            object: 1,
+            in_frame: 10,
+            out_frame: 50,
+        })
+        .unwrap();
+    engine
+        .apply(Command::MoveLayerClip {
+            object: 1,
+            in_frame: 0,
+        })
+        .unwrap();
+    let mut scene = Scene::new(engine.project());
+    for frame in [0.0, 19.0, 5.0] {
+        scene.sample(engine.project(), frame, None).unwrap();
+        let effect = &scene.effects[0];
+        assert_eq!(effect.local_frame, frame + 10.0);
+        let index = effect
+            .param_ids
+            .iter()
+            .position(|id| id == "p0003")
+            .unwrap();
+        assert!((effect.values[index][0] - ((frame + 10.0) / 30.0 * 100.0) as f32).abs() < 0.001);
+    }
+    let before_split = engine.project().clone();
+    engine
+        .apply(Command::SplitLayerClip {
+            object: 1,
+            frame: 20,
+        })
+        .unwrap();
+    assert_eq!(
+        engine.project().layers[0].effects,
+        engine.project().layers[1].effects
+    );
+    scene.sample(engine.project(), 20.0, None).unwrap();
+    assert_eq!(scene.layers.len(), 1);
+    assert_eq!(scene.layers[0].id, engine.project().layers[1].id);
+    assert_eq!(scene.effects[1].local_frame, 30.0);
+    engine.undo().unwrap();
+    assert_eq!(engine.project(), &before_split);
+    engine
+        .apply(Command::MoveLayerClip {
+            object: 1,
+            in_frame: 20,
+        })
+        .unwrap();
+    apply(
+        &mut engine,
+        EffectAction::Set {
+            effect: id,
+            param: "p0003".into(),
+            frame: 5,
+            value: [25.0, 0.0, 0.0, 0.0],
+        },
+    );
+    assert!(engine.project().layers[0].effects[0].params["p0003"]
+        .track
+        .keys
+        .iter()
+        .any(|k| k.frame == -5));
+    apply(
+        &mut engine,
+        EffectAction::CopyKey {
+            effect: id,
+            param: "p0003".into(),
+            from: 5,
+            to: 6,
+        },
+    );
+    apply(
+        &mut engine,
+        EffectAction::MoveKey {
+            effect: id,
+            param: "p0003".into(),
+            from: 6,
+            to: 7,
+        },
+    );
+    apply(
+        &mut engine,
+        EffectAction::DeleteKey {
+            effect: id,
+            param: "p0003".into(),
+            frame: 7,
+        },
+    );
+    let restored: Project =
+        serde_json::from_str(&serde_json::to_string(engine.project()).unwrap()).unwrap();
+    restored.validate().unwrap();
+    assert_eq!(restored, *engine.project());
+}
+
+#[test]
+fn curve_object_keys_support_negative_local_time_and_full_signed_span() {
+    let (mut engine, id) = fixture("curves");
+    engine
+        .apply(Command::TrimLayerClip {
+            object: 1,
+            in_frame: 0,
+            out_frame: 40,
+        })
+        .unwrap();
+    engine
+        .apply(Command::MoveLayerClip {
+            object: 1,
+            in_frame: 20,
+        })
+        .unwrap();
+    apply(
+        &mut engine,
+        EffectAction::Animate {
+            effect: id,
+            param: "p0001".into(),
+            frame: 5,
+            enabled: true,
+        },
+    );
+    let mut altered = aem_core::CurveObject::default();
+    altered.channels[1] = vec![[0.0, 0.0], [1.0, 0.0]];
+    apply(
+        &mut engine,
+        EffectAction::SetCurveObject {
+            effect: id,
+            param: "p0001".into(),
+            frame: 25,
+            value: altered.clone(),
+        },
+    );
+    let curve = engine.project().layers[0].effects[0].params["p0001"]
+        .curve
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        curve.keys.iter().map(|k| k.frame).collect::<Vec<_>>(),
+        [-15, 5]
+    );
+    let mut scene = Scene::new(engine.project());
+    scene.sample(engine.project(), 20.0, None).unwrap();
+    assert!((scene.curve_luts[0][255][0] - 0.25).abs() < 0.001);
+    let mut project = engine.project().clone();
+    let curve = project.layers[0].effects[0]
+        .params
+        .get_mut("p0001")
+        .unwrap()
+        .curve
+        .as_mut()
+        .unwrap();
+    curve.keys[0].frame = i32::MIN;
+    curve.keys[1].frame = i32::MAX;
+    assert!((curve.sample(0.0)[255][0] - 0.5).abs() < 0.001);
+    project.validate().unwrap();
+    let unsupported = serde_json::from_value::<aem_core::Track<[f32; 4]>>(serde_json::json!({
+        "axes": {"x":{"value":0,"keys":[]},"y":{"value":0,"keys":[]},"z":{"value":0,"keys":[]}}
+    }));
+    assert!(
+        unsupported.is_err(),
+        "four-component effect parameters cannot become XYZ tracks"
+    );
+}

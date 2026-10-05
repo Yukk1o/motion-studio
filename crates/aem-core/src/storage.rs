@@ -33,9 +33,8 @@ fn read_json(path: &Path) -> Result<Project> {
         file.metadata()?.len() <= MAX_JSON,
         "project JSON exceeds the size limit",
     )?;
-    let mut project: Project = serde_json::from_reader(file.take(MAX_JSON + 1))?;
-    project.migrate()?;
-    Ok(project)
+    let project: Project = serde_json::from_reader(file.take(MAX_JSON + 1))?;
+    project.migrate()
 }
 pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
     let base = root.canonicalize()?;
