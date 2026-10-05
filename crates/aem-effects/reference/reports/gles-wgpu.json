@@ -1,0 +1,182 @@
+[
+  {
+    "effect": "brightness_contrast",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "exposure",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "hue_saturation",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "tint",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.16370982025170763,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "tritone",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.1666093925569427,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "color_balance",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "levels",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "curves",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": true,
+    "rgbMae": 0.13803411975743507,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "gaussian_blur",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.23475201340387541,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "fast_box_blur",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.08539986777307611,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "directional_blur",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.08539986777307611,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "radial_blur",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.16903490036107413,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "sharpen",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "unsharp_mask",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.1183106240531306,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "mirror",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "offset",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "bulge",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.029142963050022726,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "twirl",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "wave_warp",
+    "frame": 7,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.12243108159379845,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  },
+  {
+    "effect": "polar_coordinates",
+    "frame": 0,
+    "packageHash": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+    "nonIdentityCurve": false,
+    "rgbMae": 0.07818184211170437,
+    "alphaMae": 0,
+    "renderer": "Adreno (TM) 640"
+  }
+]

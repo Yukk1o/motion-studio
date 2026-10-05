@@ -1,0 +1,5175 @@
+{
+  "baseline": {
+    "application": "18.0.1x1",
+    "bpc": 8,
+    "working_space": "sRGB IEC61966-2.1",
+    "linearize": false,
+    "square_pixels": true,
+    "motion_blur": false,
+    "rgb_alpha_mae_threshold_255": 3
+  },
+  "roi": "edge: 16-pixel image border or Alpha transition within 16 pixels; RGB ignores pixels transparent in both images",
+  "accepted_effects": 0,
+  "acceptance_note": "Static cases do not cover boundary values, parameter animation, custom AE Curves or physical-device performance. No automatic promotion.",
+  "cases": 117,
+  "decoded_pairs": 117,
+  "results": [
+    {
+      "case": {
+        "id": "brightness_contrast-gradient-default",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-brightness_contrast-gradient-default.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-gradient-changed",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Brightness & Contrast 2-0001": 35,
+          "ADBE Brightness & Contrast 2-0002": 30
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 16.2109375,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 16.1875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 16.2875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-brightness_contrast-gradient-changed.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-gradient-changed.png",
+      "ae_output_sha256": "bc61b8a30794bcb10b5595a2847332acd01f6b309e77bb0fd71d02e9450a8831",
+      "application_output_sha256": "db250d9603b79d3e98d83b0005c2dd6d1d0e486c4da085ec9db6a4e780f68ba1"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-checker-default",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-brightness_contrast-checker-default.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-checker-changed",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Brightness & Contrast 2-0001": 35,
+          "ADBE Brightness & Contrast 2-0002": 30
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 18.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 18.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 18.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-brightness_contrast-checker-changed.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-checker-changed.png",
+      "ae_output_sha256": "16ef311aa0c3df699ace3ae1307d50361d3416029421e5cf85866985fada17ce",
+      "application_output_sha256": "ae2c8e9633b073ad93466cd92555e444c6441f87911b055572d4e708cefe2f2c"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-alpha_edge-default",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-brightness_contrast-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-alpha_edge-changed",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Brightness & Contrast 2-0001": 35,
+          "ADBE Brightness & Contrast 2-0002": 30
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 15.738636363636365,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 14.462962962962962,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 18.321875000000002,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-brightness_contrast-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-alpha_edge-changed.png",
+      "ae_output_sha256": "485841881e6dadb2914a2cd39a824cd204ac286987f249801f8938b120522206",
+      "application_output_sha256": "6a6691fbf0e5ce1adb2d057cf2f0ecc846f10968a31d4bffeb9d43f6efbf5326"
+    },
+    {
+      "case": {
+        "id": "exposure-gradient-default",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-exposure-gradient-default.png",
+      "application_output": "outputs/motion/motion-exposure-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "exposure-gradient-changed",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Exposure2-0003": 0.75,
+          "ADBE Exposure2-0004": 0.02,
+          "ADBE Exposure2-0005": 1.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 1.10546875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 1.15625,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.9395833333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-exposure-gradient-changed.png",
+      "application_output": "outputs/motion/motion-exposure-gradient-changed.png",
+      "ae_output_sha256": "17a068b7fe1f43b7c4b659a08b9c1ef05923e99f2d4dcf098447a57af68f1840",
+      "application_output_sha256": "52a9e13f1327653f7fac620c56f4d899b26fc0c7154f4ff318a8a0746529e17c"
+    },
+    {
+      "case": {
+        "id": "exposure-checker-default",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-exposure-checker-default.png",
+      "application_output": "outputs/motion/motion-exposure-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "exposure-checker-changed",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Exposure2-0003": 0.75,
+          "ADBE Exposure2-0004": 0.02,
+          "ADBE Exposure2-0005": 1.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 1.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 1.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 1.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-exposure-checker-changed.png",
+      "application_output": "outputs/motion/motion-exposure-checker-changed.png",
+      "ae_output_sha256": "e00fd3d7ed6df88937d25e3212c00b1f10b51fa19d23ab4ee17c0fbf7a5f522d",
+      "application_output_sha256": "67fea15c1b96ce47039feec70f306ed5400de38aa1eb363a918d216e8093b7e9"
+    },
+    {
+      "case": {
+        "id": "exposure-alpha_edge-default",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-exposure-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-exposure-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "exposure-alpha_edge-changed",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Exposure2-0003": 0.75,
+          "ADBE Exposure2-0004": 0.02,
+          "ADBE Exposure2-0005": 1.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 1.0795454545454546,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 1.027777777777778,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 1.184375,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-exposure-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-exposure-alpha_edge-changed.png",
+      "ae_output_sha256": "72fd2a11948c9c1d0cba4eef6677d1ed44125ffb788320a8ded29060768baaa1",
+      "application_output_sha256": "a90d4d8e5a55386b70d98920e919bcadf7512e99c887f234390d49fdb77a566f"
+    },
+    {
+      "case": {
+        "id": "hue_saturation-gradient-default",
+        "effect": "hue_saturation",
+        "matchName": "ADBE HUE SATURATION",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.07160441080729167,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.05428890306122449,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.12816840277777777,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-hue_saturation-gradient-default.png",
+      "application_output": "outputs/motion/motion-hue_saturation-gradient-default.png",
+      "ae_output_sha256": "bc70069574e1c9bad3532df108bc60864f8a6c60dd7e7e3eba6943df1ba9296b",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "hue_saturation-gradient-changed",
+        "effect": "hue_saturation",
+        "matchName": "ADBE HUE SATURATION",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE HUE SATURATION-0004": 35,
+          "ADBE HUE SATURATION-0005": 25
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 8.862660725911459,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 10.200221885629253,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 4.493294270833333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-hue_saturation-gradient-changed.png",
+      "application_output": "outputs/motion/motion-hue_saturation-gradient-changed.png",
+      "ae_output_sha256": "6677522ff7425183c20971ec1828a9a5a5de6533172c30df02a93257d3c809b7",
+      "application_output_sha256": "2044bd5324bf06b5183289d731abbc1207bb818b9239035ba6cef61e2b69b1d3"
+    },
+    {
+      "case": {
+        "id": "hue_saturation-checker-default",
+        "effect": "hue_saturation",
+        "matchName": "ADBE HUE SATURATION",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-hue_saturation-checker-default.png",
+      "application_output": "outputs/motion/motion-hue_saturation-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "hue_saturation-checker-changed",
+        "effect": "hue_saturation",
+        "matchName": "ADBE HUE SATURATION",
+        "input": "checker.png",
+        "properties": {
+          "ADBE HUE SATURATION-0004": 35,
+          "ADBE HUE SATURATION-0005": 25
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 10.333333333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 10.333333333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 10.333333333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-hue_saturation-checker-changed.png",
+      "application_output": "outputs/motion/motion-hue_saturation-checker-changed.png",
+      "ae_output_sha256": "05d391db38c07be2477f73c40eef4053e20b65ab20c2ab58652d8dc8c4a7dea5",
+      "application_output_sha256": "d92a3686e8dbfadc49a2c6f3567ff0b29e6f101962c149533a4d6912717c781d"
+    },
+    {
+      "case": {
+        "id": "hue_saturation-alpha_edge-default",
+        "effect": "hue_saturation",
+        "matchName": "ADBE HUE SATURATION",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.036931818181818184,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.020801183127572016,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.06959635416666667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-hue_saturation-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-hue_saturation-alpha_edge-default.png",
+      "ae_output_sha256": "340d6f7d599b18aeb842ba3cf4c6a4884d28a494bfc077ad04e417c6fbe6e914",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "hue_saturation-alpha_edge-changed",
+        "effect": "hue_saturation",
+        "matchName": "ADBE HUE SATURATION",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE HUE SATURATION-0004": 35,
+          "ADBE HUE SATURATION-0005": 25
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 5.506112258953169,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 4.219569830246914,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 8.111360677083333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-hue_saturation-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-hue_saturation-alpha_edge-changed.png",
+      "ae_output_sha256": "2e75781232f5386015d2626dce9a38713c005207f277c332de90599bc7d3b2fe",
+      "application_output_sha256": "415f539c1a05e135a2abe664f044542e3b625728f187df54a54c8b6e9d8d1595"
+    },
+    {
+      "case": {
+        "id": "tint-gradient-default",
+        "effect": "tint",
+        "matchName": "ADBE Tint",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.031341552734375,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.031349649234693876,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.03131510416666667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-tint-gradient-default.png",
+      "application_output": "outputs/motion/motion-tint-gradient-default.png",
+      "ae_output_sha256": "11b5e295f8f3dbac389f9b78fb51a48bfeea0b807191342f27d8fe5792e126f7",
+      "application_output_sha256": "43f088aff29d01c19000032902063543b2943f5a48141987bb809612398ba31c"
+    },
+    {
+      "case": {
+        "id": "tint-gradient-changed",
+        "effect": "tint",
+        "matchName": "ADBE Tint",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Tint-0001": [
+            0.05,
+            0.1,
+            0.2,
+            0
+          ],
+          "ADBE Tint-0002": [
+            0.9,
+            0.4,
+            0.2,
+            0
+          ],
+          "ADBE Tint-0003": 75
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.3484344482421875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.3477891156462585,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.35054253472222224,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-tint-gradient-changed.png",
+      "application_output": "outputs/motion/motion-tint-gradient-changed.png",
+      "ae_output_sha256": "f4daad36d067404ceada3ba29325721cf0454594f91e16eeef3975ef5cf4dd13",
+      "application_output_sha256": "07dfdda49421315aab59e675735b6b088a3fdd6a40e12e28258aa1c1d54b8f1e"
+    },
+    {
+      "case": {
+        "id": "tint-checker-default",
+        "effect": "tint",
+        "matchName": "ADBE Tint",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-tint-checker-default.png",
+      "application_output": "outputs/motion/motion-tint-checker-default.png",
+      "ae_output_sha256": "12e6a2fa85cb79dfa91964911f3357de8d44511d674e9dcf617fd28a337a505e",
+      "application_output_sha256": "00ab5d911d914f17ecf580bf4d1d643b6ed4e78145b72b263cc180dd756413d7"
+    },
+    {
+      "case": {
+        "id": "tint-checker-changed",
+        "effect": "tint",
+        "matchName": "ADBE Tint",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Tint-0001": [
+            0.05,
+            0.1,
+            0.2,
+            0
+          ],
+          "ADBE Tint-0002": [
+            0.9,
+            0.4,
+            0.2,
+            0
+          ],
+          "ADBE Tint-0003": 75
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-tint-checker-changed.png",
+      "application_output": "outputs/motion/motion-tint-checker-changed.png",
+      "ae_output_sha256": "dcba5b18217c74aeb2acbd131bb1b65e6dd98d76a3386ee0753f9710da447135",
+      "application_output_sha256": "0dc5e8b435be64ba778c5c259a02c0a115be13090f79382313b2efdb01716d67"
+    },
+    {
+      "case": {
+        "id": "tint-alpha_edge-default",
+        "effect": "tint",
+        "matchName": "ADBE Tint",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.030378357438016524,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.030526620370370367,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.030078125,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-tint-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-tint-alpha_edge-default.png",
+      "ae_output_sha256": "3838425da1ece6a13aa076e1cff38a972f00a85d7367d215e60d667a46582353",
+      "application_output_sha256": "44c48d194d5bff6e24f5c58155769b89fb058bdd1cb40fe4f47ff3997affd067"
+    },
+    {
+      "case": {
+        "id": "tint-alpha_edge-changed",
+        "effect": "tint",
+        "matchName": "ADBE Tint",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Tint-0001": [
+            0.05,
+            0.1,
+            0.2,
+            0
+          ],
+          "ADBE Tint-0002": [
+            0.9,
+            0.4,
+            0.2,
+            0
+          ],
+          "ADBE Tint-0003": 75
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.26203081955922863,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.2610918209876543,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.26393229166666665,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-tint-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-tint-alpha_edge-changed.png",
+      "ae_output_sha256": "7b68eac3daea39a777e766fa6316f55c5af175e2bcaa56ad56f84f690f55216f",
+      "application_output_sha256": "ba258855b9f2885e2e678291c105eb7ad2e04d876839fdbb9b0c7b21145fc717"
+    },
+    {
+      "case": {
+        "id": "tritone-gradient-default",
+        "effect": "tritone",
+        "matchName": "ADBE Tritone",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.2943064371744792,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.30056202168367346,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.2738715277777778,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-tritone-gradient-default.png",
+      "application_output": "outputs/motion/motion-tritone-gradient-default.png",
+      "ae_output_sha256": "a8bcbe03f4af988c3813815882e39495af185cf1928884cb5cfb35dcfcd64dc9",
+      "application_output_sha256": "54b6859516b9b9d74395f75447fbc9a227202505b15ce1575315b24e607e3192"
+    },
+    {
+      "case": {
+        "id": "tritone-gradient-changed",
+        "effect": "tritone",
+        "matchName": "ADBE Tritone",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Tritone-0002": [
+            0.2,
+            0.6,
+            0.4,
+            0
+          ],
+          "ADBE Tritone-0004": 15
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.21500142415364584,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.21483710671768708,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.21553819444444444,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-tritone-gradient-changed.png",
+      "application_output": "outputs/motion/motion-tritone-gradient-changed.png",
+      "ae_output_sha256": "97dac5a7ec28f0778fa09984f33bb42b3f1806d36912c99fa0768c9713a41e37",
+      "application_output_sha256": "25b58e7db743aa36f902b110a7edb7ebd7f1bb8f2a41104ae14a61a4a0117808"
+    },
+    {
+      "case": {
+        "id": "tritone-checker-default",
+        "effect": "tritone",
+        "matchName": "ADBE Tritone",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.16666666666666666,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.16666666666666666,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.16666666666666666,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-tritone-checker-default.png",
+      "application_output": "outputs/motion/motion-tritone-checker-default.png",
+      "ae_output_sha256": "4884445874e8ee6b24827a2e306daaeefa97758336c34bf27ac46ecb0d026e37",
+      "application_output_sha256": "4e76c6cd9f02d5aa2bf9f7e969f924cdb342d23944dea2a674532fc872822a68"
+    },
+    {
+      "case": {
+        "id": "tritone-checker-changed",
+        "effect": "tritone",
+        "matchName": "ADBE Tritone",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Tritone-0002": [
+            0.2,
+            0.6,
+            0.4,
+            0
+          ],
+          "ADBE Tritone-0004": 15
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-tritone-checker-changed.png",
+      "application_output": "outputs/motion/motion-tritone-checker-changed.png",
+      "ae_output_sha256": "ab5a3db6d87532fa09d35c2aaf8cdd67d916a29aa0493b823f07ae4457630a35",
+      "application_output_sha256": "cbb8e1ea7bc9258d5a49ef2ba0e16811293e40e769f743615009fe3bed85b7d4"
+    },
+    {
+      "case": {
+        "id": "tritone-alpha_edge-default",
+        "effect": "tritone",
+        "matchName": "ADBE Tritone",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.3161372245179063,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.3253761574074074,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.29742838541666666,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-tritone-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-tritone-alpha_edge-default.png",
+      "ae_output_sha256": "382245e1c9e7eddd66984427b1facb14f2c19ada93189d13865f55def51f1342",
+      "application_output_sha256": "ffbc79e92f9b49c06370dea939ee18b011a15178a20b0b67dc29423fdd4f50e9"
+    },
+    {
+      "case": {
+        "id": "tritone-alpha_edge-changed",
+        "effect": "tritone",
+        "matchName": "ADBE Tritone",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Tritone-0002": [
+            0.2,
+            0.6,
+            0.4,
+            0
+          ],
+          "ADBE Tritone-0004": 15
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.22562629132231404,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.22701260288065842,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.22281901041666666,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-tritone-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-tritone-alpha_edge-changed.png",
+      "ae_output_sha256": "7e296f5768bbaf71deee2fef062af0bb34791feb4d0fc3416f4a018a2aa3e26a",
+      "application_output_sha256": "d3f9220c7220588f9e4e637d51218ab0ac20d324200b24163dd39e78dbf2e15a"
+    },
+    {
+      "case": {
+        "id": "color_balance-gradient-default",
+        "effect": "color_balance",
+        "matchName": "ADBE Color Balance 2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-color_balance-gradient-default.png",
+      "application_output": "outputs/motion/motion-color_balance-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "color_balance-gradient-changed",
+        "effect": "color_balance",
+        "matchName": "ADBE Color Balance 2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Color Balance 2-0004": 25,
+          "ADBE Color Balance 2-0005": -15,
+          "ADBE Color Balance 2-0010": 1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 21.654495239257812,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 24.63206180909864,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 11.927777777777777,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-color_balance-gradient-changed.png",
+      "application_output": "outputs/motion/motion-color_balance-gradient-changed.png",
+      "ae_output_sha256": "c9b6b4b0d6f3c7c2a0a6a59ebfc782bc7336d7255ce093722dfdb47197cefe7c",
+      "application_output_sha256": "ee5118aa162427c40e63c7f1711c22fc291a16f5b936d7d0501ee8b2417e01e2"
+    },
+    {
+      "case": {
+        "id": "color_balance-checker-default",
+        "effect": "color_balance",
+        "matchName": "ADBE Color Balance 2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-color_balance-checker-default.png",
+      "application_output": "outputs/motion/motion-color_balance-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "color_balance-checker-changed",
+        "effect": "color_balance",
+        "matchName": "ADBE Color Balance 2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Color Balance 2-0004": 25,
+          "ADBE Color Balance 2-0005": -15,
+          "ADBE Color Balance 2-0010": 1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 19.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 19.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 19.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-color_balance-checker-changed.png",
+      "application_output": "outputs/motion/motion-color_balance-checker-changed.png",
+      "ae_output_sha256": "c7650f7fcc14bd39056dcdac1b35b6b7ae13ac1f089a08e6db78a5d733b19498",
+      "application_output_sha256": "dc9b5293453960666e98164fb54092572fc817cc50575d5e595b47a6023065c2"
+    },
+    {
+      "case": {
+        "id": "color_balance-alpha_edge-default",
+        "effect": "color_balance",
+        "matchName": "ADBE Color Balance 2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-color_balance-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-color_balance-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "color_balance-alpha_edge-changed",
+        "effect": "color_balance",
+        "matchName": "ADBE Color Balance 2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Color Balance 2-0004": 25,
+          "ADBE Color Balance 2-0005": -15,
+          "ADBE Color Balance 2-0010": 1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 22.01491477272727,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 22.160027649176953,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 21.72106119791667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-color_balance-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-color_balance-alpha_edge-changed.png",
+      "ae_output_sha256": "cfa97873af5c022cee3d337f4456ca59c3dec180a3c958172397fae119606970",
+      "application_output_sha256": "92d9ef8801cae69329c79a858b7add3017ee2a7d5be5a7a99d3829e4ad3ee203"
+    },
+    {
+      "case": {
+        "id": "levels-gradient-default",
+        "effect": "levels",
+        "matchName": "ADBE Easy Levels2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-levels-gradient-default.png",
+      "application_output": "outputs/motion/motion-levels-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "levels-gradient-changed",
+        "effect": "levels",
+        "matchName": "ADBE Easy Levels2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Easy Levels2-0003": 0.15,
+          "ADBE Easy Levels2-0004": 0.85,
+          "ADBE Easy Levels2-0005": 1.2
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.015625,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.017857142857142856,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.008333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-levels-gradient-changed.png",
+      "application_output": "outputs/motion/motion-levels-gradient-changed.png",
+      "ae_output_sha256": "2c3a9b86e278c3d14efc09a7c86e429347048f9094fd69b8604fe3548cee7e32",
+      "application_output_sha256": "fcdb76406e9017126b9f3fbc544dccd53c64e5e72a6365cafa145d5a53f12e61"
+    },
+    {
+      "case": {
+        "id": "levels-checker-default",
+        "effect": "levels",
+        "matchName": "ADBE Easy Levels2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-levels-checker-default.png",
+      "application_output": "outputs/motion/motion-levels-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "levels-checker-changed",
+        "effect": "levels",
+        "matchName": "ADBE Easy Levels2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Easy Levels2-0003": 0.15,
+          "ADBE Easy Levels2-0004": 0.85,
+          "ADBE Easy Levels2-0005": 1.2
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-levels-checker-changed.png",
+      "application_output": "outputs/motion/motion-levels-checker-changed.png",
+      "ae_output_sha256": "a21475f5d38f2d2950c24e8fa928aac512be66160b65ac5dbf208cc0255fe371",
+      "application_output_sha256": "812978e1231bce1d16d693e2530766305a9170f25cfb2ecd4e2d948bae16d482"
+    },
+    {
+      "case": {
+        "id": "levels-alpha_edge-default",
+        "effect": "levels",
+        "matchName": "ADBE Easy Levels2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-levels-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-levels-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "levels-alpha_edge-changed",
+        "effect": "levels",
+        "matchName": "ADBE Easy Levels2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Easy Levels2-0003": 0.15,
+          "ADBE Easy Levels2-0004": 0.85,
+          "ADBE Easy Levels2-0005": 1.2
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.015151515151515152,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.013888888888888888,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.017708333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-levels-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-levels-alpha_edge-changed.png",
+      "ae_output_sha256": "c857d43852d2c361e25d45f515e9aff5194d7e97ae6b78e87d71258c70b8c121",
+      "application_output_sha256": "9b8945c8827a4dc1eec3e52c03c92e9f1e4054ad4081ec835a815baef8027320"
+    },
+    {
+      "case": {
+        "id": "curves-gradient-default",
+        "effect": "curves",
+        "matchName": "ADBE CurvesCustom",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-curves-gradient-default.png",
+      "application_output": "outputs/motion/motion-curves-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "curves-checker-default",
+        "effect": "curves",
+        "matchName": "ADBE CurvesCustom",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-curves-checker-default.png",
+      "application_output": "outputs/motion/motion-curves-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "curves-alpha_edge-default",
+        "effect": "curves",
+        "matchName": "ADBE CurvesCustom",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-curves-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-curves-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "gaussian_blur-gradient-default",
+        "effect": "gaussian_blur",
+        "matchName": "ADBE Gaussian Blur 2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-gaussian_blur-gradient-default.png",
+      "application_output": "outputs/motion/motion-gaussian_blur-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "gaussian_blur-gradient-changed",
+        "effect": "gaussian_blur",
+        "matchName": "ADBE Gaussian Blur 2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Gaussian Blur 2-0001": 12
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.13759358723958334,
+          "alpha_mae_255": 1.00714111328125,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 43264,
+          "alpha_pixels": 43264,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.4048730842911878,
+          "alpha_mae_255": 2.9635416666666665,
+          "rgb_pixels": 22272,
+          "alpha_pixels": 22272,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-gaussian_blur-gradient-changed.png",
+      "application_output": "outputs/motion/motion-gaussian_blur-gradient-changed.png",
+      "ae_output_sha256": "2534814ad564751419113cf6363a8e81e85471f16dffa31b7c3a0eb8a08f31e6",
+      "application_output_sha256": "81ea7b0d351fc012d1bf1a75588cd9f9b2aab485c3d3a7a597d3d12b894cb200"
+    },
+    {
+      "case": {
+        "id": "gaussian_blur-checker-default",
+        "effect": "gaussian_blur",
+        "matchName": "ADBE Gaussian Blur 2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-gaussian_blur-checker-default.png",
+      "application_output": "outputs/motion/motion-gaussian_blur-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "gaussian_blur-checker-changed",
+        "effect": "gaussian_blur",
+        "matchName": "ADBE Gaussian Blur 2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Gaussian Blur 2-0001": 12
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 26.087046305338543,
+          "alpha_mae_255": 1.00714111328125,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 26.967147435897434,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 43264,
+          "alpha_pixels": 43264,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 24.37742456896552,
+          "alpha_mae_255": 2.9635416666666665,
+          "rgb_pixels": 22272,
+          "alpha_pixels": 22272,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-gaussian_blur-checker-changed.png",
+      "application_output": "outputs/motion/motion-gaussian_blur-checker-changed.png",
+      "ae_output_sha256": "16371a15c6993eb018d3f4a0ed86c85470230c7efb09521acc6330290216a73e",
+      "application_output_sha256": "4023079b4ac89744547ac54d9d68b2ba6987b971dfafb7e463404018405ba515"
+    },
+    {
+      "case": {
+        "id": "gaussian_blur-alpha_edge-default",
+        "effect": "gaussian_blur",
+        "matchName": "ADBE Gaussian Blur 2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-gaussian_blur-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-gaussian_blur-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "gaussian_blur-alpha_edge-changed",
+        "effect": "gaussian_blur",
+        "matchName": "ADBE Gaussian Blur 2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Gaussian Blur 2-0001": 12
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 9.365076923076924,
+          "alpha_mae_255": 1.3787841796875,
+          "rgb_pixels": 39000,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 16384,
+          "alpha_pixels": 16396,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 16.149540148567386,
+          "alpha_mae_255": 1.8388278388278387,
+          "rgb_pixels": 22616,
+          "alpha_pixels": 49140,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-gaussian_blur-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-gaussian_blur-alpha_edge-changed.png",
+      "ae_output_sha256": "71384d4aa4104cdef36819828e8375d098efed941cd0755f8734e7bb8cf7ce73",
+      "application_output_sha256": "46e45f6474c9e70d2a51d6c631d6d330bbd45d2f76f91aaddedce8af4207ee98"
+    },
+    {
+      "case": {
+        "id": "fast_box_blur-gradient-default",
+        "effect": "fast_box_blur",
+        "matchName": "ADBE Box Blur2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-fast_box_blur-gradient-default.png",
+      "application_output": "outputs/motion/motion-fast_box_blur-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "fast_box_blur-gradient-changed",
+        "effect": "fast_box_blur",
+        "matchName": "ADBE Box Blur2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Box Blur2-0001": 4,
+          "ADBE Box Blur2-0002": 3
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.11555989583333333,
+          "alpha_mae_255": 1.5897216796875,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 44100,
+          "alpha_pixels": 44100,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.35329974497729677,
+          "alpha_mae_255": 4.860235118492256,
+          "rgb_pixels": 21436,
+          "alpha_pixels": 21436,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-fast_box_blur-gradient-changed.png",
+      "application_output": "outputs/motion/motion-fast_box_blur-gradient-changed.png",
+      "ae_output_sha256": "fedd8d3adf30cc01425de34dc44e0f2f7e6d8faa611d15bdf95d8ff84d7ac0c8",
+      "application_output_sha256": "f93ef420799d480c824a95205d3a9243c85ab285eafd31cde7813ba195f172bb"
+    },
+    {
+      "case": {
+        "id": "fast_box_blur-checker-default",
+        "effect": "fast_box_blur",
+        "matchName": "ADBE Box Blur2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-fast_box_blur-checker-default.png",
+      "application_output": "outputs/motion/motion-fast_box_blur-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "fast_box_blur-checker-changed",
+        "effect": "fast_box_blur",
+        "matchName": "ADBE Box Blur2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Box Blur2-0001": 4,
+          "ADBE Box Blur2-0002": 3
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 9.83673095703125,
+          "alpha_mae_255": 1.5897216796875,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 10.130657596371881,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 44100,
+          "alpha_pixels": 44100,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 9.232039559619333,
+          "alpha_mae_255": 4.860235118492256,
+          "rgb_pixels": 21436,
+          "alpha_pixels": 21436,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-fast_box_blur-checker-changed.png",
+      "application_output": "outputs/motion/motion-fast_box_blur-checker-changed.png",
+      "ae_output_sha256": "8a7c93089fb7b95cf73a1dbd847b80dddc916dd386d769945d5f978f45d1eab7",
+      "application_output_sha256": "6936eef8919be6791c54a6be339e6a3474231b2fe54645bbac75560195d0fe7b"
+    },
+    {
+      "case": {
+        "id": "fast_box_blur-alpha_edge-default",
+        "effect": "fast_box_blur",
+        "matchName": "ADBE Box Blur2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-fast_box_blur-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-fast_box_blur-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "fast_box_blur-alpha_edge-changed",
+        "effect": "fast_box_blur",
+        "matchName": "ADBE Box Blur2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Box Blur2-0001": 4,
+          "ADBE Box Blur2-0002": 3
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 13.078717449916384,
+          "alpha_mae_255": 2.17938232421875,
+          "rgb_pixels": 39068,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 16900,
+          "alpha_pixels": 16904,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 23.049410561770717,
+          "alpha_mae_255": 2.9369139661128476,
+          "rgb_pixels": 22168,
+          "alpha_pixels": 48632,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-fast_box_blur-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-fast_box_blur-alpha_edge-changed.png",
+      "ae_output_sha256": "66e6eec698afc5ebd5cf2936ffdd8389449b833d64e88d0ed781b13282b15659",
+      "application_output_sha256": "76d9db3fa39da8f353a13440ff4c35f53950f976493bf348cc8b15992af9bd4d"
+    },
+    {
+      "case": {
+        "id": "directional_blur-gradient-default",
+        "effect": "directional_blur",
+        "matchName": "ADBE Motion Blur",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-directional_blur-gradient-default.png",
+      "application_output": "outputs/motion/motion-directional_blur-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "directional_blur-gradient-changed",
+        "effect": "directional_blur",
+        "matchName": "ADBE Motion Blur",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Motion Blur-0001": 35,
+          "ADBE Motion Blur-0002": 14
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.2955983479817708,
+          "alpha_mae_255": 1.6248779296875,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 45792,
+          "alpha_pixels": 45792,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.9811757158292815,
+          "alpha_mae_255": 5.393435980551054,
+          "rgb_pixels": 19744,
+          "alpha_pixels": 19744,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-directional_blur-gradient-changed.png",
+      "application_output": "outputs/motion/motion-directional_blur-gradient-changed.png",
+      "ae_output_sha256": "b18f11ef2a2082628beb057b5e984a008c00d604d9bc536b8dae195b594ad42a",
+      "application_output_sha256": "89c2d28c548f8115a98ebf7d82791bfe32a8dcac83ab1ad6d6e6275368ee7102"
+    },
+    {
+      "case": {
+        "id": "directional_blur-checker-default",
+        "effect": "directional_blur",
+        "matchName": "ADBE Motion Blur",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-directional_blur-checker-default.png",
+      "application_output": "outputs/motion/motion-directional_blur-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "directional_blur-checker-changed",
+        "effect": "directional_blur",
+        "matchName": "ADBE Motion Blur",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Motion Blur-0001": 35,
+          "ADBE Motion Blur-0002": 14
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 29.262608846028645,
+          "alpha_mae_255": 1.6248779296875,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 29.229661658513862,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 45792,
+          "alpha_pixels": 45792,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 29.33902282549973,
+          "alpha_mae_255": 5.393435980551054,
+          "rgb_pixels": 19744,
+          "alpha_pixels": 19744,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-directional_blur-checker-changed.png",
+      "application_output": "outputs/motion/motion-directional_blur-checker-changed.png",
+      "ae_output_sha256": "10fa68895a42d0f2efcb142b422a3255bca5191104acbcbd9f2804a772ef01fb",
+      "application_output_sha256": "db60e8319a93ee8607410f75d97b82c91dc1c84196839dd2e07b583eeeed2da8"
+    },
+    {
+      "case": {
+        "id": "directional_blur-alpha_edge-default",
+        "effect": "directional_blur",
+        "matchName": "ADBE Motion Blur",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-directional_blur-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-directional_blur-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "directional_blur-alpha_edge-changed",
+        "effect": "directional_blur",
+        "matchName": "ADBE Motion Blur",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Motion Blur-0001": 35,
+          "ADBE Motion Blur-0002": 14
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 16.69468304787686,
+          "alpha_mae_255": 2.52679443359375,
+          "rgb_pixels": 38418,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 17952,
+          "alpha_pixels": 18115,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 31.33862666536369,
+          "alpha_mae_255": 3.4920393918306236,
+          "rgb_pixels": 20466,
+          "alpha_pixels": 47421,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-directional_blur-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-directional_blur-alpha_edge-changed.png",
+      "ae_output_sha256": "263dab11432276d490ddfd7063fef7a3baa1d1911b34ff56340896592c382cc0",
+      "application_output_sha256": "f784058fdfb0085527ecabdc998052176f7aab0b5c8c9454a208dd418128c63e"
+    },
+    {
+      "case": {
+        "id": "radial_blur-gradient-default",
+        "effect": "radial_blur",
+        "matchName": "ADBE Radial Blur",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.487152099609375,
+          "alpha_mae_255": 3.157745361328125,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.43912096088435376,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.6440538194444444,
+          "alpha_mae_255": 13.473046875,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-radial_blur-gradient-default.png",
+      "application_output": "outputs/motion/motion-radial_blur-gradient-default.png",
+      "ae_output_sha256": "86234147977816ac1a5aa23967244f39cc197e3a287b6cc987b48a90675c4064",
+      "application_output_sha256": "90ca752ee6829eb8805b5e2340f0071c4a898b07b6430fade788b7a44ac98127"
+    },
+    {
+      "case": {
+        "id": "radial_blur-gradient-changed",
+        "effect": "radial_blur",
+        "matchName": "ADBE Radial Blur",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Radial Blur-0001": 12
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.5185038248697916,
+          "alpha_mae_255": 3.7611236572265625,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.4534505208333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.7310112847222223,
+          "alpha_mae_255": 16.0474609375,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-radial_blur-gradient-changed.png",
+      "application_output": "outputs/motion/motion-radial_blur-gradient-changed.png",
+      "ae_output_sha256": "8bae3d4f97c60d912ca13741b1b816bed9b75546f9349339faadcd15567332d1",
+      "application_output_sha256": "73ed0041ca353bae654f4f916ebcebc5c68b75ec44710f6fa0dff5359621d8c3"
+    },
+    {
+      "case": {
+        "id": "radial_blur-checker-default",
+        "effect": "radial_blur",
+        "matchName": "ADBE Radial Blur",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 19.156875610351562,
+          "alpha_mae_255": 3.157745361328125,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 17.102087319302722,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 25.869184027777777,
+          "alpha_mae_255": 13.473046875,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-radial_blur-checker-default.png",
+      "application_output": "outputs/motion/motion-radial_blur-checker-default.png",
+      "ae_output_sha256": "dd1c71b1562811b43cbc31de070880a06011788853cc3af0ec5639dc9e1ebe8d",
+      "application_output_sha256": "b2298ac0ed4460c648b7f2d013f857a6850ed51ca0130b37db02919a89d167d0"
+    },
+    {
+      "case": {
+        "id": "radial_blur-checker-changed",
+        "effect": "radial_blur",
+        "matchName": "ADBE Radial Blur",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Radial Blur-0001": 12
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 21.480789184570312,
+          "alpha_mae_255": 3.7611236572265625,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 19.05112670068027,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 29.417686631944445,
+          "alpha_mae_255": 16.0474609375,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-radial_blur-checker-changed.png",
+      "application_output": "outputs/motion/motion-radial_blur-checker-changed.png",
+      "ae_output_sha256": "36fbcd404057cd7a6083e1b79cabd8942a8360fe8ad8d075a2af4784f69d651c",
+      "application_output_sha256": "9ac643b864aebb51bb794dffc0ae0a13b00fc8cacf50c532d1c865561e59ca04"
+    },
+    {
+      "case": {
+        "id": "radial_blur-alpha_edge-default",
+        "effect": "radial_blur",
+        "matchName": "ADBE Radial Blur",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 5.1438876570583885,
+          "alpha_mae_255": 2.1555328369140625,
+          "rgb_pixels": 33825,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.2627737226277372,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 19180,
+          "alpha_pixels": 21500,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 11.53649709798566,
+          "alpha_mae_255": 3.2079435007720956,
+          "rgb_pixels": 14645,
+          "alpha_pixels": 44036,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-radial_blur-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-radial_blur-alpha_edge-default.png",
+      "ae_output_sha256": "fd5b5d57afa1cb7173ae98141a93a018c2ac22a588f958b5bdc6234a278241c3",
+      "application_output_sha256": "ad98176951956de0a2aa2003fabc365278e995a642f2f68e8a7b870b0331f97d"
+    },
+    {
+      "case": {
+        "id": "radial_blur-alpha_edge-changed",
+        "effect": "radial_blur",
+        "matchName": "ADBE Radial Blur",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Radial Blur-0001": 12
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 6.045987384764678,
+          "alpha_mae_255": 2.56231689453125,
+          "rgb_pixels": 34350,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.2765919977458439,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 18928,
+          "alpha_pixels": 20602,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 13.126983097739162,
+          "alpha_mae_255": 3.737125561935283,
+          "rgb_pixels": 15422,
+          "alpha_pixels": 44934,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-radial_blur-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-radial_blur-alpha_edge-changed.png",
+      "ae_output_sha256": "ee2971df2543fa77ebab0d2a048d3b7a92ec17301e602d32e1347555360289cb",
+      "application_output_sha256": "fe9c7864611855319204674da774100d339c20b80686643011a54ad32e3a9169"
+    },
+    {
+      "case": {
+        "id": "sharpen-gradient-default",
+        "effect": "sharpen",
+        "matchName": "ADBE Sharpen",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-sharpen-gradient-default.png",
+      "application_output": "outputs/motion/motion-sharpen-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "sharpen-gradient-changed",
+        "effect": "sharpen",
+        "matchName": "ADBE Sharpen",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Sharpen-0001": 40
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.3795166015625,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 1.6192708333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-sharpen-gradient-changed.png",
+      "application_output": "outputs/motion/motion-sharpen-gradient-changed.png",
+      "ae_output_sha256": "e4f46085d61325fcc6c81abf973e62e74cc3ccb343734ee7ab082b4d3dbe208f",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "sharpen-checker-default",
+        "effect": "sharpen",
+        "matchName": "ADBE Sharpen",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-sharpen-checker-default.png",
+      "application_output": "outputs/motion/motion-sharpen-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "sharpen-checker-changed",
+        "effect": "sharpen",
+        "matchName": "ADBE Sharpen",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Sharpen-0001": 40
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 4.674296061197917,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 4.419270833333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 5.507378472222221,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-sharpen-checker-changed.png",
+      "application_output": "outputs/motion/motion-sharpen-checker-changed.png",
+      "ae_output_sha256": "d7d2baa39c4435cfe5fca0bbd2459a8ab1e259d0b6aa4da1b9fb7238a9966bd9",
+      "application_output_sha256": "819c48efe23a4fa486cfbe17eff168a009100e4fddb774c775bc9b1ad8a4279b"
+    },
+    {
+      "case": {
+        "id": "sharpen-alpha_edge-default",
+        "effect": "sharpen",
+        "matchName": "ADBE Sharpen",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-sharpen-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-sharpen-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "sharpen-alpha_edge-changed",
+        "effect": "sharpen",
+        "matchName": "ADBE Sharpen",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Sharpen-0001": 40
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.34603133608815423,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 1.0467447916666666,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-sharpen-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-sharpen-alpha_edge-changed.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "7c607e89ef0f20e3df6cc2cfacec56e6d34bbb9ef6010c50d58a4cc865d47a8e"
+    },
+    {
+      "case": {
+        "id": "unsharp_mask-gradient-default",
+        "effect": "unsharp_mask",
+        "matchName": "ADBE Unsharp Mask2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-unsharp_mask-gradient-default.png",
+      "application_output": "outputs/motion/motion-unsharp_mask-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "unsharp_mask-gradient-changed",
+        "effect": "unsharp_mask",
+        "matchName": "ADBE Unsharp Mask2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Unsharp Mask2-0001": 80,
+          "ADBE Unsharp Mask2-0002": 2,
+          "ADBE Unsharp Mask2-0003": 0.01
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-unsharp_mask-gradient-changed.png",
+      "application_output": "outputs/motion/motion-unsharp_mask-gradient-changed.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "unsharp_mask-checker-default",
+        "effect": "unsharp_mask",
+        "matchName": "ADBE Unsharp Mask2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 5.8404541015625,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 6.197916666666667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 4.672743055555555,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-unsharp_mask-checker-default.png",
+      "application_output": "outputs/motion/motion-unsharp_mask-checker-default.png",
+      "ae_output_sha256": "845c52d801feba5cbc00ee598413b3669c05a12b7cad51705b77c4b7edc456e4",
+      "application_output_sha256": "b2aa0fcadc3e6a69404210b11c140dd47af9a9de73a56ec98ff337cee0fbd941"
+    },
+    {
+      "case": {
+        "id": "unsharp_mask-checker-changed",
+        "effect": "unsharp_mask",
+        "matchName": "ADBE Unsharp Mask2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Unsharp Mask2-0001": 80,
+          "ADBE Unsharp Mask2-0002": 2,
+          "ADBE Unsharp Mask2-0003": 0.01
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 7.60467529296875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 8.005208333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 6.29626736111111,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-unsharp_mask-checker-changed.png",
+      "application_output": "outputs/motion/motion-unsharp_mask-checker-changed.png",
+      "ae_output_sha256": "fff9a8582b28d9ffba4383b38292757f57d229a9ca592e585c4010d629822808",
+      "application_output_sha256": "07d5aec297bba75539a3adb23803633fb68d87a1fc9e3db08c64836620b2a227"
+    },
+    {
+      "case": {
+        "id": "unsharp_mask-alpha_edge-default",
+        "effect": "unsharp_mask",
+        "matchName": "ADBE Unsharp Mask2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.014850206611570249,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.044921875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-unsharp_mask-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-unsharp_mask-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "534a0e473768a06e1cdf54fd69f7745cc8a6cad25b0df6934023348aa994f619"
+    },
+    {
+      "case": {
+        "id": "unsharp_mask-alpha_edge-changed",
+        "effect": "unsharp_mask",
+        "matchName": "ADBE Unsharp Mask2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Unsharp Mask2-0001": 80,
+          "ADBE Unsharp Mask2-0002": 2,
+          "ADBE Unsharp Mask2-0003": 0.01
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.5478650137741047,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 1.6572916666666666,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-unsharp_mask-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-unsharp_mask-alpha_edge-changed.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "c45451c949a4d870b4dd57c091ac4a1bbd3137c3cc9b4acece9875f62b9fb229"
+    },
+    {
+      "case": {
+        "id": "mirror-gradient-default",
+        "effect": "mirror",
+        "matchName": "ADBE Mirror",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-mirror-gradient-default.png",
+      "application_output": "outputs/motion/motion-mirror-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "mirror-gradient-changed",
+        "effect": "mirror",
+        "matchName": "ADBE Mirror",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Mirror-0001": [
+            128,
+            128
+          ]
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-mirror-gradient-changed.png",
+      "application_output": "outputs/motion/motion-mirror-gradient-changed.png",
+      "ae_output_sha256": "701c43249875d55c7f348d0e773f26274b2bcafada2f20b790fe4c89ea82684f",
+      "application_output_sha256": "b2b64cf40cb6f762b21d9f017a2b59368ed44291d7c152d5e89c00f209b1671d"
+    },
+    {
+      "case": {
+        "id": "mirror-checker-default",
+        "effect": "mirror",
+        "matchName": "ADBE Mirror",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-mirror-checker-default.png",
+      "application_output": "outputs/motion/motion-mirror-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "mirror-checker-changed",
+        "effect": "mirror",
+        "matchName": "ADBE Mirror",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Mirror-0001": [
+            128,
+            128
+          ]
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 5.104166666666667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 5.104166666666667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 5.104166666666667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-mirror-checker-changed.png",
+      "application_output": "outputs/motion/motion-mirror-checker-changed.png",
+      "ae_output_sha256": "e1c14bc5e5a0aca367fe949aee0c4683ef64a625e9fcb7d18ff834104afc6484",
+      "application_output_sha256": "b4a738e0655235fdac86149751e58dbee305a502bc3db292c92f3249638685a8"
+    },
+    {
+      "case": {
+        "id": "mirror-alpha_edge-default",
+        "effect": "mirror",
+        "matchName": "ADBE Mirror",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-mirror-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-mirror-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "mirror-alpha_edge-changed",
+        "effect": "mirror",
+        "matchName": "ADBE Mirror",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Mirror-0001": [
+            128,
+            128
+          ]
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.8578154425612053,
+          "alpha_mae_255": 0.684814453125,
+          "rgb_pixels": 31152,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.167816091954023,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20880,
+          "alpha_pixels": 27584,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 2.2603842159916927,
+          "alpha_mae_255": 1.1825463743676223,
+          "rgb_pixels": 10272,
+          "alpha_pixels": 37952,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-mirror-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-mirror-alpha_edge-changed.png",
+      "ae_output_sha256": "6bb25e7e96e99ed4e0d94f71922de13c3b4a159814dfbf4672bb2372cd5acfc7",
+      "application_output_sha256": "18f9f3e8b08befc5a403e02aa39f50086576b9f5395184ec73d8611a19ea10a8"
+    },
+    {
+      "case": {
+        "id": "offset-gradient-default",
+        "effect": "offset",
+        "matchName": "ADBE Offset",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-offset-gradient-default.png",
+      "application_output": "outputs/motion/motion-offset-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "offset-gradient-changed",
+        "effect": "offset",
+        "matchName": "ADBE Offset",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Offset-0001": [
+            160,
+            110
+          ],
+          "ADBE Offset-0002": 0.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-offset-gradient-changed.png",
+      "application_output": "outputs/motion/motion-offset-gradient-changed.png",
+      "ae_output_sha256": "b35c00428b05cb5147c0871ca7b9f5ec3982bffc538bd5cf466d19a313861409",
+      "application_output_sha256": "818b4e5c8e2a8ba54937ce1b2dd4eecee28a1ea9f5810c52d3b084cc52d98d5f"
+    },
+    {
+      "case": {
+        "id": "offset-checker-default",
+        "effect": "offset",
+        "matchName": "ADBE Offset",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-offset-checker-default.png",
+      "application_output": "outputs/motion/motion-offset-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "offset-checker-changed",
+        "effect": "offset",
+        "matchName": "ADBE Offset",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Offset-0001": [
+            160,
+            110
+          ],
+          "ADBE Offset-0002": 0.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-offset-checker-changed.png",
+      "application_output": "outputs/motion/motion-offset-checker-changed.png",
+      "ae_output_sha256": "0068f1d27a4d4995beef5dc1051209c1827de8b4aa8627ae403c495558835931",
+      "application_output_sha256": "a3707518e345bb090d9d6f8fc8496a1a25b15bcfdf82c8c275ce1d1857e679ee"
+    },
+    {
+      "case": {
+        "id": "offset-alpha_edge-default",
+        "effect": "offset",
+        "matchName": "ADBE Offset",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-offset-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-offset-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "offset-alpha_edge-changed",
+        "effect": "offset",
+        "matchName": "ADBE Offset",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Offset-0001": [
+            160,
+            110
+          ],
+          "ADBE Offset-0002": 0.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 27.532704081632655,
+          "alpha_mae_255": 0.12548828125,
+          "rgb_pixels": 39200,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 14112,
+          "alpha_pixels": 18032,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 43.019850127551024,
+          "alpha_mae_255": 0.17312226338834624,
+          "rgb_pixels": 25088,
+          "alpha_pixels": 47504,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-offset-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-offset-alpha_edge-changed.png",
+      "ae_output_sha256": "ace16d0226c8c194db73db8e0c32e73a72e1a253486af1e539ff84238a360096",
+      "application_output_sha256": "dca9354182996d1709a78ba30a7438418858f287d5beb94c1cf4abcecc773e0d"
+    },
+    {
+      "case": {
+        "id": "bulge-gradient-default",
+        "effect": "bulge",
+        "matchName": "ADBE Bulge",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.20240275065104166,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.2643627763605442,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-bulge-gradient-default.png",
+      "application_output": "outputs/motion/motion-bulge-gradient-default.png",
+      "ae_output_sha256": "479e80e1e9b12b133aa99dc84473757f99b03698a8d3a031449679a1b07a937b",
+      "application_output_sha256": "6180274931b37a515372fd70e4ce383e66f78bcb907b116ed17267916af1336f"
+    },
+    {
+      "case": {
+        "id": "bulge-gradient-changed",
+        "effect": "bulge",
+        "matchName": "ADBE Bulge",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Bulge-0001": 70,
+          "ADBE Bulge-0002": 70,
+          "ADBE Bulge-0004": 0.7
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.43841552734375,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.572624362244898,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-bulge-gradient-changed.png",
+      "application_output": "outputs/motion/motion-bulge-gradient-changed.png",
+      "ae_output_sha256": "d9ccf5ade8ac6d1e3a15d1b96bd3a2e8373cf3f9d383097daea822ce95865658",
+      "application_output_sha256": "c6259b8d26f67e698324e5f5802fb9d3ffbc34730ceb942844648735248fcf56"
+    },
+    {
+      "case": {
+        "id": "bulge-checker-default",
+        "effect": "bulge",
+        "matchName": "ADBE Bulge",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 2.934961954752604,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 3.8334196960034013,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-bulge-checker-default.png",
+      "application_output": "outputs/motion/motion-bulge-checker-default.png",
+      "ae_output_sha256": "1a65ac7c39451ec636fdc253ab6df1c5408ed1c04ce456d2925e467345d1171a",
+      "application_output_sha256": "aeab0a7e0254b60cbc80f6b95be2a6f9e5e467b1bb0c14b1badd74aee29085a0"
+    },
+    {
+      "case": {
+        "id": "bulge-checker-changed",
+        "effect": "bulge",
+        "matchName": "ADBE Bulge",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Bulge-0001": 70,
+          "ADBE Bulge-0002": 70,
+          "ADBE Bulge-0004": 0.7
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 7.129831949869792,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 9.312433567176871,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-bulge-checker-changed.png",
+      "application_output": "outputs/motion/motion-bulge-checker-changed.png",
+      "ae_output_sha256": "dae032bc31c01d9fda98745d92071e4bc8fdf48adbc3ea37be1e81897323b351",
+      "application_output_sha256": "096ada4a8b2370d44ff5eb6516b7c31a91f8974392676b54c2ed2dd56cd65fe6"
+    },
+    {
+      "case": {
+        "id": "bulge-alpha_edge-default",
+        "effect": "bulge",
+        "matchName": "ADBE Bulge",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.2854252754820937,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.4263760288065844,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-bulge-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-bulge-alpha_edge-default.png",
+      "ae_output_sha256": "4cc127e63837f23cfc6aff00f38f35f451189a4c24e4c8fa8ca8808a199ec190",
+      "application_output_sha256": "05d1ee8e1bc3930e3b0069593ac40dfed1490d616dd3394bf37df7c44b5cd406"
+    },
+    {
+      "case": {
+        "id": "bulge-alpha_edge-changed",
+        "effect": "bulge",
+        "matchName": "ADBE Bulge",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Bulge-0001": 70,
+          "ADBE Bulge-0002": 70,
+          "ADBE Bulge-0004": 0.7
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.6183066460055097,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.9236432613168724,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-bulge-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-bulge-alpha_edge-changed.png",
+      "ae_output_sha256": "24b6d816eb721917a2c59ef33c590cd12826fed9eb345d27c26ff1b0fbab1fa3",
+      "application_output_sha256": "adaa45e0b555280754db34c37ddceebc090e18167cd05fd6dd805c9af6cbdb0e"
+    },
+    {
+      "case": {
+        "id": "twirl-gradient-default",
+        "effect": "twirl",
+        "matchName": "ADBE Twirl",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-twirl-gradient-default.png",
+      "application_output": "outputs/motion/motion-twirl-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "twirl-gradient-changed",
+        "effect": "twirl",
+        "matchName": "ADBE Twirl",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Twirl-0001": 90,
+          "ADBE Twirl-0002": 45
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 15.7337646484375,
+          "alpha_mae_255": 1.48321533203125,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 18.638160342261905,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 6.246072048611111,
+          "alpha_mae_255": 6.328385416666666,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-twirl-gradient-changed.png",
+      "application_output": "outputs/motion/motion-twirl-gradient-changed.png",
+      "ae_output_sha256": "440816169639d97a403b0dcbc78c4fdf546c125ac8015e9f446b79b74bd54287",
+      "application_output_sha256": "94eabdd16625f1eb13e51c703d7d889e178800517c5f9a1c3e4b1a3f7ac64271"
+    },
+    {
+      "case": {
+        "id": "twirl-checker-default",
+        "effect": "twirl",
+        "matchName": "ADBE Twirl",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-twirl-checker-default.png",
+      "application_output": "outputs/motion/motion-twirl-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "twirl-checker-changed",
+        "effect": "twirl",
+        "matchName": "ADBE Twirl",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Twirl-0001": 90,
+          "ADBE Twirl-0002": 45
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 75.21764119466145,
+          "alpha_mae_255": 1.48321533203125,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 80.09952965561224,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 59.27013888888889,
+          "alpha_mae_255": 6.328385416666666,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-twirl-checker-changed.png",
+      "application_output": "outputs/motion/motion-twirl-checker-changed.png",
+      "ae_output_sha256": "14af187311768c169677dce7d922db978d4739f83c7fd439d1f7307aa4340fbd",
+      "application_output_sha256": "40f028a79cbd515e6c71f75920c13080770128f42b64342c44358d7f548dc3fd"
+    },
+    {
+      "case": {
+        "id": "twirl-alpha_edge-default",
+        "effect": "twirl",
+        "matchName": "ADBE Twirl",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-twirl-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-twirl-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "twirl-alpha_edge-changed",
+        "effect": "twirl",
+        "matchName": "ADBE Twirl",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Twirl-0001": 90,
+          "ADBE Twirl-0002": 45
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 43.89282377919321,
+          "alpha_mae_255": 30.019989013671875,
+          "rgb_pixels": 35325,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 14.354811930205882,
+          "alpha_mae_255": 2.79704,
+          "rgb_pixels": 22084,
+          "alpha_pixels": 25000,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 93.15779271454824,
+          "alpha_mae_255": 46.809354647720546,
+          "rgb_pixels": 13241,
+          "alpha_pixels": 40536,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-twirl-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-twirl-alpha_edge-changed.png",
+      "ae_output_sha256": "f3dd476ea0b53ba69a33c07ebdfd620f12ee87302bf92520a0ac3b39c7451ac8",
+      "application_output_sha256": "8a2b6e35ef53a6ee3681c91080678de930a0764be442426afc1b7272a13732d9"
+    },
+    {
+      "case": {
+        "id": "wave_warp-gradient-default",
+        "effect": "wave_warp",
+        "matchName": "ADBE Wave Warp",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 6.780304428990502,
+          "alpha_mae_255": 8.304183959960938,
+          "rgb_pixels": 64996,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 2.5759441279381177,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 47919,
+          "alpha_pixels": 47919,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 18.57797036950284,
+          "alpha_mae_255": 30.891922574785717,
+          "rgb_pixels": 17077,
+          "alpha_pixels": 17617,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-wave_warp-gradient-default.png",
+      "application_output": "outputs/motion/motion-wave_warp-gradient-default.png",
+      "ae_output_sha256": "61485967ccd5098191544cd0d848b8a47cb5bb60fe9ef74aa1b9e8c6855c06db",
+      "application_output_sha256": "e0c3dde060073542e7a0a6d308c2966f29c1c8cabf0f56f9a743d32624d7c44a"
+    },
+    {
+      "case": {
+        "id": "wave_warp-gradient-changed",
+        "effect": "wave_warp",
+        "matchName": "ADBE Wave Warp",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Wave Warp-0002": 6,
+          "ADBE Wave Warp-0003": 32,
+          "ADBE Wave Warp-0005": 0.5,
+          "ADBE Wave Warp-0007": 45
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 3.9234372443135332,
+          "alpha_mae_255": 4.8350830078125,
+          "rgb_pixels": 65184,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 1.6389368288406752,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 48672,
+          "alpha_pixels": 48672,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 10.657400678294573,
+          "alpha_mae_255": 18.789848197343453,
+          "rgb_pixels": 16512,
+          "alpha_pixels": 16864,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-wave_warp-gradient-changed.png",
+      "application_output": "outputs/motion/motion-wave_warp-gradient-changed.png",
+      "ae_output_sha256": "5aefe89c52016d64072e0cc9ca64396fa4d5271cbf5d230e649dc32c4389689b",
+      "application_output_sha256": "b154cdb6a5c1c4caa4fe4014a88ce6106ef0a34fe099861296e83a2458493cca"
+    },
+    {
+      "case": {
+        "id": "wave_warp-checker-default",
+        "effect": "wave_warp",
+        "matchName": "ADBE Wave Warp",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 79.46831087041254,
+          "alpha_mae_255": 8.304183959960938,
+          "rgb_pixels": 64996,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 74.35811821337396,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 47919,
+          "alpha_pixels": 47919,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 93.80779215709238,
+          "alpha_mae_255": 30.891922574785717,
+          "rgb_pixels": 17077,
+          "alpha_pixels": 17617,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-wave_warp-checker-default.png",
+      "application_output": "outputs/motion/motion-wave_warp-checker-default.png",
+      "ae_output_sha256": "509e2861fefaa2488e4c5e71d3d30ee871f2d2c6661717b062acf57d3d815cdf",
+      "application_output_sha256": "202ae763a68d9c295d40db01c31bb0145095dc5115a2b13942e8a1d2a3167014"
+    },
+    {
+      "case": {
+        "id": "wave_warp-checker-changed",
+        "effect": "wave_warp",
+        "matchName": "ADBE Wave Warp",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Wave Warp-0002": 6,
+          "ADBE Wave Warp-0003": 32,
+          "ADBE Wave Warp-0005": 0.5,
+          "ADBE Wave Warp-0007": 45
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 47.92883734249713,
+          "alpha_mae_255": 4.8350830078125,
+          "rgb_pixels": 65184,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 48.004595386806926,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 48672,
+          "alpha_pixels": 48672,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 47.705527293281655,
+          "alpha_mae_255": 18.789848197343453,
+          "rgb_pixels": 16512,
+          "alpha_pixels": 16864,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-wave_warp-checker-changed.png",
+      "application_output": "outputs/motion/motion-wave_warp-checker-changed.png",
+      "ae_output_sha256": "902079afd5d8d4d6672c597acb2a7fa291f7d6f9022b9b42e1f2ec22569241ec",
+      "application_output_sha256": "5e2f33db11ab702b41240423e49d94ef13e274c94c8bffc934bd1bdeddd5b3ed"
+    },
+    {
+      "case": {
+        "id": "wave_warp-alpha_edge-default",
+        "effect": "wave_warp",
+        "matchName": "ADBE Wave Warp",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 14.351189925469031,
+          "alpha_mae_255": 10.190475463867188,
+          "rgb_pixels": 32425,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 2.876584446728332,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 19460,
+          "alpha_pixels": 23456,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 31.574161203239495,
+          "alpha_mae_255": 15.87079372623574,
+          "rgb_pixels": 12965,
+          "alpha_pixels": 42080,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-wave_warp-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-wave_warp-alpha_edge-default.png",
+      "ae_output_sha256": "4f2bbe3cf99d45fe7b891a20e9a3255880fe26255d0e0108b2f0e2b8770fab6d",
+      "application_output_sha256": "8136c07d2059b6b596d7b9361185721a22e409d253ee2392d09d71c3da13d0d4"
+    },
+    {
+      "case": {
+        "id": "wave_warp-alpha_edge-changed",
+        "effect": "wave_warp",
+        "matchName": "ADBE Wave Warp",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Wave Warp-0002": 6,
+          "ADBE Wave Warp-0003": 32,
+          "ADBE Wave Warp-0005": 0.5,
+          "ADBE Wave Warp-0007": 45
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 9.1028383252313,
+          "alpha_mae_255": 6.1792755126953125,
+          "rgb_pixels": 31885,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 1.5700674736378124,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 19662,
+          "alpha_pixels": 24251,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 21.22010417518885,
+          "alpha_mae_255": 9.809010536514473,
+          "rgb_pixels": 12223,
+          "alpha_pixels": 41285,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-wave_warp-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-wave_warp-alpha_edge-changed.png",
+      "ae_output_sha256": "888715d111b2d82f75edcb604341e7d24f9c66105d4fa388d46fe964ba337820",
+      "application_output_sha256": "794d7f37ab20b928fa0dda4c81c50f104c25bf1982bf483de7ecf72c0d4459ab"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-gradient-default",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-polar_coordinates-gradient-default.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-gradient-changed",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Polar Coordinates-0001": 0.6
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 15.891164143880209,
+          "alpha_mae_255": 11.362594604492188,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 12.148124509686598,
+          "alpha_mae_255": 4.258466632095416,
+          "rgb_pixels": 50138,
+          "alpha_pixels": 50138,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 28.079014590639474,
+          "alpha_mae_255": 34.494609689570076,
+          "rgb_pixels": 15398,
+          "alpha_pixels": 15398,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-polar_coordinates-gradient-changed.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-gradient-changed.png",
+      "ae_output_sha256": "58cee431820669b401b473b7b5ccf99b58614bcf146f08192d136d9a01838515",
+      "application_output_sha256": "1cbce7040c545d2b389bb1fd4b59c72ef8f8ec60682dca027a0a3d62784cad46"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-checker-default",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-polar_coordinates-checker-default.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-checker-changed",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Polar Coordinates-0001": 0.6
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 76.00539652506511,
+          "alpha_mae_255": 11.362594604492188,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 77.48873775047535,
+          "alpha_mae_255": 4.258466632095416,
+          "rgb_pixels": 50138,
+          "alpha_pixels": 50138,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 71.17543403905269,
+          "alpha_mae_255": 34.494609689570076,
+          "rgb_pixels": 15398,
+          "alpha_pixels": 15398,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-polar_coordinates-checker-changed.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-checker-changed.png",
+      "ae_output_sha256": "0a4a3993e7dcea46b5e2d53d4ddf41d73103b5b94eb5f7fcc9c424c2d73b61a2",
+      "application_output_sha256": "60b343b7d253511bb57968de6411d1175d20b27f93502ad962919f7c8dca0ed1"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-alpha_edge-default",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-polar_coordinates-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-alpha_edge-changed",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Polar Coordinates-0001": 0.6
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 19.487592423782033,
+          "alpha_mae_255": 24.705947875976562,
+          "rgb_pixels": 59238,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 9.351184231441742,
+          "alpha_mae_255": 6.543617323730099,
+          "rgb_pixels": 41940,
+          "alpha_pixels": 42208,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 44.063899487416656,
+          "alpha_mae_255": 57.56755829903978,
+          "rgb_pixels": 17298,
+          "alpha_pixels": 23328,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-polar_coordinates-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-alpha_edge-changed.png",
+      "ae_output_sha256": "1f67802b27dc009799b1544d5253b74cc6f86a75d2f0253e54c5c23aa56f4a92",
+      "application_output_sha256": "6a302a739e23a11d7c52e5f5370441e96c8e92aa7832d8505972bd98ceb6f313"
+    }
+  ]
+}

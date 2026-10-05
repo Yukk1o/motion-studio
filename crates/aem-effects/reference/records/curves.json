@@ -1,0 +1,312 @@
+{
+  "effect": "curves",
+  "display_name": "曲线",
+  "english_name": "Curves",
+  "compatibility": "approximate",
+  "ae_match_name": "ADBE CurvesCustom",
+  "ae_application": "18.0.1x1",
+  "ae_effect_version": "18.0.1",
+  "package": {
+    "id": "com.motionstudio.effects.ae2021",
+    "version": "1.0.0",
+    "sha256": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399"
+  },
+  "params": [
+    {
+      "id": "effect_opacity",
+      "name": "效果不透明度",
+      "kind": "float",
+      "default": [
+        100,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "units": "百分比",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Effect Mask Opacity",
+      "implemented": true
+    },
+    {
+      "id": "p0001",
+      "name": "曲线",
+      "kind": "curve",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE CurvesCustom-0001",
+      "implemented": true
+    },
+    {
+      "id": "p0002",
+      "name": "通道:",
+      "kind": "enum",
+      "default": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "min": 1,
+      "max": 5,
+      "step": 1,
+      "units": "",
+      "animatable": false,
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "reference_match_name": "ADBE CurvesCustom-0002",
+      "implemented": true
+    }
+  ],
+  "native_parameter_snapshot": {
+    "name": "曲线",
+    "matchName": "ADBE CurvesCustom",
+    "children": [
+      {
+        "name": "通道:",
+        "matchName": "ADBE CurvesCustom-0002",
+        "children": [],
+        "valueType": 6417,
+        "animatable": false,
+        "units": "",
+        "defaultValue": 1,
+        "min": 1,
+        "max": 5
+      },
+      {
+        "name": "曲线",
+        "matchName": "ADBE CurvesCustom-0001",
+        "children": [],
+        "valueType": 6419,
+        "animatable": true,
+        "units": ""
+      },
+      {
+        "name": "合成选项",
+        "matchName": "ADBE Effect Built In Params",
+        "children": [
+          {
+            "name": "蒙版",
+            "matchName": "ADBE Effect Mask Parade",
+            "children": [],
+            "valueType": null,
+            "animatable": null,
+            "units": null,
+            "defaultValue": null,
+            "min": null,
+            "max": null
+          },
+          {
+            "name": "效果不透明度",
+            "matchName": "ADBE Effect Mask Opacity",
+            "children": [],
+            "valueType": 6417,
+            "animatable": true,
+            "units": "百分比",
+            "defaultValue": 100,
+            "min": 0,
+            "max": 100
+          },
+          {
+            "name": "GPU 渲染",
+            "matchName": "ADBE Force CPU GPU",
+            "children": [],
+            "valueType": 6417,
+            "animatable": false,
+            "units": "",
+            "defaultValue": 1,
+            "min": 1,
+            "max": 3
+          }
+        ],
+        "valueType": null,
+        "animatable": null,
+        "units": null,
+        "defaultValue": null,
+        "min": null,
+        "max": null
+      }
+    ],
+    "valueType": null,
+    "animatable": null,
+    "units": null,
+    "defaultValue": null,
+    "min": null,
+    "max": null,
+    "id": "curves"
+  },
+  "algorithm": "宿主对主曲线和RGBA五通道生成256项LUT；关键帧在LUT空间插值。",
+  "shader_passes": [
+    {
+      "shader": "shaders/curves.wgsl",
+      "entry": "main_fx"
+    }
+  ],
+  "working_space": "srgb",
+  "alpha_mode": "straight",
+  "edge_mode": "transparent",
+  "edge_param": null,
+  "output_padding": {
+    "op": "constant",
+    "value": 0
+  },
+  "output_range": "RGBA8: [0,1]",
+  "known_differences": [
+    "独立算法实现；尚未通过完整 AE 参考用例，不能声明精确还原。",
+    "枚举选项暂保留 AE 数值编号；原生菜单名称尚待采集。",
+    "曲线对象采用分段插值与 LUT；AE 私有曲线数据格式未导入。"
+  ],
+  "cases": [
+    {
+      "case": {
+        "id": "curves-gradient-default",
+        "effect": "curves",
+        "matchName": "ADBE CurvesCustom",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-curves-gradient-default.png",
+      "application_output": "outputs/motion/motion-curves-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "curves-checker-default",
+        "effect": "curves",
+        "matchName": "ADBE CurvesCustom",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-curves-checker-default.png",
+      "application_output": "outputs/motion/motion-curves-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "curves-alpha_edge-default",
+        "effect": "curves",
+        "matchName": "ADBE CurvesCustom",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-curves-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-curves-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    }
+  ],
+  "acceptance_gaps": [
+    "参数边界与动画的AE参考",
+    "叠加/摄影机AE参考",
+    "物理Android设备耗时/峰值内存",
+    "AE枚举菜单名称采集",
+    "AE私有曲线数据的自定义曲线参考"
+  ]
+}

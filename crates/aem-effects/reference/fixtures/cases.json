@@ -1,0 +1,1415 @@
+[
+  {
+    "id": "brightness_contrast-gradient-default",
+    "effect": "brightness_contrast",
+    "matchName": "ADBE Brightness & Contrast 2",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "brightness_contrast-gradient-changed",
+    "effect": "brightness_contrast",
+    "matchName": "ADBE Brightness & Contrast 2",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Brightness & Contrast 2-0001": 35,
+      "ADBE Brightness & Contrast 2-0002": 30
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "brightness_contrast-checker-default",
+    "effect": "brightness_contrast",
+    "matchName": "ADBE Brightness & Contrast 2",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "brightness_contrast-checker-changed",
+    "effect": "brightness_contrast",
+    "matchName": "ADBE Brightness & Contrast 2",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Brightness & Contrast 2-0001": 35,
+      "ADBE Brightness & Contrast 2-0002": 30
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "brightness_contrast-alpha_edge-default",
+    "effect": "brightness_contrast",
+    "matchName": "ADBE Brightness & Contrast 2",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "brightness_contrast-alpha_edge-changed",
+    "effect": "brightness_contrast",
+    "matchName": "ADBE Brightness & Contrast 2",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Brightness & Contrast 2-0001": 35,
+      "ADBE Brightness & Contrast 2-0002": 30
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "exposure-gradient-default",
+    "effect": "exposure",
+    "matchName": "ADBE Exposure2",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "exposure-gradient-changed",
+    "effect": "exposure",
+    "matchName": "ADBE Exposure2",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Exposure2-0003": 0.75,
+      "ADBE Exposure2-0004": 0.02,
+      "ADBE Exposure2-0005": 1.1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "exposure-checker-default",
+    "effect": "exposure",
+    "matchName": "ADBE Exposure2",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "exposure-checker-changed",
+    "effect": "exposure",
+    "matchName": "ADBE Exposure2",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Exposure2-0003": 0.75,
+      "ADBE Exposure2-0004": 0.02,
+      "ADBE Exposure2-0005": 1.1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "exposure-alpha_edge-default",
+    "effect": "exposure",
+    "matchName": "ADBE Exposure2",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "exposure-alpha_edge-changed",
+    "effect": "exposure",
+    "matchName": "ADBE Exposure2",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Exposure2-0003": 0.75,
+      "ADBE Exposure2-0004": 0.02,
+      "ADBE Exposure2-0005": 1.1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "hue_saturation-gradient-default",
+    "effect": "hue_saturation",
+    "matchName": "ADBE HUE SATURATION",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "hue_saturation-gradient-changed",
+    "effect": "hue_saturation",
+    "matchName": "ADBE HUE SATURATION",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE HUE SATURATION-0004": 35,
+      "ADBE HUE SATURATION-0005": 25
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "hue_saturation-checker-default",
+    "effect": "hue_saturation",
+    "matchName": "ADBE HUE SATURATION",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "hue_saturation-checker-changed",
+    "effect": "hue_saturation",
+    "matchName": "ADBE HUE SATURATION",
+    "input": "checker.png",
+    "properties": {
+      "ADBE HUE SATURATION-0004": 35,
+      "ADBE HUE SATURATION-0005": 25
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "hue_saturation-alpha_edge-default",
+    "effect": "hue_saturation",
+    "matchName": "ADBE HUE SATURATION",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "hue_saturation-alpha_edge-changed",
+    "effect": "hue_saturation",
+    "matchName": "ADBE HUE SATURATION",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE HUE SATURATION-0004": 35,
+      "ADBE HUE SATURATION-0005": 25
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tint-gradient-default",
+    "effect": "tint",
+    "matchName": "ADBE Tint",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tint-gradient-changed",
+    "effect": "tint",
+    "matchName": "ADBE Tint",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Tint-0001": [
+        0.05,
+        0.1,
+        0.2,
+        0
+      ],
+      "ADBE Tint-0002": [
+        0.9,
+        0.4,
+        0.2,
+        0
+      ],
+      "ADBE Tint-0003": 75
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tint-checker-default",
+    "effect": "tint",
+    "matchName": "ADBE Tint",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tint-checker-changed",
+    "effect": "tint",
+    "matchName": "ADBE Tint",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Tint-0001": [
+        0.05,
+        0.1,
+        0.2,
+        0
+      ],
+      "ADBE Tint-0002": [
+        0.9,
+        0.4,
+        0.2,
+        0
+      ],
+      "ADBE Tint-0003": 75
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tint-alpha_edge-default",
+    "effect": "tint",
+    "matchName": "ADBE Tint",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tint-alpha_edge-changed",
+    "effect": "tint",
+    "matchName": "ADBE Tint",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Tint-0001": [
+        0.05,
+        0.1,
+        0.2,
+        0
+      ],
+      "ADBE Tint-0002": [
+        0.9,
+        0.4,
+        0.2,
+        0
+      ],
+      "ADBE Tint-0003": 75
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tritone-gradient-default",
+    "effect": "tritone",
+    "matchName": "ADBE Tritone",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tritone-gradient-changed",
+    "effect": "tritone",
+    "matchName": "ADBE Tritone",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Tritone-0002": [
+        0.2,
+        0.6,
+        0.4,
+        0
+      ],
+      "ADBE Tritone-0004": 15
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tritone-checker-default",
+    "effect": "tritone",
+    "matchName": "ADBE Tritone",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tritone-checker-changed",
+    "effect": "tritone",
+    "matchName": "ADBE Tritone",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Tritone-0002": [
+        0.2,
+        0.6,
+        0.4,
+        0
+      ],
+      "ADBE Tritone-0004": 15
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tritone-alpha_edge-default",
+    "effect": "tritone",
+    "matchName": "ADBE Tritone",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "tritone-alpha_edge-changed",
+    "effect": "tritone",
+    "matchName": "ADBE Tritone",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Tritone-0002": [
+        0.2,
+        0.6,
+        0.4,
+        0
+      ],
+      "ADBE Tritone-0004": 15
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "color_balance-gradient-default",
+    "effect": "color_balance",
+    "matchName": "ADBE Color Balance 2",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "color_balance-gradient-changed",
+    "effect": "color_balance",
+    "matchName": "ADBE Color Balance 2",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Color Balance 2-0004": 25,
+      "ADBE Color Balance 2-0005": -15,
+      "ADBE Color Balance 2-0010": 1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "color_balance-checker-default",
+    "effect": "color_balance",
+    "matchName": "ADBE Color Balance 2",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "color_balance-checker-changed",
+    "effect": "color_balance",
+    "matchName": "ADBE Color Balance 2",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Color Balance 2-0004": 25,
+      "ADBE Color Balance 2-0005": -15,
+      "ADBE Color Balance 2-0010": 1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "color_balance-alpha_edge-default",
+    "effect": "color_balance",
+    "matchName": "ADBE Color Balance 2",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "color_balance-alpha_edge-changed",
+    "effect": "color_balance",
+    "matchName": "ADBE Color Balance 2",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Color Balance 2-0004": 25,
+      "ADBE Color Balance 2-0005": -15,
+      "ADBE Color Balance 2-0010": 1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "levels-gradient-default",
+    "effect": "levels",
+    "matchName": "ADBE Easy Levels2",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "levels-gradient-changed",
+    "effect": "levels",
+    "matchName": "ADBE Easy Levels2",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Easy Levels2-0003": 0.15,
+      "ADBE Easy Levels2-0004": 0.85,
+      "ADBE Easy Levels2-0005": 1.2
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "levels-checker-default",
+    "effect": "levels",
+    "matchName": "ADBE Easy Levels2",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "levels-checker-changed",
+    "effect": "levels",
+    "matchName": "ADBE Easy Levels2",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Easy Levels2-0003": 0.15,
+      "ADBE Easy Levels2-0004": 0.85,
+      "ADBE Easy Levels2-0005": 1.2
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "levels-alpha_edge-default",
+    "effect": "levels",
+    "matchName": "ADBE Easy Levels2",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "levels-alpha_edge-changed",
+    "effect": "levels",
+    "matchName": "ADBE Easy Levels2",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Easy Levels2-0003": 0.15,
+      "ADBE Easy Levels2-0004": 0.85,
+      "ADBE Easy Levels2-0005": 1.2
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "curves-gradient-default",
+    "effect": "curves",
+    "matchName": "ADBE CurvesCustom",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "curves-checker-default",
+    "effect": "curves",
+    "matchName": "ADBE CurvesCustom",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "curves-alpha_edge-default",
+    "effect": "curves",
+    "matchName": "ADBE CurvesCustom",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "gaussian_blur-gradient-default",
+    "effect": "gaussian_blur",
+    "matchName": "ADBE Gaussian Blur 2",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "gaussian_blur-gradient-changed",
+    "effect": "gaussian_blur",
+    "matchName": "ADBE Gaussian Blur 2",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Gaussian Blur 2-0001": 12
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "gaussian_blur-checker-default",
+    "effect": "gaussian_blur",
+    "matchName": "ADBE Gaussian Blur 2",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "gaussian_blur-checker-changed",
+    "effect": "gaussian_blur",
+    "matchName": "ADBE Gaussian Blur 2",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Gaussian Blur 2-0001": 12
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "gaussian_blur-alpha_edge-default",
+    "effect": "gaussian_blur",
+    "matchName": "ADBE Gaussian Blur 2",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "gaussian_blur-alpha_edge-changed",
+    "effect": "gaussian_blur",
+    "matchName": "ADBE Gaussian Blur 2",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Gaussian Blur 2-0001": 12
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "fast_box_blur-gradient-default",
+    "effect": "fast_box_blur",
+    "matchName": "ADBE Box Blur2",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "fast_box_blur-gradient-changed",
+    "effect": "fast_box_blur",
+    "matchName": "ADBE Box Blur2",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Box Blur2-0001": 4,
+      "ADBE Box Blur2-0002": 3
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "fast_box_blur-checker-default",
+    "effect": "fast_box_blur",
+    "matchName": "ADBE Box Blur2",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "fast_box_blur-checker-changed",
+    "effect": "fast_box_blur",
+    "matchName": "ADBE Box Blur2",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Box Blur2-0001": 4,
+      "ADBE Box Blur2-0002": 3
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "fast_box_blur-alpha_edge-default",
+    "effect": "fast_box_blur",
+    "matchName": "ADBE Box Blur2",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "fast_box_blur-alpha_edge-changed",
+    "effect": "fast_box_blur",
+    "matchName": "ADBE Box Blur2",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Box Blur2-0001": 4,
+      "ADBE Box Blur2-0002": 3
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "directional_blur-gradient-default",
+    "effect": "directional_blur",
+    "matchName": "ADBE Motion Blur",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "directional_blur-gradient-changed",
+    "effect": "directional_blur",
+    "matchName": "ADBE Motion Blur",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Motion Blur-0001": 35,
+      "ADBE Motion Blur-0002": 14
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "directional_blur-checker-default",
+    "effect": "directional_blur",
+    "matchName": "ADBE Motion Blur",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "directional_blur-checker-changed",
+    "effect": "directional_blur",
+    "matchName": "ADBE Motion Blur",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Motion Blur-0001": 35,
+      "ADBE Motion Blur-0002": 14
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "directional_blur-alpha_edge-default",
+    "effect": "directional_blur",
+    "matchName": "ADBE Motion Blur",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "directional_blur-alpha_edge-changed",
+    "effect": "directional_blur",
+    "matchName": "ADBE Motion Blur",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Motion Blur-0001": 35,
+      "ADBE Motion Blur-0002": 14
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "radial_blur-gradient-default",
+    "effect": "radial_blur",
+    "matchName": "ADBE Radial Blur",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "radial_blur-gradient-changed",
+    "effect": "radial_blur",
+    "matchName": "ADBE Radial Blur",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Radial Blur-0001": 12
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "radial_blur-checker-default",
+    "effect": "radial_blur",
+    "matchName": "ADBE Radial Blur",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "radial_blur-checker-changed",
+    "effect": "radial_blur",
+    "matchName": "ADBE Radial Blur",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Radial Blur-0001": 12
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "radial_blur-alpha_edge-default",
+    "effect": "radial_blur",
+    "matchName": "ADBE Radial Blur",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "radial_blur-alpha_edge-changed",
+    "effect": "radial_blur",
+    "matchName": "ADBE Radial Blur",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Radial Blur-0001": 12
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "sharpen-gradient-default",
+    "effect": "sharpen",
+    "matchName": "ADBE Sharpen",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "sharpen-gradient-changed",
+    "effect": "sharpen",
+    "matchName": "ADBE Sharpen",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Sharpen-0001": 40
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "sharpen-checker-default",
+    "effect": "sharpen",
+    "matchName": "ADBE Sharpen",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "sharpen-checker-changed",
+    "effect": "sharpen",
+    "matchName": "ADBE Sharpen",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Sharpen-0001": 40
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "sharpen-alpha_edge-default",
+    "effect": "sharpen",
+    "matchName": "ADBE Sharpen",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "sharpen-alpha_edge-changed",
+    "effect": "sharpen",
+    "matchName": "ADBE Sharpen",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Sharpen-0001": 40
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "unsharp_mask-gradient-default",
+    "effect": "unsharp_mask",
+    "matchName": "ADBE Unsharp Mask2",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "unsharp_mask-gradient-changed",
+    "effect": "unsharp_mask",
+    "matchName": "ADBE Unsharp Mask2",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Unsharp Mask2-0001": 80,
+      "ADBE Unsharp Mask2-0002": 2,
+      "ADBE Unsharp Mask2-0003": 0.01
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "unsharp_mask-checker-default",
+    "effect": "unsharp_mask",
+    "matchName": "ADBE Unsharp Mask2",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "unsharp_mask-checker-changed",
+    "effect": "unsharp_mask",
+    "matchName": "ADBE Unsharp Mask2",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Unsharp Mask2-0001": 80,
+      "ADBE Unsharp Mask2-0002": 2,
+      "ADBE Unsharp Mask2-0003": 0.01
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "unsharp_mask-alpha_edge-default",
+    "effect": "unsharp_mask",
+    "matchName": "ADBE Unsharp Mask2",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "unsharp_mask-alpha_edge-changed",
+    "effect": "unsharp_mask",
+    "matchName": "ADBE Unsharp Mask2",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Unsharp Mask2-0001": 80,
+      "ADBE Unsharp Mask2-0002": 2,
+      "ADBE Unsharp Mask2-0003": 0.01
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "mirror-gradient-default",
+    "effect": "mirror",
+    "matchName": "ADBE Mirror",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "mirror-gradient-changed",
+    "effect": "mirror",
+    "matchName": "ADBE Mirror",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Mirror-0001": [
+        128,
+        128
+      ]
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "mirror-checker-default",
+    "effect": "mirror",
+    "matchName": "ADBE Mirror",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "mirror-checker-changed",
+    "effect": "mirror",
+    "matchName": "ADBE Mirror",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Mirror-0001": [
+        128,
+        128
+      ]
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "mirror-alpha_edge-default",
+    "effect": "mirror",
+    "matchName": "ADBE Mirror",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "mirror-alpha_edge-changed",
+    "effect": "mirror",
+    "matchName": "ADBE Mirror",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Mirror-0001": [
+        128,
+        128
+      ]
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "offset-gradient-default",
+    "effect": "offset",
+    "matchName": "ADBE Offset",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "offset-gradient-changed",
+    "effect": "offset",
+    "matchName": "ADBE Offset",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Offset-0001": [
+        160,
+        110
+      ],
+      "ADBE Offset-0002": 0.1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "offset-checker-default",
+    "effect": "offset",
+    "matchName": "ADBE Offset",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "offset-checker-changed",
+    "effect": "offset",
+    "matchName": "ADBE Offset",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Offset-0001": [
+        160,
+        110
+      ],
+      "ADBE Offset-0002": 0.1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "offset-alpha_edge-default",
+    "effect": "offset",
+    "matchName": "ADBE Offset",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "offset-alpha_edge-changed",
+    "effect": "offset",
+    "matchName": "ADBE Offset",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Offset-0001": [
+        160,
+        110
+      ],
+      "ADBE Offset-0002": 0.1
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "bulge-gradient-default",
+    "effect": "bulge",
+    "matchName": "ADBE Bulge",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "bulge-gradient-changed",
+    "effect": "bulge",
+    "matchName": "ADBE Bulge",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Bulge-0001": 70,
+      "ADBE Bulge-0002": 70,
+      "ADBE Bulge-0004": 0.7
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "bulge-checker-default",
+    "effect": "bulge",
+    "matchName": "ADBE Bulge",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "bulge-checker-changed",
+    "effect": "bulge",
+    "matchName": "ADBE Bulge",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Bulge-0001": 70,
+      "ADBE Bulge-0002": 70,
+      "ADBE Bulge-0004": 0.7
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "bulge-alpha_edge-default",
+    "effect": "bulge",
+    "matchName": "ADBE Bulge",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "bulge-alpha_edge-changed",
+    "effect": "bulge",
+    "matchName": "ADBE Bulge",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Bulge-0001": 70,
+      "ADBE Bulge-0002": 70,
+      "ADBE Bulge-0004": 0.7
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "twirl-gradient-default",
+    "effect": "twirl",
+    "matchName": "ADBE Twirl",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "twirl-gradient-changed",
+    "effect": "twirl",
+    "matchName": "ADBE Twirl",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Twirl-0001": 90,
+      "ADBE Twirl-0002": 45
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "twirl-checker-default",
+    "effect": "twirl",
+    "matchName": "ADBE Twirl",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "twirl-checker-changed",
+    "effect": "twirl",
+    "matchName": "ADBE Twirl",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Twirl-0001": 90,
+      "ADBE Twirl-0002": 45
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "twirl-alpha_edge-default",
+    "effect": "twirl",
+    "matchName": "ADBE Twirl",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "twirl-alpha_edge-changed",
+    "effect": "twirl",
+    "matchName": "ADBE Twirl",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Twirl-0001": 90,
+      "ADBE Twirl-0002": 45
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "wave_warp-gradient-default",
+    "effect": "wave_warp",
+    "matchName": "ADBE Wave Warp",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "wave_warp-gradient-changed",
+    "effect": "wave_warp",
+    "matchName": "ADBE Wave Warp",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Wave Warp-0002": 6,
+      "ADBE Wave Warp-0003": 32,
+      "ADBE Wave Warp-0005": 0.5,
+      "ADBE Wave Warp-0007": 45
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "wave_warp-checker-default",
+    "effect": "wave_warp",
+    "matchName": "ADBE Wave Warp",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "wave_warp-checker-changed",
+    "effect": "wave_warp",
+    "matchName": "ADBE Wave Warp",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Wave Warp-0002": 6,
+      "ADBE Wave Warp-0003": 32,
+      "ADBE Wave Warp-0005": 0.5,
+      "ADBE Wave Warp-0007": 45
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "wave_warp-alpha_edge-default",
+    "effect": "wave_warp",
+    "matchName": "ADBE Wave Warp",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "wave_warp-alpha_edge-changed",
+    "effect": "wave_warp",
+    "matchName": "ADBE Wave Warp",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Wave Warp-0002": 6,
+      "ADBE Wave Warp-0003": 32,
+      "ADBE Wave Warp-0005": 0.5,
+      "ADBE Wave Warp-0007": 45
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "polar_coordinates-gradient-default",
+    "effect": "polar_coordinates",
+    "matchName": "ADBE Polar Coordinates",
+    "input": "gradient.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "polar_coordinates-gradient-changed",
+    "effect": "polar_coordinates",
+    "matchName": "ADBE Polar Coordinates",
+    "input": "gradient.png",
+    "properties": {
+      "ADBE Polar Coordinates-0001": 0.6
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "polar_coordinates-checker-default",
+    "effect": "polar_coordinates",
+    "matchName": "ADBE Polar Coordinates",
+    "input": "checker.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "polar_coordinates-checker-changed",
+    "effect": "polar_coordinates",
+    "matchName": "ADBE Polar Coordinates",
+    "input": "checker.png",
+    "properties": {
+      "ADBE Polar Coordinates-0001": 0.6
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "polar_coordinates-alpha_edge-default",
+    "effect": "polar_coordinates",
+    "matchName": "ADBE Polar Coordinates",
+    "input": "alpha_edge.png",
+    "properties": {},
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  },
+  {
+    "id": "polar_coordinates-alpha_edge-changed",
+    "effect": "polar_coordinates",
+    "matchName": "ADBE Polar Coordinates",
+    "input": "alpha_edge.png",
+    "properties": {
+      "ADBE Polar Coordinates-0001": 0.6
+    },
+    "width": 256,
+    "height": 256,
+    "frame": 0
+  }
+]

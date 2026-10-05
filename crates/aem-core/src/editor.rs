@@ -23,6 +23,10 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    Effect {
+        object: u64,
+        action: crate::EffectAction,
+    },
     Curve {
         object: u64,
         property: Property,
@@ -216,6 +220,10 @@ fn channel(project: &mut Project, object: u64, property: Property) -> Result<Cha
 fn apply_to(project: &mut Project, command: Command) -> Result<()> {
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
     match command {
+        Command::Effect { object, action } => {
+            let frames = project.frames;
+            crate::effects::apply(project.layer_mut(object)?, action, frames)?;
+        }
         Command::Curve {
             object,
             property,
@@ -486,6 +494,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             layer.transform.anchor = anchor;
         }
     }
+    project.rebuild_plugin_dependencies();
     project.validate()
 }
 
@@ -502,8 +511,8 @@ pub struct Engine {
     history_budget: usize,
 }
 impl Engine {
-    pub fn new(project: Project) -> Result<Self> {
-        project.validate()?;
+    pub fn new(mut project: Project) -> Result<Self> {
+        project.migrate()?;
         Ok(Self {
             project,
             revision: 0,

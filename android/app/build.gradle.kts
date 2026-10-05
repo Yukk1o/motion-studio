@@ -22,7 +22,12 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildTypes {
-        debug { isDebuggable = true }
+        debug {
+            isDebuggable = true
+            if (providers.gradleProperty("effectsAcceptance").orNull == "true") {
+                applicationIdSuffix = ".effectsacceptance"
+            }
+        }
         release { isMinifyEnabled = false }
         create("preview") {
             initWith(getByName("release"))

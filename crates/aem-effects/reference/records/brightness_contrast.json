@@ -1,0 +1,470 @@
+{
+  "effect": "brightness_contrast",
+  "display_name": "亮度和对比度",
+  "english_name": "Brightness & Contrast",
+  "compatibility": "approximate",
+  "ae_match_name": "ADBE Brightness & Contrast 2",
+  "ae_application": "18.0.1x1",
+  "ae_effect_version": "18.0.1",
+  "package": {
+    "id": "com.motionstudio.effects.ae2021",
+    "version": "1.0.0",
+    "sha256": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399"
+  },
+  "params": [
+    {
+      "id": "effect_opacity",
+      "name": "效果不透明度",
+      "kind": "float",
+      "default": [
+        100,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "units": "百分比",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Effect Mask Opacity",
+      "implemented": true
+    },
+    {
+      "id": "p0001",
+      "name": "亮度",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -150,
+      "max": 150,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Brightness & Contrast 2-0001",
+      "implemented": true
+    },
+    {
+      "id": "p0002",
+      "name": "对比度",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -100,
+      "max": 100,
+      "step": 1,
+      "units": "像素",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Brightness & Contrast 2-0002",
+      "implemented": true
+    },
+    {
+      "id": "p0003",
+      "name": "使用旧版（支持 HDR）",
+      "kind": "bool",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Brightness & Contrast 2-0003",
+      "implemented": true
+    }
+  ],
+  "native_parameter_snapshot": {
+    "name": "亮度和对比度",
+    "matchName": "ADBE Brightness & Contrast 2",
+    "children": [
+      {
+        "name": "亮度",
+        "matchName": "ADBE Brightness & Contrast 2-0001",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -150,
+        "max": 150
+      },
+      {
+        "name": "对比度",
+        "matchName": "ADBE Brightness & Contrast 2-0002",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "像素",
+        "defaultValue": 0,
+        "min": -100,
+        "max": 100
+      },
+      {
+        "name": "使用旧版（支持 HDR）",
+        "matchName": "ADBE Brightness & Contrast 2-0003",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1
+      },
+      {
+        "name": "合成选项",
+        "matchName": "ADBE Effect Built In Params",
+        "children": [
+          {
+            "name": "蒙版",
+            "matchName": "ADBE Effect Mask Parade",
+            "children": [],
+            "valueType": null,
+            "animatable": null,
+            "units": null,
+            "defaultValue": null,
+            "min": null,
+            "max": null
+          },
+          {
+            "name": "效果不透明度",
+            "matchName": "ADBE Effect Mask Opacity",
+            "children": [],
+            "valueType": 6417,
+            "animatable": true,
+            "units": "百分比",
+            "defaultValue": 100,
+            "min": 0,
+            "max": 100
+          },
+          {
+            "name": "GPU 渲染",
+            "matchName": "ADBE Force CPU GPU",
+            "children": [],
+            "valueType": 6417,
+            "animatable": false,
+            "units": "",
+            "defaultValue": 1,
+            "min": 1,
+            "max": 3
+          }
+        ],
+        "valueType": null,
+        "animatable": null,
+        "units": null,
+        "defaultValue": null,
+        "min": null,
+        "max": null
+      }
+    ],
+    "valueType": null,
+    "animatable": null,
+    "units": null,
+    "defaultValue": null,
+    "min": null,
+    "max": null,
+    "id": "brightness_contrast"
+  },
+  "algorithm": "亮度混合黑/白，对比度绕0.5缩放；旧版使用加法亮度。",
+  "shader_passes": [
+    {
+      "shader": "shaders/brightness_contrast.wgsl",
+      "entry": "main_fx"
+    }
+  ],
+  "working_space": "srgb",
+  "alpha_mode": "straight",
+  "edge_mode": "transparent",
+  "edge_param": null,
+  "output_padding": {
+    "op": "constant",
+    "value": 0
+  },
+  "output_range": "RGBA8: [0,1]",
+  "known_differences": [
+    "独立算法实现；尚未通过完整 AE 参考用例，不能声明精确还原。"
+  ],
+  "cases": [
+    {
+      "case": {
+        "id": "brightness_contrast-gradient-default",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-brightness_contrast-gradient-default.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-gradient-changed",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Brightness & Contrast 2-0001": 35,
+          "ADBE Brightness & Contrast 2-0002": 30
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 16.2109375,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 16.1875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 16.2875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-brightness_contrast-gradient-changed.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-gradient-changed.png",
+      "ae_output_sha256": "bc61b8a30794bcb10b5595a2847332acd01f6b309e77bb0fd71d02e9450a8831",
+      "application_output_sha256": "db250d9603b79d3e98d83b0005c2dd6d1d0e486c4da085ec9db6a4e780f68ba1"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-checker-default",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-brightness_contrast-checker-default.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-checker-changed",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Brightness & Contrast 2-0001": 35,
+          "ADBE Brightness & Contrast 2-0002": 30
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 18.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 18.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 18.166666666666668,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-brightness_contrast-checker-changed.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-checker-changed.png",
+      "ae_output_sha256": "16ef311aa0c3df699ace3ae1307d50361d3416029421e5cf85866985fada17ce",
+      "application_output_sha256": "ae2c8e9633b073ad93466cd92555e444c6441f87911b055572d4e708cefe2f2c"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-alpha_edge-default",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-brightness_contrast-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "brightness_contrast-alpha_edge-changed",
+        "effect": "brightness_contrast",
+        "matchName": "ADBE Brightness & Contrast 2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Brightness & Contrast 2-0001": 35,
+          "ADBE Brightness & Contrast 2-0002": 30
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 15.738636363636365,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 14.462962962962962,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 18.321875000000002,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-brightness_contrast-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-brightness_contrast-alpha_edge-changed.png",
+      "ae_output_sha256": "485841881e6dadb2914a2cd39a824cd204ac286987f249801f8938b120522206",
+      "application_output_sha256": "6a6691fbf0e5ce1adb2d057cf2f0ecc846f10968a31d4bffeb9d43f6efbf5326"
+    }
+  ],
+  "acceptance_gaps": [
+    "参数边界与动画的AE参考",
+    "叠加/摄影机AE参考",
+    "物理Android设备耗时/峰值内存"
+  ]
+}
