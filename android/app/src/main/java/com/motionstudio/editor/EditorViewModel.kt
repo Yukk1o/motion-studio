@@ -6,6 +6,7 @@ import android.graphics.*
 import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.PowerManager
 import android.view.Choreographer
 import android.view.Surface
 import androidx.compose.runtime.*
@@ -45,6 +46,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var panelOpen by mutableStateOf(false)
     var timelineScale by mutableFloatStateOf(1.5f)
     var scaleLinked by mutableStateOf(true)
+    var previewMode by mutableIntStateOf(if(projectDirectory==null)app.getSharedPreferences("motion-studio",0).getInt("previewMode",0).coerceIn(0,3) else 0);private set
+    var previewInfo by mutableStateOf<JSONObject?>(null);private set
     var loadFailed by mutableStateOf(false);private set
     var projects by mutableStateOf<List<ProjectSummary>>(emptyList());private set
     var lastSavedOutput by mutableStateOf<Uri?>(null);private set
@@ -74,6 +77,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private var surfaceHeight=0
     private var startNanos = 0L
     private var startFrame = 0.0
+    private var nextPreviewNanos=0L
+    private var lastPreviewInfoNanos=0L
+    private val thermalMonitor=app.getSystemService(PowerManager::class.java)
+    private var thermalStatus=thermalMonitor.currentThermalStatus
+    private val thermalListener=PowerManager.OnThermalStatusChangedListener {status->thermalStatus=status;applyPreviewMode()}
     private val tick = object : Choreographer.FrameCallback {
         override fun doFrame(time: Long) {
             if (closed.get()) return
@@ -82,15 +90,22 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 frame = (startFrame + (time-startNanos)/1e9*p.getInt("fps")) % p.getInt("frames")
                 dirty.set(true)
             }
-            if (foreground.get() && dirty.get() && surfaceReady.get() && queued.compareAndSet(false,true)) {
+            val due=!playing||time+100_000>=nextPreviewNanos
+            if (due && foreground.get() && dirty.get() && surfaceReady.get() && queued.compareAndSet(false,true)) {
                 dirty.set(false)
                 val target=frame
+                nextPreviewNanos=time+1_000_000_000L/(previewInfo?.optInt("fps",60)?:60)
+                val refreshPreview=time-lastPreviewInfoNanos>=1_000_000_000L
+                if(refreshPreview)lastPreviewInfoNanos=time
                 worker.post {
-                    try { if(id!=0L && foreground.get() && surfaceReady.get() && !NativeBridge.render(id,target)) {
+                    try {
+                        if(id!=0L && foreground.get() && surfaceReady.get() && !NativeBridge.render(id,target)) {
                         val envelope=JSONObject(NativeBridge.state(id))
                         val error=envelope.optJSONObject("data")?.optString("renderError","")?.takeIf{it!="null"&&it.isNotBlank()}
                         if(error!=null){surfaceReady.set(false);main.post{lastGpuFailure=error};fail("预览暂不可用，请重试预览。工程数据已保留。")}else dirty.set(true)
-                    } }
+                        }
+                        if(refreshPreview&&id!=0L)updatePreviewInfo(NativeBridge.previewInfo(id))
+                    }
                     catch(e:Throwable) { fail(e.message?:"预览失败") }
                     finally { queued.set(false) }
                 }
@@ -99,10 +114,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     init {
+        thermalMonitor.addThermalStatusListener(app.mainExecutor,thermalListener)
         worker.post {
             try {
                 id=NativeBridge.create(root.absolutePath,"")
                 check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
+                updatePreviewInfo(NativeBridge.previewMode(id,previewMode,thermalStatus))
                 publish(NativeBridge.state(id),root.resolve("project.json").exists())
             } catch(e:Throwable) {main.post{loadFailed=true};fail(e.message?:"原生引擎初始化失败")}
         }
@@ -112,6 +129,33 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         if(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())state=state.copy(error=message,busy=false)
     }}
     fun clearError() {state=state.copy(error=null)}
+    private fun updatePreviewInfo(raw:String) {
+        val result=JSONObject(raw)
+        if(!result.optBoolean("ok")){fail(result.optString("error"));return}
+        val info=result.getJSONObject("data")
+        main.post{if(!closed.get())previewInfo=info}
+    }
+    private fun applyPreviewMode() {
+        val mode=previewMode;val thermal=thermalStatus
+        worker.post{if(id!=0L){updatePreviewInfo(NativeBridge.previewMode(id,mode,thermal));dirty.set(true)}}
+    }
+    fun choosePreviewMode(mode:Int) {
+        require(mode in 0..3);previewMode=mode;nextPreviewNanos=0
+        if(persistProjectSelection)getApplication<Application>().getSharedPreferences("motion-studio",0).edit().putInt("previewMode",mode).apply()
+        applyPreviewMode()
+    }
+    fun startProfiling(maxFrames:Int,onStarted:()->Unit) {
+        worker.post{try{
+            val result=JSONObject(NativeBridge.startProfiling(id,maxFrames));check(result.optBoolean("ok")){result.optString("error")}
+            main.post(onStarted)
+        }catch(e:Throwable){fail(e.message?:"计时启动失败")}}
+    }
+    fun stopProfiling(onComplete:(File)->Unit) {
+        worker.post{try {
+            val result=JSONObject(NativeBridge.stopProfiling(id));check(result.optBoolean("ok")){result.optString("error")}
+            val file=File(result.getJSONObject("data").getString("file"));main.post{onComplete(file)}
+        }catch(e:Throwable){fail(e.message?:"计时保存失败")}}
+    }
     fun completeOutputSelection(uri:Uri?) {
         lastOutputSelection=uri
         if(uri==null){pendingOutput=null;return}
@@ -560,6 +604,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         closed.set(true);playing=false
         exporter?.cancelled?.set(true)
         Choreographer.getInstance().removeFrameCallback(tick)
+        thermalMonitor.removeThermalStatusListener(thermalListener)
         worker.post{if(id!=0L)NativeBridge.destroy(id);workerThread.quitSafely()}
     }
 }

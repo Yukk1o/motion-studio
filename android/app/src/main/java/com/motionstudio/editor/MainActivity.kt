@@ -216,6 +216,15 @@ open class MainActivity:ComponentActivity() {
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
             TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
+            Text("预览清晰度",fontSize=12.sp,color=Muted)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                listOf("自动","清晰","流畅","省电").forEachIndexed{mode,label->
+                    TextButton(onClick={vm.choosePreviewMode(mode)},modifier=Modifier.heightIn(min=48.dp).testTag("preview-mode-"+mode)) {
+                        Text(label,color=if(vm.previewMode==mode)Accent else Muted)
+                    }
+                }
+            }
+            vm.previewInfo?.let{info->Text("预览 "+info.optInt("width")+" × "+info.optInt("height")+" · "+info.optInt("fps")+" fps",fontSize=11.sp,lineHeight=15.sp,color=Muted)}
             Text("新建 6 秒合成",fontSize=12.sp,color=Muted)
             listOf(1080 to 1920,1920 to 1080,1080 to 1080).forEach{(w,h)->
                 Row {
