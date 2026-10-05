@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Motion Studio 场景效果编辑器</title><link rel="stylesheet" href="editor.css"></head>
+<body><main><header><h1 id="title">场景效果编辑器</h1><button id="refresh">刷新预览</button></header>
+<p id="status" role="status">等待宿主连接</p><div class="workspace"><section><canvas id="preview" width="320" height="320" aria-label="宿主渲染预览"></canvas>
+<p>预览由宿主渲染；粒子位置、摄影机与导出共用同一执行计划。</p></section>
+<section><div id="params"></div><div id="scene"></div></section></div></main><script src="editor.js"></script></body></html>

@@ -1,7 +1,9 @@
 //! Portable effect descriptions and shader compilation, without editor/GPU dependencies.
 pub mod builtin;
 mod package;
+mod scene;
 mod schema;
+pub use scene::*;
 pub mod shader;
 pub use package::{package_directory, EffectPackage, InstalledPlugin, Registry};
 pub use schema::*;

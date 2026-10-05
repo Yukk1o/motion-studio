@@ -79,6 +79,10 @@ struct Session {
     recorder: Option<FrameRecorder>,
     effects: aem_render::effect_plan::PlanBuilder,
     plugin_root: PathBuf,
+    editor: Option<aem_core::plugin_editor::PluginEditorSession>,
+    editor_token: String,
+    editor_renderer: Option<Renderer>,
+    editor_target: Option<aem_render::CaptureTarget>,
 }
 impl Session {
     fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
@@ -87,6 +91,14 @@ impl Session {
                 .replace_assets(engine.project(), &root)
                 .map_err(|e| e.to_string())?;
         }
+        if let Some(mut editor) = self.editor.take() {
+            editor
+                .close(&mut self.engine, false)
+                .map_err(|e| e.to_string())?;
+        }
+        self.editor_renderer = None;
+        self.editor_target = None;
+        self.effects.alpha_images.clear();
         self.scene = Scene::new(engine.project());
         self.observer = Observer::new(engine.project().width, engine.project().height);
         self.engine = engine;
@@ -148,7 +160,166 @@ impl Session {
             recorder: None,
             effects,
             plugin_root,
+            editor: None,
+            editor_token: String::new(),
+            editor_renderer: None,
+            editor_target: None,
         })
+    }
+    fn editor_operation(&mut self, v: &Value) -> Result<Value> {
+        let op = v["op"].as_str().ok_or("missing editor operation")?;
+        if op == "editor_open" {
+            if self.editor.is_some() {
+                return Err("close the current plugin editor first".into());
+            }
+            let object = v["object"].as_u64().ok_or("missing editor layer")?;
+            let instance = v["instance"].as_u64().ok_or("missing editor effect")?;
+            let editor = aem_core::plugin_editor::PluginEditorSession::open(
+                self.engine.project(),
+                &self.effects.registry,
+                object,
+                instance,
+            )
+            .map_err(|e| e.to_string())?;
+            let package = self
+                .effects
+                .registry
+                .resolve(
+                    &editor.dependency.plugin,
+                    &editor.dependency.version,
+                    &editor.dependency.hash,
+                )
+                .map_err(|e| e.to_string())?;
+            let definition = package
+                .manifest
+                .effects
+                .iter()
+                .find(|d| d.id == editor.effect)
+                .ok_or("editor definition missing")?;
+            let state = editor
+                .state(&self.engine, self.frame.floor() as u32)
+                .map_err(|e| e.to_string())?;
+            self.editor_token = format!(
+                "editor-{}-{}",
+                NEXT.fetch_add(1, Ordering::Relaxed),
+                self.engine.revision()
+            );
+            self.editor = Some(editor);
+            return Ok(
+                json!({"protocol":1,"token":self.editor_token,"definition":definition,"state":state}),
+            );
+        }
+        if self.editor.is_none() || v["token"].as_str() != Some(self.editor_token.as_str()) {
+            return Err("plugin editor session is stale or missing".into());
+        }
+        let editor = self.editor.as_ref().unwrap();
+        let package = self
+            .effects
+            .registry
+            .resolve(
+                &editor.dependency.plugin,
+                &editor.dependency.version,
+                &editor.dependency.hash,
+            )
+            .map_err(|e| e.to_string())?;
+        match op {
+            "editor_asset" => {
+                let path = v["path"].as_str().ok_or("missing editor asset path")?;
+                let definition = package
+                    .manifest
+                    .effects
+                    .iter()
+                    .find(|d| d.id == editor.effect)
+                    .and_then(|d| d.editor.as_ref())
+                    .ok_or("editor definition missing")?;
+                if !definition.files.iter().any(|p| p == path) {
+                    return Err("asset is outside this plugin editor".into());
+                }
+                let bytes = package.files.get(path).ok_or("editor asset missing")?;
+                Ok(json!({"mime":aem_effects::editor_mime(path),"base64":encode_base64(bytes)}))
+            }
+            "editor_close" => {
+                let mut editor = self.editor.take().unwrap();
+                editor
+                    .close(&mut self.engine, v["commit"].as_bool().unwrap_or(false))
+                    .map_err(|e| e.to_string())?;
+                self.editor_renderer = None;
+                self.editor_target = None;
+                self.editor_token.clear();
+                self.sample()?;
+                Ok(self.snapshot())
+            }
+            "editor_message" => {
+                if v["message"]["op"] == "preview" {
+                    return self.editor_preview(&v["message"]);
+                }
+                let request: aem_core::plugin_editor::EditorRequest =
+                    serde_json::from_value(v["message"].clone()).map_err(|e| e.to_string())?;
+                let mut state = self
+                    .editor
+                    .as_mut()
+                    .unwrap()
+                    .request(&mut self.engine, self.frame.floor() as u32, request)
+                    .map_err(|e| e.to_string())?;
+                if let Err(error) = self.sample() {
+                    state["render_error"] = json!(error);
+                }
+                Ok(state)
+            }
+            _ => Err("unknown editor operation".into()),
+        }
+    }
+    fn editor_preview(&mut self, message: &Value) -> Result<Value> {
+        self.editor
+            .as_ref()
+            .ok_or("editor session missing")?
+            .state(&self.engine, self.frame.floor() as u32)
+            .map_err(|e| e.to_string())?;
+        let width = message["width"].as_u64().ok_or("missing preview width")?;
+        let height = message["height"].as_u64().ok_or("missing preview height")?;
+        if !(1..=512).contains(&width) || !(1..=512).contains(&height) {
+            return Err("editor preview must be 1..512 pixels per dimension".into());
+        }
+        self.sample()?;
+        if self.editor_renderer.is_none() {
+            let mut renderer =
+                pollster::block_on(Renderer::headless()).map_err(|e| e.to_string())?;
+            renderer.set_effect_registry(self.effects.registry.clone());
+            self.editor_renderer = Some(renderer);
+        }
+        let renderer = self.editor_renderer.as_mut().unwrap();
+        renderer
+            .synchronize_assets(self.engine.project(), &self.root)
+            .map_err(|e| e.to_string())?;
+        renderer
+            .preflight_effects(&self.scene, width as u32, height as u32)
+            .map_err(|e| e.to_string())?;
+        if self
+            .editor_target
+            .as_ref()
+            .is_none_or(|t| t.width != width as u32 || t.height != height as u32)
+        {
+            self.editor_target = Some(
+                renderer
+                    .capture_target(width as u32, height as u32)
+                    .map_err(|e| e.to_string())?,
+            );
+        }
+        let (pixels, stats) = renderer
+            .capture(&self.scene, self.editor_target.as_ref().unwrap())
+            .map_err(|e| e.to_string())?;
+        let mut png = Vec::new();
+        image::ImageEncoder::write_image(
+            image::codecs::png::PngEncoder::new(&mut png),
+            &pixels,
+            width as u32,
+            height as u32,
+            image::ExtendedColorType::Rgba8,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(
+            json!({"width":width,"height":height,"png":encode_base64(&png),"revision":self.engine.revision(),"frame":self.frame,"instances":{"alive":stats.particles_alive,"visible":stats.particles_visible,"culled":stats.particles_culled,"upload_bytes":stats.instance_upload_bytes}}),
+        )
     }
     fn check_thread(&self) -> Result<()> {
         if self.owner != thread::current().id() {
@@ -446,7 +617,7 @@ impl Session {
         };
         json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "main_composition":"comp-main",
-            "capabilities":{"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"separate_dimensions":{"supported":true,"activation":"explicit",
+            "capabilities":{"scene_effects":{"sdk_version":2,"plugin_editor_protocol":1,"max_particles_per_effect":20000,"max_sprites_per_frame":65536,"occlusion":"source_alpha_planes","simulation":"analytic_local_space"},"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
                 "multiple_compositions":false,"video_import":false,"audio_import":false,"model_import":false,"prerender":false},
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
@@ -487,6 +658,28 @@ fn string_result(env: &mut JNIEnv<'_>, operation: impl FnOnce() -> Result<Value>
     env.new_string(value.to_string())
         .map_or(std::ptr::null_mut(), |s| s.into_raw())
 }
+fn encode_base64(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for c in bytes.chunks(3) {
+        let a = c[0] as usize;
+        let b = c.get(1).copied().unwrap_or(0) as usize;
+        let d = c.get(2).copied().unwrap_or(0) as usize;
+        out.push(TABLE[a >> 2] as char);
+        out.push(TABLE[((a & 3) << 4) | (b >> 4)] as char);
+        out.push(if c.len() > 1 {
+            TABLE[((b & 15) << 2) | (d >> 6)] as char
+        } else {
+            '='
+        });
+        out.push(if c.len() > 2 {
+            TABLE[d & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
 fn read_string(env: &mut JNIEnv<'_>, text: &JString<'_>) -> Result<String> {
     env.get_string(text)
         .map(|s| s.into())
@@ -503,8 +696,20 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
     let request = read_string(&mut env, &request);
     string_result(&mut env, || {
         with_session(id, |s| {
-            let v: Value = serde_json::from_str(&request?).map_err(|e| e.to_string())?;
+            let request = request?;
+            if request.len() > 256 * 1024 {
+                return Err("plugin request exceeds 256 KiB".into());
+            }
+            let v: Value = serde_json::from_str(&request).map_err(|e| e.to_string())?;
+            if v["op"].as_str().is_some_and(|op| op.starts_with("editor_")) {
+                return s.editor_operation(&v);
+            }
             let text = |name: &str| v[name].as_str().ok_or_else(|| format!("missing {name}"));
+            if s.editor.as_ref().is_some_and(|e| e.gesture) && v["op"] != "catalogue" {
+                return Err(
+                    "finish the plugin editor gesture before other plugin operations".into(),
+                );
+            }
             let registry = &mut s.effects.registry;
             match text("op")? {
                 "catalogue" => {
@@ -601,6 +806,8 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                 }
                 _ => return Err("unknown plugin operation".into()),
             }
+            s.editor_renderer = None;
+            s.editor_target = None;
             let next = registry.clone();
             s.effects.set_registry(next.clone());
             if let Some(g) = &mut s.graphics {
@@ -625,12 +832,13 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             s.sample()?;
             let p = s.engine.project();
             s.effects.preflight_project(p)?;
+            s.effects.synchronize_alpha(p, &s.root)?;
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
             s.effects
                 .build(&s.scene, &assets, p.width, p.height, true)?;
-            let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"resources":program.resources.iter().map(|path|{
+            let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"sprite":program.shader.sprite,"additive":program.shader.additive,"resources":program.resources.iter().map(|path|{
    let bytes=&program.package.as_ref().unwrap().files[path];let dimensions=image::load_from_memory(bytes).map(|v|(v.width(),v.height())).unwrap_or((0,0));json!({"path":path,"width":dimensions.0,"height":dimensions.1})
   }).collect::<Vec<_>>() })).collect::<Vec<_>>();
             let count = p
@@ -641,10 +849,11 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             let passes = count * 10 + p.layers.len();
             let buffer_bytes = 64
                 + p.layers.len() * 128
-                + passes * (32 + aem_effects::shader::UNIFORM_BYTES)
-                + count * 1024;
+                + passes * (40 + aem_effects::shader::UNIFORM_BYTES)
+                + count * 1024
+                + aem_effects::MAX_SPRITES * 48;
             Ok(
-                json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
             )
         })
     })
@@ -672,6 +881,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleRenderPla
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
+            s.effects.synchronize_alpha(p, &s.root)?;
             let result = (|| {
                 let plan = s
                     .effects
@@ -871,8 +1081,14 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
                 aem_core::storage::validate_assets(&s.root, check.project())
                     .map_err(|e| e.to_string())?;
             }
+            if s.editor.as_ref().is_some_and(|e| e.gesture) {
+                return Err("finish the plugin editor gesture before ordinary edits".into());
+            }
             let results = s.engine.apply_batch(commands).map_err(|e| e.to_string())?;
             if resources {
+                s.effects.alpha_images.clear();
+                s.editor_renderer = None;
+                s.editor_target = None;
                 if let Some(g) = &mut s.graphics {
                     if let Err(error) = g.renderer.synchronize_assets(s.engine.project(), &s.root) {
                         s.engine.undo().map_err(|e| e.to_string())?;
@@ -1318,6 +1534,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
         with_session(id, |s| {
             let p = s.engine.project();
             s.effects.preflight_project(p)?;
+            s.effects.synchronize_alpha(p, &s.root)?;
             let mut scene = Scene::new(p);
             scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
             let mut temporary = None;

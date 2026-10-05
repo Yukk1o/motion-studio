@@ -245,13 +245,18 @@ impl Project {
         p
     }
     pub fn validate(&self) -> Result<()> {
-        ensure(
-            matches!(self.version, 1..=3),
-            "unsupported project format",
-        )?;
+        ensure(matches!(self.version, 1..=4), "unsupported project format")?;
         ensure(
             self.version >= 2 || self.layers.iter().all(|l| l.effects.is_empty()),
             "version 1 projects cannot contain effects",
+        )?;
+        ensure(
+            self.version >= 4
+                || self
+                    .layers
+                    .iter()
+                    .all(|l| l.effects.iter().all(|e| e.scene.is_none())),
+            "scene generator projects require format 4",
         )?;
         ensure(
             self.plugin_dependencies == crate::effects::dependencies(&self.layers),
