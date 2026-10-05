@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.LocalDensity
@@ -26,6 +27,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,14 +49,14 @@ import kotlin.math.*
         listOf("position" to "移动","rotation" to "旋转","scale" to "缩放").forEach{(key,label)->
             if(vm.selected!=0L||(vm.hasCamera()&&key=="position"))TextButton(onClick={vm.openProperty(key)},modifier=Modifier.height(48.dp)) {
                 Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                    Icon(when(key){"position"->Icons.Default.OpenWith;"rotation"->Icons.AutoMirrored.Filled.RotateRight;else->Icons.Default.OpenInFull},null,Modifier.size(18.dp),tint=Accent)
+                    Icon(editorIcon(when(key){"position"->Icons.Default.OpenWith;"rotation"->Icons.AutoMirrored.Filled.RotateRight;else->Icons.Default.OpenInFull}),null,Modifier.size(18.dp),tint=Accent)
                     Text(label,color=Ink,fontSize=11.sp,lineHeight=16.sp)
                 }
             }
         }
         if(vm.selected==0L&&vm.hasCamera())TextButton(onClick={vm.openProperty("fov")},modifier=Modifier.height(48.dp)) {
             Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Videocam,null,Modifier.size(18.dp),tint=Accent)
+                Icon(editorIcon(Icons.Default.Videocam),null,Modifier.size(18.dp),tint=Accent)
                 Text("镜头",color=Ink,fontSize=11.sp,lineHeight=16.sp)
             }
         }
@@ -130,8 +133,8 @@ private class ValueDrag(private val vm:EditorViewModel) {
             Text(if(curves)"缓动曲线" else objectName(vm,vm.selected),
                 Modifier.weight(1f),color=Ink,fontSize=15.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
             if(!curves)TextButton(onClick={curves=true},modifier=Modifier.height(48.dp).testTag("open-curves")) {
-                Icon(Icons.AutoMirrored.Filled.ShowChart,"缓动曲线",Modifier.size(18.dp),tint=Accent)
-                Spacer(Modifier.width(4.dp));Text("曲线",color=Accent,fontSize=12.sp)
+                Icon(editorIcon(Icons.AutoMirrored.Filled.ShowChart),"缓动曲线",Modifier.size(18.dp),tint=Accent)
+                Spacer(Modifier.width(4.dp));Text(if(vm.sampleValue() is JSONArray)"整体曲线"else"曲线",color=Accent,fontSize=12.sp)
             }
             Box {
                 Tool(Icons.Default.MoreVert,"图层操作"){more=true}
@@ -159,8 +162,11 @@ private class ValueDrag(private val vm:EditorViewModel) {
         HorizontalDivider(color=Muted.copy(alpha=.10f))
         if(curves)CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())
         else {
-            val scrollValues=LocalDensity.current.fontScale>1.3f
-            Column(Modifier.weight(1f).fillMaxWidth().testTag("property-values")
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val fontScale=LocalDensity.current.fontScale
+            val rotationHeight=96.dp+maxOf(48.dp,(34*fontScale+12).dp)
+            val scrollValues=fontScale>1.3f||(vm.property=="rotation"&&maxHeight<rotationHeight)
+            Column(Modifier.fillMaxSize().testTag("property-values")
                 .then(if(scrollValues)Modifier.verticalScroll(rememberScrollState())else Modifier)) {
                 Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState())) {
                     choices.forEach{(key,label)->TextButton(onClick={vm.pause();vm.property=key},modifier=Modifier.height(48.dp)
@@ -172,16 +178,20 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         }
                     }}
                 }
+                if(vm.property=="rotation")RotationRuler(vm,(if(scrollValues)Modifier.height(48.dp)else Modifier.weight(1f)).fillMaxWidth())
                 val value=vm.sampleValue()
                 if(value is JSONArray)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    for(i in 0 until min(3,value.length()))ScrubField(vm,listOf("X","Y","Z")[i],value.getDouble(i),i,Modifier.weight(1f))
+                    for(i in 0 until min(3,value.length()))ScrubField(vm,listOf("X","Y","Z")[i],value.getDouble(i),i,Modifier.weight(1f),
+                        compact=vm.property=="rotation",active=vm.property=="rotation"&&vm.rotationAxis==i,
+                        onFocus={if(vm.property=="rotation")vm.rotationAxis=i})
                 } else if(value is Number)ScrubField(vm,choices.firstOrNull{it.first==vm.property}?.second?:"数值",value.toDouble(),0,Modifier.fillMaxWidth())
-                TransformPad(vm,(if(scrollValues)Modifier.height(96.dp)else Modifier.weight(1f)).fillMaxWidth().padding(vertical=4.dp))
+                if(vm.property!="rotation")TransformPad(vm,(if(scrollValues)Modifier.height(96.dp)else Modifier.weight(1f)).fillMaxWidth().padding(vertical=4.dp))
+            }
             }
             Row(Modifier.fillMaxWidth().height(48.dp),verticalAlignment=Alignment.CenterVertically) {
                 val parent=parentOf(vm,vm.selected)
                 TextButton(onClick={parenting=true},enabled=vm.editable(),modifier=Modifier.weight(1f).height(48.dp).testTag("open-parent"),contentPadding=PaddingValues(horizontal=8.dp)) {
-                    Icon(if(parent==null)Icons.Default.LinkOff else Icons.Default.Link,null,Modifier.size(18.dp),tint=if(parent==null)Muted else Accent)
+                    Icon(editorIcon(if(parent==null)Icons.Default.LinkOff else Icons.Default.Link),null,Modifier.size(18.dp),tint=if(parent==null)Muted else Accent)
                     Spacer(Modifier.width(6.dp))
                     Text("父级 · "+(parent?.let{objectName(vm,it)}?:"未绑定"),color=if(parent==null)Muted else Accent,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                 }
@@ -213,18 +223,19 @@ private class ValueDrag(private val vm:EditorViewModel) {
         onClick={vm.anchor(nx!!/100,ny!!/100);onDismiss()}){Text("确定")}},dismissButton={TextButton(onClick=onDismiss){Text("取消")}})
 }
 
-@Composable private fun ScrubField(vm:EditorViewModel,label:String,value:Double,axis:Int,modifier:Modifier) {
+@Composable private fun ScrubField(vm:EditorViewModel,label:String,value:Double,axis:Int,modifier:Modifier,
+    compact:Boolean=false,active:Boolean=false,onFocus:()->Unit={}) {
     var editing by remember(vm.selected,vm.property){mutableStateOf(false)}
     var drag by remember{mutableStateOf<ValueDrag?>(null)}
     val density=LocalDensity.current.density
     val factor=if(vm.property=="opacity")100.0 else 1.0
     val key=vm.property;val objectId=vm.selected;val frame=floor(vm.frame).toInt()
-    Surface(color=Background,shape=RoundedCornerShape(10.dp),modifier=modifier.heightIn(min=56.dp).testTag("value-"+label)
+    Surface(color=Background,shape=RoundedCornerShape(8.dp),modifier=modifier.heightIn(min=if(compact)48.dp else 56.dp).testTag("value-"+label)
         .draggable(rememberDraggableState{delta->drag?.adjust(axis,delta/density.toDouble())},Orientation.Horizontal,
-            enabled=vm.editable(),onDragStarted={drag=ValueDrag(vm);vm.beginGesture()},onDragStopped={vm.endGesture();drag=null})
-        .clickable(enabled=vm.editable()){vm.pause();editing=true}) {
+            enabled=vm.editable(),onDragStarted={onFocus();drag=ValueDrag(vm);vm.beginGesture()},onDragStopped={vm.endGesture();drag=null})
+        .clickable(enabled=vm.editable()){vm.pause();onFocus();editing=true}) {
         Column(Modifier.padding(horizontal=6.dp,vertical=6.dp),verticalArrangement=Arrangement.Center) {
-            Text(label+(if(key=="scale"||key=="opacity")" %" else if(key=="rotation"||key=="fov"||key=="roll")" °" else ""),color=Muted,fontSize=11.sp,lineHeight=14.sp,maxLines=1)
+            Text(label+(if(key=="scale"||key=="opacity")" %" else if(key=="rotation"||key=="fov"||key=="roll")" °" else ""),color=if(active)Accent else Muted,fontSize=11.sp,lineHeight=14.sp,maxLines=1)
             Text(String.format(Locale.US,"%.1f",value*factor),modifier=Modifier.testTag("number-"+label),color=if(vm.editable())Ink else Muted,
                 fontSize=16.sp,lineHeight=20.sp,fontFamily=FontFamily.Monospace,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
@@ -245,6 +256,61 @@ private class ValueDrag(private val vm:EditorViewModel) {
     }
 }
 
+/** Rotation is a one-dimensional angle edit. Axis choice is transient UI state;
+ * a drag captures its object, axis, property and frame before any JNI reply. */
+@Composable private fun RotationRuler(vm:EditorViewModel,modifier:Modifier) {
+    var menu by remember{mutableStateOf(false)}
+    var drag by remember{mutableStateOf<ValueDrag?>(null)}
+    val axis=vm.rotationAxis
+    val name=listOf("X","Y","Z")[axis]
+    val value=(vm.sampleValue() as? JSONArray)?.optDouble(axis)?:0.0
+    val density=LocalDensity.current
+    Row(modifier.heightIn(min=48.dp).testTag("rotation-controls"),verticalAlignment=Alignment.CenterVertically) {
+        Box {
+            TextButton(onClick={menu=true},modifier=Modifier.width(56.dp).height(48.dp).testTag("rotation-axis-menu"),
+                contentPadding=PaddingValues(4.dp)) {
+                Text(name+"轴",color=Accent,fontSize=13.sp,maxLines=1)
+                Icon(editorIcon(Icons.Default.ArrowDropDown),"选择旋转轴",Modifier.size(14.dp),tint=Muted)
+            }
+            DropdownMenu(menu,{menu=false}) {
+                listOf("X","Y","Z").forEachIndexed{i,label->
+                    DropdownMenuItem(text={Text(label+" 轴旋转",color=if(axis==i)Accent else Ink)},
+                        modifier=Modifier.testTag("rotation-axis-"+label).semantics{selected=axis==i},
+                        onClick={vm.rotationAxis=i;menu=false})
+                }
+            }
+        }
+        Canvas(Modifier.weight(1f).fillMaxHeight().heightIn(min=48.dp).testTag("rotation-ruler")
+            .semantics{contentDescription="滑动调整 "+name+" 轴角度";stateDescription=String.format(Locale.US,"%.1f 度",value)}
+            .pointerInput(vm.selected,vm.property,axis,vm.editable(),density.density) {
+                if(vm.editable())detectHorizontalDragGestures(
+                    onDragStart={drag=ValueDrag(vm);vm.beginGesture()},
+                    onDragEnd={vm.endGesture();drag=null},
+                    onDragCancel={vm.cancelGesture();drag=null}){change,amount->
+                        change.consume();drag?.adjust(axis,amount/density.density.toDouble())
+                    }
+            }) {
+            val pixelsPerDegree=4.dp.toPx()
+            val low=floor((value-size.width/2/pixelsPerDegree)/5).toInt()*5
+            val high=ceil((value+size.width/2/pixelsPerDegree)/5).toInt()*5
+            val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color=android.graphics.Color.rgb(170,180,194);textAlign=android.graphics.Paint.Align.CENTER
+                textSize=11.sp.toPx();typeface=android.graphics.Typeface.MONOSPACE
+            }
+            val widestLabel=maxOf(paint.measureText(low.toString()+"°"),paint.measureText(high.toString()+"°"))
+            val majorInterval=ceil((widestLabel+12.dp.toPx())/pixelsPerDegree/15).toInt().coerceAtLeast(1)*15
+            val top=(size.height-48.dp.toPx())/2
+            for(degrees in low..high step 5) {
+                val x=size.width/2+((degrees-value)*pixelsPerDegree).toFloat()
+                val major=degrees%majorInterval==0
+                drawLine(Muted.copy(alpha=if(vm.editable()).45f else .2f),Offset(x,top+5.dp.toPx()),Offset(x,top+(if(major)18.dp.toPx()else 12.dp.toPx())),1.dp.toPx())
+                if(major)drawContext.canvas.nativeCanvas.drawText(degrees.toString()+"°",x,top+35.dp.toPx(),paint)
+            }
+            drawLine(if(vm.editable())Accent else Muted,Offset(size.width/2,top+2.dp.toPx()),Offset(size.width/2,top+20.dp.toPx()),1.5.dp.toPx())
+        }
+    }
+}
+
 @Composable private fun TransformPad(vm:EditorViewModel,modifier:Modifier) {
     var drag:ValueDrag? by remember{mutableStateOf(null)}
     var zAxis by remember(vm.property){mutableStateOf(false)}
@@ -258,7 +324,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                 if(vector&&vm.property in listOf("position","target")) {
                     if(zAxis)drag?.adjust(2,-amount.y/density.toDouble())
                     else drag?.adjustXY(amount.x/density.toDouble(),amount.y/density.toDouble())
-                } else drag?.adjust(if(vm.property=="rotation")2 else 0,(amount.x-amount.y)/density.toDouble())
+                } else drag?.adjust(0,(amount.x-amount.y)/density.toDouble())
             }
         }) {
         Canvas(Modifier.fillMaxSize()) {
@@ -269,14 +335,14 @@ private class ValueDrag(private val vm:EditorViewModel) {
         Column(Modifier.align(Alignment.Center),horizontalAlignment=Alignment.CenterHorizontally) {
         Text(if(!vm.editable())"图层已锁定" else when(vm.property) {
             "position","target"->if(zAxis)"上下滑动调整 Z" else "滑动移动 · XY"
-            "rotation"->"滑动旋转 · Z";"scale"->"滑动缩放";"opacity"->"滑动调整透明度";else->"滑动调节数值"
+            "scale"->"滑动缩放";"opacity"->"滑动调整透明度";else->"滑动调节数值"
         },color=Muted,fontSize=12.sp,lineHeight=18.sp)
         }
         if(vm.property in listOf("position","target"))TextButton(onClick={zAxis=!zAxis},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
             Text(if(zAxis)"XY" else "Z",color=Accent,fontSize=11.sp,lineHeight=14.sp)
         }
         if(vm.property=="scale")IconButton(onClick={vm.scaleLinked=!vm.scaleLinked},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
-            Icon(if(vm.scaleLinked)Icons.Default.Link else Icons.Default.LinkOff,"锁定缩放比例",tint=Accent,modifier=Modifier.size(18.dp))
+            Icon(editorIcon(if(vm.scaleLinked)Icons.Default.Link else Icons.Default.LinkOff),"锁定缩放比例",tint=Accent,modifier=Modifier.size(18.dp))
         }
     }
 }

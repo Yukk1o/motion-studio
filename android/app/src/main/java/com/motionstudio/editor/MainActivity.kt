@@ -96,7 +96,7 @@ open class MainActivity:ComponentActivity() {
 
 @Composable internal fun Tool(icon:ImageVector,label:String,enabled:Boolean=true,action:()->Unit) {
     IconButton(onClick=action,enabled=enabled,modifier=Modifier.size(48.dp)) {
-        Icon(icon,label,tint=if(enabled)Ink else Muted.copy(alpha=.35f),modifier=Modifier.size(22.dp))
+        Icon(editorIcon(icon),label,tint=if(enabled)Ink else Muted.copy(alpha=.35f),modifier=Modifier.size(22.dp))
     }
 }
 @Composable internal fun Editor(vm:EditorViewModel) {
@@ -138,7 +138,7 @@ open class MainActivity:ComponentActivity() {
                     Tool(Icons.Default.Tune,"合成设置"){settings=true}
                     Box {
                         TextButton(onClick={outputMenu=true},modifier=Modifier.height(48.dp)) {
-                            Icon(Icons.Default.IosShare,"输出",Modifier.size(18.dp),tint=Accent)
+                            Icon(editorIcon(Icons.Default.IosShare),"输出",Modifier.size(18.dp),tint=Accent)
                             Spacer(Modifier.width(6.dp));Text("导出",color=Accent,fontSize=13.sp)
                         }
                         DropdownMenu(outputMenu,{outputMenu=false}) {
@@ -168,7 +168,7 @@ open class MainActivity:ComponentActivity() {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {
                     Button(onClick={vm.pause();addMenu=true},modifier=Modifier.height(48.dp).testTag("add-layer"),
                         shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=Background)) {
-                        Icon(Icons.Default.Add,"添加图层",Modifier.size(20.dp))
+                        Icon(editorIcon(Icons.Default.Add),"添加图层",Modifier.size(20.dp))
                         Spacer(Modifier.width(6.dp));Text("图层",fontSize=14.sp)
                     }
                 }
@@ -344,7 +344,7 @@ open class MainActivity:ComponentActivity() {
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
             TextButton(onClick={menu=true},modifier=Modifier.heightIn(min=48.dp).background(Background.copy(alpha=.8f),RoundedCornerShape(10.dp))) {
                 Text(if(vm.state.observing)"空间观察" else if(vm.hasCamera())"成片摄影机"else"合成视图",color=Ink,fontSize=12.sp)
-                Icon(Icons.Default.ArrowDropDown,null,Modifier.size(18.dp))
+                Icon(editorIcon(Icons.Default.ArrowDropDown),null,Modifier.size(18.dp))
             }
             DropdownMenu(menu,{menu=false}) {
                 DropdownMenuItem(text={Text(if(vm.hasCamera())"成片摄影机"else"合成视图")},onClick={menu=false;vm.view(0)})
@@ -370,7 +370,7 @@ open class MainActivity:ComponentActivity() {
             Tool(Icons.Default.SkipPrevious,"上一帧"){vm.step(-1)}
             FilledIconButton(onClick=vm::togglePlay,modifier=Modifier.size(48.dp),
                 colors=IconButtonDefaults.filledIconButtonColors(containerColor=Accent.copy(alpha=.14f),contentColor=Accent)) {
-                Icon(if(vm.playing)Icons.Default.Pause else Icons.Default.PlayArrow,"播放/暂停",Modifier.size(26.dp))
+                Icon(editorIcon(if(vm.playing)Icons.Default.Pause else Icons.Default.PlayArrow),"播放/暂停",Modifier.size(26.dp))
             }
             Tool(Icons.Default.SkipNext,"下一帧"){vm.step(1)}
         }
