@@ -90,7 +90,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             if (closed.get()) return
             val p = state.project
             if (playing && p != null) {
-                frame = (startFrame + (time-startNanos)/1e9*p.getInt("fps")) % p.getInt("frames")
+                frame = playbackFrame(startFrame,startNanos,time,p.getInt("fps"),p.getInt("frames"))
                 dirty.set(true)
             }
             val due=!playing||time+100_000>=nextPreviewNanos
@@ -312,6 +312,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun seek(value:Double) {
+        if(!value.isFinite()){fail("帧位置无效");return}
         pause();val p=state.project?:return
         frame=value.coerceIn(0.0,p.getInt("frames")-1.0)
         val f=frame;invoke {NativeBridge.seek(id,f)}
