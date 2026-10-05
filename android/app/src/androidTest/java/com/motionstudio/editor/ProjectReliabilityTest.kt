@@ -46,7 +46,7 @@ class ProjectReliabilityTest {
         val asset=File(original,"assets/original.png").apply{parentFile!!.mkdirs()}
         val bitmap=Bitmap.createBitmap(32,32,Bitmap.Config.ARGB_8888);bitmap.eraseColor(Color.argb(160,40,180,220))
         asset.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
-        val native=NativeBridge.create(original.absolutePath,"");assertTrue(native>0)
+        val native=NativeBridge.create(original.absolutePath,data(NativeBridge.projectTemplate(0)).toString());assertTrue(native>0)
         try {
             val p=data(NativeBridge.state(native)).getJSONObject("project").put("name",title)
             data(NativeBridge.replace(native,p.toString()))

@@ -26,7 +26,7 @@ class MotionInteractionTest {
         val app=InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
         density=app.resources.displayMetrics.density
         root=File(app.filesDir,"acceptance/interaction-"+UUID.randomUUID())
-        compose.runOnUiThread{vm=EditorViewModel(app,root);store.put("interaction",vm)}
+        compose.runOnUiThread{vm=EditorViewModel(app,root,org.json.JSONObject(NativeBridge.projectTemplate(0)).getJSONObject("data").toString());store.put("interaction",vm)}
         compose.setContent{StudioTheme{Editor(vm)}}
         compose.waitUntil(20000){vm.state.project!=null}
         compose.waitForIdle()

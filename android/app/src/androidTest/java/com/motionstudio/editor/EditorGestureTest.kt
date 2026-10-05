@@ -25,7 +25,7 @@ class EditorGestureTest {
     @Before fun setup() {
         val app=InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
         compose.runOnUiThread {
-            vm=EditorViewModel(app,File(app.filesDir,"acceptance/ui-"+UUID.randomUUID()))
+            vm=EditorViewModel(app,File(app.filesDir,"acceptance/ui-"+UUID.randomUUID()),org.json.JSONObject(NativeBridge.projectTemplate(0)).getJSONObject("data").toString())
             store.put("test",vm)
         }
         compose.setContent {StudioTheme {if(visible.value)Editor(vm)}}
