@@ -25,6 +25,8 @@ use std::{
     thread::{self, ThreadId},
     time::Instant,
 };
+#[path = "audio_runtime.rs"]
+mod audio_runtime;
 
 type Result<T> = std::result::Result<T, String>;
 static NEXT: AtomicI64 = AtomicI64::new(1);
@@ -59,6 +61,9 @@ struct Graphics {
     timer: Option<GpuTimer>,
 }
 struct Session {
+    audio_jobs: aem_media::AudioJobs,
+    audio_mixer: Option<(u64, aem_media::AudioMixer)>,
+    audio_pcm: Vec<f32>,
     engine: Engine,
     scene: Scene,
     geometry: aem_core::PlaneCompositor,
@@ -81,6 +86,7 @@ struct Session {
 }
 impl Session {
     fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
+        let audio_jobs = aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?;
         if let Some(g) = &mut self.graphics {
             g.renderer
                 .replace_assets(engine.project(), &root)
@@ -89,6 +95,8 @@ impl Session {
         self.scene = Scene::new(engine.project());
         self.observer = Observer::new(engine.project().width, engine.project().height);
         self.engine = engine;
+        self.audio_jobs = audio_jobs;
+        self.audio_mixer = None;
         self.root = root;
         self.frame = 0.0;
         self.observing = false;
@@ -106,6 +114,9 @@ impl Session {
             .map_err(|e| e.to_string())?;
         let observer = Observer::new(project.width, project.height);
         Ok(Self {
+            audio_jobs: aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?,
+            audio_mixer: None,
+            audio_pcm: Vec::new(),
             engine,
             scene,
             geometry: aem_core::PlaneCompositor::new(),
@@ -412,7 +423,11 @@ impl Session {
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
-                "multiple_compositions":false,"video_import":false,"audio_import":false,"model_import":false,"prerender":false},
+                "multiple_compositions":false,"video_import":false,"audio_import":true,"model_import":false,"prerender":false,
+                "audio":{"supported_formats":["M4A/AAC-LC","MP3","WAV/PCM16"],"sample_rates":[44100,48000],"channels":[1,2],
+                "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
+                "source_limit_bytes":aem_core::storage::MAX_MEDIA_ASSET,"source_duration_limit_seconds":3600,
+                "pcm_block_limit_frames":aem_media::MAX_BLOCK_FRAMES,"async_import":true,"ui_playback_integrated":false,"mp4_audio_mux_integrated":false}},
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
             "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),
             "timeline_camera":{"position":p.camera.position.timeline(0),"target":p.camera.target.timeline(0)},

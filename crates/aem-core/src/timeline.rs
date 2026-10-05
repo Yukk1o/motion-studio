@@ -66,7 +66,19 @@ pub struct TimelineLayer {
     pub offset_frame: i32,
     pub active: bool,
     pub three_d: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio: Option<TimelineAudio>,
     pub properties: TimelineProperties,
+}
+#[derive(Debug, Serialize)]
+pub struct TimelineAudio {
+    pub asset: u64,
+    pub source_offset_us: u64,
+    pub source_time_us: i64,
+    pub source_duration_us: u64,
+    pub volume: f32,
+    pub muted: bool,
+    pub spatial_properties: bool,
 }
 impl Project {
     pub fn timeline_layers(&self, frame: f64) -> Vec<TimelineLayer> {
@@ -80,8 +92,32 @@ impl Project {
                     in_frame: clip.in_frame,
                     out_frame: clip.out_frame,
                     offset_frame: clip.offset_frame,
-                    active: l.active(frame, self.frames),
+                    active: if matches!(l.content, crate::Content::Audio { .. }) {
+                        frame >= f64::from(clip.in_frame) && frame < f64::from(clip.out_frame)
+                    } else {
+                        l.active(frame, self.frames)
+                    },
                     three_d: l.three_d,
+                    audio: if let crate::Content::Audio { audio } = &l.content {
+                        Some(TimelineAudio {
+                            asset: audio.asset,
+                            source_offset_us: audio.source_offset_us,
+                            source_time_us: audio.source_offset_us as i64
+                                + ((frame - f64::from(clip.offset_frame)) * 1_000_000.0
+                                    / f64::from(self.fps))
+                                .round() as i64,
+                            source_duration_us: self
+                                .audio_assets
+                                .iter()
+                                .find(|a| a.id == audio.asset)
+                                .map_or(0, |a| a.duration_us),
+                            volume: audio.volume,
+                            muted: audio.muted,
+                            spatial_properties: false,
+                        })
+                    } else {
+                        None
+                    },
                     properties: TimelineProperties {
                         position: t.position.timeline(clip.offset_frame),
                         rotation: t.rotation.timeline(clip.offset_frame),
