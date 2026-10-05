@@ -2,6 +2,7 @@
 mod animation;
 mod camera;
 mod editor;
+mod hierarchy;
 mod model;
 mod scene;
 pub mod storage;
@@ -9,8 +10,24 @@ pub mod storage;
 pub use animation::{Ease, Keyframe, Track, Tween};
 pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer};
 pub use editor::{Command, Engine, Property};
-pub use model::{Asset, Content, Layer, Project, Transform, MAX_FRAMES, MAX_LAYERS};
+pub use model::{Asset, Content, Layer, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS};
 pub use scene::{DrawLayer, Scene};
+pub fn scene_prefix_delta(
+    p: &Project,
+    object: u64,
+    frame: f64,
+    delta: [f32; 3],
+) -> Result<[f32; 3]> {
+    let prefix = hierarchy::prefix(p, object, frame)?;
+    ensure(
+        prefix.determinant().abs() > 1e-8,
+        "cannot drag through a zero-scale parent",
+    )?;
+    let local = prefix
+        .inverse()
+        .transform_vector3(glam::Vec3::new(delta[0], -delta[1], -delta[2]));
+    Ok([local.x, -local.y, -local.z])
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

@@ -13,6 +13,10 @@ pub enum CameraMode {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Camera {
+    #[serde(default = "legacy_created", skip_serializing_if = "is_created")]
+    pub created: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<crate::ParentLink>,
     pub mode: CameraMode,
     pub position: Track<[f32; 3]>,
     pub target: Track<[f32; 3]>,
@@ -21,6 +25,12 @@ pub struct Camera {
     pub radius: Track<f32>,
     pub azimuth: Track<f32>,
     pub elevation: Track<f32>,
+}
+fn legacy_created() -> bool {
+    true
+}
+fn is_created(value: &bool) -> bool {
+    *value
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -50,6 +60,8 @@ impl Camera {
         let distance = height as f32 / (2.0 * (45.0f32.to_radians() / 2.0).tan());
         let target = [width as f32 / 2.0, height as f32 / 2.0, 0.0];
         Self {
+            created: true,
+            parent: None,
             mode: CameraMode::Position,
             position: Track::constant([target[0], target[1], -distance]),
             target: Track::constant(target),
@@ -127,8 +139,13 @@ impl Camera {
         ]
     }
     pub fn pose(&self, frame: f64, width: u32, height: u32) -> CameraPose {
-        let eye = to_world(self.position_at(frame), width, height);
-        let mut target = to_world(self.target.sample(frame), width, height);
+        self.pose_parented(frame, width, height, Mat4::IDENTITY)
+    }
+    pub fn pose_parented(&self, frame: f64, width: u32, height: u32, parent: Mat4) -> CameraPose {
+        let local_eye = to_world(self.position_at(frame), width, height);
+        let local_target = to_world(self.target.sample(frame), width, height);
+        let eye = parent.transform_point3(local_eye);
+        let mut target = parent.transform_point3(local_target);
         if eye.distance_squared(target) < 1.0e-8 {
             target = eye - Vec3::Z;
         }
@@ -138,7 +155,22 @@ impl Camera {
         } else {
             Vec3::Y
         };
-        let up = Quat::from_axis_angle(forward, self.roll.sample(frame).to_radians()) * basis_up;
+        let local_forward = (local_target - local_eye)
+            .try_normalize()
+            .unwrap_or(-Vec3::Z);
+        let local_basis = if local_forward.dot(Vec3::Y).abs() > 0.999 {
+            Vec3::Z
+        } else {
+            Vec3::Y
+        };
+        let transformed = parent.transform_vector3(
+            Quat::from_axis_angle(local_forward, self.roll.sample(frame).to_radians())
+                * local_basis,
+        );
+        let up = transformed
+            .try_normalize()
+            .filter(|up| up.dot(forward).abs() < 0.999)
+            .unwrap_or(basis_up);
         let view = Mat4::look_at_rh(eye, target, up);
         // glam's non-GL RH projection has the 0..1 depth range wgpu requires.
         let projection = Mat4::perspective_rh(

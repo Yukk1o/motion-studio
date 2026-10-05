@@ -37,14 +37,14 @@ import kotlin.math.*
     var more by remember{mutableStateOf(false)}
     Row(Modifier.fillMaxWidth().height(52.dp).background(Panel).padding(horizontal=8.dp)
         .then(if(vm.panelOpen)Modifier.clearAndSetSemantics{}else Modifier),verticalAlignment=Alignment.CenterVertically) {
-        Text(if(vm.selected==0L)"摄影机 1" else vm.layer(vm.selected)?.optString("name")?:"图层",
+        Text(if(vm.selected==0L){if(vm.hasCamera())"摄影机 1"else"合成视图"} else vm.layer(vm.selected)?.optString("name")?:"图层",
             Modifier.weight(1f),color=Ink,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
         listOf("position" to "移动","rotation" to "旋转","scale" to "缩放").forEach{(key,label)->
-            if(vm.selected!=0L||key=="position")TextButton(onClick={vm.openProperty(key)},modifier=Modifier.height(48.dp)) {
+            if(vm.selected!=0L||(vm.hasCamera()&&key=="position"))TextButton(onClick={vm.openProperty(key)},modifier=Modifier.height(48.dp)) {
                 Text(label,color=Accent,fontSize=12.sp)
             }
         }
-        if(vm.selected==0L)TextButton(onClick={vm.openProperty("fov")},modifier=Modifier.height(48.dp)){Text("镜头",color=Accent,fontSize=12.sp)}
+        if(vm.selected==0L&&vm.hasCamera())TextButton(onClick={vm.openProperty("fov")},modifier=Modifier.height(48.dp)){Text("镜头",color=Accent,fontSize=12.sp)}
         Box {
             Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
             DropdownMenu(more,{more=false}) {
@@ -52,7 +52,7 @@ import kotlin.math.*
                     DropdownMenuItem(text={Text("透明度")},onClick={more=false;vm.openProperty("opacity")})
                     DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
                     DropdownMenuItem(text={Text("删除图层")},onClick={more=false;vm.deleteLayer()})
-                } else DropdownMenuItem(text={Text("目标点")},onClick={more=false;vm.openProperty("target")})
+                } else if(vm.hasCamera())DropdownMenuItem(text={Text("目标点")},onClick={more=false;vm.openProperty("target")})
             }
         }
     }
@@ -100,6 +100,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
     var rename by remember{mutableStateOf(false)}
     var anchor by remember{mutableStateOf(false)}
     var more by remember{mutableStateOf(false)}
+    var parenting by remember{mutableStateOf(false)}
     var curves by remember(vm.selected,vm.property){mutableStateOf(false)}
     BackHandler(enabled=curves){curves=false}
     val camera=vm.selected==0L
@@ -118,7 +119,11 @@ private class ValueDrag(private val vm:EditorViewModel) {
             Box {
                 Tool(Icons.Default.MoreVert,"图层操作"){more=true}
                 DropdownMenu(more,{more=false}) {
-                    if(camera)DropdownMenuItem(text={Text(if(mode=="orbit")"切换位置路径" else "切换环绕轨道")},onClick={more=false;vm.cameraMode(mode!="orbit");vm.property=if(mode=="orbit")"position" else "radius"})
+                    DropdownMenuItem(text={Text("父级")},enabled=vm.editable(),onClick={more=false;parenting=true})
+                    if(camera) {
+                        DropdownMenuItem(text={Text(if(mode=="orbit")"切换位置路径" else "切换环绕轨道")},onClick={more=false;vm.cameraMode(mode!="orbit");vm.property=if(mode=="orbit")"position" else "radius"})
+                        DropdownMenuItem(text={Text("删除摄影机")},onClick={more=false;vm.deleteLayer()})
+                    }
                     else {
                         DropdownMenuItem(text={Text("锚点")},enabled=vm.editable(),onClick={more=false;anchor=true})
                         DropdownMenuItem(text={Text("摄影机对准此图层")},onClick={more=false;vm.focusCameraOnSelection()})
@@ -165,6 +170,32 @@ private class ValueDrag(private val vm:EditorViewModel) {
     }
     if(rename)InputDialog("图层名称",vm.layer(vm.selected)?.optString("name")?:"",onDismiss={rename=false}){vm.rename(it);rename=false}
     if(anchor)AnchorDialog(vm){anchor=false}
+    if(parenting)ParentDialog(vm){parenting=false}
+}
+
+@Composable private fun ParentDialog(vm:EditorViewModel,onDismiss:()->Unit) {
+    val objects=buildList<Pair<Long,String>> {
+        if(vm.hasCamera())add(0L to "摄影机 1")
+        vm.state.project?.optJSONArray("layers")?.let{array->for(i in 0 until array.length()){val l=array.getJSONObject(i);add(l.getLong("id") to l.getString("name"))}}
+    }
+    fun parentOf(id:Long):Long? {
+        val objectData=if(id==0L)vm.state.project?.optJSONObject("camera")else vm.layer(id)
+        val link=objectData?.optJSONObject("parent")?:return null
+        return if(link.isNull("object"))null else link.optLong("object")
+    }
+    fun allowed(id:Long):Boolean {
+        var current:Long?=id
+        repeat(objects.size+1){if(current==vm.selected)return false;if(current==null)return true;current=parentOf(current!!)}
+        return false
+    }
+    val current=parentOf(vm.selected)
+    AlertDialog(onDismissRequest=onDismiss,title={Text("设置父级")},text={Column(Modifier.heightIn(max=360.dp).verticalScroll(rememberScrollState())) {
+        Text("保持当前画面；子级继承父级的位置、旋转和缩放",fontSize=12.sp,lineHeight=18.sp,color=Muted)
+        TextButton(onClick={vm.setParent(null);onDismiss()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("parent-none")){Text("解除绑定")}
+        objects.filter{allowed(it.first)}.forEach{(id,name)->TextButton(onClick={vm.setParent(id);onDismiss()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("parent-"+id)) {
+            Text(name,color=if(current==id)Accent else Ink)
+        }}
+    }},confirmButton={TextButton(onClick=onDismiss){Text("关闭")}})
 }
 
 @Composable private fun AnchorDialog(vm:EditorViewModel,onDismiss:()->Unit) {

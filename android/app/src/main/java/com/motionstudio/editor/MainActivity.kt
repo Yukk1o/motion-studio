@@ -73,11 +73,12 @@ private class CreateOutputDocument(private val mime:String):ActivityResultContra
 
 open class MainActivity:ComponentActivity() {
     protected open fun initialProjectDirectory():File?=null
+    protected open fun initialProjectJson():String=""
     private val model:EditorViewModel by viewModels {object:ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T:ViewModel> create(modelClass:Class<T>):T {
             require(modelClass==EditorViewModel::class.java)
-            return EditorViewModel(application,initialProjectDirectory()) as T
+            return EditorViewModel(application,initialProjectDirectory(),initialProjectJson()) as T
         }
     }}
     override fun onCreate(savedInstanceState:Bundle?) {
@@ -167,12 +168,14 @@ open class MainActivity:ComponentActivity() {
                         DropdownMenuItem(text={Text("矩形")},onClick={addMenu=false;vm.addRectangle()})
                         DropdownMenuItem(text={Text("图片")},onClick={addMenu=false;imagePicker.launch(arrayOf("image/png","image/jpeg"))})
                         DropdownMenuItem(text={Text("文字")},onClick={addMenu=false;textDialog=true})
+                        DropdownMenuItem(text={Text("空对象")},onClick={addMenu=false;vm.addNull()})
+                        DropdownMenuItem(text={Text("摄影机")},enabled=!vm.hasCamera(),onClick={addMenu=false;vm.addCamera()})
                     }
                 }
             }
             // This sibling overlays the stable editor; it never changes Surface
             // or timeline constraints and adds no scrim over the preview.
-            AnimatedVisibility(visible=vm.panelOpen,
+            AnimatedVisibility(visible=vm.panelOpen&&(vm.selected!=0L||vm.hasCamera()),
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
@@ -273,7 +276,7 @@ open class MainActivity:ComponentActivity() {
                 val resize=!vm.state.observing&&selectedCorners?.any{(it-down.position).getDistance()<=handleRadius}==true
                 val picked=if(!resize&&!vm.state.observing)previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).asReversed()
                     .firstOrNull{insideQuad(down.position,it.second)}else null
-                if(vm.selected!=0L)picked?.let{vm.select(it.first,false)}
+                if(vm.selected!=0L||!vm.hasCamera())picked?.let{vm.select(it.first,false)}
                 var total=Offset.Zero;var active=false
                 val at=floor(vm.frame).toInt();val objectId=vm.selected
                 var scale=vm.sampleValueFor(objectId,"scale") as? JSONArray
@@ -329,11 +332,11 @@ open class MainActivity:ComponentActivity() {
         })
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
             TextButton(onClick={menu=true},modifier=Modifier.heightIn(min=48.dp)) {
-                Text(if(vm.state.observing)"空间观察" else "成片摄影机",color=Ink,fontSize=12.sp)
+                Text(if(vm.state.observing)"空间观察" else if(vm.hasCamera())"成片摄影机"else"合成视图",color=Ink,fontSize=12.sp)
                 Icon(Icons.Default.ArrowDropDown,null,Modifier.size(18.dp))
             }
             DropdownMenu(menu,{menu=false}) {
-                DropdownMenuItem(text={Text("成片摄影机")},onClick={menu=false;vm.view(0)})
+                DropdownMenuItem(text={Text(if(vm.hasCamera())"成片摄影机"else"合成视图")},onClick={menu=false;vm.view(0)})
                 DropdownMenuItem(text={Text("空间观察")},onClick={menu=false;vm.view(1)})
                 DropdownMenuItem(text={Text("顶视")},onClick={menu=false;vm.view(2)})
                 DropdownMenuItem(text={Text("侧视")},onClick={menu=false;vm.view(3)})
