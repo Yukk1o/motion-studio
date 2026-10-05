@@ -341,7 +341,6 @@ impl Project {
                 ensure(
                     audio.path == asset.path
                         && audio.bytes == asset.bytes
-                        && audio.mime == "audio/mp4"
                         && audio.duration_us <= asset.duration_us,
                     "video/audio source timeline mismatch",
                 )?;

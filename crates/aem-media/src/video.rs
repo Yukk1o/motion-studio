@@ -96,12 +96,17 @@ impl Drop for Worker {
 }
 pub struct VideoJobs {
     root: PathBuf,
+    audio_decode: crate::DecodeAudio,
     tasks: Mutex<HashMap<String, Arc<Mutex<Task>>>>,
 }
 impl VideoJobs {
     pub fn new(root: PathBuf) -> Result<Self> {
+        Self::with_audio_decoder(root, Arc::new(crate::decode_audio))
+    }
+    pub fn with_audio_decoder(root: PathBuf, audio_decode: crate::DecodeAudio) -> Result<Self> {
         Ok(Self {
             root: root.canonicalize().map_err(|e| e.to_string())?,
+            audio_decode,
             tasks: Mutex::new(HashMap::new()),
         })
     }
@@ -217,6 +222,7 @@ impl VideoJobs {
         )?;
         let initial = task.lock().unwrap().status.clone();
         let root = self.root.clone();
+        let audio_decode = self.audio_decode.clone();
         let t = task.clone();
         let spawn=std::thread::Builder::new().name("motion-video-import".into()).spawn(move||{
             let _worker=worker;
@@ -237,7 +243,7 @@ impl VideoJobs {
                 update(&t,"probing",0.0)?;let mut p=probe(&source,options.track,if options.with_audio {options.audio_track}else{Some(u32::MAX)},&||update(&t,"probing",0.0))?;
                 let audio=if options.with_audio {if let Some(track)=p.audio_track {
                     update(&t,"decoding_audio",0.0)?;
-                    let pcm=stage.0.join("decoded.pcm");let a=crate::decode::decode(&source,&pcm,Some(track),crate::Limits::default().cache_bytes,|v|update(&t,"decoding_audio",v))?;
+                    let pcm=stage.0.join("decoded.pcm");let a=audio_decode(&source,&pcm,Some(track),crate::Limits::default().cache_bytes,&mut |v|update(&t,"decoding_audio",v))?;
                     crate::mixer::build_waveform(&pcm,&a,||update(&t,"waveform",0.0))?;Some(a)
                 }else{None}}else{None};
                 if let Some(a)=&audio{p.asset.duration_us=p.asset.duration_us.max(a.duration_us);}
@@ -304,7 +310,8 @@ impl VideoJobs {
                 .to_str()
                 .unwrap()
                 .trim_start_matches('.');
-            let path = format!("assets/{stem}.mp4");
+            let ext = crate::source_extension(&p.stage.0.join("source.mp4"))?;
+            let path = format!("assets/{stem}.{ext}");
             p.probe.asset.id = aid;
             p.probe.asset.path = path.clone();
             let mut commands = Vec::new();
