@@ -125,7 +125,7 @@ open class MainActivity:ComponentActivity() {
     val videoSave=rememberLauncherForActivityResult(CreateOutputDocument("video/mp4")){uri->
         vm.completeOutputSelection(uri)
     }
-    BackHandler(enabled=vm.panelOpen){vm.panelOpen=false}
+    BackHandler(enabled=vm.panelOpen){vm.panelOpen=false;vm.effectsOpen=false}
     Surface(color=Background,modifier=Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
             val wide=maxWidth>maxHeight
@@ -133,6 +133,11 @@ open class MainActivity:ComponentActivity() {
             val availableWidth=maxWidth
             val split=wide&&availableWidth>=552.dp
             val sideWidth=if(split)(availableWidth*.48f).coerceIn(248.dp,320.dp).coerceAtMost(availableWidth-304.dp) else 0.dp
+            val effectEditing=vm.panelOpen&&vm.effectsOpen&&vm.selected!=0L
+            val effectWidth=if(split)sideWidth else (availableWidth*.5f).coerceAtMost(320.dp)
+            val effectHeight=(availableHeight*(if(curveExpanded).52f else .44f)).coerceAtMost(360.dp)
+                .coerceAtMost((availableHeight-48.dp-48.dp-104.dp-96.dp).coerceAtLeast(144.dp))
+            fun closeEffects(){vm.effectsOpen=false;vm.property="position";vm.panelOpen=false}
             val timelineHeight=if(wide)(availableHeight*.3f).coerceAtMost(132.dp)
                 else (availableHeight*.38f).coerceAtMost(300.dp)
             Column(Modifier.fillMaxSize()) {
@@ -154,21 +159,26 @@ open class MainActivity:ComponentActivity() {
                         }
                     }
                 }
-                if(split)Row(Modifier.weight(1f).fillMaxWidth()) {
+                if(split||(wide&&effectEditing))Row(Modifier.weight(1f).fillMaxWidth()) {
                     Column(Modifier.weight(1f).fillMaxHeight()) {
                         Preview(vm,Modifier.weight(1f).fillMaxWidth())
                         Transport(vm)
                     }
-                    Column(Modifier.width(sideWidth).fillMaxHeight()) {
-                        Timeline(vm,Modifier.weight(1f).fillMaxWidth())
-                        EditorFooter(vm)
+                    Column(Modifier.width(if(effectEditing)effectWidth else sideWidth).fillMaxHeight()) {
+                        if(effectEditing)EffectsPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                        else {
+                            Timeline(vm,Modifier.weight(1f).fillMaxWidth())
+                            EditorFooter(vm)
+                        }
                     }
                 }else {
                     Preview(vm,Modifier.weight(1f).fillMaxWidth())
                     Transport(vm)
-                    Timeline(vm,Modifier.fillMaxWidth().height(timelineHeight))
-                    EditorFooter(vm)
+                    Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)104.dp else timelineHeight),focused=effectEditing)
+                    if(effectEditing)EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                    else EditorFooter(vm)
                 }
+                if(wide&&effectEditing)Timeline(vm,Modifier.fillMaxWidth().height(104.dp),focused=true)
             }
             if(!vm.panelOpen) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {
@@ -185,12 +195,11 @@ open class MainActivity:ComponentActivity() {
                 else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
                 else Modifier.fillMaxWidth().height(if(curveExpanded||vm.effectsOpen)(availableHeight*.64f).coerceAtMost(440.dp)
                     else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp))
-            AnimatedVisibility(visible=vm.panelOpen&&(vm.selected!=0L||vm.hasCamera()),
+            AnimatedVisibility(visible=vm.panelOpen&&!effectEditing&&(vm.selected!=0L||vm.hasCamera()),
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
-                if(vm.effectsOpen)EffectsPanel(vm,propertyBounds,onCurveMode={curveExpanded=it}){vm.effectsOpen=false;vm.property="position";vm.panelOpen=false}
-                else Properties(vm,propertyBounds,onCurveMode={curveExpanded=it})
+                Properties(vm,propertyBounds,onCurveMode={curveExpanded=it})
             }
             if(vm.state.project==null&&vm.loadFailed&&!vm.state.busy) {
                 Column(Modifier.fillMaxSize().background(Background).padding(24.dp),verticalArrangement=Arrangement.Center,

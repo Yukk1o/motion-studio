@@ -28,11 +28,11 @@ private data class TrackRow(val id:Long,val name:String,val color:Color,val visi
 private data class KeyTarget(val objectId:Long,val property:String,val axis:Int?,val frame:Int)
 private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mode:String)
 
-@Composable internal fun Timeline(vm:EditorViewModel,modifier:Modifier) {
+@Composable internal fun Timeline(vm:EditorViewModel,modifier:Modifier,focused:Boolean=false) {
     val density=LocalDensity.current.density
     val project=vm.state.project
     val frames=project?.optInt("frames")?:180
-    val rows=remember(project,vm.state.sample,vm.selected,vm.property,vm.activeAxis()){buildList {
+    val rows=remember(project,vm.state.sample,vm.selected,vm.property,vm.activeAxis(),focused){buildList {
         if(project!=null) {
             fun keys(track:JSONObject?):List<Int> = track?.optJSONArray("keys")?.let{a->
                 (0 until a.length()).map{a.getJSONObject(it).getLong("frame")}.filter{it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()}.map{it.toInt()}}?:emptyList()
@@ -60,7 +60,7 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                     l.getBoolean("visible"),l.getBoolean("locked"),key,axis,keyFrames,all,clip?.optInt("in_frame")?:0,clip?.optInt("out_frame")?:frames,parentOf(vm,id)))
             }
         }
-    }}
+    }.let{if(focused)it.filter{row->row.id==vm.selected}else it}}
     val currentRows by rememberUpdatedState(rows)
     LaunchedEffect(project,vm.frame.toInt()/150,vm.importTask) {
         if(vm.importTask==null)rows.filter{vm.audioClip(it.id)!=null}.forEach{row->
@@ -79,7 +79,7 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
     var moveRow by remember{mutableStateOf<TrackRow?>(null)}
     var jumpDialog by remember{mutableStateOf(false)}
     var hoveredRow by remember{mutableStateOf<Int?>(null)}
-    Canvas(modifier.testTag("timeline").pointerInput(Unit) {
+    Canvas(modifier.testTag("timeline").pointerInput(focused) {
         var lastTapId=-1L;var lastTapTime=0L
         awaitEachGesture {
             val down=awaitFirstDown()
@@ -119,7 +119,7 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                         mode=when {
                             hitKey!=null&&keyRow?.locked==false->"key"
                             edge!=null&&abs(total.x)>=abs(total.y)->edge
-                            row!=null&&row.id!=0L&&!row.locked&&elapsed>=viewConfiguration.longPressTimeoutMillis&&abs(total.y)>abs(total.x)->"reorder"
+                            !focused&&row!=null&&row.id!=0L&&!row.locked&&elapsed>=viewConfiguration.longPressTimeoutMillis&&abs(total.y)>abs(total.x)->"reorder"
                             row!=null&&row.id!=0L&&!row.locked&&insideClip&&elapsed>=viewConfiguration.longPressTimeoutMillis->"move"
                             abs(total.x)>=abs(total.y)->"scrub"
                             else->"scroll"
@@ -313,9 +313,14 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
 
 @Composable private fun InputKeyDialog(vm:EditorViewModel,key:KeyTarget,onDismiss:()->Unit) {
     var target by remember(key){mutableStateOf(key.frame.toString())}
+    val to=target.toIntOrNull()
+    val track=vm.propertyTrack(key.objectId,key.property)?.let{if(key.axis!=null)it.optJSONObject("axes")?.optJSONObject(vm.axisName(key.axis))else it}
+    val occupied=track?.optJSONArray("keys").objects().any{it.getInt("frame")==to}
+    val valid=to!=null&&to in 0 until (vm.state.project?.optInt("frames")?:0)&&!occupied
     AlertDialog(onDismissRequest=onDismiss,title={Text("关键帧 "+key.frame)},text={Column {
-        OutlinedTextField(target,{target=it},label={Text("目标帧")})
-        TextButton(onClick={target.toIntOrNull()?.let{vm.copyKeyFor(key.objectId,key.property,key.frame,it,key.axis)};onDismiss()}){Text("复制到目标帧")}
-    }},confirmButton={TextButton(onClick={target.toIntOrNull()?.let{vm.moveKeyFor(key.objectId,key.property,key.frame,it,key.axis)};onDismiss()}){Text("精确移动")}},
-        dismissButton={TextButton(onClick={vm.deleteKeyFor(key.objectId,key.property,key.frame,key.axis);onDismiss()}){Text("删除")}})
+        OutlinedTextField(target,{target=it},label={Text("目标帧")},singleLine=true,isError=!valid,
+            supportingText={if(!valid)Text(if(occupied)"目标帧已有关键帧"else"请输入合成范围内的整数帧")},modifier=Modifier.testTag("timeline-key-destination"))
+        TextButton(enabled=valid&&vm.editable(),onClick={vm.copyKeyFor(key.objectId,key.property,key.frame,to!!,key.axis);onDismiss()},modifier=Modifier.testTag("timeline-key-copy")){Text("复制到目标帧")}
+    }},confirmButton={TextButton(enabled=valid&&vm.editable(),onClick={vm.moveKeyFor(key.objectId,key.property,key.frame,to!!,key.axis);onDismiss()},modifier=Modifier.testTag("timeline-key-move")){Text("精确移动")}},
+        dismissButton={TextButton(enabled=vm.editable(),onClick={vm.deleteKeyFor(key.objectId,key.property,key.frame,key.axis);onDismiss()},modifier=Modifier.testTag("timeline-key-delete")){Text("删除")}})
 }
