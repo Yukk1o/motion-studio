@@ -102,7 +102,15 @@ py tools/validate_performance.py --serial <adb-device-serial> --seconds 600 --ou
 
 当前基线已通过 38 项 Rust/GPU 检查，并在 MuMu 中验证编辑操作、工程保存、180 帧视频编码、八个准确索引解码帧/PNG 比对、取消后再次导出及六秒 Surface 播放。运行日志与生成产物保存在本地 `artifacts/`，不纳入版本管理。
 
-持续资源释放、异常进程终止后恢复、输入到显示延迟、完整呈现归因，以及正式手机的性能/热状态仍需补齐。近期用户反馈包括反复出现“预览暂不可用”提示和 `invalid sample time`，正在独立分支中调查与修复。效果扩展在基础验收后推进。
+无效预览时间导致的状态污染已修复，播放时钟也处理了早于播放开始的帧回调；短时资源释放及已保存工程的进程终止恢复检查通过。更长时间的资源趋势、输入到显示延迟、完整呈现归因，以及正式手机的性能/热状态仍需补齐。效果扩展在基础验收后推进。
+
+供安装测试的预览包使用本地开发证书签名，关闭调试与故障注入：
+
+```powershell
+py tools/build_android.py --task assemblePreview
+```
+
+产物：`android/app/build/outputs/apk/preview/app-preview.apk`。
 
 测试代码位于 `crates/*/tests/` 和 `android/app/src/androidTest/`。需要了解具体断言、测试负载与边界时，可直接检查这些实现。
 

@@ -24,6 +24,13 @@ android {
     buildTypes {
         debug { isDebuggable = true }
         release { isMinifyEnabled = false }
+        create("preview") {
+            initWith(getByName("release"))
+            isDebuggable=false
+            signingConfig=signingConfigs.getByName("debug")
+            versionNameSuffix="-preview.1"
+            matchingFallbacks+=listOf("release")
+        }
         create("benchmark") {
             initWith(getByName("release"))
             isDebuggable=false

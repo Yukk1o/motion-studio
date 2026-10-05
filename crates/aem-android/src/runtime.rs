@@ -492,7 +492,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_curveGraph(
         let easing: aem_core::Easing = serde_json::from_str(&parsed?).map_err(|e| e.to_string())?;
         easing.validate().map_err(|e| e.to_string())?;
         let points: Vec<_> = (0..=160).map(|i| easing.sample(i as f64 / 160.0)).collect();
-        Ok(json!({"points": points, "definitionScale": easing.curve.map_or(1.0, |c| c.definition_scale())}))
+        Ok(
+            json!({"points": points, "definitionScale": easing.curve.map_or(1.0, |c| c.definition_scale())}),
+        )
     })
 }
 #[no_mangle]
@@ -516,6 +518,40 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_creationError(
     CREATION_ERROR.with(|e| {
         env.new_string(e.borrow().as_str())
             .map_or(std::ptr::null_mut(), |s| s.into_raw())
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_resourceInfo(
+    mut env: JNIEnv,
+    _class: JClass,
+    directory: JString,
+) -> jstring {
+    let parsed = read_string(&mut env, &directory);
+    string_result(&mut env, || {
+        let root = PathBuf::from(parsed?)
+            .canonicalize()
+            .map_err(|e| e.to_string())?;
+        let registry = sessions().lock().unwrap_or_else(|e| e.into_inner());
+        let mut count = 0u64;
+        let mut graphics = 0u64;
+        let mut assets = 0u64;
+        let mut targets = 0u64;
+        for session in registry.values().filter(|s| {
+            s.root
+                .canonicalize()
+                .is_ok_and(|path| path.starts_with(&root))
+        }) {
+            count += 1;
+            if let Some(g) = &session.graphics {
+                graphics += 1;
+                assets += g.renderer.texture_bytes();
+                targets += g.scratch.texture_bytes();
+            }
+        }
+        Ok(
+            json!({"sessions":count,"graphics":graphics,"assetTextureBytes":assets,"renderTargetBytes":targets,
+            "scope":"Application-owned sessions and textures in the requested project directory; not driver/system allocations"}),
+        )
     })
 }
 #[no_mangle]
@@ -954,11 +990,19 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_render(
     frame: jdouble,
 ) -> jboolean {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        with_session(id, |s| match s.render(frame) {
-            Ok(rendered) => Ok(rendered),
-            Err(error) => {
-                s.last_error = Some(error);
-                Ok(false)
+        with_session(id, |s| {
+            // A queued UI frame may precede playback start or belong to the
+            // previous composition. Skip it before touching sampled state;
+            // invalid timing is not a GPU/device failure.
+            if !frame.is_finite() || frame < 0.0 || frame >= f64::from(s.engine.project().frames) {
+                return Ok(false);
+            }
+            match s.render(frame) {
+                Ok(rendered) => Ok(rendered),
+                Err(error) => {
+                    s.last_error = Some(error);
+                    Ok(false)
+                }
             }
         })
     }));
