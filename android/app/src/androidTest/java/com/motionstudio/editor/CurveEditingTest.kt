@@ -171,6 +171,80 @@ class CurveEditingTest {
         photo("elastic-definition");verifyExportParameters();assertNull(vm.state.error)
     }
 
+    @Test fun elasticHandleEditsFrequencyAndDampingInBothViewsWithOneUndoPerDrag() {
+        openGraph(2,"position",21.0)
+        compose.onNodeWithTag("curve-kind-elastic").performScrollTo().performClick()
+        compose.waitUntil(10000){curve()?.optJSONObject("shape")?.optString("kind")=="elastic"}
+        val original=vm.easingDefinition()!!.toString()
+        val originalKeys=track(2,"position").getJSONArray("keys").toString()
+        fun dragHandle(view:String,dx:Float,dy:Float) {
+            compose.waitForIdle()
+            val definition=vm.easingDefinition()!!
+            val graph=JSONObject(NativeBridge.curveGraph(definition.toString())).getJSONObject("data").getJSONArray("points")
+            val oscillations=definition.getJSONObject("curve").getJSONObject("shape").getDouble("oscillations")
+            val time=(if(view=="progress").5 else .25)/oscillations
+            val index=time*(graph.length()-1);val left=kotlin.math.floor(index).toInt();val right=minOf(left+1,graph.length()-1)
+            val y=graph.getJSONObject(left).getDouble(view)+(graph.getJSONObject(right).getDouble(view)-graph.getJSONObject(left).getDouble(view))*(index-left)
+            val samples=(0 until graph.length()).map{graph.getJSONObject(it).getDouble(view)}+listOf(0.0,1.0)
+            val low=samples.min();val high=samples.max();val rangeLow=low-.08*(high-low);val rangeHigh=high+.08*(high-low)
+            compose.onNodeWithTag("easing-graph").performTouchInput {
+                down(Offset((width*time).toFloat(),(height*(rangeHigh-y)/(rangeHigh-rangeLow)).toFloat()))
+                moveBy(Offset(width*dx,height*dy),150);up()
+            }
+        }
+        dragHandle("progress",-.04f,0f)
+        compose.waitUntil(10000){curve()!!.getJSONObject("shape").getDouble("oscillations")>2.8&&vm.state.saved}
+        assertEquals(6.0,curve()!!.getJSONObject("shape").getDouble("damping"),.00001)
+        // Let the system clipboard notification finish before visual evidence.
+        android.os.SystemClock.sleep(3500)
+        photo("09-elastic-frequency-handle")
+        verifyExportParameters()
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){vm.easingDefinition()!!.toString()==original}
+        dragHandle("progress",0f,.12f)
+        compose.waitUntil(10000){curve()!!.getJSONObject("shape").getDouble("damping")>8&&vm.state.saved}
+        assertEquals(2.5,curve()!!.getJSONObject("shape").getDouble("oscillations"),.00001)
+        verifyExportParameters()
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){vm.easingDefinition()!!.toString()==original}
+        compose.onNodeWithTag("curve-view-velocity").performClick()
+        assertEquals(original,vm.easingDefinition()!!.toString())
+        dragHandle("velocity",-.025f,0f)
+        compose.waitUntil(10000){curve()!!.getJSONObject("shape").getDouble("oscillations")>3&&vm.state.saved}
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){vm.easingDefinition()!!.toString()==original}
+        dragHandle("velocity",0f,.10f)
+        compose.waitUntil(10000){curve()!!.getJSONObject("shape").getDouble("damping")>7.5&&vm.state.saved}
+        photo("10-elastic-velocity-handles")
+        verifyExportParameters()
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){track(2,"position").getJSONArray("keys").toString()==originalKeys}
+        dragHandle("velocity",-.02f,.06f)
+        compose.waitUntil(10000){curve()!!.getJSONObject("shape").getDouble("oscillations")>3&&curve()!!.getJSONObject("shape").getDouble("damping")>7&&vm.state.saved}
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){track(2,"position").getJSONArray("keys").toString()==originalKeys}
+        assertNull(vm.state.error)
+        File(root,"elastic-handle-report.json").writeText(JSONObject().put("progressAndVelocityHandles",true)
+            .put("independentFrequencyAndDamping",true).put("singleUndoPerDrag",true).put("keyValuesAndTimesPreserved",true)
+            .put("exportMatchesPreview",true).toString(2))
+    }
+
+    @Test fun draggingAPresetHandleConvertsOnlyItsTimingAndUndoRestoresThePreset() {
+        openGraph(2,"position",21.0)
+        val before=track(2,"position").toString()
+        compose.onNodeWithTag("easing-graph").performTouchInput {
+            down(Offset(width/3f,height*((1.08f-1f/3f)/1.16f)))
+            moveBy(Offset(0f,-height*.12f),150);up()
+        }
+        compose.waitUntil(10000){curve()?.optJSONObject("shape")?.optString("kind")=="cubic"&&vm.state.saved}
+        assertEquals(.0,track(2,"position").getJSONArray("keys").getJSONObject(0).getDouble("frame"),.00001)
+        assertEquals(60,track(2,"position").getJSONArray("keys").getJSONObject(1).getInt("frame"))
+        verifyExportParameters()
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){track(2,"position").toString()==before}
+        assertNull(vm.state.error)
+    }
+
     @Test fun insertingKeysDuringElasticOvershootKeepsPhysicalPropertiesEditable() {
         val easing=JSONObject().put("ease","linear").put("curve",JSONObject().put("space","progress")
             .put("shape",JSONObject().put("kind","elastic").put("oscillations",2.5).put("damping",6.0)))

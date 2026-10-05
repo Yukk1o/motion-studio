@@ -36,6 +36,7 @@ class CameraRigTest {
         scenario.onActivity{vm.select(0)};compose.waitForIdle()
         compose.onNodeWithContentDescription("图层操作").performClick();compose.onNodeWithText("父级").performClick()
         compose.onNodeWithTag("parent-"+parent).performClick()
+        compose.onNodeWithTag("parent-apply").performClick()
         compose.waitUntil(10000){vm.state.project!!.getJSONObject("camera").optJSONObject("parent")?.optLong("object")==parent}
         val linked=vm.state.project!!.toString()
         scenario.onActivity{vm.select(parent);vm.setValue(org.json.JSONArray(listOf(640,960,0)))}
