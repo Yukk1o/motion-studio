@@ -8,8 +8,9 @@
 
 | 项目 | 支持范围 |
 | --- | --- |
-| 容器与画面 | MP4，H.264 Baseline / Main / High，8 位 4:2:0 SDR，方形像素 |
-| 原声 | 一条选定的 AAC-LC 音轨；44.1 / 48 kHz，单/双声道；可显式丢弃 |
+| 容器 | MP4、MOV、3GP、MKV / Matroska、WebM；实际以设备 MediaExtractor 探测结果为准 |
+| 画面编码 | H.264 Baseline / Main / High、H.265 Main、VP8、VP9 profile 0；8 位 4:2:0 SDR、方形像素；需设备解码器 |
+| 原声 | 一条选定的 AAC / Opus / Vorbis / FLAC / MP3 等音轨；8–192 kHz、单/双声道；可显式丢弃；受解码器与 PCM 缓存预算限制 |
 | 显示尺寸 | 每边不超过 1920，像素不超过 1920×1080；支持 0/90/180/270 度旋转 |
 | 时间 | 最多 1 小时、标称最多 120 fps、最多 500,000 个不同 PTS；支持 VFR |
 | 源素材 | 单文件最多 512 MiB，工程源文件累计最多 4 GiB |
@@ -17,7 +18,9 @@
 | 解码 | 最多四个实例/读取器、四个同时工作的 MediaCodec/进程；每实例一个待处理目标和一帧缓存 |
 | 冻结读取 | 最多四个冻结视频句柄，需主动释放 |
 
-探测内容而非后缀/MIME；当前要求 `ftyp` 为首个 MP4 box。加密、HEVC、HDR、非方形像素和不支持的声音编码报错，不静默产生成功的空白片段。`with_audio:false` 可以明确导入无原声画面。
+由 MediaExtractor 探测内容而非后缀/MIME，不再要求文件为 MP4 或首 box 是 `ftyp`。H.264 / HEVC SPS 与 VP9 首关键帧补充验证位深、色度与颜色。10 位 / HDR、非方形像素、加密和不支持的声音编码报错；AV1 / ProRes 尚未启用。`with_audio:false` 可以明确导入无原声画面。新增格式不改变导出编码，MP4 导出仍使用 H.264 + AAC。
+
+设备能力与格式矩阵见 [媒体格式 API](FORMATS.md)。设备提供解码器不等于任意 profile、尺寸或容器组合均可导入，必须完成实际 `probe_media`。
 
 NDK MediaExtractor/MediaCodec 在后台线程使用。按实际帧时间索引选择 `pts_us <= target < end_us`，向后或大幅跳转时从前一个同步帧继续解码到目标 PTS，保留 B 帧顺序和源帧率。优先从 YUV420 ImageReader 读取，兼容标准 I420/NV12 byte buffer，再尝试 RGBA8888/RGB565；未知厂商布局报错。补读 SPS/VUI 的颜色标记，避免设备漏报矩阵导致色差；YUV 按 BT.709/BT.601、full/limited 转换。RGB565 是设备的低精度兼容路径，`source_transfer` 会明确返回，不能视为完整 8 位输出。每次取帧返回实际解码器名称；`decode_us` 是成功解码及 RGBA 转换耗时，不含排队、打开、索引加载和格式重试，调用方应另测端到端耗时。MuMu 数据不代表真机性能。
 
@@ -29,11 +32,11 @@ NDK MediaExtractor/MediaCodec 在后台线程使用。按实际帧时间索引�
 {"op":"import_media","kind":"video","request_id":"video-1","uri":"content://selected/video","at_frame":30,"name":"片段","with_audio":true}
 ```
 
-`track` 可指定零起始视频轨道，`audio_track` 可指定零起始声音轨道；缺省各选第一条支持的轨道，声音默认开启。`metadata.audio_tracks` 返回声音轨道列表；`supported` 是格式初筛，最终以实际 AAC 解码成功为准。`probe_media` 使用相同参数与校验路径，不添加图层或素材。
+`track` 可指定零起始视频轨道，`audio_track` 可指定零起始声音轨道；缺省各选第一条支持的轨道，声音默认开启。Matroska 也采用 Android 的零起始索引，不把 track number 当索引。`metadata.audio_tracks` 返回声音轨道列表；`supported` 是格式初筛，最终以实际解码成功为准。`probe_media` 使用相同参数与校验路径，不添加图层或素材。
 
 轮询 `media_status`，导入阶段为 `opening / copying / probing / decoding_audio / waveform / awaiting_commit`，进度只针对当前阶段。到 `ready` 后调用 `finish_media_import`；保存工程、素材与图层成功后只产生一次撤销记录。`edit_result` 返回 `asset / object / audio_asset / has_audio / in_frame / out_frame / source_offset_us / truncated_to_composition`。失败和取消清理暂存，不改变已有工程。`cancel_media_import`、`release_media_task`、会话切换与音频 API 具有相同规则，请求 ID 在两类任务之间也不能重复。
 
-视频素材与原声素材具有不同 ID，引用**同一个**工程内 MP4；原文件权限失效不会影响后续读取。完整声音 PCM 与波形保存在磁盘，沿用音频后端。没有整段视频解码或每帧烘焙，源文件之外的画面缓存只保存 PTS 索引与第一帧 PNG。
+视频素材与原声素材具有不同 ID，引用**同一个**工程内源文件；原文件权限失效不会影响后续读取。保管源文件的后缀按内容检测，不把 MOV / MKV 重命名为 MP4；WebM 使用 Matroska `.mkv` 后缀，仍保持原始字节。完整声音 PCM 与波形保存在磁盘，沿用音频后端。没有整段视频解码或每帧烘焙，源文件之外的画面缓存只保存 PTS 索引与第一帧 PNG。
 
 ```json
 {"op":"video_thumbnail","asset":5}

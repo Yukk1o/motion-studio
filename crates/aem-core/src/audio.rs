@@ -24,12 +24,26 @@ impl AudioAsset {
             "invalid audio source size",
         )?;
         ensure(
-            matches!(self.mime.as_str(), "audio/mp4" | "audio/mpeg" | "audio/wav"),
+            matches!(
+                self.mime.as_str(),
+                "audio/mp4"
+                    | "audio/mpeg"
+                    | "audio/wav"
+                    | "audio/flac"
+                    | "audio/ogg"
+                    | "audio/aiff"
+                    | "audio/aac"
+                    | "audio/opus"
+                    | "audio/vorbis"
+                    | "audio/3gpp"
+                    | "audio/amr-wb"
+                    | "audio/x-matroska"
+            ),
             "unsupported audio encoding",
         )?;
         ensure(
-            matches!(self.sample_rate, 44_100 | 48_000) && matches!(self.channels, 1 | 2),
-            "audio requires mono/stereo at 44.1/48 kHz",
+            (8_000..=192_000).contains(&self.sample_rate) && matches!(self.channels, 1 | 2),
+            "audio requires mono/stereo at 8–192 kHz",
         )?;
         ensure(
             self.sample_frames > 0 && self.sample_frames <= u64::from(self.sample_rate) * 3600,

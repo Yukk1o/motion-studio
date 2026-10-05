@@ -10,19 +10,22 @@
 
 | 项目 | 支持范围 |
 | --- | --- |
-| 输入 | M4A/MP4 中的 AAC-LC、MP3、WAV/16-bit little-endian PCM |
-| 声道与采样率 | 单声道或双声道；44.1 / 48 kHz |
+| Rust 解码输入 | M4A/MP4 的 AAC-LC / ALAC、MP3、FLAC、Ogg/Vorbis、AIFF；WAV 的 PCM 8/16/24/32 位及 float 32/64 位 |
+| Android 扩展输入 | Opus（Ogg / WebM / MKV）、ADTS AAC、HE-AAC、AMR；需设备提供相应解码器，实际探测成功才可导入 |
+| 声道与采样率 | 单声道或双声道；8–192 kHz，包括 11.025 / 22.05 / 96 / 192 kHz |
 | 输出 | 48 kHz、双声道、交错 `f32le` PCM；确定性限幅 `[-1,1]` |
-| 源文件 | 默认最多 512 MiB / 1 小时；Rust `Limits` 可下调源文件及 PCM 缓存预算 |
+| 源文件 | 默认最多 512 MiB / 1 小时，PCM 缓存最多 1,382,400,000 字节；192 kHz 双声道约 15 分钟即触及缓存预算；Rust `Limits` 可下调预算 |
 | 工程源素材及备份解压 | 累计最多 4 GiB；图片仍限制每张 64 MiB |
 | 导入任务 | 每会话最多两个未结束任务、64 个未释放记录；进程最多四个后台线程 |
 | 混音块 | 每次最多 48,000 个双声道采样帧，384,000 字节 |
 | 波形 | 源时间每 10 ms 一桶，每次最多 4,096 桶，实际 `min / max / rms` |
 | 冻结混音 | 最多八个独立句柄，调用方必须释放 |
 
-探测文件内容，不依赖扩展名或 URI 的 MIME。HE-AAC、多声道、其他采样率、浮点/24-bit WAV、复杂 MP4 编辑列表明确报错。支持常规 MP4 的单个媒体编辑，或先空白后媒体的两个编辑；处理 AAC 编码延迟及首尾裁剪，保留原时间中的空白。
+探测文件内容，不依赖扩展名或 URI 的 MIME。多声道与复杂 MP4 编辑列表仍明确报错。Rust 的 MP4 路径支持单个媒体编辑，或先空白后媒体的两个编辑；处理编码延迟及首尾裁剪，保留原时间中的空白。Android 扩展解码使用输出 PTS 保留间隙，并读取 Matroska 的 `CodecDelay / TimestampScale`，补充平台漏报的 AAC priming 与音轨时间偏移；尊重时间戳量化，避免把毫秒取整误当成音频间隙。后端不重复裁掉 Opus pre-skip。损坏的已支持 Rust 格式不通过宽松的原生回退伪装为成功。
 
-源文件以 64 KiB 分块复制，解码只保留一个音频包，完整 PCM 放在 `cache/audio-v1/` 磁盘缓存。44.1 kHz 使用 32 tap、1,024 相位的加窗 sinc 重采样，按绝对采样位置计算相位，不累计帧时长。相同源文件的多个片段可使用不同源时间。成功导入的源文件保守保留，本版没有自动垃圾回收。
+源文件以 64 KiB 分块复制，解码只保留一个音频包，完整 PCM 放在 `cache/audio-v1/` 磁盘缓存，保留原生采样率。低采样率使用 32 tap、1,024 相位的加窗 sinc 插值；超过 48 kHz 时使用 64 tap 低通降采样，整数采样位置也不能绕过滤波。相位按绝对采样位置计算，跨块、分割与跳转不累计误差。非整数每桶采样数采用有理数边界，11.025 / 22.05 kHz 波形仍对应真实 10 ms 时间。成功导入的源文件保守保留，本版没有自动垃圾回收。
+
+设备解码器查询、容器/编码范围及验证方法见 [媒体格式 API](FORMATS.md)。原有 PCM、冻结混音和异步任务接口保持兼容。
 
 ## Android 入口
 
@@ -113,9 +116,9 @@ val response = MediaBridge.readPcmInto(session, 48_000L, 1024, buffer)
 
 `startSample` 使用统一的 48 kHz 合成时钟。输出为有效片段的混合声音，片段外或源结尾之后是静音。返回实际 `frames / bytes / sample_rate / channels / format`，以及 `start_sample / pts_us / end_of_stream`；最后一块可不足请求长度，必须使用实际帧数，避免编码旧缓冲尾部。
 
-播放端将 PCM 交给 Android `AudioTrack`，暂停和跳转时停止并清理排队声音，再按绝对样本位置读取。本 PR 没有接入这条播放链路。
+播放端将 PCM 交给 Android `AudioTrack`，暂停和跳转时停止并清理排队声音，再按绝对样本位置读取。生产界面已使用此接口，本次格式扩展复用原有播放链路。
 
-导出前在会话线程调用 `freezeAudio`，得到 `handle / total_frames / sample_rate / channels / revision`。导出线程按整数样本位置递增调用 `readFrozenPcmInto`，最后 `releaseFrozenAudio`。冻结实例拥有工程快照和独立文件游标，实时修改、跳转或关闭会话不会改变它；撤销也不删除其源文件。调用方仍需接入 AAC-LC 编码、轨道格式准备、统一时间轴的 MP4 复用和首尾延迟处理。
+导出前在会话线程调用 `freezeAudio`，得到 `handle / total_frames / sample_rate / channels / revision`。导出线程按整数样本位置递增调用 `readFrozenPcmInto`，最后 `releaseFrozenAudio`。冻结实例拥有工程快照和独立文件游标，实时修改、跳转或关闭会话不会改变它；撤销也不删除其源文件。生产 `AudioMux` 已接入 AAC-LC 编码与 MP4 复用，本次格式扩展仍使用相同的统一采样时钟。
 
 ## 验证与依赖
 
