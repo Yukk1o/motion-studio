@@ -12,6 +12,7 @@
 /android/app/src/main/jniLibs/
 *.tmp
 __pycache__/
+refer/
 
 # Local reference material is excluded from version control.
 /design/ardot-handoff.json
