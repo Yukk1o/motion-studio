@@ -342,12 +342,19 @@ private class ValueDrag(private val vm:EditorViewModel) {
     LaunchedEffect(vm.threeD()){if(!vm.threeD())zAxis=false}
     val density=LocalDensity.current.density
     val vector=vm.sampleValue() is JSONArray
+    val separated=vector&&vm.isSeparated()
+    val axis=vm.activeAxis()
+    val name=vm.axisName().uppercase()
+    val spatial=vm.property in listOf("position","target")
     Box(modifier.background(Background,RoundedCornerShape(10.dp)).testTag("transform-pad")
-        .pointerInput(vm.selected,vm.property,zAxis,vm.scaleLinked,vm.editable(),vm.threeD()) {
+        .pointerInput(vm.selected,vm.property,zAxis,vm.scaleLinked,vm.editable(),vm.threeD(),separated,axis) {
             if(vm.editable())detectDragGestures(onDragStart={drag=ValueDrag(vm);vm.beginGesture()},
                 onDragEnd={vm.endGesture();drag=null},onDragCancel={vm.cancelGesture();drag=null}){change,amount->
                 change.consume()
-                if(vector&&vm.property in listOf("position","target")) {
+                if(separated) {
+                    val delta=if(spatial)when(axis){1->amount.y;2->-amount.y;else->amount.x}else amount.x
+                    drag?.adjust(axis,delta/density.toDouble())
+                } else if(vector&&spatial) {
                     if(zAxis)drag?.adjust(2,-amount.y/density.toDouble())
                     else drag?.adjustXY(amount.x/density.toDouble(),amount.y/density.toDouble())
                 } else drag?.adjust(0,(amount.x-amount.y)/density.toDouble())
@@ -360,12 +367,14 @@ private class ValueDrag(private val vm:EditorViewModel) {
         }
         Column(Modifier.align(Alignment.Center),horizontalAlignment=Alignment.CenterHorizontally) {
         Text(if(!vm.editable())"图层已锁定" else when(vm.property) {
-            "position","target"->if(zAxis)"上下滑动调整 Z" else "滑动移动 · XY"
-            "scale"->"滑动缩放";"opacity"->"滑动调整透明度";else->"滑动调节数值"
+            "position","target"->if(separated)if(axis==0)"左右滑动调整 X"else"上下滑动调整 "+name
+                else if(zAxis)"上下滑动调整 Z" else "滑动移动 · XY"
+            "scale"->if(separated)"左右滑动缩放 "+name+(if(vm.scaleLinked&&axis<2)" · XY 联动"else"")else"滑动缩放"
+            "opacity"->"滑动调整透明度";else->"滑动调节数值"
         },color=Muted,fontSize=12.sp,lineHeight=18.sp)
         }
-        if(vm.isSeparated())Box(Modifier.align(Alignment.TopStart)){PropertyAxisMenu(vm)}
-        if(vm.threeD()&&vm.property in listOf("position","target"))TextButton(onClick={zAxis=!zAxis},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
+        if(separated)Box(Modifier.align(Alignment.TopStart)){PropertyAxisMenu(vm)}
+        if(!separated&&vm.threeD()&&spatial)TextButton(onClick={zAxis=!zAxis},modifier=Modifier.align(Alignment.TopEnd).size(48.dp).testTag("pad-z-toggle")) {
             Text(if(zAxis)"XY" else "Z",color=Accent,fontSize=11.sp,lineHeight=14.sp)
         }
         if(vm.property=="scale")IconButton(onClick={vm.scaleLinked=!vm.scaleLinked},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {

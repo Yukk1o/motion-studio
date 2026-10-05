@@ -51,6 +51,14 @@ class FrontendLayerControlsTest {
         compose.onNodeWithTag(prefix+"-menu").performClick()
         compose.onNodeWithTag(prefix+"-"+name).performClick()
     }
+    private fun openIndependentPad(key:String) {
+        scenario.onActivity{vm.openProperty(key)}
+        compose.onNodeWithContentDescription("图层操作").performClick()
+        compose.onNodeWithTag("separate-dimensions").performClick()
+        compose.waitUntil(10000){vm.isSeparated()&&vm.state.saved}
+        val body=compose.onNodeWithTag("property-values").fetchSemanticsNode().config
+        if(body.contains(androidx.compose.ui.semantics.SemanticsActions.ScrollBy))compose.onNodeWithTag("transform-pad").performScrollTo()
+    }
     private fun photo(name:String) {
         compose.waitForIdle();InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         android.os.SystemClock.sleep(250)
@@ -126,6 +134,55 @@ class FrontendLayerControlsTest {
             down(center);moveBy(Offset(50*density,0f),100);cancel()
         }
         compose.waitUntil(10000){vm.state.project!!.toString()==before}
+        assertNull(vm.state.error)
+    }
+
+    @Test fun separatedCameraPositionAndTargetPadEditOnlyTheDisplayedAxis() {
+        scenario.onActivity{vm.addCamera()}
+        compose.waitUntil(10000){vm.hasCamera()&&vm.state.saved}
+        for(key in listOf("position","target")) {
+            openIndependentPad(key)
+            compose.onNodeWithTag("pad-z-toggle").assertDoesNotExist()
+            for((index,name) in listOf("X","Y","Z").withIndex()) {
+                choose("property-axis",name)
+                compose.onNodeWithText(if(index==0)"左右滑动调整 X"else"上下滑动调整 "+name).assertIsDisplayed()
+                val before=vm.state.project!!.toString()
+                val axes=vm.state.project!!.getJSONObject("camera").getJSONObject(key).getJSONObject("axes")
+                val tracks=listOf("x","y","z").map{axes.getJSONObject(it).toString()}
+                compose.onNodeWithTag("transform-pad").performTouchInput {
+                    down(center);moveBy(if(index==0)Offset(24*density,0f)else Offset(0f,24*density),100);up()
+                }
+                compose.waitUntil(10000){vm.state.project!!.getJSONObject("camera").getJSONObject(key).getJSONObject("axes").getJSONObject(name.lowercase()).toString()!=tracks[index]&&vm.state.saved}
+                val changed=vm.state.project!!.getJSONObject("camera").getJSONObject(key).getJSONObject("axes")
+                for(other in 0..2)if(other!=index)assertEquals(tracks[other],changed.getJSONObject(listOf("x","y","z")[other]).toString())
+                if(index==2)photo("camera-"+key+"-Z-pad")
+                undo(before)
+            }
+            val before=vm.state.project!!.toString()
+            compose.onNodeWithTag("transform-pad").performTouchInput {
+                down(center);moveBy(Offset(0f,-24*density),100);cancel()
+            }
+            compose.waitUntil(10000){vm.state.project!!.toString()==before}
+        }
+        assertNull(vm.state.error)
+    }
+
+    @Test fun separatedScalePadUsesTheChosenAxisAndUnlinksByDefault() {
+        openIndependentPad("scale");assertFalse(vm.scaleLinked)
+        choose("property-axis","Z")
+        compose.onNodeWithText("左右滑动缩放 Z").assertIsDisplayed()
+        val before=vm.state.project!!.toString()
+        val axes=vm.layer(2)!!.getJSONObject("transform").getJSONObject("scale").getJSONObject("axes")
+        val x=axes.getJSONObject("x").toString();val y=axes.getJSONObject("y").toString();val z=axes.getJSONObject("z").toString()
+        compose.onNodeWithTag("transform-pad").performTouchInput {
+            down(center);moveBy(Offset(32*density,0f),100);up()
+        }
+        compose.waitUntil(10000){vm.layer(2)!!.getJSONObject("transform").getJSONObject("scale").getJSONObject("axes").getJSONObject("z").toString()!=z&&vm.state.saved}
+        val changed=vm.layer(2)!!.getJSONObject("transform").getJSONObject("scale").getJSONObject("axes")
+        assertEquals(x,changed.getJSONObject("x").toString());assertEquals(y,changed.getJSONObject("y").toString())
+        photo("separated-scale-Z");undo(before)
+        choose("property-axis","X");scenario.onActivity{vm.scaleLinked=true}
+        compose.onNodeWithText("左右滑动缩放 X · XY 联动").assertIsDisplayed()
         assertNull(vm.state.error)
     }
 

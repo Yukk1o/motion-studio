@@ -35,6 +35,13 @@ class EditorUiRefreshTest {
     @After fun teardown(){if(::scenario.isInitialized)scenario.close()}
 
     private fun photo(name:String) {
+        compose.waitUntil(15000) {
+            scenario.onActivity{vm.refreshDiagnostics()}
+            val data=vm.state.sample
+            data!=null&&!data.isNull("graphics")&&!data.isNull("lastPresentedFrame")&&data.getDouble("lastPresentedFrame")==vm.frame&&
+                data.getLong("lastPresentedRevision")==data.getLong("revision")&&data.getLong("lastPresentedViewRevision")==data.getLong("viewRevision")
+        }
+        assertNull(vm.state.error)
         compose.waitForIdle()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         android.os.SystemClock.sleep(250)
