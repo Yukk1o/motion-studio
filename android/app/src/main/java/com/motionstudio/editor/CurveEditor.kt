@@ -172,7 +172,7 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
             }
         }
         if(segment==null)Column(Modifier.align(Alignment.Center).background(Background.copy(alpha=.95f)).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Diamond,null,tint=Muted,modifier=Modifier.size(24.dp))
+            Icon(editorIcon(Icons.Default.Diamond),null,tint=Muted,modifier=Modifier.size(24.dp))
             Spacer(Modifier.height(8.dp))
             Text("先为此属性添加两个关键帧",color=Ink,fontSize=14.sp)
             Text("再移动到两帧之间，调整运动节奏",color=Muted,fontSize=12.sp)
