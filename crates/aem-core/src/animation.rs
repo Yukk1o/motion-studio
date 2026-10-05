@@ -44,7 +44,7 @@ impl Tween for f32 {
         self.is_finite()
     }
 }
-impl Tween for [f32; 3] {
+impl<const N: usize> Tween for [f32; N] {
     fn mix(self, other: Self, t: f32) -> Self {
         std::array::from_fn(|i| self[i].mix(other[i], t))
     }

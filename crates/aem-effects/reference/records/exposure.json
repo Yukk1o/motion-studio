@@ -1,0 +1,872 @@
+{
+  "effect": "exposure",
+  "display_name": "曝光度",
+  "english_name": "Exposure",
+  "compatibility": "approximate",
+  "ae_match_name": "ADBE Exposure2",
+  "ae_application": "18.0.1x1",
+  "ae_effect_version": "18.0.1",
+  "package": {
+    "id": "com.motionstudio.effects.ae2021",
+    "version": "1.0.0",
+    "sha256": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399"
+  },
+  "params": [
+    {
+      "id": "effect_opacity",
+      "name": "效果不透明度",
+      "kind": "float",
+      "default": [
+        100,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "units": "百分比",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Effect Mask Opacity",
+      "implemented": true
+    },
+    {
+      "id": "p0001",
+      "name": "通道:",
+      "kind": "enum",
+      "default": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "min": 1,
+      "max": 2,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [
+        "1",
+        "2"
+      ],
+      "reference_match_name": "ADBE Exposure2-0001",
+      "implemented": true
+    },
+    {
+      "id": "p0003",
+      "name": "曝光度",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -100,
+      "max": 100,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0003",
+      "implemented": true
+    },
+    {
+      "id": "p0004",
+      "name": "偏移",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -2,
+      "max": 2,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0004",
+      "implemented": true
+    },
+    {
+      "id": "p0005",
+      "name": "灰度系数校正",
+      "kind": "float",
+      "default": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "min": 0.10000000149012,
+      "max": 10,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0005",
+      "implemented": true
+    },
+    {
+      "id": "p0008",
+      "name": "红色曝光度",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -100,
+      "max": 100,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0008",
+      "implemented": true
+    },
+    {
+      "id": "p0009",
+      "name": "红色偏移",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -2,
+      "max": 2,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0009",
+      "implemented": true
+    },
+    {
+      "id": "p0010",
+      "name": "红色灰度系数校正",
+      "kind": "float",
+      "default": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "min": 0.10000000149012,
+      "max": 10,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0010",
+      "implemented": true
+    },
+    {
+      "id": "p0013",
+      "name": "绿色曝光度",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -100,
+      "max": 100,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0013",
+      "implemented": true
+    },
+    {
+      "id": "p0014",
+      "name": "绿色偏移",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -2,
+      "max": 2,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0014",
+      "implemented": true
+    },
+    {
+      "id": "p0015",
+      "name": "绿色灰度系数校正",
+      "kind": "float",
+      "default": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "min": 0.10000000149012,
+      "max": 10,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0015",
+      "implemented": true
+    },
+    {
+      "id": "p0018",
+      "name": "蓝色曝光度",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -100,
+      "max": 100,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0018",
+      "implemented": true
+    },
+    {
+      "id": "p0019",
+      "name": "蓝色偏移",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": -2,
+      "max": 2,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0019",
+      "implemented": true
+    },
+    {
+      "id": "p0020",
+      "name": "蓝色灰度系数校正",
+      "kind": "float",
+      "default": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "min": 0.10000000149012,
+      "max": 10,
+      "step": 0.01,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0020",
+      "implemented": true
+    },
+    {
+      "id": "p0022",
+      "name": "不使用线性光转换",
+      "kind": "bool",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Exposure2-0022",
+      "implemented": true
+    }
+  ],
+  "native_parameter_snapshot": {
+    "name": "曝光度",
+    "matchName": "ADBE Exposure2",
+    "children": [
+      {
+        "name": "通道:",
+        "matchName": "ADBE Exposure2-0001",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 1,
+        "min": 1,
+        "max": 2
+      },
+      {
+        "name": "主",
+        "matchName": "ADBE Exposure2-0002",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "曝光度",
+        "matchName": "ADBE Exposure2-0003",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -100,
+        "max": 100
+      },
+      {
+        "name": "偏移",
+        "matchName": "ADBE Exposure2-0004",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -2,
+        "max": 2
+      },
+      {
+        "name": "灰度系数校正",
+        "matchName": "ADBE Exposure2-0005",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 1,
+        "min": 0.10000000149012,
+        "max": 10
+      },
+      {
+        "name": "主",
+        "matchName": "ADBE Exposure2-0006",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "红色",
+        "matchName": "ADBE Exposure2-0007",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "红色曝光度",
+        "matchName": "ADBE Exposure2-0008",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -100,
+        "max": 100
+      },
+      {
+        "name": "红色偏移",
+        "matchName": "ADBE Exposure2-0009",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -2,
+        "max": 2
+      },
+      {
+        "name": "红色灰度系数校正",
+        "matchName": "ADBE Exposure2-0010",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 1,
+        "min": 0.10000000149012,
+        "max": 10
+      },
+      {
+        "name": "红色",
+        "matchName": "ADBE Exposure2-0011",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "绿色",
+        "matchName": "ADBE Exposure2-0012",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "绿色曝光度",
+        "matchName": "ADBE Exposure2-0013",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -100,
+        "max": 100
+      },
+      {
+        "name": "绿色偏移",
+        "matchName": "ADBE Exposure2-0014",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -2,
+        "max": 2
+      },
+      {
+        "name": "绿色灰度系数校正",
+        "matchName": "ADBE Exposure2-0015",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 1,
+        "min": 0.10000000149012,
+        "max": 10
+      },
+      {
+        "name": "绿色",
+        "matchName": "ADBE Exposure2-0016",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "蓝色",
+        "matchName": "ADBE Exposure2-0017",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "蓝色曝光度",
+        "matchName": "ADBE Exposure2-0018",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -100,
+        "max": 100
+      },
+      {
+        "name": "蓝色偏移",
+        "matchName": "ADBE Exposure2-0019",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": -2,
+        "max": 2
+      },
+      {
+        "name": "蓝色灰度系数校正",
+        "matchName": "ADBE Exposure2-0020",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 1,
+        "min": 0.10000000149012,
+        "max": 10
+      },
+      {
+        "name": "蓝色",
+        "matchName": "ADBE Exposure2-0021",
+        "children": [],
+        "valueType": 6412,
+        "animatable": false,
+        "units": ""
+      },
+      {
+        "name": "不使用线性光转换",
+        "matchName": "ADBE Exposure2-0022",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1
+      },
+      {
+        "name": "合成选项",
+        "matchName": "ADBE Effect Built In Params",
+        "children": [
+          {
+            "name": "蒙版",
+            "matchName": "ADBE Effect Mask Parade",
+            "children": [],
+            "valueType": null,
+            "animatable": null,
+            "units": null,
+            "defaultValue": null,
+            "min": null,
+            "max": null
+          },
+          {
+            "name": "效果不透明度",
+            "matchName": "ADBE Effect Mask Opacity",
+            "children": [],
+            "valueType": 6417,
+            "animatable": true,
+            "units": "百分比",
+            "defaultValue": 100,
+            "min": 0,
+            "max": 100
+          },
+          {
+            "name": "GPU 渲染",
+            "matchName": "ADBE Force CPU GPU",
+            "children": [],
+            "valueType": 6417,
+            "animatable": false,
+            "units": "",
+            "defaultValue": 1,
+            "min": 1,
+            "max": 3
+          }
+        ],
+        "valueType": null,
+        "animatable": null,
+        "units": null,
+        "defaultValue": null,
+        "min": null,
+        "max": null
+      }
+    ],
+    "valueType": null,
+    "animatable": null,
+    "units": null,
+    "defaultValue": null,
+    "min": null,
+    "max": null,
+    "id": "exposure"
+  },
+  "algorithm": "曝光以2的幂缩放，叠加偏移与gamma；支持RGB分量与旁路线性解码。",
+  "shader_passes": [
+    {
+      "shader": "shaders/exposure.wgsl",
+      "entry": "main_fx"
+    }
+  ],
+  "working_space": "srgb",
+  "alpha_mode": "straight",
+  "edge_mode": "transparent",
+  "edge_param": null,
+  "output_padding": {
+    "op": "constant",
+    "value": 0
+  },
+  "output_range": "RGBA8: [0,1]",
+  "known_differences": [
+    "独立算法实现；尚未通过完整 AE 参考用例，不能声明精确还原。",
+    "枚举选项暂保留 AE 数值编号；原生菜单名称尚待采集。"
+  ],
+  "cases": [
+    {
+      "case": {
+        "id": "exposure-gradient-default",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-exposure-gradient-default.png",
+      "application_output": "outputs/motion/motion-exposure-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "exposure-gradient-changed",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Exposure2-0003": 0.75,
+          "ADBE Exposure2-0004": 0.02,
+          "ADBE Exposure2-0005": 1.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 1.10546875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 1.15625,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.9395833333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-exposure-gradient-changed.png",
+      "application_output": "outputs/motion/motion-exposure-gradient-changed.png",
+      "ae_output_sha256": "17a068b7fe1f43b7c4b659a08b9c1ef05923e99f2d4dcf098447a57af68f1840",
+      "application_output_sha256": "52a9e13f1327653f7fac620c56f4d899b26fc0c7154f4ff318a8a0746529e17c"
+    },
+    {
+      "case": {
+        "id": "exposure-checker-default",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-exposure-checker-default.png",
+      "application_output": "outputs/motion/motion-exposure-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "exposure-checker-changed",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Exposure2-0003": 0.75,
+          "ADBE Exposure2-0004": 0.02,
+          "ADBE Exposure2-0005": 1.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 1.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 1.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 1.3333333333333333,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-exposure-checker-changed.png",
+      "application_output": "outputs/motion/motion-exposure-checker-changed.png",
+      "ae_output_sha256": "e00fd3d7ed6df88937d25e3212c00b1f10b51fa19d23ab4ee17c0fbf7a5f522d",
+      "application_output_sha256": "67fea15c1b96ce47039feec70f306ed5400de38aa1eb363a918d216e8093b7e9"
+    },
+    {
+      "case": {
+        "id": "exposure-alpha_edge-default",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-exposure-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-exposure-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "exposure-alpha_edge-changed",
+        "effect": "exposure",
+        "matchName": "ADBE Exposure2",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Exposure2-0003": 0.75,
+          "ADBE Exposure2-0004": 0.02,
+          "ADBE Exposure2-0005": 1.1
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 1.0795454545454546,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 1.027777777777778,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 1.184375,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-exposure-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-exposure-alpha_edge-changed.png",
+      "ae_output_sha256": "72fd2a11948c9c1d0cba4eef6677d1ed44125ffb788320a8ded29060768baaa1",
+      "application_output_sha256": "a90d4d8e5a55386b70d98920e919bcadf7512e99c887f234390d49fdb77a566f"
+    }
+  ],
+  "acceptance_gaps": [
+    "参数边界与动画的AE参考",
+    "叠加/摄影机AE参考",
+    "物理Android设备耗时/峰值内存",
+    "AE枚举菜单名称采集"
+  ]
+}

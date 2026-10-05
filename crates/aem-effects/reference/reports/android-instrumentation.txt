@@ -1,0 +1,7 @@
+
+com.motionstudio.editor.EffectsRuntimeTest:....
+com.motionstudio.editor.ExportParityTest:...
+
+Time: 29.954
+
+OK (7 tests)

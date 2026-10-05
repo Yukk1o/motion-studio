@@ -1,0 +1,2352 @@
+{
+  "version": "18.0.1x1",
+  "expectedVersion": "18.0.1",
+  "effects": [
+    {
+      "name": "亮度和对比度",
+      "matchName": "ADBE Brightness & Contrast 2",
+      "children": [
+        {
+          "name": "亮度",
+          "matchName": "ADBE Brightness & Contrast 2-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -150,
+          "max": 150
+        },
+        {
+          "name": "对比度",
+          "matchName": "ADBE Brightness & Contrast 2-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "使用旧版（支持 HDR）",
+          "matchName": "ADBE Brightness & Contrast 2-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "brightness_contrast"
+    },
+    {
+      "name": "曝光度",
+      "matchName": "ADBE Exposure2",
+      "children": [
+        {
+          "name": "通道:",
+          "matchName": "ADBE Exposure2-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2
+        },
+        {
+          "name": "主",
+          "matchName": "ADBE Exposure2-0002",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "曝光度",
+          "matchName": "ADBE Exposure2-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "偏移",
+          "matchName": "ADBE Exposure2-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2
+        },
+        {
+          "name": "灰度系数校正",
+          "matchName": "ADBE Exposure2-0005",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10
+        },
+        {
+          "name": "主",
+          "matchName": "ADBE Exposure2-0006",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "红色",
+          "matchName": "ADBE Exposure2-0007",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "红色曝光度",
+          "matchName": "ADBE Exposure2-0008",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "红色偏移",
+          "matchName": "ADBE Exposure2-0009",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2
+        },
+        {
+          "name": "红色灰度系数校正",
+          "matchName": "ADBE Exposure2-0010",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10
+        },
+        {
+          "name": "红色",
+          "matchName": "ADBE Exposure2-0011",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "绿色",
+          "matchName": "ADBE Exposure2-0012",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "绿色曝光度",
+          "matchName": "ADBE Exposure2-0013",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "绿色偏移",
+          "matchName": "ADBE Exposure2-0014",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2
+        },
+        {
+          "name": "绿色灰度系数校正",
+          "matchName": "ADBE Exposure2-0015",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10
+        },
+        {
+          "name": "绿色",
+          "matchName": "ADBE Exposure2-0016",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "蓝色",
+          "matchName": "ADBE Exposure2-0017",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "蓝色曝光度",
+          "matchName": "ADBE Exposure2-0018",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "蓝色偏移",
+          "matchName": "ADBE Exposure2-0019",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2
+        },
+        {
+          "name": "蓝色灰度系数校正",
+          "matchName": "ADBE Exposure2-0020",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10
+        },
+        {
+          "name": "蓝色",
+          "matchName": "ADBE Exposure2-0021",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "不使用线性光转换",
+          "matchName": "ADBE Exposure2-0022",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "exposure"
+    },
+    {
+      "name": "色相/饱和度",
+      "matchName": "ADBE HUE SATURATION",
+      "children": [
+        {
+          "name": "通道控制",
+          "matchName": "ADBE HUE SATURATION-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 7
+        },
+        {
+          "name": "通道范围",
+          "matchName": "ADBE HUE SATURATION-0003",
+          "children": [],
+          "valueType": 6419,
+          "animatable": true,
+          "units": ""
+        },
+        {
+          "name": "主色相",
+          "matchName": "ADBE HUE SATURATION-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "度",
+          "defaultValue": 0,
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "主饱和度",
+          "matchName": "ADBE HUE SATURATION-0005",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "主亮度",
+          "matchName": "ADBE HUE SATURATION-0006",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "彩色化",
+          "matchName": "ADBE HUE SATURATION-0007",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "着色色相",
+          "matchName": "ADBE HUE SATURATION-0008",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "度",
+          "defaultValue": 0,
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "着色饱和度",
+          "matchName": "ADBE HUE SATURATION-0009",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 25,
+          "min": 0,
+          "max": 100
+        },
+        {
+          "name": "着色亮度",
+          "matchName": "ADBE HUE SATURATION-0010",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "hue_saturation"
+    },
+    {
+      "name": "色调",
+      "matchName": "ADBE Tint",
+      "children": [
+        {
+          "name": "将黑色映射到",
+          "matchName": "ADBE Tint-0001",
+          "children": [],
+          "valueType": 6418,
+          "animatable": true,
+          "units": "",
+          "defaultValue": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098
+        },
+        {
+          "name": "将白色映射到",
+          "matchName": "ADBE Tint-0002",
+          "children": [],
+          "valueType": 6418,
+          "animatable": true,
+          "units": "",
+          "defaultValue": [
+            1,
+            1,
+            1,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098
+        },
+        {
+          "name": "着色数量",
+          "matchName": "ADBE Tint-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "百分比",
+          "defaultValue": 100,
+          "min": 0,
+          "max": 100
+        },
+        {
+          "name": "",
+          "matchName": "ADBE Tint-0004",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "tint"
+    },
+    {
+      "name": "三色调",
+      "matchName": "ADBE Tritone",
+      "children": [
+        {
+          "name": "高光",
+          "matchName": "ADBE Tritone-0001",
+          "children": [],
+          "valueType": 6418,
+          "animatable": true,
+          "units": "",
+          "defaultValue": [
+            1,
+            1,
+            1,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098
+        },
+        {
+          "name": "中间调",
+          "matchName": "ADBE Tritone-0002",
+          "children": [],
+          "valueType": 6418,
+          "animatable": true,
+          "units": "",
+          "defaultValue": [
+            0.49803921568627,
+            0.3921568627451,
+            0.27450980392157,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098
+        },
+        {
+          "name": "阴影",
+          "matchName": "ADBE Tritone-0003",
+          "children": [],
+          "valueType": 6418,
+          "animatable": true,
+          "units": "",
+          "defaultValue": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Tritone-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "百分比",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "tritone"
+    },
+    {
+      "name": "颜色平衡",
+      "matchName": "ADBE Color Balance 2",
+      "children": [
+        {
+          "name": "阴影红色平衡",
+          "matchName": "ADBE Color Balance 2-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "阴影绿色平衡",
+          "matchName": "ADBE Color Balance 2-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "阴影蓝色平衡",
+          "matchName": "ADBE Color Balance 2-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "中间调红色平衡",
+          "matchName": "ADBE Color Balance 2-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "中间调绿色平衡",
+          "matchName": "ADBE Color Balance 2-0005",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "中间调蓝色平衡",
+          "matchName": "ADBE Color Balance 2-0006",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "高光红色平衡",
+          "matchName": "ADBE Color Balance 2-0007",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "高光绿色平衡",
+          "matchName": "ADBE Color Balance 2-0008",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "高光蓝色平衡",
+          "matchName": "ADBE Color Balance 2-0009",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "保持发光度",
+          "matchName": "ADBE Color Balance 2-0010",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "color_balance"
+    },
+    {
+      "name": "色阶",
+      "matchName": "ADBE Easy Levels2",
+      "children": [
+        {
+          "name": "通道:",
+          "matchName": "ADBE Easy Levels2-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 5
+        },
+        {
+          "name": "直方图",
+          "matchName": "ADBE Easy Levels2-0002",
+          "children": [],
+          "valueType": 6419,
+          "animatable": true,
+          "units": ""
+        },
+        {
+          "name": "输入黑色",
+          "matchName": "ADBE Easy Levels2-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 0,
+          "min": -10000,
+          "max": 10000
+        },
+        {
+          "name": "输入白色",
+          "matchName": "ADBE Easy Levels2-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 1,
+          "min": -10000,
+          "max": 10000
+        },
+        {
+          "name": "灰度系数",
+          "matchName": "ADBE Easy Levels2-0005",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 1,
+          "min": 0,
+          "max": 5
+        },
+        {
+          "name": "输出黑色",
+          "matchName": "ADBE Easy Levels2-0006",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 0,
+          "min": -10000,
+          "max": 10000
+        },
+        {
+          "name": "输出白色",
+          "matchName": "ADBE Easy Levels2-0007",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 1,
+          "min": -10000,
+          "max": 10000
+        },
+        {
+          "name": "剪切以输出黑色",
+          "matchName": "ADBE Easy Levels2-0008",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 3
+        },
+        {
+          "name": "剪切以输出白色",
+          "matchName": "ADBE Easy Levels2-0009",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 3
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "levels"
+    },
+    {
+      "name": "曲线",
+      "matchName": "ADBE CurvesCustom",
+      "children": [
+        {
+          "name": "通道:",
+          "matchName": "ADBE CurvesCustom-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": false,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 5
+        },
+        {
+          "name": "曲线",
+          "matchName": "ADBE CurvesCustom-0001",
+          "children": [],
+          "valueType": 6419,
+          "animatable": true,
+          "units": ""
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "curves"
+    },
+    {
+      "name": "高斯模糊",
+      "matchName": "ADBE Gaussian Blur 2",
+      "children": [
+        {
+          "name": "模糊度",
+          "matchName": "ADBE Gaussian Blur 2-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 30000
+        },
+        {
+          "name": "模糊方向",
+          "matchName": "ADBE Gaussian Blur 2-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 3
+        },
+        {
+          "name": "重复边缘像素",
+          "matchName": "ADBE Gaussian Blur 2-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "gaussian_blur"
+    },
+    {
+      "name": "快速方框模糊",
+      "matchName": "ADBE Box Blur2",
+      "children": [
+        {
+          "name": "模糊半径",
+          "matchName": "ADBE Box Blur2-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 30000
+        },
+        {
+          "name": "迭代",
+          "matchName": "ADBE Box Blur2-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 3,
+          "min": 1,
+          "max": 50
+        },
+        {
+          "name": "模糊方向",
+          "matchName": "ADBE Box Blur2-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 3
+        },
+        {
+          "name": "重复边缘像素",
+          "matchName": "ADBE Box Blur2-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "fast_box_blur"
+    },
+    {
+      "name": "定向模糊",
+      "matchName": "ADBE Motion Blur",
+      "children": [
+        {
+          "name": "方向",
+          "matchName": "ADBE Motion Blur-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "度",
+          "defaultValue": 0,
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "模糊长度",
+          "matchName": "ADBE Motion Blur-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1000
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "directional_blur"
+    },
+    {
+      "name": "径向模糊",
+      "matchName": "ADBE Radial Blur",
+      "children": [
+        {
+          "name": "",
+          "matchName": "ADBE Radial Blur-0005",
+          "children": [],
+          "valueType": 6412,
+          "animatable": false,
+          "units": ""
+        },
+        {
+          "name": "数量",
+          "matchName": "ADBE Radial Blur-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 10,
+          "min": 0,
+          "max": 1000
+        },
+        {
+          "name": "中心",
+          "matchName": "ADBE Radial Blur-0002",
+          "children": [],
+          "valueType": 6415,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "类型",
+          "matchName": "ADBE Radial Blur-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2
+        },
+        {
+          "name": "消除锯齿（最佳品质）",
+          "matchName": "ADBE Radial Blur-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2
+        },
+        {
+          "name": "随机植入",
+          "matchName": "ADBE Radial Blur-0006",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 10000
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "radial_blur"
+    },
+    {
+      "name": "锐化",
+      "matchName": "ADBE Sharpen",
+      "children": [
+        {
+          "name": "锐化量",
+          "matchName": "ADBE Sharpen-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 4000
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "sharpen"
+    },
+    {
+      "name": "钝化蒙版",
+      "matchName": "ADBE Unsharp Mask2",
+      "children": [
+        {
+          "name": "数量",
+          "matchName": "ADBE Unsharp Mask2-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 50,
+          "min": 0,
+          "max": 500
+        },
+        {
+          "name": "半径",
+          "matchName": "ADBE Unsharp Mask2-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 0.10000610351562,
+          "max": 500
+        },
+        {
+          "name": "阈值",
+          "matchName": "ADBE Unsharp Mask2-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "unsharp_mask"
+    },
+    {
+      "name": "镜像",
+      "matchName": "ADBE Mirror",
+      "children": [
+        {
+          "name": "反射中心",
+          "matchName": "ADBE Mirror-0001",
+          "children": [],
+          "valueType": 6415,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": [
+            256,
+            128
+          ],
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "反射角度",
+          "matchName": "ADBE Mirror-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "度",
+          "defaultValue": 0,
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "mirror"
+    },
+    {
+      "name": "偏移",
+      "matchName": "ADBE Offset",
+      "children": [
+        {
+          "name": "将中心转换为",
+          "matchName": "ADBE Offset-0001",
+          "children": [],
+          "valueType": 6415,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Offset-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "百分比",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "offset"
+    },
+    {
+      "name": "凸出",
+      "matchName": "ADBE Bulge",
+      "children": [
+        {
+          "name": "水平半径",
+          "matchName": "ADBE Bulge-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 50,
+          "min": 0,
+          "max": 8000
+        },
+        {
+          "name": "垂直半径",
+          "matchName": "ADBE Bulge-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 50,
+          "min": 0,
+          "max": 8000
+        },
+        {
+          "name": "凸出中心",
+          "matchName": "ADBE Bulge-0003",
+          "children": [],
+          "valueType": 6415,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "凸出高度",
+          "matchName": "ADBE Bulge-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 1,
+          "min": -4,
+          "max": 4
+        },
+        {
+          "name": "锥形半径",
+          "matchName": "ADBE Bulge-0005",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 8000
+        },
+        {
+          "name": "消除锯齿（仅最佳品质）",
+          "matchName": "ADBE Bulge-0006",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2
+        },
+        {
+          "name": "固定",
+          "matchName": "ADBE Bulge-0007",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "bulge"
+    },
+    {
+      "name": "旋转扭曲",
+      "matchName": "ADBE Twirl",
+      "children": [
+        {
+          "name": "角度",
+          "matchName": "ADBE Twirl-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "度",
+          "defaultValue": 0,
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "旋转扭曲半径",
+          "matchName": "ADBE Twirl-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 30,
+          "min": 0,
+          "max": 100
+        },
+        {
+          "name": "旋转扭曲中心",
+          "matchName": "ADBE Twirl-0003",
+          "children": [],
+          "valueType": 6415,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "twirl"
+    },
+    {
+      "name": "波形变形",
+      "matchName": "ADBE Wave Warp",
+      "children": [
+        {
+          "name": "波浪类型",
+          "matchName": "ADBE Wave Warp-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 9
+        },
+        {
+          "name": "波形高度",
+          "matchName": "ADBE Wave Warp-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 10,
+          "min": -32000,
+          "max": 32000
+        },
+        {
+          "name": "波形宽度",
+          "matchName": "ADBE Wave Warp-0003",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "百分比",
+          "defaultValue": 40,
+          "min": 1,
+          "max": 32000
+        },
+        {
+          "name": "方向",
+          "matchName": "ADBE Wave Warp-0004",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "度",
+          "defaultValue": 90,
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "波形速度",
+          "matchName": "ADBE Wave Warp-0005",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "像素",
+          "defaultValue": 1,
+          "min": -100,
+          "max": 100
+        },
+        {
+          "name": "固定",
+          "matchName": "ADBE Wave Warp-0006",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 11
+        },
+        {
+          "name": "相位",
+          "matchName": "ADBE Wave Warp-0007",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "度",
+          "defaultValue": 0,
+          "min": null,
+          "max": null
+        },
+        {
+          "name": "消除锯齿（最佳品质）",
+          "matchName": "ADBE Wave Warp-0008",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 1,
+          "min": 1,
+          "max": 3
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "wave_warp"
+    },
+    {
+      "name": "极坐标",
+      "matchName": "ADBE Polar Coordinates",
+      "children": [
+        {
+          "name": "插值",
+          "matchName": "ADBE Polar Coordinates-0001",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "百分比",
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1
+        },
+        {
+          "name": "转换类型",
+          "matchName": "ADBE Polar Coordinates-0002",
+          "children": [],
+          "valueType": 6417,
+          "animatable": true,
+          "units": "",
+          "defaultValue": 2,
+          "min": 1,
+          "max": 2
+        },
+        {
+          "name": "合成选项",
+          "matchName": "ADBE Effect Built In Params",
+          "children": [
+            {
+              "name": "蒙版",
+              "matchName": "ADBE Effect Mask Parade",
+              "children": [],
+              "valueType": null,
+              "animatable": null,
+              "units": null,
+              "defaultValue": null,
+              "min": null,
+              "max": null
+            },
+            {
+              "name": "效果不透明度",
+              "matchName": "ADBE Effect Mask Opacity",
+              "children": [],
+              "valueType": 6417,
+              "animatable": true,
+              "units": "百分比",
+              "defaultValue": 100,
+              "min": 0,
+              "max": 100
+            },
+            {
+              "name": "GPU 渲染",
+              "matchName": "ADBE Force CPU GPU",
+              "children": [],
+              "valueType": 6417,
+              "animatable": false,
+              "units": "",
+              "defaultValue": 1,
+              "min": 1,
+              "max": 3
+            }
+          ],
+          "valueType": null,
+          "animatable": null,
+          "units": null,
+          "defaultValue": null,
+          "min": null,
+          "max": null
+        }
+      ],
+      "valueType": null,
+      "animatable": null,
+      "units": null,
+      "defaultValue": null,
+      "min": null,
+      "max": null,
+      "id": "polar_coordinates"
+    }
+  ],
+  "errors": [],
+  "outputTemplates": [
+    "多机序列",
+    "带有 Alpha 的 TIFF 序列 ",
+    "AIFF 48kHz",
+    "AVI DV NTSC 48kHz",
+    "AVI DV PAL 48kHz",
+    "Photoshop",
+    "使用 Alpha 无损耗",
+    "仅 Alpha",
+    "保存当前预览",
+    "无损",
+    "_HIDDEN X-Factor 16",
+    "_HIDDEN X-Factor 16 Premul",
+    "_HIDDEN X-Factor 32",
+    "_HIDDEN X-Factor 32 Premul",
+    "_HIDDEN X-Factor 8",
+    "_HIDDEN X-Factor 8 Premul"
+  ]
+}

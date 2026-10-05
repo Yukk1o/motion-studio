@@ -34,5 +34,9 @@ object NativeBridge {
     @JvmStatic external fun importProject(id: Long, path: String): String
     @JvmStatic external fun sampleInto(id: Long, frame: Int, buffer: ByteBuffer): Int
     @JvmStatic external fun assetPixels(id: Long, asset: Long): ByteArray?
+    @JvmStatic external fun plugin(id:Long,request:String):String
+    @JvmStatic external fun renderPlanInfo(id:Long):String
+    @JvmStatic external fun sampleRenderPlanInto(id:Long,frame:Int,buffer:ByteBuffer):Int
+    @JvmStatic external fun pluginPixels(id:Long,program:Int,resource:Int):ByteArray?
     @JvmStatic external fun destroy(id: Long)
 }

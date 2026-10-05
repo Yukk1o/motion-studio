@@ -1,0 +1,442 @@
+{
+  "effect": "polar_coordinates",
+  "display_name": "极坐标",
+  "english_name": "Polar Coordinates",
+  "compatibility": "approximate",
+  "ae_match_name": "ADBE Polar Coordinates",
+  "ae_application": "18.0.1x1",
+  "ae_effect_version": "18.0.1",
+  "package": {
+    "id": "com.motionstudio.effects.ae2021",
+    "version": "1.0.0",
+    "sha256": "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399"
+  },
+  "params": [
+    {
+      "id": "effect_opacity",
+      "name": "效果不透明度",
+      "kind": "float",
+      "default": [
+        100,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "units": "百分比",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Effect Mask Opacity",
+      "implemented": true
+    },
+    {
+      "id": "p0001",
+      "name": "插值",
+      "kind": "float",
+      "default": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "units": "百分比",
+      "animatable": true,
+      "options": [],
+      "reference_match_name": "ADBE Polar Coordinates-0001",
+      "implemented": true
+    },
+    {
+      "id": "p0002",
+      "name": "转换类型",
+      "kind": "enum",
+      "default": [
+        2,
+        0,
+        0,
+        0
+      ],
+      "min": 1,
+      "max": 2,
+      "step": 1,
+      "units": "",
+      "animatable": true,
+      "options": [
+        "1",
+        "2"
+      ],
+      "reference_match_name": "ADBE Polar Coordinates-0002",
+      "implemented": true
+    }
+  ],
+  "native_parameter_snapshot": {
+    "name": "极坐标",
+    "matchName": "ADBE Polar Coordinates",
+    "children": [
+      {
+        "name": "插值",
+        "matchName": "ADBE Polar Coordinates-0001",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "百分比",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1
+      },
+      {
+        "name": "转换类型",
+        "matchName": "ADBE Polar Coordinates-0002",
+        "children": [],
+        "valueType": 6417,
+        "animatable": true,
+        "units": "",
+        "defaultValue": 2,
+        "min": 1,
+        "max": 2
+      },
+      {
+        "name": "合成选项",
+        "matchName": "ADBE Effect Built In Params",
+        "children": [
+          {
+            "name": "蒙版",
+            "matchName": "ADBE Effect Mask Parade",
+            "children": [],
+            "valueType": null,
+            "animatable": null,
+            "units": null,
+            "defaultValue": null,
+            "min": null,
+            "max": null
+          },
+          {
+            "name": "效果不透明度",
+            "matchName": "ADBE Effect Mask Opacity",
+            "children": [],
+            "valueType": 6417,
+            "animatable": true,
+            "units": "百分比",
+            "defaultValue": 100,
+            "min": 0,
+            "max": 100
+          },
+          {
+            "name": "GPU 渲染",
+            "matchName": "ADBE Force CPU GPU",
+            "children": [],
+            "valueType": 6417,
+            "animatable": false,
+            "units": "",
+            "defaultValue": 1,
+            "min": 1,
+            "max": 3
+          }
+        ],
+        "valueType": null,
+        "animatable": null,
+        "units": null,
+        "defaultValue": null,
+        "min": null,
+        "max": null
+      }
+    ],
+    "valueType": null,
+    "animatable": null,
+    "units": null,
+    "defaultValue": null,
+    "min": null,
+    "max": null,
+    "id": "polar_coordinates"
+  },
+  "algorithm": "矩形/极坐标映射按插值量混合，中心使用图层几何中心。",
+  "shader_passes": [
+    {
+      "shader": "shaders/polar_coordinates.wgsl",
+      "entry": "main_fx"
+    }
+  ],
+  "working_space": "srgb",
+  "alpha_mode": "straight",
+  "edge_mode": "transparent",
+  "edge_param": null,
+  "output_padding": {
+    "op": "constant",
+    "value": 0
+  },
+  "output_range": "RGBA8: [0,1]",
+  "known_differences": [
+    "独立算法实现；尚未通过完整 AE 参考用例，不能声明精确还原。",
+    "枚举选项暂保留 AE 数值编号；原生菜单名称尚待采集。"
+  ],
+  "cases": [
+    {
+      "case": {
+        "id": "polar_coordinates-gradient-default",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "gradient.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-polar_coordinates-gradient-default.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-gradient-default.png",
+      "ae_output_sha256": "a067fb55c832ce27f6d59a4fb4bf3d1a8fbd1f185c0e22d16ee851bf60901f47",
+      "application_output_sha256": "c4c1fcd8269fc8f130da2a6979cbfc2d931e230788b1ca3f461ab5d9018ddc91"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-gradient-changed",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "gradient.png",
+        "properties": {
+          "ADBE Polar Coordinates-0001": 0.6
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 15.891164143880209,
+          "alpha_mae_255": 11.362594604492188,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 12.148124509686598,
+          "alpha_mae_255": 4.258466632095416,
+          "rgb_pixels": 50138,
+          "alpha_pixels": 50138,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 28.079014590639474,
+          "alpha_mae_255": 34.494609689570076,
+          "rgb_pixels": 15398,
+          "alpha_pixels": 15398,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/gradient.png",
+      "input_sha256": "944af40d3cd1ebbf1bc19714c2f1b04474415d8926e147666e518de512ad352c",
+      "ae_output": "outputs/ae/ae-polar_coordinates-gradient-changed.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-gradient-changed.png",
+      "ae_output_sha256": "58cee431820669b401b473b7b5ccf99b58614bcf146f08192d136d9a01838515",
+      "application_output_sha256": "1cbce7040c545d2b389bb1fd4b59c72ef8f8ec60682dca027a0a3d62784cad46"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-checker-default",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "checker.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-polar_coordinates-checker-default.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-checker-default.png",
+      "ae_output_sha256": "d2ca7d2a3d73115a6b6692eca42a7fc75785edff59acb7a919c204f0144d8323",
+      "application_output_sha256": "3d08b9abff762b436ab052dbf85ac46d12bed3dce9f8c60601c7818941a5c57c"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-checker-changed",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "checker.png",
+        "properties": {
+          "ADBE Polar Coordinates-0001": 0.6
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 76.00539652506511,
+          "alpha_mae_255": 11.362594604492188,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 77.48873775047535,
+          "alpha_mae_255": 4.258466632095416,
+          "rgb_pixels": 50138,
+          "alpha_pixels": 50138,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 71.17543403905269,
+          "alpha_mae_255": 34.494609689570076,
+          "rgb_pixels": 15398,
+          "alpha_pixels": 15398,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/checker.png",
+      "input_sha256": "cc7e9877fa856fd5d15ca6d398282db73dbc3758d7ab32987225833a2c722daf",
+      "ae_output": "outputs/ae/ae-polar_coordinates-checker-changed.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-checker-changed.png",
+      "ae_output_sha256": "0a4a3993e7dcea46b5e2d53d4ddf41d73103b5b94eb5f7fcc9c424c2d73b61a2",
+      "application_output_sha256": "60b343b7d253511bb57968de6411d1175d20b27f93502ad962919f7c8dca0ed1"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-alpha_edge-default",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "alpha_edge.png",
+        "properties": {},
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "threshold_pass",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 30976,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 20736,
+          "alpha_pixels": 27648,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 10240,
+          "alpha_pixels": 37888,
+          "threshold_pass": true
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-polar_coordinates-alpha_edge-default.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-alpha_edge-default.png",
+      "ae_output_sha256": "27f3a7743f6b28e56c007acc4f5767251bc8d1e8209457b9601459b256aa5f71",
+      "application_output_sha256": "df5659c68d60d4093aaa1af2e0e49be874bf9dc5f20e39b674b2e55f98551d3f"
+    },
+    {
+      "case": {
+        "id": "polar_coordinates-alpha_edge-changed",
+        "effect": "polar_coordinates",
+        "matchName": "ADBE Polar Coordinates",
+        "input": "alpha_edge.png",
+        "properties": {
+          "ADBE Polar Coordinates-0001": 0.6
+        },
+        "width": 256,
+        "height": 256,
+        "frame": 0
+      },
+      "status": "approximate_difference",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 19.487592423782033,
+          "alpha_mae_255": 24.705947875976562,
+          "rgb_pixels": 59238,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 9.351184231441742,
+          "alpha_mae_255": 6.543617323730099,
+          "rgb_pixels": 41940,
+          "alpha_pixels": 42208,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 44.063899487416656,
+          "alpha_mae_255": 57.56755829903978,
+          "rgb_pixels": 17298,
+          "alpha_pixels": 23328,
+          "threshold_pass": false
+        }
+      },
+      "input": "fixtures/alpha_edge.png",
+      "input_sha256": "de05947895338704ba5a31d30bb0701b959d544461dde9503e66b70ef6390a93",
+      "ae_output": "outputs/ae/ae-polar_coordinates-alpha_edge-changed.png",
+      "application_output": "outputs/motion/motion-polar_coordinates-alpha_edge-changed.png",
+      "ae_output_sha256": "1f67802b27dc009799b1544d5253b74cc6f86a75d2f0253e54c5c23aa56f4a92",
+      "application_output_sha256": "6a302a739e23a11d7c52e5f5370441e96c8e92aa7832d8505972bd98ceb6f313"
+    }
+  ],
+  "acceptance_gaps": [
+    "参数边界与动画的AE参考",
+    "叠加/摄影机AE参考",
+    "物理Android设备耗时/峰值内存",
+    "AE枚举菜单名称采集"
+  ]
+}
