@@ -106,7 +106,9 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
     val liveRange by rememberUpdatedState(range)
     val liveScale by rememberUpdatedState(scale)
     val liveHandles by rememberUpdatedState(controlPoints)
-    Column(modifier) {
+    BoxWithConstraints(modifier) {
+    val compact=maxHeight<240.dp
+    Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
             if(vm.isSeparated())PropertyAxisMenu(vm,"curve-axis")
             listOf("progress" to "进度","velocity" to "速度").forEach{(key,label)->TextButton(onClick={view=key;copied=false},
@@ -118,8 +120,8 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
         }
         Text(segment?.let{"第 ${it.first.getInt("frame")} → ${it.second.getInt("frame")} 帧 · "+if(view=="progress")"动画进度"else"速度 · 1 为匀速"}?:"此属性还没有可编辑的关键帧区间",
             modifier=Modifier.padding(horizontal=12.dp),color=Muted,fontSize=12.sp,lineHeight=20.sp,maxLines=1)
-        Box(Modifier.weight(1f).fillMaxWidth().padding(12.dp).background(Background,RoundedCornerShape(12.dp))) {
-        Canvas(Modifier.fillMaxSize().padding(horizontal=20.dp,vertical=16.dp).testTag("easing-graph")
+        Box(Modifier.weight(1f).fillMaxWidth().padding(if(compact)4.dp else 12.dp).background(Background,RoundedCornerShape(12.dp))) {
+        Canvas(Modifier.fillMaxSize().padding(horizontal=if(compact)12.dp else 20.dp,vertical=if(compact)4.dp else 16.dp).testTag("easing-graph")
             .pointerInput(vm.selected,vm.property,vm.activeAxis(),segment?.first?.optInt("frame"),view) {
                 fun pixel(point:Offset,bounds:Pair<Float,Float>,factor:Float)=Offset(point.x*size.width,(bounds.second-point.y*factor)/(bounds.second-bounds.first)*size.height)
                 awaitEachGesture {
@@ -172,31 +174,33 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
                 drawCircle(if(i==0)Accent else Color(0xFF83BAEB),3.dp.toPx(),control)
             }
         }
-        if(segment==null)Column(Modifier.align(Alignment.Center).background(Background.copy(alpha=.95f)).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-            Icon(editorIcon(Icons.Default.Diamond),null,tint=Muted,modifier=Modifier.size(24.dp))
-            Spacer(Modifier.height(8.dp))
+        if(segment==null)Column(Modifier.align(Alignment.Center).background(Background.copy(alpha=.95f)).padding(if(compact)8.dp else 16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+            if(!compact){Icon(editorIcon(Icons.Default.Diamond),null,tint=Muted,modifier=Modifier.size(24.dp));Spacer(Modifier.height(8.dp))}
             Text("先为此属性添加两个关键帧",color=Ink,fontSize=14.sp)
-            Text("再移动到两帧之间，调整运动节奏",color=Muted,fontSize=12.sp)
+            if(!compact)Text("再移动到两帧之间，调整运动节奏",color=Muted,fontSize=12.sp)
         }
         }
-        Row(Modifier.fillMaxWidth().height(72.dp).horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-            easeNames.forEach{(key,label)->CurvePreset(key,label,definition.optJSONObject("curve")==null&&definition.optString("ease")==key,segment!=null&&vm.editable()) {
+        Row(Modifier.fillMaxWidth().height(if(compact)48.dp else 72.dp).horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+            easeNames.forEach{(key,label)->CurvePreset(key,label,definition.optJSONObject("curve")==null&&definition.optString("ease")==key,segment!=null&&vm.editable(),compact=compact) {
                 draft=null;vm.ease(key)
             }}
             listOf("quadratic" to "二次贝塞尔","cubic" to "三次贝塞尔","elastic" to "弹性").forEach{(kind,label)->
-                CurvePreset(kind,label,definition.optJSONObject("curve")?.optJSONObject("shape")?.optString("kind")==kind,segment!=null&&vm.editable(),Modifier.testTag("curve-kind-"+kind)) {
+                CurvePreset(kind,label,definition.optJSONObject("curve")?.optJSONObject("shape")?.optString("kind")==kind,segment!=null&&vm.editable(),Modifier.testTag("curve-kind-"+kind),compact=compact) {
                     draft=null;vm.setCurve(defaultCurve(kind,view))
                 }
             }
         }
-    }
+    }}
     if(parameters)CurveParameters(definition,onDismiss={parameters=false}){vm.setCurve(it);parameters=false}
 }
 
-@Composable private fun CurvePreset(kind:String,label:String,selected:Boolean,enabled:Boolean,modifier:Modifier=Modifier,onClick:()->Unit) {
+@Composable private fun CurvePreset(kind:String,label:String,selected:Boolean,enabled:Boolean,modifier:Modifier=Modifier,compact:Boolean=false,onClick:()->Unit) {
     Surface(onClick=onClick,enabled=enabled,color=if(selected)Accent.copy(alpha=.12f)else Background,shape=RoundedCornerShape(10.dp),
         border=if(selected)BorderStroke(1.dp,Accent.copy(alpha=.6f))else null,
-        modifier=modifier.width(76.dp).height(64.dp).semantics{this.selected=selected}) {
+        modifier=modifier.then(if(compact)Modifier.widthIn(min=76.dp).height(48.dp)else Modifier.width(76.dp).height(64.dp)).semantics{this.selected=selected}) {
+        if(compact)Box(Modifier.padding(horizontal=12.dp),contentAlignment=Alignment.Center) {
+            Text(label,color=if(selected)Accent else Muted,fontSize=12.sp,maxLines=1)
+        }else
         Column(Modifier.padding(8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
             Canvas(Modifier.width(40.dp).height(24.dp)) {
                 val path=Path()

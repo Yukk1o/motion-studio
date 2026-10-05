@@ -180,7 +180,7 @@ open class MainActivity:ComponentActivity() {
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
-                Properties(vm,if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-44.dp).coerceAtLeast(0.dp))
+                Properties(vm,if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-(if(curveExpanded)0.dp else 44.dp)).coerceAtLeast(0.dp))
                     else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
                     else Modifier.fillMaxWidth().height(if(curveExpanded)(availableHeight*.64f).coerceAtMost(440.dp)
                         else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp)),
