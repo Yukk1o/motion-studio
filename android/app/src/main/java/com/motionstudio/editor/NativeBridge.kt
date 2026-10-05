@@ -20,6 +20,10 @@ object NativeBridge {
     @JvmStatic external fun save(id: Long): String
     @JvmStatic external fun surface(id: Long, surface: Surface?, width: Int, height: Int): String
     @JvmStatic external fun render(id: Long, frame: Double): Boolean
+    @JvmStatic external fun previewInfo(id:Long):String
+    @JvmStatic external fun previewMode(id:Long,mode:Int,thermal:Int):String
+    @JvmStatic external fun startProfiling(id:Long,maxFrames:Int):String
+    @JvmStatic external fun stopProfiling(id:Long):String
     @JvmStatic external fun injectGraphicsFault(id:Long,kind:Int):String
     @JvmStatic external fun capture(id: Long): String
     @JvmStatic external fun pack(id: Long): String

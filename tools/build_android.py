@@ -18,9 +18,10 @@ def main():
     parser.add_argument("--diagnostics",action="store_true",help="Enable opt-in GPU fault injection for the debug acceptance build")
     parser.add_argument("--task",nargs="+",default=["assembleDebug"])
     args=parser.parse_args()
-    diagnostics=args.diagnostics or any(task.endswith("AndroidTest") for task in args.task)
-    if diagnostics and any("Release" in task for task in args.task):
-        raise RuntimeError("Release tasks must be built without GPU diagnostic injection")
+    benchmark=any("Benchmark" in task for task in args.task)
+    diagnostics=args.diagnostics or any(task.endswith("AndroidTest") and "Benchmark" not in task for task in args.task)
+    if diagnostics and any("Release" in task or "Benchmark" in task for task in args.task):
+        raise RuntimeError("Release/Benchmark tasks must be built without GPU diagnostic injection")
     shared=next((p for p in [ROOT,*ROOT.parents] if (p/".tools/environment.json").exists()),None)
     if shared is None:
         raise RuntimeError("Run tools/bootstrap_android.py in the main worktree first")
@@ -53,7 +54,8 @@ def main():
         android=ROOT/"android"
         sdk=Path(config["sdk"]).as_posix().replace(":","\\:")
         (android/"local.properties").write_text("sdk.dir="+sdk+"\n",encoding="utf-8")
-        subprocess.run([config["gradle"],"--no-daemon","--console=plain",*args.task],cwd=android,env=env,check=True)
+        properties=["-PperformanceTest=true"] if benchmark else []
+        subprocess.run([config["gradle"],"--no-daemon","--console=plain",*properties,*args.task],cwd=android,env=env,check=True)
         print("Android build completed",flush=True)
 
 

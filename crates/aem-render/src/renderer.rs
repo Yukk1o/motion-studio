@@ -76,6 +76,14 @@ impl Renderer {
         surface: Option<&wgpu::Surface<'_>>,
         format: wgpu::TextureFormat,
     ) -> Result<Self> {
+        Self::new_profiled(instance, surface, format, false).await
+    }
+    pub async fn new_profiled(
+        instance: &wgpu::Instance,
+        surface: Option<&wgpu::Surface<'_>>,
+        format: wgpu::TextureFormat,
+        timestamps: bool,
+    ) -> Result<Self> {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -90,7 +98,11 @@ impl Renderer {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("AEM GPU"),
-                    required_features: wgpu::Features::empty(),
+                    required_features: if timestamps {
+                        adapter.features() & wgpu::Features::TIMESTAMP_QUERY
+                    } else {
+                        wgpu::Features::empty()
+                    },
                     required_limits: limits,
                     memory_hints: wgpu::MemoryHints::Performance,
                 },
@@ -396,6 +408,27 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> Result<RenderStats> {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Motion Studio frame"),
+            });
+        let mut stats = self.encode(scene, view, width, height, &mut encoder, None)?;
+        let submitted = Instant::now();
+        self.queue.submit(Some(encoder.finish()));
+        stats.cpu_prepare_us += submitted.elapsed().as_micros() as u64;
+        self.check_health()?;
+        Ok(stats)
+    }
+    pub fn encode(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<RenderStats> {
         self.check_health()?;
         if width == 0 || height == 0 || scene.layers.len() > MAX_LAYERS {
             return Err(RenderError::Invalid(
@@ -428,11 +461,6 @@ impl Renderer {
             self.queue
                 .write_buffer(&self.uniform_buffer, 0, &self.upload[..upload_bytes]);
         }
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("AEM frame"),
-            });
         let alpha = scene.background[3];
         let clear = wgpu::Color {
             r: (srgb_to_linear(scene.background[0]) * alpha) as f64,
@@ -452,7 +480,7 @@ impl Renderer {
                     },
                 })],
                 depth_stencil_attachment: None,
-                timestamp_writes: None,
+                timestamp_writes: timestamps,
                 occlusion_query_set: None,
             });
             let scale =
@@ -478,8 +506,6 @@ impl Renderer {
                 pass.draw(0..6, 0..1);
             }
         }
-        self.queue.submit(Some(encoder.finish()));
-        self.check_health()?;
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
             draw_calls: scene.layers.len() as u32,
@@ -487,7 +513,7 @@ impl Renderer {
             parameter_upload_bytes: upload_bytes as u64,
         })
     }
-    pub fn capture_target(&self, width: u32, height: u32) -> Result<CaptureTarget> {
+    pub fn render_target(&self, width: u32, height: u32) -> Result<RenderTarget> {
         self.check_health()?;
         if width == 0
             || height == 0
@@ -514,6 +540,15 @@ impl Renderer {
             view_formats: &[],
         });
         let view = texture.create_view(&Default::default());
+        Ok(RenderTarget {
+            texture,
+            view,
+            width,
+            height,
+        })
+    }
+    pub fn capture_target(&self, width: u32, height: u32) -> Result<CaptureTarget> {
+        let target = self.render_target(width, height)?;
         let row_stride = (width * 4).div_ceil(256) * 256;
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("AEM bounded frame readback"),
@@ -522,8 +557,8 @@ impl Renderer {
             mapped_at_creation: false,
         });
         Ok(CaptureTarget {
-            texture,
-            view,
+            texture: target.texture,
+            view: target.view,
             buffer,
             width,
             height,
@@ -537,6 +572,10 @@ impl Renderer {
         target: &CaptureTarget,
     ) -> Result<(Vec<u8>, RenderStats)> {
         let stats = self.draw(scene, &target.view, target.width, target.height)?;
+        Ok((self.read_target(target)?, stats))
+    }
+    pub fn read_target(&self, target: &CaptureTarget) -> Result<Vec<u8>> {
+        self.check_health()?;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -605,7 +644,7 @@ impl Renderer {
                 }
             }
         }
-        Ok((pixels, stats))
+        Ok(pixels)
     }
 }
 
@@ -620,6 +659,17 @@ pub fn premultiply_pixels(rgba: &mut [u8]) {
     }
 }
 
+pub struct RenderTarget {
+    texture: wgpu::Texture,
+    pub view: wgpu::TextureView,
+    pub width: u32,
+    pub height: u32,
+}
+impl RenderTarget {
+    pub fn texture_bytes(&self) -> u64 {
+        u64::from(self.width) * u64::from(self.height) * 4
+    }
+}
 pub struct CaptureTarget {
     texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -628,14 +678,14 @@ pub struct CaptureTarget {
     pub height: u32,
     row_stride: u32,
 }
-fn srgb_to_linear(v: f32) -> f32 {
+pub(crate) fn srgb_to_linear(v: f32) -> f32 {
     if v <= 0.04045 {
         v / 12.92
     } else {
         ((v + 0.055) / 1.055).powf(2.4)
     }
 }
-fn linear_to_srgb(v: f32) -> f32 {
+pub(crate) fn linear_to_srgb(v: f32) -> f32 {
     if v <= 0.0031308 {
         v * 12.92
     } else {
