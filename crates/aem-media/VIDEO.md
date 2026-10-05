@@ -2,7 +2,7 @@
 
 异步导入工程内视频源文件，按实际 PTS 解码画面，并默认保留原声。视频作为一个时间轴对象参与变换、2D/3D、父子级、移动、非破坏裁剪、分割、复制、撤销、保存和备份。画面和原声使用同一源偏移与合成时钟，不分别把首帧、首个声音包归零。
 
-本次只提供后端能力。界面需要接入这些 JNI 接口；现有 APK 的播放界面与 MP4 导出器还没有接入视频原声播放、动态视频纹理和 AAC 音画复用。`capabilities.video_import` 不表示这些前端流程已完成。
+生产界面已接入视频导入、动态画面、原声播放和带声音 MP4 导出。添加图层中的“视频”通过系统文件选择器导入；用户可明确关闭原声。打开工程时准备素材缓存，失败会显示具体原因并提供重建入口。
 
 ## 输入与资源范围
 
@@ -53,7 +53,7 @@ NDK MediaExtractor/MediaCodec 在后台线程使用。按实际帧时间索引�
 
 ## 按实例请求画面
 
-在音频 API 所示的 `com.motionstudio.editor.MediaBridge` 对象中添加以下声明；本 PR 没有修改生产界面：
+生产 `com.motionstudio.editor.MediaBridge` 提供以下声明：
 
 ```kotlin
 @JvmStatic external fun readVideoFrameInto(id: Long, objectId: Long, sequence: Long, output: java.nio.ByteBuffer): String
@@ -83,7 +83,7 @@ NDK MediaExtractor/MediaCodec 在后台线程使用。按实际帧时间索引�
 
 `set_audio {object,volume?,muted?}` 同时支持视频对象；线性音量 `[0,2]`，默认 1、不静音。隐藏画面与透明度不改变音量。移动、裁剪、分割和复制后原声随同一个片段采样，不从头重播。`timeline_layers[].video` 返回源时间、源偏移、尺寸、时长和是否有原声；`.audio` 返回关联声音 ID、音量/静音及同一派生时钟。
 
-`audio_waveform` 使用关联**声音 asset ID**，原声与独立音频一起进入 `readPcmInto`、`freezeAudio` 和 `readFrozenPcmInto`。输出仍为 48 kHz 双声道 f32le。AAC 编码延迟、裁剪与空白编辑沿用音频后端处理。前端将这些 PCM 送入 `AudioTrack` 后才能听到；本次没有实现 AudioTrack 播放界面。
+`audio_waveform` 使用关联**声音 asset ID**，原声与独立音频一起进入 `readPcmInto`、`freezeAudio` 和 `readFrozenPcmInto`。输出仍为 48 kHz 双声道 f32le。AAC 编码延迟、裁剪与空白编辑沿用音频后端处理。`AudioPlayback` 将这些 PCM 送入 AudioTrack，播放进度跟随已经输出的声音采样位置。
 
 ## 冻结画面与导出接入
 

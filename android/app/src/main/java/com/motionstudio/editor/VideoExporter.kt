@@ -24,22 +24,33 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 runCatching{info.getCapabilitiesForType("video/avc").videoCapabilities.areSizeAndRateSupported(width,height,fps.toDouble())}.getOrDefault(false)
         }.sortedByDescending{it.isHardwareAccelerated}
         val info=codecs.firstOrNull()?:error("当前编码器不支持所选尺寸和帧率")
+        // The legacy platform software encoder converts Surface RGB with the
+        // 601 matrix. Tagging that result as 709 shifts saturated colours.
+        val colorStandard=if(info.name=="OMX.google.h264.encoder")MediaFormat.COLOR_STANDARD_BT601_NTSC else MediaFormat.COLOR_STANDARD_BT709
         val file=File(root,"exports/motion-"+System.currentTimeMillis()+".mp4").apply{parentFile!!.mkdirs()}
         var codec:MediaCodec?=null;var muxer:MediaMuxer?=null;var input:Surface?=null
         var gpu:EglMovieRenderer?=null;var native=0L;var muxStarted=false
+        var videoHandle=0L;var audioHandle=0L;var videoUploads=0L
         var complete=false;val times=ArrayList<Long>();var parameterBytes=0L;var vertexBytes=0L
         val started=System.nanoTime()
         try {
             native=NativeBridge.create(root.absolutePath,projectJson);check(native!=0L){"冻结工程创建失败"}
             val planResponse=JSONObject(NativeBridge.renderPlanInfo(native));check(planResponse.optBoolean("ok")){planResponse.optString("error")}
             val planInfo=planResponse.getJSONObject("data")
+            val layers=project.getJSONArray("layers").objects()
+            val videoLayers=layers.mapIndexedNotNull{order,l->if(l.getJSONObject("content").optString("kind")=="video")-(order+1) to l else null}.toMap()
+            if(videoLayers.isNotEmpty())videoHandle=nativeData(MediaBridge.freezeVideo(native)).getLong("handle")
+            val hasAudio=layers.any{l->val c=l.getJSONObject("content");c.optString("kind")=="audio"||
+                (c.optString("kind")=="video"&&project.optJSONArray("video_assets").objects().any{a->a.getLong("id")==c.getJSONObject("video").getLong("asset")&&!a.isNull("audio_asset")})}
+            if(hasAudio)audioHandle=nativeData(MediaBridge.freezeAudio(native)).getLong("handle")
+            val videoBuffers=HashMap<Long,ByteBuffer>()
             codec=MediaCodec.createByCodecName(info.name)
             val format=MediaFormat.createVideoFormat("video/avc",width,height).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT,MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                 setInteger(MediaFormat.KEY_BIT_RATE,(width.toLong()*height*fps/8).coerceIn(2_000_000L,20_000_000L).toInt())
                 setInteger(MediaFormat.KEY_FRAME_RATE,fps);setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,1)
                 setInteger(MediaFormat.KEY_MAX_B_FRAMES,0)
-                setInteger(MediaFormat.KEY_COLOR_STANDARD,MediaFormat.COLOR_STANDARD_BT709)
+                setInteger(MediaFormat.KEY_COLOR_STANDARD,colorStandard)
                 setInteger(MediaFormat.KEY_COLOR_RANGE,MediaFormat.COLOR_RANGE_LIMITED)
                 setInteger(MediaFormat.KEY_COLOR_TRANSFER,MediaFormat.COLOR_TRANSFER_SDR_VIDEO)
             }
@@ -47,9 +58,8 @@ class VideoExporter(private val root:File,private val projectJson:String) {
             input=codec.createInputSurface();codec.start()
             val outputMuxer=MediaMuxer(file.absolutePath,MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             muxer=outputMuxer
-            gpu=EglMovieRenderer(input,width,height,project,native)
-            val buffer=ByteBuffer.allocateDirect(8192*128).order(ByteOrder.nativeOrder())
-            val vertices=ByteBuffer.allocateDirect(65536*20).order(ByteOrder.nativeOrder())
+            gpu=EglMovieRenderer(input,width,height,project,native,planInfo)
+            val buffer=ByteBuffer.allocateDirect(planInfo.getInt("bufferBytes")).order(ByteOrder.nativeOrder())
             val outputInfo=MediaCodec.BufferInfo();var track=-1
             fun drain(end:Boolean) {
                 var lastOutput=System.nanoTime()
@@ -79,11 +89,32 @@ class VideoExporter(private val root:File,private val projectJson:String) {
             }
             for(frame in 0 until frames) {
                 check(!cancelled.get()){"导出已取消"}
-                val response=JSONObject(GeometryBridge.sampleGeometryInto(native,frame.toDouble(),buffer,vertices))
-                check(response.optBoolean("ok")){response.optString("error","帧几何采样失败")}
-                val geometry=response.getJSONObject("data")
-                parameterBytes+=geometry.getInt("parameterBytes");vertexBytes+=geometry.getInt("vertexBytes")
-                gpu.draw(buffer,geometry.getInt("batches"),vertices,geometry.getInt("vertexBytes"))
+                val bytes=NativeBridge.sampleRenderPlanInto(native,frame,buffer)
+                check(bytes>=0){nativeData(NativeBridge.state(native)).optString("renderError","帧计划失败")}
+                parameterBytes+=bytes
+                vertexBytes+=bytes-buffer.getInt(60)
+                val values=buffer.asFloatBuffer()
+                val activeSlots=(0 until buffer.getInt(8)).map{values.get(buffer.getInt(16)/4+it*32+24).toInt()}.filter{it<0}.distinct()
+                gpu.skippedSlots.clear()
+                for(slot in activeSlots) {
+                    val layer=videoLayers[slot]?:error("视频实例映射失效")
+                    val objectId=layer.getLong("id");val sequence=frame.toLong()+1
+                    val deadline=System.nanoTime()+30_000_000_000L
+                    var ready:JSONObject
+                    do {
+                        check(!cancelled.get()){"导出已取消"}
+                        ready=nativeData(MediaBridge.requestFrozenVideoFrame(videoHandle,objectId,frame.toDouble(),sequence))
+                        if(ready.getString("state")=="pending"){check(System.nanoTime()<deadline){"视频画面读取超时"};Thread.sleep(5)}
+                    }while(ready.getString("state")=="pending")
+                    if(ready.getString("state")=="outside"){gpu.skippedSlots.add(slot);continue}
+                    check(ready.getString("state")=="ready"){ready.optString("error","视频解码失败")}
+                    val w=ready.getInt("width");val h=ready.getInt("height")
+                    val pixels=videoBuffers.getOrPut(objectId){ByteBuffer.allocateDirect(w*h*4)}
+                    val actual=nativeData(MediaBridge.readFrozenVideoFrameInto(videoHandle,objectId,sequence,pixels))
+                    check(actual.getInt("bytes")==w*h*4){"视频像素长度错误"}
+                    pixels.clear();gpu.uploadVideo(slot,w,h,pixels);videoUploads++
+                }
+                gpu.draw(buffer)
                 val ptsUs=(frame.toLong()*1_000_000L+fps/2)/fps
                 gpu.present(ptsUs*1000)
                 drain(false);onProgress(frame+1,frames)
@@ -93,6 +124,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
             check(times.zipWithNext().all{it.second>it.first}){"输出时间戳顺序不正确"}
             outputMuxer.stop();muxStarted=false
             outputMuxer.release();muxer=null
+            if(audioHandle!=0L)AudioMux.addAudio(file,audioHandle,frames.toLong()*48000/fps,cancelled)
             complete=true
         } finally {
             val cleanupErrors=ArrayList<String>()
@@ -100,6 +132,8 @@ class VideoExporter(private val root:File,private val projectJson:String) {
             release("EGL"){gpu?.close()};release("input Surface"){input?.release()}
             release("codec stop"){codec?.stop()};release("codec release"){codec?.release()}
             if(muxStarted)release("muxer stop"){muxer?.stop()};release("muxer release"){muxer?.release()}
+            if(videoHandle!=0L)release("video snapshot"){nativeData(MediaBridge.releaseFrozenVideo(videoHandle))}
+            if(audioHandle!=0L)release("audio snapshot"){nativeData(MediaBridge.releaseFrozenAudio(audioHandle))}
             if(native!=0L)release("native session"){NativeBridge.destroy(native)}
             if(cleanupErrors.isNotEmpty())complete=false
             val elapsed=(System.nanoTime()-started)/1e9
@@ -108,7 +142,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 .put("width",width).put("height",height).put("fps",fps).put("expectedFrames",frames)
                 .put("encodedFrames",times.size).put("timestampsUs",JSONArray(times))
                 .put("elapsedSeconds",elapsed).put("throughputFps",times.size/elapsed)
-                .put("applicationFrameReadbacks",0).put("applicationFrameUploads",0)
+                .put("applicationFrameReadbacks",0).put("applicationFrameUploads",videoUploads).put("audioMuxed",audioHandle!=0L).put("colorStandard",colorStandard)
                 .put("parameterTransferBytes",parameterBytes).put("vertexTransferBytes",vertexBytes)
                 .put("geometrySampling",true).put("cancelled",cancelled.get()).put("completed",complete)
                 .put("cleanupErrors",JSONArray(cleanupErrors))
@@ -133,6 +167,13 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
     private var vertexBuffer:Int=0
     private var vertexArray:Int=0
     private val clear=FloatArray(4)
+    private var imageLocation=0;private var mvpLocation=0;private var colorLocation=0
+    private var extentLocation=0;private var uvLocation=0;private var presentImageLocation=0
+    private val matrix=FloatArray(16);private val color=FloatArray(4)
+    private val videoTextures=HashMap<Int,Int>()
+    private val videoSizes=HashMap<Int,Pair<Int,Int>>()
+    private var imageBytes=4L
+    val skippedSlots=HashSet<Int>()
     private var effects:GlEffects?=null
     init {
         try {
@@ -152,6 +193,9 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER,65536*20,null,GLES30.GL_STREAM_DRAW)
         GLES30.glEnableVertexAttribArray(0);GLES30.glVertexAttribPointer(0,3,GLES30.GL_FLOAT,false,20,0)
         GLES30.glEnableVertexAttribArray(1);GLES30.glVertexAttribPointer(1,2,GLES30.GL_FLOAT,false,20,12)
+        imageLocation=GLES30.glGetUniformLocation(plane,"image");mvpLocation=GLES30.glGetUniformLocation(plane,"mvp")
+        colorLocation=GLES30.glGetUniformLocation(plane,"color");extentLocation=GLES30.glGetUniformLocation(plane,"extent")
+        uvLocation=GLES30.glGetUniformLocation(plane,"uvScale");presentImageLocation=GLES30.glGetUniformLocation(presentProgram,"image")
         val background=project.getJSONArray("background")
         clear[3]=background.getDouble(3).toFloat()
         for(i in 0..2)clear[i]=linear(background.getDouble(i).toFloat())*clear[3]
@@ -163,6 +207,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             val data=NativeBridge.assetPixels(native,a.getLong("id"))?:error("图片资源读取失败")
             textures.add(texture(w,h,ByteBuffer.allocateDirect(data.size).put(data).apply{flip()}))
         }
+        imageBytes=bytes
         if(planInfo.getJSONArray("programs").length()>2)effects=GlEffects(planInfo,native,textures)
         frameTexture=texture(width,height,null)
         val fbo=IntArray(1);GLES30.glGenFramebuffers(1,fbo,0);framebuffer=fbo[0]
@@ -171,43 +216,54 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         check(GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)==GLES30.GL_FRAMEBUFFER_COMPLETE){"离屏合成目标不可用"}
         } catch(error:Throwable) {close();throw error}
     }
-    fun draw(buffer:ByteBuffer,count:Int,vertices:ByteBuffer,bytes:Int) {
+    fun uploadVideo(slot:Int,w:Int,h:Int,pixels:ByteBuffer) {
+        val previous=videoSizes[slot]
+        if(previous==null) {
+            imageBytes+=w.toLong()*h*4;check(imageBytes<=128L*1024*1024){"导出纹理超出预算"}
+            videoTextures[slot]=texture(w,h,pixels);videoSizes[slot]=w to h
+        }else {
+            check(previous==w to h){"视频尺寸在解码中改变"}
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,videoTextures.getValue(slot))
+            GLES30.glTexSubImage2D(GLES30.GL_TEXTURE_2D,0,0,0,w,h,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,pixels)
+        }
+    }
+    fun draw(buffer:ByteBuffer) {
+        check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==2){"不兼容的帧计划"}
+        val total=buffer.getInt(28);val vertexOffset=buffer.getInt(60);val bytes=total-vertexOffset
+        check(total in 64..buffer.capacity()&&vertexOffset>=64&&bytes>=0&&bytes%20==0&&bytes<=65536*20){"几何计划范围失效"}
+        effects?.prepare(buffer)
+        GLES30.glBindVertexArray(vertexArray);GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
+        val vertices=buffer.duplicate().apply{position(vertexOffset);limit(total)}.slice()
+        if(bytes>0)GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER,0,bytes,vertices)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
         GLES30.glClearColor(clear[0],clear[1],clear[2],clear[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         GLES30.glDisable(GLES30.GL_DEPTH_TEST);GLES30.glDisable(GLES30.GL_CULL_FACE)
-        GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
-        GLES30.glUseProgram(plane);GLES30.glUniform1i(GLES30.glGetUniformLocation(plane,"image"),0)
-        GLES30.glBindVertexArray(vertexArray);GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
-        vertices.position(0);vertices.limit(bytes)
-        if(bytes>0)GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER,0,bytes,vertices)
-        vertices.clear()
-        val values=buffer.asFloatBuffer();val matrix=FloatArray(16);val color=FloatArray(4)
+        val values=buffer.asFloatBuffer();var materialized=-1
+        val batchOffset=buffer.getInt(52);val count=buffer.getInt(56)
+        check(batchOffset>=64&&count in 0..8192&&batchOffset.toLong()+count*12<=vertexOffset){"几何批次范围失效"}
         for(i in 0 until count) {
-            val base=buffer.getInt(16)/4+i*32;
+            val batch=batchOffset+i*12;val layer=buffer.getInt(batch)
+            check(layer in 0 until buffer.getInt(8)){"图层计划索引失效"}
+            val base=buffer.getInt(16)/4+layer*32
+            val asset=values.get(base+24).toInt();if(asset in skippedSlots)continue
             val passStart=values.get(base+28).toInt();val passEnd=values.get(base+29).toInt()
-            if(passStart<passEnd) {
-                effects!!.passes(buffer,passStart,passEnd)
-                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
-                GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA);GLES30.glUseProgram(plane)
-                GLES30.glUniform1i(imageLocation,0)
-            }
-            val x=values.get(base+25);val y=values.get(base+26)
-            if(x!=uvX||y!=uvY){GLES30.glUniform2f(uvLocation,x,y);uvX=x;uvY=y}
+            if(passStart<passEnd&&materialized!=layer) {effects!!.passes(buffer,passStart,passEnd);materialized=layer}
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
+            GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
+            GLES30.glBindVertexArray(vertexArray);GLES30.glUseProgram(plane);GLES30.glUniform1i(imageLocation,0)
+            GLES30.glUniform2f(uvLocation,values.get(base+25),values.get(base+26))
             values.position(base);values.get(matrix);values.get(color)
-            GLES30.glUniformMatrix4fv(mvpLocation,1,false,matrix,0)
-            GLES30.glUniform4fv(colorLocation,1,color,0)
+            GLES30.glUniformMatrix4fv(mvpLocation,1,false,matrix,0);GLES30.glUniform4fv(colorLocation,1,color,0)
             GLES30.glUniform3f(extentLocation,values.get(base+20),values.get(base+21),values.get(base+22))
-            val asset=values.get(base+24).toInt();check(asset in textures.indices){"纹理索引失效"}
-            GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,textures[asset])
-            val first=values.get(base+25).toInt();val size=values.get(base+26).toInt()
+            val image=if(values.get(base+27)>=0f)effects!!.texture(values.get(base+27).toInt()) else if(asset<0)videoTextures[asset]?:error("视频画面未就绪") else textures.getOrNull(asset)?:error("图片资源失效")
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,image)
+            val first=buffer.getInt(batch+4);val size=buffer.getInt(batch+8)
             check(first>=0&&size>=0&&(first.toLong()+size)*20<=bytes){"几何顶点范围失效"}
             GLES30.glDrawArrays(GLES30.GL_TRIANGLES,first,size)
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0);GLES30.glDisable(GLES30.GL_BLEND)
-        GLES30.glUseProgram(presentProgram);GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,frameTexture)
-        GLES30.glUniform1i(presentImageLocation,0)
-        GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,3)
+        GLES30.glUseProgram(presentProgram);GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,frameTexture)
+        GLES30.glUniform1i(presentImageLocation,0);GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,3)
         check(GLES30.glGetError()==GLES30.GL_NO_ERROR){"GPU 导出通道错误"}
     }
     fun present(nanos:Long) {
@@ -220,6 +276,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             effects?.close();effects=null
             GLES30.glDeleteProgram(plane);GLES30.glDeleteProgram(presentProgram)
             GLES30.glDeleteBuffers(1,intArrayOf(vertexBuffer),0);GLES30.glDeleteVertexArrays(1,intArrayOf(vertexArray),0)
+            GLES30.glDeleteTextures(videoTextures.size,videoTextures.values.toIntArray(),0);videoTextures.clear()
             GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0)
             GLES30.glDeleteTextures(1,intArrayOf(frameTexture),0);GLES30.glDeleteFramebuffers(1,intArrayOf(framebuffer),0)
         }
@@ -253,8 +310,8 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
     companion object {
         private const val PLANE_VERTEX="""#version 300 es
         layout(location=0) in vec3 position; layout(location=1) in vec2 texCoord;
-        uniform mat4 mvp; out vec2 uv;
-        void main(){gl_Position=mvp*vec4(position,1.);gl_Position.z=gl_Position.z*2.-gl_Position.w;uv=texCoord;}"""
+        uniform mat4 mvp; uniform vec2 uvScale; out vec2 uv;
+        void main(){gl_Position=mvp*vec4(position,1.);gl_Position.z=gl_Position.z*2.-gl_Position.w;uv=texCoord*uvScale;}"""
         private const val PLANE_FRAGMENT="""#version 300 es
         precision highp float; uniform sampler2D image; uniform vec4 color; uniform vec3 extent; in vec2 uv; out vec4 result;
         void main(){vec4 s=texture(image,uv);float a=color.a*extent.z;result=vec4(s.rgb*color.rgb*a,s.a*a);}"""

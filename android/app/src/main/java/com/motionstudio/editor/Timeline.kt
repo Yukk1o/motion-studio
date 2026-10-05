@@ -53,7 +53,8 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
             for(i in layers.length()-1 downTo 0) {
                 val l=layers.getJSONObject(i);val id=l.getLong("id");val key=if(vm.selected==id)vm.property else "position"
                 val (axis,keyFrames)=rowKeys(id,key)
-                val all=listOf("position","rotation","scale","opacity").flatMap{allKeys(vm.propertyTrack(id,it))}.toSet()
+                val effectProperties=l.optJSONArray("effects").objects().flatMap{e->e.getJSONObject("params").keys().asSequence().map{"effect:${e.getLong("id")}:$it"}.toList()}
+                val all=(listOf("position","rotation","scale","opacity")+effectProperties).flatMap{allKeys(vm.propertyTrack(id,it))}.toSet()
                 val clip=vm.timelineLayer(id)
                 add(TrackRow(id,l.getString("name"),listOf(Color(0xFF6EADE8),Color(0xFFAD9DE0),Color(0xFF67BFAF))[i%3],
                     l.getBoolean("visible"),l.getBoolean("locked"),key,axis,keyFrames,all,clip?.optInt("in_frame")?:0,clip?.optInt("out_frame")?:frames,parentOf(vm,id)))
@@ -61,6 +62,14 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
         }
     }}
     val currentRows by rememberUpdatedState(rows)
+    LaunchedEffect(project,vm.frame.toInt()/150,vm.importTask) {
+        if(vm.importTask==null)rows.filter{vm.audioClip(it.id)!=null}.forEach{row->
+            val audio=vm.audioClip(row.id)!!
+            val fps=project?.optInt("fps")?:30;val offset=vm.timelineLayer(row.id)?.optInt("offset_frame")?:0
+            val first=(audio.optLong("source_offset_us")/10000+((vm.frame-600-offset)*100/fps).toLong()).coerceIn(0,(audio.optLong("source_duration_us",Long.MAX_VALUE)/10000).coerceAtMost(Int.MAX_VALUE.toLong())).toInt()
+            vm.requestWaveform(row.id,first)
+        }
+    }
     var vertical by remember{mutableFloatStateOf(0f)}
     var movedKey by remember{mutableStateOf<KeyTarget?>(null)}
     var editKey by remember{mutableStateOf<KeyTarget?>(null)}
@@ -151,7 +160,9 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                         vm.select(keyRow.id,false);vm.property=keyRow.property;keyRow.axis?.let{vm.chooseAxis(it)};vm.seek(hitKey.toDouble())
                         if(duration>=viewConfiguration.longPressTimeoutMillis)editKey=KeyTarget(keyRow.id,keyRow.property,keyRow.axis,hitKey)
                     }else if(row!=null) {
-                        if(down.position.x<48*density&&row.id!=0L)vm.flags(row.id,!row.visible,row.locked)
+                        if(down.position.x<48*density&&row.id!=0L) {
+                            if(vm.contentKind(row.id)=="audio") {if(!row.locked)vm.setAudio(row.id,muted=!(vm.audioClip(row.id)?.optBoolean("muted")?:false))}else vm.flags(row.id,!row.visible,row.locked)
+                        }
                         else {
                             val doubleTap=lastTapId==row.id&&down.uptimeMillis-lastTapTime<=viewConfiguration.doubleTapTimeoutMillis
                             vm.select(row.id,doubleTap)
@@ -213,6 +224,22 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                     drawRoundRect(row.color.copy(alpha=if(row.visible).18f else .06f),Offset(left,y+7*density),Size(width,30*density),androidx.compose.ui.geometry.CornerRadius(6*density))
                     if(row.id==vm.selected)drawRoundRect(Accent.copy(alpha=.65f),Offset(left,y+7*density),Size(width,30*density),androidx.compose.ui.geometry.CornerRadius(6*density),style=Stroke(density))
                     drawRoundRect(row.color,Offset(left+3*density,y+13*density),Size(min(3*density,width),18*density),androidx.compose.ui.geometry.CornerRadius(1.5f*density))
+                    val wave=vm.waveforms[row.id];val buckets=wave?.optJSONArray("buckets")
+                    val audio=vm.audioClip(row.id)
+                    if(audio!=null&&buckets!=null&&buckets.length()>0)clipRect(left=left+6*density,top=y+8*density,right=left+width,bottom=y+37*density) {
+                        val offset=vm.timelineLayer(row.id)?.optInt("offset_frame")?:0
+                        val sourceOffset=audio.optLong("source_offset_us")/10000.0
+                        val step=max(1f,2*density);var px=left+8*density
+                        while(px<left+width) {
+                            val comp=vm.frame+(px-center)/scale
+                            val source=sourceOffset+(comp-offset)*100/fps
+                            val bucket=(floor(source).toLong()-wave.getLong("first_bucket")).toInt()
+                            if(bucket in 0 until buckets.length()) {
+                                val b=buckets.getJSONObject(bucket);drawLine(if(audio.optBoolean("muted"))Muted.copy(alpha=.2f)else row.color.copy(alpha=.5f),Offset(px,y+(23f-b.optDouble("max").toFloat()*12f)*density),Offset(px,y+(23f-b.optDouble("min").toFloat()*12f)*density),density)
+                            }
+                            px+=step
+                        }
+                    }
                     if(row.id==vm.selected&&row.id!=0L&&!row.locked)for(edge in listOf(x+4*density,right-4*density)) {
                         if(edge in 49*density..size.width-12*density)drawLine(Accent,Offset(edge,y+15*density),Offset(edge,y+29*density),2*density)
                     }
@@ -224,8 +251,13 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                     drawContext.canvas.nativeCanvas.drawText((if(row.parent!=null)"↳ "else"")+row.name,left+12*density,y+27*density,paint)
                 }else drawContext.canvas.nativeCanvas.drawText(row.name,58*density,y+27*density,paint)
                 val eye=Path().apply{moveTo(12*density,y+25*density);quadraticTo(23*density,y+10*density,34*density,y+25*density);quadraticTo(23*density,y+40*density,12*density,y+25*density)}
-                drawPath(eye,if(row.visible)Ink else Muted,style=Stroke(1.3f*density))
-                if(row.visible)drawCircle(Ink,3*density,Offset(23*density,y+25*density))
+                if(vm.contentKind(row.id)=="audio") {
+                    paint.textSize=18*density;paint.color=android.graphics.Color.LTGRAY
+                    drawContext.canvas.nativeCanvas.drawText(if(vm.audioClip(row.id)?.optBoolean("muted")==true)"×"else"♪",18*density,y+31*density,paint)
+                }else {
+                    drawPath(eye,if(row.visible)Ink else Muted,style=Stroke(1.3f*density))
+                    if(row.visible)drawCircle(Ink,3*density,Offset(23*density,y+25*density))
+                }
                 keyMarks(row.allKeys,y+44*density,if(row.id==vm.selected)row.keys else emptyList())
                 if(row.locked)drawRect(Muted,Offset(size.width-19*density,y+16*density),Size(7*density,8*density))
             }
@@ -238,7 +270,7 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
     moveRow?.let{row->ClipMoveDialog(vm,row){moveRow=null}}
     trimRow?.let{row->ClipTrimDialog(vm,row){trimRow=null}}
     contextRow?.let{row->AlertDialog(onDismissRequest={contextRow=null},title={Text(row.name)},text={Column(Modifier.verticalScroll(rememberScrollState())) {
-        TextButton(onClick={vm.select(row.id);contextRow=null}){Text("移动和变换")}
+        TextButton(onClick={vm.select(row.id);if(vm.contentKind(row.id)=="audio")vm.property="audio";contextRow=null}){Text(if(vm.contentKind(row.id)=="audio")"声音"else"移动和变换")}
         if(row.id!=0L) {
             TextButton(enabled=!row.locked,onClick={moveRow=row;contextRow=null}){Text("精确移动片段")}
             TextButton(enabled=!row.locked,onClick={trimRow=row;contextRow=null}){Text("精确裁剪片段")}

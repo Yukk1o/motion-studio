@@ -13,21 +13,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.UUID
 
-/** Backend declarations only. Production UI is deliberately unchanged. */
-object MediaBridge {
-    init { System.loadLibrary("motion_engine") }
-    @JvmStatic external fun request(id: Long, context: Context?, request: String): String
-    @JvmStatic external fun readPcmInto(id: Long, startSample: Long, frames: Int, output: ByteBuffer): String
-    @JvmStatic external fun freezeAudio(id: Long): String
-    @JvmStatic external fun readFrozenPcmInto(handle: Long, startSample: Long, frames: Int, output: ByteBuffer): String
-    @JvmStatic external fun releaseFrozenAudio(handle: Long): String
-    @JvmStatic external fun readVideoFrameInto(id:Long,objectId:Long,sequence:Long,output:ByteBuffer):String
-    @JvmStatic external fun freezeVideo(id:Long):String
-    @JvmStatic external fun requestFrozenVideoFrame(handle:Long,objectId:Long,frame:Double,sequence:Long):String
-    @JvmStatic external fun readFrozenVideoFrameInto(handle:Long,objectId:Long,sequence:Long,output:ByteBuffer):String
-    @JvmStatic external fun releaseFrozenVideo(handle:Long):String
-}
-
 @RunWith(AndroidJUnit4::class)
 class AudioBackendApiTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext

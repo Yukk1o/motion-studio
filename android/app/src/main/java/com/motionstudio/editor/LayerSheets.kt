@@ -25,6 +25,8 @@ internal fun parentOf(vm:EditorViewModel,id:Long):Long? {
 internal fun objectName(vm:EditorViewModel,id:Long)=if(id==0L)"摄影机 1"else vm.layer(id)?.optString("name")?:"图层"
 internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.Default.Videocam else when(vm.layer(id)?.optJSONObject("content")?.optString("kind")) {
     "image"->Icons.Default.Image
+    "audio"->Icons.Default.Audiotrack
+    "video"->Icons.Default.Movie
     "text"->Icons.Default.TextFields
     "null"->Icons.Default.ControlCamera
     else->Icons.Default.Rectangle
@@ -47,6 +49,11 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
             Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 AddCard("图片","从设备导入",Icons.Default.Image,Color(0xFF83BAEB),Modifier.weight(1f).testTag("add-image")){onAdd("image")}
                 AddCard("文字","标题与字幕",Icons.Default.TextFields,Color(0xFFC3A8ED),Modifier.weight(1f).testTag("add-text")){onAdd("text")}
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                AddCard("视频","MP4 · 可保留原声",Icons.Default.Movie,Color(0xFF83BAEB),Modifier.weight(1f).testTag("add-video")){onAdd("video")}
+                AddCard("音频","音乐与声音",Icons.Default.Audiotrack,Accent,Modifier.weight(1f).testTag("add-audio")){onAdd("audio")}
             }
             Spacer(Modifier.height(10.dp))
             AddCard("矩形","纯色形状",Icons.Default.Rectangle,Color(0xFF83BAEB),Modifier.fillMaxWidth().testTag("add-solid")){onAdd("solid")}
@@ -78,7 +85,7 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
     val child=vm.selected
     val objects=buildList<Long> {
         if(vm.hasCamera())add(0L)
-        vm.state.project?.optJSONArray("layers")?.let{a->for(i in a.length()-1 downTo 0)add(a.getJSONObject(i).getLong("id"))}
+        vm.state.project?.optJSONArray("layers")?.let{a->for(i in a.length()-1 downTo 0){val l=a.getJSONObject(i);if(l.getJSONObject("content").getString("kind")!="audio")add(l.getLong("id"))}}
     }
     fun allowed(id:Long):Boolean {
         var current:Long?=id

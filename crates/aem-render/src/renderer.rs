@@ -54,7 +54,7 @@ pub(crate) struct GpuImage {
     video_stamp: Option<(u64, u64)>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum TextureKey {
+pub(crate) enum TextureKey {
     Static(u64),
     Video(u64),
 }
@@ -489,8 +489,10 @@ impl Renderer {
                 video_stamp: None,
             },
         );
-        if !self.asset_order.contains(&id) {
-            self.asset_order.push(id);
+        if let TextureKey::Static(asset) = id {
+            if !self.asset_order.contains(&asset) {
+                self.asset_order.push(asset);
+            }
         }
         self.effect_gpu.invalidate();
         self.texture_bytes = self.texture_bytes - previous + bytes;
@@ -532,7 +534,7 @@ impl Renderer {
             .collect();
         for id in remove {
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
-            self.asset_order.retain(|v| *v != id);
+            if let TextureKey::Static(asset) = id { self.asset_order.retain(|v| *v != asset); }
             self.effect_gpu.invalidate();
         }
         Ok(())
@@ -752,6 +754,11 @@ impl Renderer {
             }
         }
         let frame = &self.effect_gpu.builder.frame;
+        self.geometry_upload.clear();
+        self.geometry_upload.extend(frame.vertices.iter().map(|v| GeometryVertex {position:v.position,uv:v.uv}));
+        if !self.geometry_upload.is_empty() {
+            self.queue.write_buffer(&self.vertex_buffer,0,bytemuck::cast_slice(&self.geometry_upload));
+        }
         self.effect_diagnostics.clone_from(&frame.diagnostics);
         for (i, draw) in frame.draws.iter().enumerate() {
             let w = &draw.words;
@@ -799,8 +806,13 @@ impl Renderer {
                 occlusion_query_set: None,
             });
         }
-        for (i, draw) in frame.draws.iter().enumerate() {
+        let mut materialized = None;
+        let mut executed_passes = 0;
+        for (batch_index, batch) in frame.batches.iter().enumerate() {
+            let i = batch.layer;
+            let draw = &frame.draws[i];
             for p in draw.pass_start..draw.pass_end {
+                if materialized == Some(i) { break; }
                 self.effect_gpu.state.encode_pass(
                     p,
                     frame,
@@ -810,8 +822,10 @@ impl Renderer {
                     &self.queue,
                     encoder,
                 )?;
+                executed_passes += 1;
             }
-            let writes = if i + 1 == frame.draws.len() {
+            materialized = Some(i);
+            let writes = if batch_index + 1 == frame.batches.len() {
                 timestamps
                     .as_ref()
                     .map(|t| wgpu::RenderPassTimestampWrites {
@@ -849,21 +863,22 @@ impl Renderer {
                 1.0,
             );
             pass.set_pipeline(&self.pipeline);
+            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.set_bind_group(0, &self.uniform_group, &[(i * self.uniform_stride) as u32]);
             let group = if draw.words[27] >= 0.0 {
                 &self.effect_gpu.state.pool[0].as_ref().unwrap().composite
             } else {
-                &self.images[&self.asset_order[draw.words[24] as usize]].bind_group
+                &self.images[&texture_key(&scene.layers[i])].bind_group
             };
             pass.set_bind_group(1, group, &[]);
-            pass.draw(0..6, 0..1);
+            pass.draw(batch.vertices.clone(), 0..1);
         }
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
-            draw_calls: (frame.draws.len() + frame.passes.len()) as u32,
+            draw_calls: (frame.batches.len() + executed_passes) as u32,
             texture_bytes: self.texture_bytes + self.effect_gpu.state.bytes(),
             parameter_upload_bytes: (bytes
-                + frame.passes.len() * aem_effects::shader::UNIFORM_BYTES)
+                + executed_passes * aem_effects::shader::UNIFORM_BYTES + frame.vertices.len()*20)
                 as u64,
             parameter_resource_upload_bytes: std::mem::take(
                 &mut self.effect_gpu.state.parameter_resource_upload_bytes,

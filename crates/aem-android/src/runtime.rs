@@ -483,17 +483,17 @@ impl Session {
                 "multiple_compositions":false,"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
                 "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","max_pixels":2073600,"max_fps":120,
                 "max_duration_seconds":3600,"async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
-                "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":false},
+                "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true},
                 "audio":{"supported_formats":["M4A/AAC-LC","MP3","WAV/PCM16"],"sample_rates":[44100,48000],"channels":[1,2],
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
                 "source_limit_bytes":aem_core::storage::MAX_MEDIA_ASSET,"source_duration_limit_seconds":3600,
-                "pcm_block_limit_frames":aem_media::MAX_BLOCK_FRAMES,"async_import":true,"ui_playback_integrated":false,"mp4_audio_mux_integrated":false}},
+                "pcm_block_limit_frames":aem_media::MAX_BLOCK_FRAMES,"async_import":true,"ui_playback_integrated":true,"mp4_audio_mux_integrated":true}},
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
             "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),
             "timeline_camera":{"position":p.camera.position.timeline(0),"target":p.camera.target.timeline(0)},
             "projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
             "renderError":self.last_error,"effectErrors":self.graphics.as_ref().map(|g|&g.renderer.effect_diagnostics),
-            "sampledEffects":self.scene.effects.iter().map(|e|json!({"layer":e.layer,"instance":e.instance,"values":e.param_ids.iter().enumerate().map(|(i,id)|(id.clone(),json!(e.values[i]))).collect::<serde_json::Map<String,Value>>() })).collect::<Vec<_>>(),"lastPresentedFrame":self.last_presented_frame,
+            "sampledEffects":self.scene.effects.iter().map(|e|json!({"layer":e.layer,"instance":e.instance,"values":e.param_ids.iter().enumerate().map(|(i,id)|(id.clone(),json!(e.values[i]))).collect::<serde_json::Map<String,Value>>(),"curve_lut":e.lut.map(|i|&self.scene.curve_luts[i][..])})).collect::<Vec<_>>(),"lastPresentedFrame":self.last_presented_frame,
             "lastPresentedRevision":self.last_presented_revision,"viewRevision":self.view_revision,
             "lastPresentedViewRevision":self.last_presented_view_revision,"surfaceEpoch":self.surface_epoch,
             "diagnosticsEnabled":cfg!(feature="diagnostics"),
@@ -681,7 +681,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             let buffer_bytes = 64
                 + p.layers.len() * 128
                 + passes * (32 + aem_effects::shader::UNIFORM_BYTES)
-                + count * 1024;
+                + count * 1024 + 8192 * 12 + 65536 * 20;
             Ok(
                 json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
             )

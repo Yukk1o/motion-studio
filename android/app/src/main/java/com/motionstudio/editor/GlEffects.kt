@@ -16,7 +16,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
     private var framebuffer=0;private var uniform=0
     init {
         try {
-            check(info.getInt("version")==1&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
+            check(info.getInt("version")==2&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
             val ids=IntArray(1);GL.glGenFramebuffers(1,ids,0);framebuffer=ids[0]
             GL.glGenBuffers(1,ids,0);uniform=ids[0];GL.glBindBuffer(GL.GL_UNIFORM_BUFFER,uniform)
             GL.glBufferData(GL.GL_UNIFORM_BUFFER,624,null,GL.GL_DYNAMIC_DRAW)
@@ -67,7 +67,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer) {
-        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==1){"不兼容的帧计划"}
+        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==2){"不兼容的帧计划"}
         check(plan.getInt(28) in 64..plan.capacity()){"帧计划长度错误"}
         val w=plan.getInt(32);val h=plan.getInt(36);val mask=plan.getInt(40)
         check(mask and 127==mask&&w>=0&&h>=0&&w.toLong()*h*4*Integer.bitCount(mask)<=64L*1024*1024){"效果临时纹理超过 64 MiB"}

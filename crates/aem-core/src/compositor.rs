@@ -77,6 +77,11 @@ impl PlaneCompositor {
         }
     }
     pub fn prepare(&mut self, scene: &Scene) -> Result<()> {
+        self.prepare_with_sizes(scene, &[])
+    }
+    /// Effects can expand a plane's local bounds while retaining its projection.
+    pub fn prepare_with_sizes(&mut self, scene: &Scene, sizes: &[[f32; 2]]) -> Result<()> {
+        ensure(sizes.is_empty() || sizes.len() == scene.layers.len(), "invalid compositor sizes")?;
         ensure(
             scene.layers.len() <= MAX_LAYERS,
             "too many compositor layers",
@@ -90,7 +95,7 @@ impl PlaneCompositor {
         let mut start = 0;
         while start < scene.layers.len() {
             if !scene.layers[start].three_d {
-                let p = self.quad(scene, start)?;
+                let p = self.quad(scene, start, sizes)?;
                 self.emit(p)?;
                 start += 1;
                 continue;
@@ -101,7 +106,7 @@ impl PlaneCompositor {
                 .map_or(scene.layers.len(), |n| start + n);
             let mut root = None;
             for layer in start..end {
-                let p = self.quad(scene, layer)?;
+                let p = self.quad(scene, layer, sizes)?;
                 if self.planes[layer].is_none() {
                     continue;
                 }
@@ -118,17 +123,18 @@ impl PlaneCompositor {
         }
         Ok(())
     }
-    fn quad(&mut self, scene: &Scene, layer: usize) -> Result<Polygon> {
+    fn quad(&mut self, scene: &Scene, layer: usize, sizes: &[[f32; 2]]) -> Result<Polygon> {
         ensure(
             self.arena.len() + 4 <= MAX_ARENA,
             "intersection geometry budget exceeded",
         )?;
         let l = &scene.layers[layer];
+        let size = sizes.get(layer).copied().unwrap_or(l.size);
         let start = self.arena.len();
         for [x, y] in [[-0.5, 0.5], [-0.5, -0.5], [0.5, -0.5], [0.5, 0.5]] {
             let position = l.model.as_dmat4().transform_point3(DVec3::new(
-                x * f64::from(l.size[0]),
-                y * f64::from(l.size[1]),
+                x * f64::from(size[0]),
+                y * f64::from(size[1]),
                 0.0,
             ));
             ensure(position.is_finite(), "invalid plane geometry")?;
