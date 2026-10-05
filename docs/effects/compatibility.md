@@ -24,3 +24,5 @@
 | 旋转扭曲 / Twirl | `ADBE Twirl` | 近似实现 | 6/6 | 3 |
 | 波形变形 / Wave Warp | `ADBE Wave Warp` | 近似实现 | 6/6 | 6 |
 | 极坐标 / Polar Coordinates | `ADBE Polar Coordinates` | 近似实现 | 6/6 | 3 |
+
+参考采集、截图和原始报告保存在本地 reference/，不纳入 Git；干净检出不依赖这些资料。

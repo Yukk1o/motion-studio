@@ -14,9 +14,9 @@ pub fn package() -> Result<Arc<EffectPackage>> {
 fn build() -> Result<EffectPackage> {
     // Every host installs the exact published package bytes, independent of the
     // target platform's ZIP writer and source checkout line endings.
-    let package = EffectPackage::from_bytes(include_bytes!("../library/ae2021.msfx").to_vec())?;
+    let package = EffectPackage::from_bytes(include_bytes!("../library/core-effects.msfx").to_vec())?;
     if package.manifest != manifest() {
-        return Err(Error::Invalid("bundled package is stale; run effect_tool pack crates/aem-effects/library crates/aem-effects/library/ae2021.msfx".into()));
+        return Err(Error::Invalid("bundled package is stale; run effect_tool pack crates/aem-effects/library crates/aem-effects/library/core-effects.msfx".into()));
     }
     Ok(package)
 }

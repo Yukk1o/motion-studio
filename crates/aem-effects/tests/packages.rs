@@ -39,7 +39,14 @@ fn archive_rejects_parent_paths_and_duplicate_case_names() {
 }
 #[test]
 fn png_with_valid_dimensions_but_truncated_pixels_is_rejected_at_import() {
-    let bytes = include_bytes!("../reference/fixtures/gradient.png");
+    // Synthetic input keeps clean checkouts independent of local AE references.
+    let mut encoded = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::from_fn(256, 256, |x, y| {
+        image::Rgba([x as u8, y as u8, (x ^ y) as u8, 255])
+    })
+    .write_to(&mut encoded, image::ImageFormat::Png)
+    .unwrap();
+    let bytes = encoded.into_inner();
     let truncated = &bytes[..bytes.len() / 2];
     assert_eq!(
         image::ImageReader::new(std::io::Cursor::new(truncated))

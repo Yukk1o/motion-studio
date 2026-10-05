@@ -11,7 +11,7 @@ cargo run -p aem-effects --bin effect_tool -- builtin artifacts/ae-library.msfx
 
 打包按路径排序并固定 ZIP 时间戳，包 SHA-256 包括原始完整 ZIP 字节。插件 ID/效果 ID/参数 ID 只允许 ASCII 字母、数字、点、下划线和连字符；版本使用 semver。更新算法、参数或资源必须增加插件版本。SDK 1 只支持静态着色器，不支持 JavaScript、原生代码或网络调用。
 
-内置库直接嵌入版本控制中的library/ae2021.msfx固定字节，不在不同目标系统上重新压缩，保证桌面和Android解析同一SHA-256。修改内置manifest/源码后，先增加版本，再执行 `effect_tool pack crates/aem-effects/library crates/aem-effects/library/ae2021.msfx`，然后重新构建并运行对照。宿主检查嵌入包与manifest一致，陈旧的包会明确报错。
+内置库直接嵌入版本控制中的library/core-effects.msfx固定字节，不在不同目标系统上重新压缩，保证桌面和Android解析同一SHA-256。修改内置manifest/源码后，先增加版本，再执行 `effect_tool pack crates/aem-effects/library crates/aem-effects/library/core-effects.msfx`，然后重新构建并运行对照。宿主检查嵌入包与manifest一致，陈旧的包会明确报错。
 
 ## Manifest
 

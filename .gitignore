@@ -13,6 +13,7 @@
 *.tmp
 __pycache__/
 refer/
+reference/
 
 # Local reference material is excluded from version control.
 /design/ardot-handoff.json
