@@ -15,6 +15,6 @@ Android 构建与设备检查（PowerShell，主工作树和独立工作树均�
     py tools/build_android.py --task assembleDebug assembleDebugAndroidTest
     py tools/validate_android.py --serial emulator-5554
 
-默认构建 arm64-v8a 与 x86_64；仅测试 MuMu 时可加 `--abis x86_64`。设备检查使用独立测试工程，保存测试日志、视频、PNG、编码记录，并重新打开编辑器。APK 位于 `android/app/build/outputs/apk/debug/app-debug.apk`。工具链与构建产物不提交到 Git。
+默认构建 arm64-v8a 与 x86_64；仅测试 x86_64 模拟器时可加 `--abis x86_64`。设备检查使用独立测试工程，保存测试日志、视频、PNG、编码记录，并重新打开编辑器。APK 位于 `android/app/build/outputs/apk/debug/app-debug.apk`。工具链与构建产物不提交到 Git。
 
 GPU 检查不会在缺少 GPU 时静默跳过；桌面 GPU 结果不替代 Android 性能验收。

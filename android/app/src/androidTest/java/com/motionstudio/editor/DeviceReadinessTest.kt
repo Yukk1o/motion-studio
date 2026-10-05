@@ -111,6 +111,13 @@ class DeviceReadinessTest {
             val text=number.fetchSemanticsNode().boundsInRoot
             assertTrue("Numeric text extends outside its field",text.top>=field.top&&text.bottom<=field.bottom)
         }
+        if(config.fontScale>1.3f) {
+            compose.onNodeWithTag("transform-pad").performScrollTo().assertIsDisplayed()
+            val pad=compose.onNodeWithTag("transform-pad").fetchSemanticsNode().boundsInRoot
+            assertTrue("Large-font transform area must remain usable after scrolling",pad.height>=48*metrics.density)
+            photo("layout-scrolled-transform")
+            compose.onNodeWithTag("value-X").performScrollTo()
+        }
         val project=vm.state.project!!.toString()
         compose.onNodeWithTag("value-X").performTouchInput{click()}
         compose.onNode(hasSetTextAction()).performTextReplacement("640.25")
