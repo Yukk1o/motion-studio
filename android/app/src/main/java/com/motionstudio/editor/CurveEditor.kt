@@ -108,6 +108,7 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
     val liveHandles by rememberUpdatedState(controlPoints)
     Column(modifier) {
         Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
+            if(vm.isSeparated())PropertyAxisMenu(vm,"curve-axis")
             listOf("progress" to "进度","velocity" to "速度").forEach{(key,label)->TextButton(onClick={view=key;copied=false},
                 modifier=Modifier.height(48.dp).testTag("curve-view-"+key).semantics{selected=view==key}){Text(label,color=if(view==key)Accent else Muted,fontSize=14.sp)}}
             Spacer(Modifier.weight(1f))
@@ -119,7 +120,7 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
             modifier=Modifier.padding(horizontal=12.dp),color=Muted,fontSize=12.sp,lineHeight=20.sp,maxLines=1)
         Box(Modifier.weight(1f).fillMaxWidth().padding(12.dp).background(Background,RoundedCornerShape(12.dp))) {
         Canvas(Modifier.fillMaxSize().padding(horizontal=20.dp,vertical=16.dp).testTag("easing-graph")
-            .pointerInput(vm.selected,vm.property,segment?.first?.optInt("frame"),view) {
+            .pointerInput(vm.selected,vm.property,vm.activeAxis(),segment?.first?.optInt("frame"),view) {
                 fun pixel(point:Offset,bounds:Pair<Float,Float>,factor:Float)=Offset(point.x*size.width,(bounds.second-point.y*factor)/(bounds.second-bounds.first)*size.height)
                 awaitEachGesture {
                     val down=awaitFirstDown(requireUnconsumed=false)

@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.pow
 
 /** Frozen Rust sampling + an independent EGL compositor into MediaCodec's Surface.
- * Only small draw parameters cross JNI per frame. Raster resources cross once. */
+ * Ordered geometry crosses JNI in reused buffers. Raster resources cross once. */
 class VideoExporter(private val root:File,private val projectJson:String) {
     val cancelled=AtomicBoolean(false)
     fun run(onProgress:(Int,Int)->Unit):File {
@@ -27,7 +27,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
         val file=File(root,"exports/motion-"+System.currentTimeMillis()+".mp4").apply{parentFile!!.mkdirs()}
         var codec:MediaCodec?=null;var muxer:MediaMuxer?=null;var input:Surface?=null
         var gpu:EglMovieRenderer?=null;var native=0L;var muxStarted=false
-        var complete=false;val times=ArrayList<Long>();var parameterBytes=0L
+        var complete=false;val times=ArrayList<Long>();var parameterBytes=0L;var vertexBytes=0L
         val started=System.nanoTime()
         try {
             native=NativeBridge.create(root.absolutePath,projectJson);check(native!=0L){"冻结工程创建失败"}
@@ -46,7 +46,8 @@ class VideoExporter(private val root:File,private val projectJson:String) {
             val outputMuxer=MediaMuxer(file.absolutePath,MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             muxer=outputMuxer
             gpu=EglMovieRenderer(input,width,height,project,native)
-            val buffer=ByteBuffer.allocateDirect(128*32*4).order(ByteOrder.nativeOrder())
+            val buffer=ByteBuffer.allocateDirect(8192*128).order(ByteOrder.nativeOrder())
+            val vertices=ByteBuffer.allocateDirect(65536*20).order(ByteOrder.nativeOrder())
             val outputInfo=MediaCodec.BufferInfo();var track=-1
             fun drain(end:Boolean) {
                 var lastOutput=System.nanoTime()
@@ -76,9 +77,11 @@ class VideoExporter(private val root:File,private val projectJson:String) {
             }
             for(frame in 0 until frames) {
                 check(!cancelled.get()){"导出已取消"}
-                val count=NativeBridge.sampleInto(native,frame,buffer);check(count>=0){"帧采样失败"}
-                parameterBytes+=count*128
-                gpu.draw(buffer,count)
+                val response=JSONObject(GeometryBridge.sampleGeometryInto(native,frame.toDouble(),buffer,vertices))
+                check(response.optBoolean("ok")){response.optString("error","帧几何采样失败")}
+                val geometry=response.getJSONObject("data")
+                parameterBytes+=geometry.getInt("parameterBytes");vertexBytes+=geometry.getInt("vertexBytes")
+                gpu.draw(buffer,geometry.getInt("batches"),vertices,geometry.getInt("vertexBytes"))
                 val ptsUs=(frame.toLong()*1_000_000L+fps/2)/fps
                 gpu.present(ptsUs*1000)
                 drain(false);onProgress(frame+1,frames)
@@ -104,7 +107,8 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 .put("encodedFrames",times.size).put("timestampsUs",JSONArray(times))
                 .put("elapsedSeconds",elapsed).put("throughputFps",times.size/elapsed)
                 .put("applicationFrameReadbacks",0).put("applicationFrameUploads",0)
-                .put("parameterTransferBytes",parameterBytes).put("cancelled",cancelled.get()).put("completed",complete)
+                .put("parameterTransferBytes",parameterBytes).put("vertexTransferBytes",vertexBytes)
+                .put("geometrySampling",true).put("cancelled",cancelled.get()).put("completed",complete)
                 .put("cleanupErrors",JSONArray(cleanupErrors))
                 .put("copyScope","Application-level frame transfers only; driver/system internal copies are not measured")
             File(file.parentFile,file.nameWithoutExtension+"-report.json").writeText(report.toString(2))
@@ -124,6 +128,8 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
     private var framebuffer:Int=0
     private var plane:Int=0
     private var presentProgram:Int=0
+    private var vertexBuffer:Int=0
+    private var vertexArray:Int=0
     private val clear=FloatArray(4)
     init {
         try {
@@ -137,6 +143,12 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         window=EGL14.eglCreateWindowSurface(display,configs[0],surface,intArrayOf(EGL14.EGL_NONE),0)
         check(window!=EGL14.EGL_NO_SURFACE&&EGL14.eglMakeCurrent(display,window,window,context)){"编码 Surface 创建失败"}
         plane=program(PLANE_VERTEX,PLANE_FRAGMENT);presentProgram=program(PRESENT_VERTEX,PRESENT_FRAGMENT)
+        val names=IntArray(1)
+        GLES30.glGenVertexArrays(1,names,0);vertexArray=names[0];GLES30.glBindVertexArray(vertexArray)
+        GLES30.glGenBuffers(1,names,0);vertexBuffer=names[0];GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER,65536*20,null,GLES30.GL_STREAM_DRAW)
+        GLES30.glEnableVertexAttribArray(0);GLES30.glVertexAttribPointer(0,3,GLES30.GL_FLOAT,false,20,0)
+        GLES30.glEnableVertexAttribArray(1);GLES30.glVertexAttribPointer(1,2,GLES30.GL_FLOAT,false,20,12)
         val background=project.getJSONArray("background")
         clear[3]=background.getDouble(3).toFloat()
         for(i in 0..2)clear[i]=linear(background.getDouble(i).toFloat())*clear[3]
@@ -155,12 +167,16 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         check(GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)==GLES30.GL_FRAMEBUFFER_COMPLETE){"离屏合成目标不可用"}
         } catch(error:Throwable) {close();throw error}
     }
-    fun draw(buffer:ByteBuffer,count:Int) {
+    fun draw(buffer:ByteBuffer,count:Int,vertices:ByteBuffer,bytes:Int) {
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
         GLES30.glClearColor(clear[0],clear[1],clear[2],clear[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         GLES30.glDisable(GLES30.GL_DEPTH_TEST);GLES30.glDisable(GLES30.GL_CULL_FACE)
         GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
         GLES30.glUseProgram(plane);GLES30.glUniform1i(GLES30.glGetUniformLocation(plane,"image"),0)
+        GLES30.glBindVertexArray(vertexArray);GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
+        vertices.position(0);vertices.limit(bytes)
+        if(bytes>0)GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER,0,bytes,vertices)
+        vertices.clear()
         val values=buffer.asFloatBuffer();val matrix=FloatArray(16);val color=FloatArray(4)
         for(i in 0 until count) {
             val base=i*32;values.position(base);values.get(matrix);values.get(color)
@@ -169,7 +185,9 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             GLES30.glUniform3f(GLES30.glGetUniformLocation(plane,"extent"),values.get(base+20),values.get(base+21),values.get(base+22))
             val asset=values.get(base+24).toInt();check(asset in textures.indices){"纹理索引失效"}
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,textures[asset])
-            GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,6)
+            val first=values.get(base+25).toInt();val size=values.get(base+26).toInt()
+            check(first>=0&&size>=0&&(first.toLong()+size)*20<=bytes){"几何顶点范围失效"}
+            GLES30.glDrawArrays(GLES30.GL_TRIANGLES,first,size)
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0);GLES30.glDisable(GLES30.GL_BLEND)
         GLES30.glUseProgram(presentProgram);GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
@@ -186,6 +204,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         if(context!=EGL14.EGL_NO_CONTEXT&&window!=EGL14.EGL_NO_SURFACE) {
             EGL14.eglMakeCurrent(display,window,window,context)
             GLES30.glDeleteProgram(plane);GLES30.glDeleteProgram(presentProgram)
+            GLES30.glDeleteBuffers(1,intArrayOf(vertexBuffer),0);GLES30.glDeleteVertexArrays(1,intArrayOf(vertexArray),0)
             GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0)
             GLES30.glDeleteTextures(1,intArrayOf(frameTexture),0);GLES30.glDeleteFramebuffers(1,intArrayOf(framebuffer),0)
         }
@@ -218,9 +237,9 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
     private fun linear(v:Float)=if(v<=.04045f)v/12.92f else ((v+.055f)/1.055f).pow(2.4f)
     companion object {
         private const val PLANE_VERTEX="""#version 300 es
-        uniform mat4 mvp; uniform vec3 extent; out vec2 uv;
-        const vec2 p[6]=vec2[6](vec2(-.5,.5),vec2(-.5,-.5),vec2(.5,.5),vec2(.5,.5),vec2(-.5,-.5),vec2(.5,-.5));
-        void main(){vec2 v=p[gl_VertexID];gl_Position=mvp*vec4(v*extent.xy,0.,1.);gl_Position.z=gl_Position.z*2.-gl_Position.w;uv=vec2(v.x+.5,.5-v.y);}"""
+        layout(location=0) in vec3 position; layout(location=1) in vec2 texCoord;
+        uniform mat4 mvp; out vec2 uv;
+        void main(){gl_Position=mvp*vec4(position,1.);gl_Position.z=gl_Position.z*2.-gl_Position.w;uv=texCoord;}"""
         private const val PLANE_FRAGMENT="""#version 300 es
         precision highp float; uniform sampler2D image; uniform vec4 color; uniform vec3 extent; in vec2 uv; out vec4 result;
         void main(){vec4 s=texture(image,uv);float a=color.a*extent.z;result=vec4(s.rgb*color.rgb*a,s.a*a);}"""

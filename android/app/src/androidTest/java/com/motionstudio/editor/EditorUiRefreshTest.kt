@@ -110,8 +110,11 @@ class EditorUiRefreshTest {
         val preview=compose.onNodeWithTag("preview-gesture").fetchSemanticsNode().boundsInRoot
         val transport=compose.onNodeWithTag("transport").fetchSemanticsNode().boundsInRoot
         val normalPanel=compose.onNodeWithTag("properties-panel").fetchSemanticsNode().boundsInRoot.height
+        var wide=false
+        scenario.onActivity{wide=it.resources.configuration.screenWidthDp>it.resources.configuration.screenHeightDp}
         compose.onNodeWithContentDescription("缓动曲线").performClick()
-        compose.waitUntil(10000){compose.onNodeWithTag("properties-panel").fetchSemanticsNode().boundsInRoot.height>normalPanel}
+        compose.waitUntil(10000){val height=compose.onNodeWithTag("properties-panel").fetchSemanticsNode().boundsInRoot.height
+            if(wide)height>=normalPanel else height>normalPanel}
         compose.onNodeWithText("先为此属性添加两个关键帧").assertIsDisplayed()
         photo("06-curve-empty")
         compose.onNodeWithContentDescription("返回变换参数").performClick()

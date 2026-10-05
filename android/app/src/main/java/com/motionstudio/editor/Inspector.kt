@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -90,23 +91,24 @@ private class ValueDrag(private val vm:EditorViewModel) {
     private val frame=floor(vm.frame).toInt()
     private val original=vm.sampleValue().let{if(it is JSONArray)JSONArray(it.toString()) else it}
     private val offsets=DoubleArray(3)
+    private val linked=vm.scaleLinked
     fun adjust(axis:Int,amount:Double) {
         offsets[axis]+=amount*stepFor(key)
-        publish(axis)
+        publish(axis,listOf(axis))
     }
     fun adjustXY(x:Double,y:Double) {
         offsets[0]+=x*stepFor(key);offsets[1]+=y*stepFor(key)
-        publish(0)
+        publish(0,listOf(0,1))
     }
-    private fun publish(axis:Int) {
+    private fun publish(axis:Int,axes:List<Int>) {
         if(original is JSONArray) {
             val value=JSONArray(original.toString())
             for(i in 0..2)value.put(i,bounded(key,original.getDouble(i)+offsets[i]))
-            if(key=="scale"&&vm.scaleLinked&&axis<2) {
+            if(key=="scale"&&linked&&axis<2) {
                 val other=1-axis;val base=original.getDouble(axis)
                 value.put(other,bounded(key,if(abs(base)>.0001)original.getDouble(other)*value.getDouble(axis)/base else value.getDouble(axis)))
             }
-            vm.setPropertyValue(objectId,key,frame,value,false)
+            vm.setPropertyValue(objectId,key,frame,value,false,if(key=="scale"&&linked&&axis<2)listOf(0,1)else axes)
         } else if(original is Number)vm.setPropertyValue(objectId,key,frame,bounded(key,original.toDouble()+offsets[0]),false)
     }
 }
@@ -121,6 +123,8 @@ private class ValueDrag(private val vm:EditorViewModel) {
     DisposableEffect(Unit){onDispose{onCurveMode(false)}}
     BackHandler(enabled=curves){curves=false}
     val camera=vm.selected==0L
+    val threeD=vm.threeD()
+    LaunchedEffect(vm.selected,vm.property,threeD){if(vm.activeAxis() !in vm.visibleAxes())vm.chooseAxis(vm.visibleAxes().first())}
     val mode=vm.state.project?.optJSONObject("camera")?.optString("mode")?:"position"
     val choices=if(camera) {
         if(mode=="orbit")listOf("radius" to "距离","azimuth" to "方位","elevation" to "俯仰","target" to "目标点","fov" to "视角","roll" to "滚转")
@@ -128,17 +132,25 @@ private class ValueDrag(private val vm:EditorViewModel) {
     } else listOf("position" to "位置","rotation" to "旋转","scale" to "缩放","opacity" to "透明度")
     Column(modifier.testTag("properties-panel").background(Panel,RoundedCornerShape(topStart=16.dp,topEnd=16.dp))
         .pointerInput(Unit){awaitPointerEventScope{while(true)awaitPointerEvent()}}.padding(horizontal=8.dp)) {
-        Row(Modifier.fillMaxWidth().height(48.dp),verticalAlignment=Alignment.CenterVertically) {
+        BoxWithConstraints(Modifier.fillMaxWidth().height(48.dp)) {
+        val compact=maxWidth<360.dp||LocalDensity.current.fontScale>1.3f
+        Row(Modifier.fillMaxSize(),verticalAlignment=Alignment.CenterVertically) {
             if(curves)Tool(Icons.AutoMirrored.Filled.ArrowBack,"返回变换参数"){curves=false}
-            Text(if(curves)"缓动曲线" else objectName(vm,vm.selected),
+            Text(if(curves)if(vm.isSeparated())vm.axisName().uppercase()+" 轴曲线"else"缓动曲线" else objectName(vm,vm.selected),
                 Modifier.weight(1f),color=Ink,fontSize=15.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
-            if(!curves)TextButton(onClick={curves=true},modifier=Modifier.height(48.dp).testTag("open-curves")) {
+            if(!curves&&!camera)TextButton(onClick={vm.setThreeD(!threeD)},enabled=vm.editable(),
+                modifier=Modifier.width(48.dp).height(48.dp).testTag("layer-3d-toggle").semantics{selected=threeD;stateDescription=if(threeD)"3D 图层"else"2D 图层"},contentPadding=PaddingValues(0.dp)) {
+                Text(if(threeD)"3D"else"2D",fontSize=12.sp,color=if(threeD)Accent else Muted)
+            }
+            if(!curves)TextButton(onClick={curves=true},modifier=Modifier.height(48.dp).then(if(compact)Modifier.width(48.dp)else Modifier).testTag("open-curves"),
+                contentPadding=PaddingValues(if(compact)0.dp else 12.dp)) {
                 Icon(editorIcon(Icons.AutoMirrored.Filled.ShowChart),"缓动曲线",Modifier.size(18.dp),tint=Accent)
-                Spacer(Modifier.width(4.dp));Text(if(vm.sampleValue() is JSONArray)"整体曲线"else"曲线",color=Accent,fontSize=12.sp)
+                if(!compact){Spacer(Modifier.width(4.dp));Text(if(vm.isSeparated())vm.axisName().uppercase()+" 曲线"else if(vm.sampleValue() is JSONArray)"整体曲线"else"曲线",color=Accent,fontSize=12.sp)}
             }
             Box {
                 Tool(Icons.Default.MoreVert,"图层操作"){more=true}
                 DropdownMenu(more,{more=false}) {
+                    if(vm.canSeparate())DropdownMenuItem(text={Text("分离 XYZ")},modifier=Modifier.testTag("separate-dimensions"),enabled=vm.editable(),onClick={more=false;vm.separateDimensions()})
                     DropdownMenuItem(text={Text("父级")},enabled=vm.editable(),onClick={more=false;parenting=true})
                     if(camera) {
                         DropdownMenuItem(text={Text(if(mode=="orbit")"切换位置路径" else "切换环绕轨道")},onClick={more=false;vm.cameraMode(mode!="orbit");vm.property=if(mode=="orbit")"position" else "radius"})
@@ -154,18 +166,19 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         DropdownMenuItem(text={Text("锁定 / 解锁")},onClick={more=false;vm.layer(vm.selected)?.let{vm.flags(vm.selected,it.getBoolean("visible"),!it.getBoolean("locked"))}})
                         DropdownMenuItem(text={Text("删除图层")},onClick={more=false;vm.deleteLayer()})
                     }
-                    if(vm.keys().isNotEmpty())DropdownMenuItem(text={Text("移除此属性动画")},enabled=vm.editable(),onClick={more=false;vm.animate()})
+                    if(vm.keys().isNotEmpty())DropdownMenuItem(text={Text(if(vm.isSeparated())"移除 "+vm.axisName().uppercase()+" 轴动画"else"移除此属性动画")},enabled=vm.editable(),onClick={more=false;vm.animate()})
                 }
             }
             Tool(Icons.Default.Close,"关闭属性面板"){vm.panelOpen=false}
-        }
+        }}
         HorizontalDivider(color=Muted.copy(alpha=.10f))
-        if(curves)CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())
+        if(curves)key(vm.selected,vm.property,if(vm.isSeparated())vm.activeAxis()else -1){CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())}
         else {
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val fontScale=LocalDensity.current.fontScale
             val rotationHeight=96.dp+maxOf(48.dp,(34*fontScale+12).dp)
-            val scrollValues=fontScale>1.3f||(vm.property=="rotation"&&maxHeight<rotationHeight)
+            val valueHeight=48.dp+96.dp+maxOf(56.dp,(34*fontScale+12).dp)
+            val scrollValues=fontScale>1.3f||maxHeight<if(vm.property=="rotation")rotationHeight else valueHeight
             Column(Modifier.fillMaxSize().testTag("property-values")
                 .then(if(scrollValues)Modifier.verticalScroll(rememberScrollState())else Modifier)) {
                 Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState())) {
@@ -178,13 +191,17 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         }
                     }}
                 }
-                if(vm.property=="rotation")RotationRuler(vm,(if(scrollValues)Modifier.height(48.dp)else Modifier.weight(1f)).fillMaxWidth())
+                if(vm.property=="rotation") {
+                    if(!scrollValues)Spacer(Modifier.weight(1f))
+                    RotationRuler(vm,Modifier.height(48.dp).fillMaxWidth())
+                }
                 val value=vm.sampleValue()
                 if(value is JSONArray)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    for(i in 0 until min(3,value.length()))ScrubField(vm,listOf("X","Y","Z")[i],value.getDouble(i),i,Modifier.weight(1f),
-                        compact=vm.property=="rotation",active=vm.property=="rotation"&&vm.rotationAxis==i,
-                        onFocus={if(vm.property=="rotation")vm.rotationAxis=i})
+                    for(i in vm.visibleAxes().filter{it<value.length()})ScrubField(vm,listOf("X","Y","Z")[i],value.getDouble(i),i,Modifier.weight(1f),
+                        compact=vm.property=="rotation",active=(vm.isSeparated()||vm.property=="rotation")&&vm.activeAxis()==i,
+                        onFocus={vm.chooseAxis(i)})
                 } else if(value is Number)ScrubField(vm,choices.firstOrNull{it.first==vm.property}?.second?:"数值",value.toDouble(),0,Modifier.fillMaxWidth())
+                if(vm.property=="rotation"&&!scrollValues)Spacer(Modifier.weight(1f))
                 if(vm.property!="rotation")TransformPad(vm,(if(scrollValues)Modifier.height(96.dp)else Modifier.weight(1f)).fillMaxWidth().padding(vertical=4.dp))
             }
             }
@@ -231,8 +248,13 @@ private class ValueDrag(private val vm:EditorViewModel) {
     val factor=if(vm.property=="opacity")100.0 else 1.0
     val key=vm.property;val objectId=vm.selected;val frame=floor(vm.frame).toInt()
     Surface(color=Background,shape=RoundedCornerShape(8.dp),modifier=modifier.heightIn(min=if(compact)48.dp else 56.dp).testTag("value-"+label)
-        .draggable(rememberDraggableState{delta->drag?.adjust(axis,delta/density.toDouble())},Orientation.Horizontal,
-            enabled=vm.editable(),onDragStarted={onFocus();drag=ValueDrag(vm);vm.beginGesture()},onDragStopped={vm.endGesture();drag=null})
+        .pointerInput(vm.selected,key,axis,vm.editable(),density) {
+            if(vm.editable())detectHorizontalDragGestures(
+                onDragStart={onFocus();drag=ValueDrag(vm);vm.beginGesture()},
+                onDragEnd={vm.endGesture();drag=null},onDragCancel={vm.cancelGesture();drag=null}){change,amount->
+                    change.consume();drag?.adjust(axis,amount/density.toDouble())
+                }
+        }
         .clickable(enabled=vm.editable()){vm.pause();onFocus();editing=true}) {
         Column(Modifier.padding(horizontal=6.dp,vertical=6.dp),verticalArrangement=Arrangement.Center) {
             Text(label+(if(key=="scale"||key=="opacity")" %" else if(key=="rotation"||key=="fov"||key=="roll")" °" else ""),color=if(active)Accent else Muted,fontSize=11.sp,lineHeight=14.sp,maxLines=1)
@@ -251,7 +273,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                     array.put(other,bounded(key,if(abs(base)>.0001)original.getDouble(other)*raw/base else raw))
                 }
             } else raw
-            vm.setPropertyValue(objectId,key,frame,next);editing=false
+            vm.setPropertyValue(objectId,key,frame,next,editedAxes=if(key=="scale"&&vm.scaleLinked&&axis<2)listOf(0,1)else listOf(axis));editing=false
         }
     }
 }
@@ -259,28 +281,14 @@ private class ValueDrag(private val vm:EditorViewModel) {
 /** Rotation is a one-dimensional angle edit. Axis choice is transient UI state;
  * a drag captures its object, axis, property and frame before any JNI reply. */
 @Composable private fun RotationRuler(vm:EditorViewModel,modifier:Modifier) {
-    var menu by remember{mutableStateOf(false)}
     var drag by remember{mutableStateOf<ValueDrag?>(null)}
     val axis=vm.rotationAxis
     val name=listOf("X","Y","Z")[axis]
     val value=(vm.sampleValue() as? JSONArray)?.optDouble(axis)?:0.0
     val density=LocalDensity.current
     Row(modifier.heightIn(min=48.dp).testTag("rotation-controls"),verticalAlignment=Alignment.CenterVertically) {
-        Box {
-            TextButton(onClick={menu=true},modifier=Modifier.width(56.dp).height(48.dp).testTag("rotation-axis-menu"),
-                contentPadding=PaddingValues(4.dp)) {
-                Text(name+"轴",color=Accent,fontSize=13.sp,maxLines=1)
-                Icon(editorIcon(Icons.Default.ArrowDropDown),"选择旋转轴",Modifier.size(14.dp),tint=Muted)
-            }
-            DropdownMenu(menu,{menu=false}) {
-                listOf("X","Y","Z").forEachIndexed{i,label->
-                    DropdownMenuItem(text={Text(label+" 轴旋转",color=if(axis==i)Accent else Ink)},
-                        modifier=Modifier.testTag("rotation-axis-"+label).semantics{selected=axis==i},
-                        onClick={vm.rotationAxis=i;menu=false})
-                }
-            }
-        }
-        Canvas(Modifier.weight(1f).fillMaxHeight().heightIn(min=48.dp).testTag("rotation-ruler")
+        PropertyAxisMenu(vm,"rotation-axis")
+        Canvas(Modifier.weight(1f).fillMaxHeight().heightIn(min=48.dp).clipToBounds().testTag("rotation-ruler")
             .semantics{contentDescription="滑动调整 "+name+" 轴角度";stateDescription=String.format(Locale.US,"%.1f 度",value)}
             .pointerInput(vm.selected,vm.property,axis,vm.editable(),density.density) {
                 if(vm.editable())detectHorizontalDragGestures(
@@ -311,15 +319,33 @@ private class ValueDrag(private val vm:EditorViewModel) {
     }
 }
 
+@Composable internal fun PropertyAxisMenu(vm:EditorViewModel,prefix:String="property-axis") {
+    var menu by remember{mutableStateOf(false)}
+    val axis=vm.activeAxis()
+    Box {
+        TextButton(onClick={menu=true},modifier=Modifier.widthIn(min=56.dp).height(48.dp).testTag(prefix+"-menu"),contentPadding=PaddingValues(4.dp)) {
+            Text(vm.axisName().uppercase()+"轴",color=Accent,fontSize=13.sp,maxLines=1)
+            Icon(editorIcon(Icons.Default.ArrowDropDown),"选择属性轴",Modifier.size(14.dp),tint=Muted)
+        }
+        DropdownMenu(menu,{menu=false}) {
+            vm.visibleAxes().forEach{i->val name=vm.axisName(i).uppercase()
+                DropdownMenuItem(text={Text(name+" 轴"+if(vm.property=="rotation")"旋转"else"",color=if(axis==i)Accent else Ink)},
+                    modifier=Modifier.testTag(prefix+"-"+name).semantics{selected=axis==i},onClick={vm.chooseAxis(i);menu=false})
+            }
+        }
+    }
+}
+
 @Composable private fun TransformPad(vm:EditorViewModel,modifier:Modifier) {
     var drag:ValueDrag? by remember{mutableStateOf(null)}
     var zAxis by remember(vm.property){mutableStateOf(false)}
+    LaunchedEffect(vm.threeD()){if(!vm.threeD())zAxis=false}
     val density=LocalDensity.current.density
     val vector=vm.sampleValue() is JSONArray
     Box(modifier.background(Background,RoundedCornerShape(10.dp)).testTag("transform-pad")
-        .pointerInput(vm.selected,vm.property,zAxis,vm.scaleLinked,vm.editable()) {
+        .pointerInput(vm.selected,vm.property,zAxis,vm.scaleLinked,vm.editable(),vm.threeD()) {
             if(vm.editable())detectDragGestures(onDragStart={drag=ValueDrag(vm);vm.beginGesture()},
-                onDragEnd={vm.endGesture();drag=null},onDragCancel={vm.endGesture();drag=null}){change,amount->
+                onDragEnd={vm.endGesture();drag=null},onDragCancel={vm.cancelGesture();drag=null}){change,amount->
                 change.consume()
                 if(vector&&vm.property in listOf("position","target")) {
                     if(zAxis)drag?.adjust(2,-amount.y/density.toDouble())
@@ -338,7 +364,8 @@ private class ValueDrag(private val vm:EditorViewModel) {
             "scale"->"滑动缩放";"opacity"->"滑动调整透明度";else->"滑动调节数值"
         },color=Muted,fontSize=12.sp,lineHeight=18.sp)
         }
-        if(vm.property in listOf("position","target"))TextButton(onClick={zAxis=!zAxis},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
+        if(vm.isSeparated())Box(Modifier.align(Alignment.TopStart)){PropertyAxisMenu(vm)}
+        if(vm.threeD()&&vm.property in listOf("position","target"))TextButton(onClick={zAxis=!zAxis},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
             Text(if(zAxis)"XY" else "Z",color=Accent,fontSize=11.sp,lineHeight=14.sp)
         }
         if(vm.property=="scale")IconButton(onClick={vm.scaleLinked=!vm.scaleLinked},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
