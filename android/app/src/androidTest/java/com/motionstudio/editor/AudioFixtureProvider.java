@@ -15,6 +15,10 @@ public final class AudioFixtureProvider extends ContentProvider {
     @Override public AssetFileDescriptor openAssetFile(Uri uri, String mode) throws FileNotFoundException {
         if (!"r".equals(mode)) throw new FileNotFoundException("Read only");
         String name = uri.getLastPathSegment();
+        if (Arrays.asList("silent-24fps.mp4", "sound-24fps.mp4", "audio-delayed.mp4", "rotated-90.mp4", "variable.mp4").contains(name)) {
+            try { return getContext().getAssets().openFd("video/" + name); }
+            catch (IOException e) { throw new FileNotFoundException(e.toString()); }
+        }
         if ("slow.wav".equals(name)) {
             try { Thread.sleep(1500); } catch (InterruptedException e) {
                 Thread.currentThread().interrupt(); throw new FileNotFoundException("Interrupted");

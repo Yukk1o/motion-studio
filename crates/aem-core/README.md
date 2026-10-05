@@ -179,7 +179,7 @@ parameterBytes,vertexBytes,batchStrideBytes:128,vertexStrideBytes:20}}`。
 | 16–19 | 线性色彩 RGB + 原始 alpha |
 | 20–21 | 原始图层宽、高（新顶点着色器不以此缩放顶点） |
 | 22 | 图层 opacity |
-| 24 | 纹理序号，0 为实色白纹理，其他为 project.assets 下标 + 1 |
+| 24 | 纹理序号，0 为白纹理，正值为 project.assets 下标 + 1，视频为负实例槽，见 [视频 API](../aem-media/VIDEO.md) |
 | 25–26 | firstVertex、vertexCount（GL_TRIANGLES） |
 | 27–28 | 原始栈序号、three_d（0/1） |
 | 其他 | 保留，当前为 0 |
@@ -188,7 +188,7 @@ parameterBytes,vertexBytes,batchStrideBytes:128,vertexStrideBytes:20}}`。
 `view_projection * vec4(position,1)` 投影。WebGPU 的深度范围是 0..1，
 GLES 消费时执行 `clip.z = clip.z*2 - clip.w`。纹理资源仍通过 `assetPixels`
 一次读取，RGB 已在线性空间预乘 alpha。片段输出与现有 plane shader 相同，
-使用 ONE / ONE_MINUS_SRC_ALPHA 混合。没有每帧图片传输或 GPU 图片读回。
+使用 ONE / ONE_MINUS_SRC_ALPHA 混合。静态图片只传输一次；动态视频按实例取帧并上传，见 [视频 API](../aem-media/VIDEO.md)。
 
 冻结导出应在独立 `NativeBridge.create(root,frozenProject)` 会话中复用这些
 buffer。原 `sampleInto` 仍支持未拆分的四边形，遇到交叉拆分返回 -1，防止

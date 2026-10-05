@@ -21,6 +21,11 @@ object MediaBridge {
     @JvmStatic external fun freezeAudio(id: Long): String
     @JvmStatic external fun readFrozenPcmInto(handle: Long, startSample: Long, frames: Int, output: ByteBuffer): String
     @JvmStatic external fun releaseFrozenAudio(handle: Long): String
+    @JvmStatic external fun readVideoFrameInto(id:Long,objectId:Long,sequence:Long,output:ByteBuffer):String
+    @JvmStatic external fun freezeVideo(id:Long):String
+    @JvmStatic external fun requestFrozenVideoFrame(handle:Long,objectId:Long,frame:Double,sequence:Long):String
+    @JvmStatic external fun readFrozenVideoFrameInto(handle:Long,objectId:Long,sequence:Long,output:ByteBuffer):String
+    @JvmStatic external fun releaseFrozenVideo(handle:Long):String
 }
 
 @RunWith(AndroidJUnit4::class)
