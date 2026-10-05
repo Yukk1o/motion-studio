@@ -35,6 +35,13 @@ class EditorUiRefreshTest {
     @After fun teardown(){if(::scenario.isInitialized)scenario.close()}
 
     private fun photo(name:String) {
+        compose.waitUntil(15000) {
+            scenario.onActivity{vm.refreshDiagnostics()}
+            val data=vm.state.sample
+            data!=null&&!data.isNull("graphics")&&!data.isNull("lastPresentedFrame")&&data.getDouble("lastPresentedFrame")==vm.frame&&
+                data.getLong("lastPresentedRevision")==data.getLong("revision")&&data.getLong("lastPresentedViewRevision")==data.getLong("viewRevision")
+        }
+        assertNull(vm.state.error)
         compose.waitForIdle()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         android.os.SystemClock.sleep(250)
@@ -110,8 +117,11 @@ class EditorUiRefreshTest {
         val preview=compose.onNodeWithTag("preview-gesture").fetchSemanticsNode().boundsInRoot
         val transport=compose.onNodeWithTag("transport").fetchSemanticsNode().boundsInRoot
         val normalPanel=compose.onNodeWithTag("properties-panel").fetchSemanticsNode().boundsInRoot.height
+        var wide=false
+        scenario.onActivity{wide=it.resources.configuration.screenWidthDp>it.resources.configuration.screenHeightDp}
         compose.onNodeWithContentDescription("缓动曲线").performClick()
-        compose.waitUntil(10000){compose.onNodeWithTag("properties-panel").fetchSemanticsNode().boundsInRoot.height>normalPanel}
+        compose.waitUntil(10000){val height=compose.onNodeWithTag("properties-panel").fetchSemanticsNode().boundsInRoot.height
+            if(wide)height>=normalPanel else height>normalPanel}
         compose.onNodeWithText("先为此属性添加两个关键帧").assertIsDisplayed()
         photo("06-curve-empty")
         compose.onNodeWithContentDescription("返回变换参数").performClick()

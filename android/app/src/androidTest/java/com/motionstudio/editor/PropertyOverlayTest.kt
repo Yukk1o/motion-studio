@@ -108,6 +108,8 @@ class PropertyOverlayTest {
         for(tag in tags)assertEquals("Numeric editing moved "+tag,bounds[tag],compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot)
         compose.onNodeWithText("取消").performClick()
         compose.waitForIdle()
+        val values=compose.onNodeWithTag("property-values").fetchSemanticsNode().config
+        if(values.contains(androidx.compose.ui.semantics.SemanticsActions.ScrollBy))compose.onNodeWithTag("transform-pad").performScrollTo()
         compose.onNodeWithTag("transform-pad").assertIsDisplayed()
         compose.onNodeWithTag("property-key").assertIsDisplayed()
         // Empty header space overlays timeline/preview content. It must consume
