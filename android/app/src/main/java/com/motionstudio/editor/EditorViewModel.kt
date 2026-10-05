@@ -37,7 +37,7 @@ private fun activeProjectDirectory(app:Application):File {
     return File(app.filesDir,"studio/"+name)
 }
 
-class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null) : AndroidViewModel(app) {
+class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null,initialProjectJson:String="") : AndroidViewModel(app) {
     var state by mutableStateOf(StudioState()); private set
     var frame by mutableDoubleStateOf(0.0); private set
     var playing by mutableStateOf(false); private set
@@ -117,7 +117,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         thermalMonitor.addThermalStatusListener(app.mainExecutor,thermalListener)
         worker.post {
             try {
-                id=NativeBridge.create(root.absolutePath,"")
+                id=NativeBridge.create(root.absolutePath,if(File(root,"project.json").exists())"" else initialProjectJson)
                 check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
                 updatePreviewInfo(NativeBridge.previewMode(id,previewMode,thermalStatus))
                 publish(NativeBridge.state(id),root.resolve("project.json").exists())
@@ -327,7 +327,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
     }
-    fun editable():Boolean=selected==0L||layer(selected)?.optBoolean("locked")==false
+    fun hasCamera()=state.project?.optJSONObject("camera")?.optBoolean("created",true)==true
+    fun editable():Boolean=if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false
     fun edit(command:JSONObject,save:Boolean=true) {
         pause();invoke(save){NativeBridge.command(id,command.toString())}
     }
@@ -434,7 +435,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun flags(id:Long,visible:Boolean,locked:Boolean)=edit(JSONObject().put("op","flags").put("object",id).put("visible",visible).put("locked",locked))
     fun rename(name:String) {if(selected!=0L)edit(JSONObject().put("op","rename").put("object",selected).put("name",name))}
     fun duplicate() {if(selected!=0L)edit(JSONObject().put("op","duplicate").put("object",selected))}
-    fun deleteLayer() {if(selected!=0L){edit(JSONObject().put("op","delete").put("object",selected));selected=0L;property=if(state.project?.getJSONObject("camera")?.getString("mode")=="orbit")"radius"else"position"}}
+    fun deleteLayer() {if(selected!=0L||hasCamera()){edit(JSONObject().put("op","remove").put("object",selected).put("frame",floor(frame).toInt()));selected=0L;property="position";panelOpen=false}}
     fun reorder(delta:Int) {
         val p=state.project?:return;val a=p.getJSONArray("layers")
         val index=(0 until a.length()).firstOrNull{a.getJSONObject(it).getLong("id")==selected}?:return
@@ -457,6 +458,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             p.getInt("width")*.5f,p.getInt("height")*.2f)
         edit(JSONObject().put("op","add").put("layer",l));selected=l.getLong("id");panelOpen=true
     }
+    fun addCamera(){edit(JSONObject().put("op","create_camera"));selected=0L;property="position";panelOpen=true}
+    fun addNull() {
+        val l=newLayer("空对象",JSONObject().put("kind","null"),100f,100f)
+        edit(JSONObject().put("op","add").put("layer",l));selected=l.getLong("id");property="position";panelOpen=true
+    }
+    fun setParent(parent:Long?){edit(JSONObject().put("op","parent").put("object",selected).put("parent",parent?:JSONObject.NULL).put("frame",floor(frame).toInt()))}
     fun importImage(uri:Uri) {
         val p=state.project?:return;pause();state=state.copy(busy=true)
         viewModelScope.launch(Dispatchers.IO) {

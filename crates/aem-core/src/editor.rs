@@ -21,6 +21,16 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    CreateCamera,
+    Remove {
+        object: u64,
+        frame: u32,
+    },
+    Parent {
+        object: u64,
+        parent: Option<u64>,
+        frame: u32,
+    },
     CopyKey {
         object: u64,
         property: Property,
@@ -150,6 +160,7 @@ impl Channel<'_> {
 fn channel(project: &mut Project, object: u64, property: Property) -> Result<Channel<'_>> {
     if object == 0 {
         let c = &mut project.camera;
+        ensure(c.created, "camera does not exist")?;
         return Ok(match property {
             Property::Position => {
                 ensure(
@@ -275,6 +286,45 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             layer.size = size;
         }
         Command::Add { layer } => project.layers.push(layer),
+        Command::CreateCamera => {
+            ensure(!project.camera.created, "camera already exists")?;
+            project.camera = crate::Camera::new(project.width, project.height);
+        }
+        Command::Remove { object, frame } => {
+            valid_frame(frame)?;
+            if object == 0 {
+                ensure(project.camera.created, "camera does not exist")?;
+            }
+            if object != 0 {
+                ensure(!project.layer_mut(object)?.locked, "object is locked")?;
+            }
+            let children: Vec<_> = project
+                .layers
+                .iter()
+                .filter(|l| l.parent.as_ref().and_then(|p| p.object) == Some(object))
+                .map(|l| l.id)
+                .collect();
+            for child in children {
+                crate::hierarchy::reparent(project, child, None, frame)?;
+            }
+            if project.camera.parent.as_ref().and_then(|p| p.object) == Some(object) {
+                crate::hierarchy::reparent(project, 0, None, frame)?;
+            }
+            if object == 0 {
+                project.camera = crate::Camera::new(project.width, project.height);
+                project.camera.created = false;
+            } else {
+                project.layers.retain(|l| l.id != object);
+            }
+        }
+        Command::Parent {
+            object,
+            parent,
+            frame,
+        } => {
+            valid_frame(frame)?;
+            crate::hierarchy::reparent(project, object, parent, frame)?;
+        }
         Command::Delete { object } => {
             if project.layer_mut(object)?.locked {
                 return Err(Error::Locked(object));
@@ -315,9 +365,13 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             let layer = project.layers.remove(from);
             project.layers.insert(index, layer);
         }
-        Command::CameraMode { mode } => project.camera.convert_mode(mode, project.frames)?,
+        Command::CameraMode { mode } => {
+            ensure(project.camera.created, "camera does not exist")?;
+            project.camera.convert_mode(mode, project.frames)?;
+        }
         Command::Dolly { frame, amount } => {
             valid_frame(frame)?;
+            ensure(project.camera.created, "camera does not exist")?;
             ensure(amount.is_finite(), "invalid dolly movement")?;
             if project.camera.mode == CameraMode::Orbit {
                 let radius = project.camera.radius.sample(f64::from(frame));
@@ -339,6 +393,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
         }
         Command::Pan { frame, x, y } => {
             valid_frame(frame)?;
+            ensure(project.camera.created, "camera does not exist")?;
             ensure(x.is_finite() && y.is_finite(), "invalid camera pan")?;
             let pose = project
                 .camera
