@@ -11,6 +11,7 @@ fn static_mode_conversion_does_not_create_a_dense_keyframe_track() {
     assert!(e.project().camera.azimuth.keys.is_empty());
     assert!(e.project().camera.elevation.keys.is_empty());
     e.apply(Command::Animate {
+        axis: None,
         object: 0,
         property: Property::Azimuth,
         frame: 0,

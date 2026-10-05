@@ -81,12 +81,7 @@ impl Transform {
             (&self.rotation, 1_000_000.0),
             (&self.scale, 100_000.0),
         ] {
-            for value in std::iter::once(track.value).chain(track.keys.iter().map(|k| k.value)) {
-                ensure(
-                    value.into_iter().all(|v| v.abs() <= bound),
-                    "transform value exceeds its numeric range",
-                )?;
-            }
+            track.validate_bound(bound)?;
         }
         for value in
             std::iter::once(self.opacity.value).chain(self.opacity.keys.iter().map(|k| k.value))

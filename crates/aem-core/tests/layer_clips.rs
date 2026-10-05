@@ -169,6 +169,7 @@ fn key_commands_convert_composition_time_and_keep_negative_local_keys() {
     })
     .unwrap();
     e.apply(Command::CopyKey {
+        axis: None,
         object: 2,
         property: Property::Position,
         from: 5,
@@ -176,6 +177,7 @@ fn key_commands_convert_composition_time_and_keep_negative_local_keys() {
     })
     .unwrap();
     e.apply(Command::MoveKey {
+        axis: None,
         object: 2,
         property: Property::Position,
         from: 10,
@@ -183,6 +185,7 @@ fn key_commands_convert_composition_time_and_keep_negative_local_keys() {
     })
     .unwrap();
     e.apply(Command::Curve {
+        axis: None,
         object: 2,
         property: Property::Position,
         frame: 15,
@@ -199,6 +202,7 @@ fn key_commands_convert_composition_time_and_keep_negative_local_keys() {
         .iter()
         .any(|k| k.frame == 15 && k.local_frame == -5 && k.ease == Ease::InOut));
     e.apply(Command::DeleteKey {
+        axis: None,
         object: 2,
         property: Property::Position,
         frame: 5,
