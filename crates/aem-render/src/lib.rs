@@ -1,5 +1,7 @@
 //! Native GPU rendering. Image decoding/upload happens on resource changes;
 //! playback uploads only fixed-size layer uniforms.
+mod effect_gpu;
+pub mod effect_plan;
 mod measurement;
 mod presenter;
 mod quality;

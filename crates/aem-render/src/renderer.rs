@@ -37,6 +37,7 @@ struct DrawUniform {
     mvp: [[f32; 4]; 4],
     color: [f32; 4],
     extent_opacity: [f32; 4],
+    uv_scale: [f32; 4],
 }
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -44,8 +45,9 @@ struct GeometryVertex {
     position: [f32; 3],
     uv: [f32; 2],
 }
-struct GpuImage {
+pub(crate) struct GpuImage {
     _texture: wgpu::Texture,
+    pub(crate) view: wgpu::TextureView,
     bind_group: wgpu::BindGroup,
     bytes: u64,
 }
@@ -56,6 +58,7 @@ pub struct RenderStats {
     pub draw_calls: u32,
     pub texture_bytes: u64,
     pub parameter_upload_bytes: u64,
+    pub parameter_resource_upload_bytes: u64,
 }
 
 pub struct Renderer {
@@ -77,6 +80,9 @@ pub struct Renderer {
     texture_bytes: u64,
     pub target_format: wgpu::TextureFormat,
     gpu_failure: Arc<Mutex<Option<String>>>,
+    effect_gpu: crate::effect_gpu::EffectGpu,
+    asset_order: Vec<u64>,
+    pub effect_diagnostics: Vec<String>,
 }
 
 impl Renderer {
@@ -238,6 +244,7 @@ impl Renderer {
             multiview: None,
             cache: None,
         });
+        let effect_gpu = crate::effect_gpu::EffectGpu::new(&device, &queue, &image_layout)?;
         let mut renderer = Self {
             adapter,
             device,
@@ -257,7 +264,12 @@ impl Renderer {
             texture_bytes: 0,
             target_format: format,
             gpu_failure,
+            effect_gpu,
+            asset_order: Vec::new(),
+            effect_diagnostics: Vec::new(),
         };
+        renderer.effect_gpu.builder.device_dimension =
+            renderer.device.limits().max_texture_dimension_2d.min(8192);
         renderer.upload_image(0, 1, 1, &[255; 4])?;
         Ok(renderer)
     }
@@ -266,7 +278,30 @@ impl Renderer {
         Self::new(&instance, None, TARGET_FORMAT).await
     }
     pub fn texture_bytes(&self) -> u64 {
-        self.texture_bytes
+        self.texture_bytes + self.effect_gpu.state.bytes()
+    }
+    pub fn set_effect_registry(&mut self, registry: aem_effects::Registry) {
+        self.effect_gpu.set_registry(registry);
+    }
+    pub fn preflight_effects(&mut self, scene: &Scene, width: u32, height: u32) -> Result<()> {
+        self.effect_gpu
+            .builder
+            .build(scene, &self.asset_order, width, height, true)
+            .map_err(RenderError::Invalid)?;
+        self.effect_gpu.state.prepare(
+            &self.device,
+            &self.queue,
+            &self.image_layout,
+            &self.effect_gpu.builder,
+            scene,
+            self.texture_bytes,
+        )?;
+        if self.texture_bytes + self.effect_gpu.state.resource_bytes > TEXTURE_BUDGET {
+            return Err(RenderError::Invalid(
+                "images and plugin resources exceed 128 MiB".into(),
+            ));
+        }
+        Ok(())
     }
     pub fn gpu_error(&self) -> Option<String> {
         self.gpu_failure
@@ -298,7 +333,9 @@ impl Renderer {
             ));
         }
         let previous = self.images.get(&id).map_or(0, |t| t.bytes);
-        if self.texture_bytes - previous + bytes > TEXTURE_BUDGET {
+        if self.texture_bytes - previous + bytes + self.effect_gpu.state.resource_bytes
+            > TEXTURE_BUDGET
+        {
             return Err(RenderError::Invalid(
                 "decoded preview textures exceed 128 MiB".into(),
             ));
@@ -363,10 +400,15 @@ impl Renderer {
             id,
             GpuImage {
                 _texture: texture,
+                view,
                 bind_group,
                 bytes,
             },
         );
+        if !self.asset_order.contains(&id) {
+            self.asset_order.push(id);
+        }
+        self.effect_gpu.invalidate();
         self.texture_bytes = self.texture_bytes - previous + bytes;
         Ok(())
     }
@@ -400,11 +442,15 @@ impl Renderer {
             .collect();
         for id in remove {
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
+            self.asset_order.retain(|v| *v != id);
+            self.effect_gpu.invalidate();
         }
         Ok(())
     }
     pub fn clear_assets(&mut self) {
         self.images.retain(|id, _| *id == 0);
+        self.asset_order.retain(|id| *id == 0);
+        self.effect_gpu.invalidate();
         self.texture_bytes = self.images.get(&0).map_or(0, |t| t.bytes);
     }
     /// New projects may reuse asset IDs from another directory. Load into a
@@ -412,6 +458,9 @@ impl Renderer {
     pub fn replace_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
         let mut previous = std::mem::take(&mut self.images);
         let previous_bytes = self.texture_bytes;
+        let previous_order = self.asset_order.clone();
+        self.asset_order = vec![0];
+        self.effect_gpu.invalidate();
         self.images
             .insert(0, previous.remove(&0).expect("solid texture exists"));
         self.texture_bytes = 4;
@@ -419,6 +468,8 @@ impl Renderer {
             previous.insert(0, self.images.remove(&0).expect("solid texture exists"));
             self.images = previous;
             self.texture_bytes = previous_bytes;
+            self.asset_order = previous_order;
+            self.effect_gpu.invalidate();
             return Err(error);
         }
         Ok(())
@@ -458,6 +509,11 @@ impl Renderer {
             ));
         }
         let started = Instant::now();
+        if scene.effects.iter().any(|e| e.enabled) {
+            return self.encode_effects(scene, view, width, height, encoder, timestamps);
+        }
+        self.effect_diagnostics.clear();
+        self.effect_gpu.state.release_scratch();
         self.compositor
             .prepare(scene)
             .map_err(|e| RenderError::Invalid(e.to_string()))?;
@@ -489,6 +545,7 @@ impl Renderer {
                 mvp: layer.view_projection.to_cols_array_2d(),
                 color,
                 extent_opacity: [layer.size[0], layer.size[1], layer.opacity, 0.0],
+                uv_scale: [1.0, 1.0, 0.0, 0.0],
             };
             let offset = index * self.uniform_stride;
             self.upload[offset..offset + DRAW_SIZE as usize]
@@ -554,6 +611,163 @@ impl Renderer {
             parameter_upload_bytes: (upload_bytes
                 + self.geometry_upload.len() * std::mem::size_of::<GeometryVertex>())
                 as u64,
+            parameter_resource_upload_bytes: 0,
+        })
+    }
+    fn encode_effects(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<RenderStats> {
+        let started = Instant::now();
+        loop {
+            self.effect_gpu
+                .builder
+                .build(scene, &self.asset_order, width, height, false)
+                .map_err(RenderError::Invalid)?;
+            match self.effect_gpu.state.prepare(
+                &self.device,
+                &self.queue,
+                &self.image_layout,
+                &self.effect_gpu.builder,
+                scene,
+                self.texture_bytes,
+            ) {
+                Ok(()) => break,
+                Err(error) => {
+                    if let Some((program, message)) = self.effect_gpu.state.failed_program.take() {
+                        self.effect_gpu
+                            .builder
+                            .program_errors
+                            .insert(program, message);
+                        continue;
+                    }
+                    self.effect_diagnostics = vec![error.to_string()];
+                    return Err(error);
+                }
+            }
+        }
+        let frame = &self.effect_gpu.builder.frame;
+        self.effect_diagnostics.clone_from(&frame.diagnostics);
+        for (i, draw) in frame.draws.iter().enumerate() {
+            let w = &draw.words;
+            let uniform = DrawUniform {
+                mvp: std::array::from_fn(|c| std::array::from_fn(|r| w[c * 4 + r])),
+                color: w[16..20].try_into().unwrap(),
+                extent_opacity: [w[20], w[21], w[22], 0.0],
+                uv_scale: [w[25], w[26], 0.0, 0.0],
+            };
+            self.upload[i * self.uniform_stride..i * self.uniform_stride + DRAW_SIZE as usize]
+                .copy_from_slice(bytemuck::bytes_of(&uniform));
+        }
+        let bytes = frame.draws.len() * self.uniform_stride;
+        if bytes > 0 {
+            self.queue
+                .write_buffer(&self.uniform_buffer, 0, &self.upload[..bytes]);
+        }
+        let alpha = scene.background[3];
+        let clear = wgpu::Color {
+            r: (srgb_to_linear(scene.background[0]) * alpha) as f64,
+            g: (srgb_to_linear(scene.background[1]) * alpha) as f64,
+            b: (srgb_to_linear(scene.background[2]) * alpha) as f64,
+            a: alpha as f64,
+        };
+        {
+            let writes = timestamps
+                .as_ref()
+                .map(|t| wgpu::RenderPassTimestampWrites {
+                    query_set: t.query_set,
+                    beginning_of_pass_write_index: t.beginning_of_pass_write_index,
+                    end_of_pass_write_index: None,
+                });
+            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("effect composition clear"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: writes,
+                occlusion_query_set: None,
+            });
+        }
+        for (i, draw) in frame.draws.iter().enumerate() {
+            for p in draw.pass_start..draw.pass_end {
+                self.effect_gpu.state.encode_pass(
+                    p,
+                    frame,
+                    &self.asset_order,
+                    &self.images,
+                    &self.device,
+                    &self.queue,
+                    encoder,
+                )?;
+            }
+            let writes = if i + 1 == frame.draws.len() {
+                timestamps
+                    .as_ref()
+                    .map(|t| wgpu::RenderPassTimestampWrites {
+                        query_set: t.query_set,
+                        beginning_of_pass_write_index: None,
+                        end_of_pass_write_index: t.end_of_pass_write_index,
+                    })
+            } else {
+                None
+            };
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("effect composition layer"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: writes,
+                occlusion_query_set: None,
+            });
+            let scale =
+                (width as f32 / scene.width as f32).min(height as f32 / scene.height as f32);
+            let vw = scene.width as f32 * scale;
+            let vh = scene.height as f32 * scale;
+            pass.set_viewport(
+                (width as f32 - vw) / 2.0,
+                (height as f32 - vh) / 2.0,
+                vw,
+                vh,
+                0.0,
+                1.0,
+            );
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &self.uniform_group, &[(i * self.uniform_stride) as u32]);
+            let group = if draw.words[27] >= 0.0 {
+                &self.effect_gpu.state.pool[0].as_ref().unwrap().composite
+            } else {
+                &self.images[&self.asset_order[draw.words[24] as usize]].bind_group
+            };
+            pass.set_bind_group(1, group, &[]);
+            pass.draw(0..6, 0..1);
+        }
+        Ok(RenderStats {
+            cpu_prepare_us: started.elapsed().as_micros() as u64,
+            draw_calls: (frame.draws.len() + frame.passes.len()) as u32,
+            texture_bytes: self.texture_bytes + self.effect_gpu.state.bytes(),
+            parameter_upload_bytes: (bytes
+                + frame.passes.len() * aem_effects::shader::UNIFORM_BYTES)
+                as u64,
+            parameter_resource_upload_bytes: std::mem::take(
+                &mut self.effect_gpu.state.parameter_resource_upload_bytes,
+            ),
         })
     }
     pub fn render_target(&self, width: u32, height: u32) -> Result<RenderTarget> {
@@ -614,6 +828,7 @@ impl Renderer {
         scene: &Scene,
         target: &CaptureTarget,
     ) -> Result<(Vec<u8>, RenderStats)> {
+        self.preflight_effects(scene, target.width, target.height)?;
         let stats = self.draw(scene, &target.view, target.width, target.height)?;
         Ok((self.read_target(target)?, stats))
     }

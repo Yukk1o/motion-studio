@@ -78,6 +78,8 @@ struct Session {
     surface_epoch: u64,
     preview: PreviewPolicy,
     recorder: Option<FrameRecorder>,
+    effects: aem_render::effect_plan::PlanBuilder,
+    plugin_root: PathBuf,
 }
 impl Session {
     fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
@@ -105,6 +107,13 @@ impl Session {
             .sample(project, 0.0, None)
             .map_err(|e| e.to_string())?;
         let observer = Observer::new(project.width, project.height);
+        let plugin_root = root
+            .parent()
+            .ok_or("project directory has no parent")?
+            .join("plugins");
+        let effects = aem_render::effect_plan::PlanBuilder::new(
+            aem_effects::Registry::load(&plugin_root).map_err(|e| e.to_string())?,
+        )?;
         Ok(Self {
             engine,
             scene,
@@ -125,6 +134,8 @@ impl Session {
             surface_epoch: 0,
             preview: PreviewPolicy::default(),
             recorder: None,
+            effects,
+            plugin_root,
         })
     }
     fn check_thread(&self) -> Result<()> {
@@ -154,6 +165,7 @@ impl Session {
             true,
         ))
         .map_err(|e| e.to_string())?;
+        renderer.set_effect_registry(self.effects.registry.clone());
         let caps = surface.get_capabilities(&renderer.adapter);
         let format = caps
             .formats
@@ -417,7 +429,8 @@ impl Session {
             "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),
             "timeline_camera":{"position":p.camera.position.timeline(0),"target":p.camera.target.timeline(0)},
             "projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
-            "renderError":self.last_error,"lastPresentedFrame":self.last_presented_frame,
+            "renderError":self.last_error,"effectErrors":self.graphics.as_ref().map(|g|&g.renderer.effect_diagnostics),
+            "sampledEffects":self.scene.effects.iter().map(|e|json!({"layer":e.layer,"instance":e.instance,"values":e.param_ids.iter().enumerate().map(|(i,id)|(id.clone(),json!(e.values[i]))).collect::<serde_json::Map<String,Value>>() })).collect::<Vec<_>>(),"lastPresentedFrame":self.last_presented_frame,
             "lastPresentedRevision":self.last_presented_revision,"viewRevision":self.view_revision,
             "lastPresentedViewRevision":self.last_presented_view_revision,"surfaceEpoch":self.surface_epoch,
             "diagnosticsEnabled":cfg!(feature="diagnostics"),
@@ -454,6 +467,234 @@ fn read_string(env: &mut JNIEnv<'_>, text: &JString<'_>) -> Result<String> {
     env.get_string(text)
         .map(|s| s.into())
         .map_err(|e| e.to_string())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    request: JString,
+) -> jstring {
+    let request = read_string(&mut env, &request);
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            let v: Value = serde_json::from_str(&request?).map_err(|e| e.to_string())?;
+            let text = |name: &str| v[name].as_str().ok_or_else(|| format!("missing {name}"));
+            let registry = &mut s.effects.registry;
+            match text("op")? {
+                "catalogue" => {
+                    return Ok(
+                        json!({"packages":registry.packages.iter().map(|(key,p)|json!({"manifest":p.manifest,"hash":p.hash,"enabled":!registry.disabled.contains(key)})).collect::<Vec<_>>(),"errors":registry.diagnostics}),
+                    )
+                }
+                "install" => {
+                    registry
+                        .install(&s.plugin_root, &PathBuf::from(text("path")?))
+                        .map_err(|e| e.to_string())?;
+                }
+                "enable" => registry
+                    .enable(
+                        &s.plugin_root,
+                        text("plugin")?,
+                        text("version")?,
+                        text("hash")?,
+                        v["enabled"].as_bool().ok_or("missing enabled")?,
+                    )
+                    .map_err(|e| e.to_string())?,
+                "uninstall" => registry
+                    .uninstall(
+                        &s.plugin_root,
+                        text("plugin")?,
+                        text("version")?,
+                        text("hash")?,
+                    )
+                    .map_err(|e| e.to_string())?,
+                "add" | "upgrade" => {
+                    let p = registry
+                        .resolve(text("plugin")?, text("version")?, text("hash")?)
+                        .map_err(|e| e.to_string())?;
+                    let def = p
+                        .manifest
+                        .effects
+                        .iter()
+                        .find(|d| Some(d.id.as_str()) == v["effect"].as_str())
+                        .ok_or("unknown effect")?;
+                    let object = v["object"].as_u64().ok_or("missing layer")?;
+                    let layer = s
+                        .engine
+                        .project()
+                        .layers
+                        .iter()
+                        .find(|l| l.id == object)
+                        .ok_or("layer does not exist")?;
+                    let upgrading = text("op")? == "upgrade";
+                    let instance = if upgrading {
+                        v["instance"].as_u64().ok_or("missing instance")?
+                    } else {
+                        layer.effects.iter().map(|e| e.id).max().unwrap_or(0) + 1
+                    };
+                    let index = if upgrading {
+                        layer
+                            .effects
+                            .iter()
+                            .position(|e| e.id == instance)
+                            .ok_or("instance does not exist")?
+                    } else {
+                        layer.effects.len()
+                    };
+                    let effect = aem_core::EffectInstance::new(
+                        instance,
+                        &p.manifest.id,
+                        &p.manifest.version,
+                        &p.hash,
+                        def,
+                        layer.size,
+                    );
+                    let mut cmds = Vec::new();
+                    if upgrading {
+                        cmds.push(Command::Effect {
+                            object,
+                            action: aem_core::EffectAction::Remove { effect: instance },
+                        });
+                    }
+                    cmds.push(Command::Effect {
+                        object,
+                        action: aem_core::EffectAction::Insert { instance: effect },
+                    });
+                    if upgrading {
+                        cmds.push(Command::Effect {
+                            object,
+                            action: aem_core::EffectAction::Move {
+                                effect: instance,
+                                index,
+                            },
+                        });
+                    }
+                    s.engine.apply_batch(cmds).map_err(|e| e.to_string())?;
+                    s.sample()?;
+                    return Ok(s.snapshot());
+                }
+                _ => return Err("unknown plugin operation".into()),
+            }
+            let next = registry.clone();
+            s.effects.set_registry(next.clone());
+            if let Some(g) = &mut s.graphics {
+                g.renderer.set_effect_registry(next);
+            }
+            s.view_revision += 1;
+            s.last_presented_frame = None;
+            Ok(s.snapshot())
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+) -> jstring {
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            s.observing = false;
+            s.sample()?;
+            let p = s.engine.project();
+            s.effects.preflight_project(p)?;
+            let assets = std::iter::once(0)
+                .chain(p.assets.iter().map(|a| a.id))
+                .collect::<Vec<_>>();
+            s.effects
+                .build(&s.scene, &assets, p.width, p.height, true)?;
+            let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"resources":program.resources.iter().map(|path|{
+   let bytes=&program.package.as_ref().unwrap().files[path];let dimensions=image::load_from_memory(bytes).map(|v|(v.width(),v.height())).unwrap_or((0,0));json!({"path":path,"width":dimensions.0,"height":dimensions.1})
+  }).collect::<Vec<_>>() })).collect::<Vec<_>>();
+            let count = p
+                .layers
+                .iter()
+                .map(|l| l.effects.iter().filter(|e| e.enabled).count())
+                .sum::<usize>();
+            let passes = count * 10 + p.layers.len();
+            let buffer_bytes = 64
+                + p.layers.len() * 128
+                + passes * (32 + aem_effects::shader::UNIFORM_BYTES)
+                + count * 1024;
+            Ok(
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+            )
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleRenderPlanInto(
+    env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    frame: jint,
+    buffer: JByteBuffer,
+) -> jint {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<i32> {
+        let capacity = env
+            .get_direct_buffer_capacity(&buffer)
+            .map_err(|e| e.to_string())?;
+        let pointer = env
+            .get_direct_buffer_address(&buffer)
+            .map_err(|e| e.to_string())?;
+        with_session(id, |s| {
+            s.frame = f64::from(frame);
+            s.sample()?;
+            let p = s.engine.project();
+            let assets = std::iter::once(0)
+                .chain(p.assets.iter().map(|a| a.id))
+                .collect::<Vec<_>>();
+            let result = (|| {
+                let plan = s
+                    .effects
+                    .build(&s.scene, &assets, p.width, p.height, true)?;
+                let bytes = unsafe { std::slice::from_raw_parts_mut(pointer, capacity) };
+                plan.write(&s.scene, bytes).map(|n| n as i32)
+            })();
+            if let Err(error) = &result {
+                s.last_error = Some(error.clone());
+            }
+            result
+        })
+    }));
+    result.ok().and_then(std::result::Result::ok).unwrap_or(-1)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_pluginPixels(
+    env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    program: jint,
+    resource: jint,
+) -> jbyteArray {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        with_session(id, |s| {
+            let program = s
+                .effects
+                .programs
+                .get(program as usize)
+                .ok_or("unknown program")?;
+            let path = program
+                .resources
+                .get(resource as usize)
+                .ok_or("unknown resource")?;
+            let package = program.package.as_ref().ok_or("program has no resources")?;
+            image::load_from_memory(&package.files[path])
+                .map(|v| v.into_rgba8().into_raw())
+                .map_err(|e| e.to_string())
+        })
+    }));
+    match result {
+        Ok(Ok(bytes)) => env
+            .byte_array_from_slice(&bytes)
+            .map_or(std::ptr::null_mut(), |v| v.into_raw()),
+        _ => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -1061,6 +1302,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
     string_result(&mut env, || {
         with_session(id, |s| {
             let p = s.engine.project();
+            s.effects.preflight_project(p)?;
             let mut scene = Scene::new(p);
             scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
             let mut temporary = None;
@@ -1073,6 +1315,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
             } else {
                 temporary.as_mut().unwrap()
             };
+            renderer.set_effect_registry(s.effects.registry.clone());
             renderer
                 .synchronize_assets(p, &s.root)
                 .map_err(|e| e.to_string())?;
@@ -1250,6 +1493,15 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleInto(
         let address = address.map_err(|e| e.to_string())?;
         let capacity = capacity.map_err(|e| e.to_string())?;
         with_session(id, |s| {
+            if s.engine
+                .project()
+                .layers
+                .iter()
+                .any(|l| l.effects.iter().any(|e| e.enabled))
+            {
+                return Err("effects require render plan SDK 1".into());
+            }
+
             s.frame = f64::from(frame);
             s.scene
                 .sample(s.engine.project(), s.frame, None)

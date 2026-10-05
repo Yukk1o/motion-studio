@@ -32,6 +32,10 @@ pub struct Scene {
     pub background: [f32; 4],
     pub width: u32,
     pub height: u32,
+    pub effects: Vec<crate::SampledEffect>,
+    pub curve_luts: Vec<crate::CurveLut>,
+    pub frame: f64,
+    pub fps: u32,
     node_world: Vec<Mat4>,
     node_states: Vec<u8>,
     node_ids: Vec<u64>,
@@ -45,6 +49,10 @@ impl Scene {
             background: project.background,
             width: project.width,
             height: project.height,
+            effects: Vec::with_capacity(crate::MAX_LAYERS * aem_effects::MAX_EFFECTS_PER_LAYER),
+            curve_luts: Vec::new(),
+            frame: 0.0,
+            fps: project.fps,
             node_world: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_states: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_ids: Vec::with_capacity(crate::MAX_LAYERS + 1),
@@ -61,6 +69,33 @@ impl Scene {
             frame.is_finite() && frame >= 0.0 && frame < f64::from(project.frames),
             "invalid sample time",
         )?;
+        self.frame = frame;
+        self.fps = project.fps;
+        self.curve_luts.clear();
+        let mut effect_index = 0;
+        for layer in &project.layers {
+            for e in &layer.effects {
+                if effect_index >= self.effects.len() {
+                    self.effects.push(crate::SampledEffect::new(layer.id, e));
+                } else if !self.effects[effect_index].matches(layer.id, e) {
+                    self.effects[effect_index] = crate::SampledEffect::new(layer.id, e);
+                }
+                let sampled = &mut self.effects[effect_index];
+                sampled.local_frame = layer.local_frame(frame);
+                sampled.enabled = e.enabled;
+                sampled.seed = e.seed;
+                sampled.lut = None;
+                for (i, p) in e.params.values().enumerate() {
+                    sampled.values[i] = p.sample(sampled.local_frame);
+                    if let Some(c) = p.curve.as_ref().filter(|_| e.enabled) {
+                        sampled.lut = Some(self.curve_luts.len());
+                        self.curve_luts.push(c.sample(sampled.local_frame));
+                    }
+                }
+                effect_index += 1;
+            }
+        }
+        self.effects.truncate(effect_index);
         crate::hierarchy::matrices(project, frame, &mut self.node_world, &mut self.node_states)?;
         self.node_ids.clear();
         self.node_ids.extend(project.layers.iter().map(|l| l.id));

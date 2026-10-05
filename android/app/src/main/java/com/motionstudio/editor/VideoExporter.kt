@@ -31,6 +31,8 @@ class VideoExporter(private val root:File,private val projectJson:String) {
         val started=System.nanoTime()
         try {
             native=NativeBridge.create(root.absolutePath,projectJson);check(native!=0L){"冻结工程创建失败"}
+            val planResponse=JSONObject(NativeBridge.renderPlanInfo(native));check(planResponse.optBoolean("ok")){planResponse.optString("error")}
+            val planInfo=planResponse.getJSONObject("data")
             codec=MediaCodec.createByCodecName(info.name)
             val format=MediaFormat.createVideoFormat("video/avc",width,height).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT,MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
@@ -119,7 +121,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
     }
 }
 
-private class EglMovieRenderer(surface:Surface,private val width:Int,private val height:Int,project:JSONObject,native:Long) {
+private class EglMovieRenderer(surface:Surface,private val width:Int,private val height:Int,project:JSONObject,native:Long,planInfo:JSONObject) {
     private val display=EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
     private var context:EGLContext=EGL14.EGL_NO_CONTEXT
     private var window:EGLSurface=EGL14.EGL_NO_SURFACE
@@ -131,6 +133,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
     private var vertexBuffer:Int=0
     private var vertexArray:Int=0
     private val clear=FloatArray(4)
+    private var effects:GlEffects?=null
     init {
         try {
         val version=IntArray(2);check(EGL14.eglInitialize(display,version,0,version,1)){"EGL 初始化失败"}
@@ -160,6 +163,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             val data=NativeBridge.assetPixels(native,a.getLong("id"))?:error("图片资源读取失败")
             textures.add(texture(w,h,ByteBuffer.allocateDirect(data.size).put(data).apply{flip()}))
         }
+        if(planInfo.getJSONArray("programs").length()>2)effects=GlEffects(planInfo,native,textures)
         frameTexture=texture(width,height,null)
         val fbo=IntArray(1);GLES30.glGenFramebuffers(1,fbo,0);framebuffer=fbo[0]
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer)
@@ -179,10 +183,20 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         vertices.clear()
         val values=buffer.asFloatBuffer();val matrix=FloatArray(16);val color=FloatArray(4)
         for(i in 0 until count) {
-            val base=i*32;values.position(base);values.get(matrix);values.get(color)
-            GLES30.glUniformMatrix4fv(GLES30.glGetUniformLocation(plane,"mvp"),1,false,matrix,0)
-            GLES30.glUniform4fv(GLES30.glGetUniformLocation(plane,"color"),1,color,0)
-            GLES30.glUniform3f(GLES30.glGetUniformLocation(plane,"extent"),values.get(base+20),values.get(base+21),values.get(base+22))
+            val base=buffer.getInt(16)/4+i*32;
+            val passStart=values.get(base+28).toInt();val passEnd=values.get(base+29).toInt()
+            if(passStart<passEnd) {
+                effects!!.passes(buffer,passStart,passEnd)
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
+                GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA);GLES30.glUseProgram(plane)
+                GLES30.glUniform1i(imageLocation,0)
+            }
+            val x=values.get(base+25);val y=values.get(base+26)
+            if(x!=uvX||y!=uvY){GLES30.glUniform2f(uvLocation,x,y);uvX=x;uvY=y}
+            values.position(base);values.get(matrix);values.get(color)
+            GLES30.glUniformMatrix4fv(mvpLocation,1,false,matrix,0)
+            GLES30.glUniform4fv(colorLocation,1,color,0)
+            GLES30.glUniform3f(extentLocation,values.get(base+20),values.get(base+21),values.get(base+22))
             val asset=values.get(base+24).toInt();check(asset in textures.indices){"纹理索引失效"}
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,textures[asset])
             val first=values.get(base+25).toInt();val size=values.get(base+26).toInt()
@@ -192,7 +206,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0);GLES30.glDisable(GLES30.GL_BLEND)
         GLES30.glUseProgram(presentProgram);GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,frameTexture)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(presentProgram,"image"),0)
+        GLES30.glUniform1i(presentImageLocation,0)
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,3)
         check(GLES30.glGetError()==GLES30.GL_NO_ERROR){"GPU 导出通道错误"}
     }
@@ -203,6 +217,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
     fun close() {
         if(context!=EGL14.EGL_NO_CONTEXT&&window!=EGL14.EGL_NO_SURFACE) {
             EGL14.eglMakeCurrent(display,window,window,context)
+            effects?.close();effects=null
             GLES30.glDeleteProgram(plane);GLES30.glDeleteProgram(presentProgram)
             GLES30.glDeleteBuffers(1,intArrayOf(vertexBuffer),0);GLES30.glDeleteVertexArrays(1,intArrayOf(vertexArray),0)
             GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0)

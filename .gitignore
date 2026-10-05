@@ -13,6 +13,7 @@
 *.tmp
 __pycache__/
 refer/
+reference/
 
 # Local reference material is excluded from version control.
 /design/ardot-handoff.json
@@ -24,3 +25,8 @@ refer/
 /tools/summarize_effects.py
 /docs/
 /design/
+
+# Versioned effect runtime handoff only; other local study materials stay excluded.
+!/docs/
+/docs/*
+!/docs/effects/

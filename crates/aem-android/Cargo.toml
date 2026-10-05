@@ -12,6 +12,7 @@ default = []
 diagnostics = []
 
 [dependencies]
+aem-effects = { path = "../aem-effects" }
 aem-core = { path = "../aem-core" }
 aem-render = { path = "../aem-render" }
 serde_json.workspace = true

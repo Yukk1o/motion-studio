@@ -28,6 +28,10 @@ pub enum Command {
         object: u64,
         enabled: bool,
     },
+    Effect {
+        object: u64,
+        action: crate::EffectAction,
+    },
     SeparateDimensions {
         object: u64,
         property: Property,
@@ -319,6 +323,10 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 return Err(Error::Locked(object));
             }
             layer.three_d = enabled;
+        }
+        Command::Effect { object, action } => {
+            let frames = project.frames;
+            crate::effects::apply(project.layer_mut(object)?, action, frames)?;
         }
         Command::SeparateDimensions { object, property } => {
             match channel(project, object, property)? {
@@ -731,6 +739,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             layer.transform.anchor = anchor;
         }
     }
+    project.rebuild_plugin_dependencies();
     project.validate()?;
     Ok(result)
 }
