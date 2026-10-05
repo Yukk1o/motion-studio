@@ -1,5 +1,5 @@
 //! Native GPU rendering. Image decoding/upload happens on resource changes;
-//! playback uploads only fixed-size layer uniforms.
+//! Video instances reuse bounded dynamic textures, uploading changed source frames.
 mod measurement;
 mod presenter;
 mod quality;

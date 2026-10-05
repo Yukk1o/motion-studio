@@ -10,6 +10,7 @@ mod model;
 mod scene;
 pub mod storage;
 mod timeline;
+mod video;
 
 pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
 pub use audio::{AudioAsset, AudioClip};
@@ -24,6 +25,7 @@ pub use model::{
 };
 pub use scene::{DrawLayer, HitCandidate, Scene};
 pub use timeline::{TimelineKey, TimelineLayer, TimelineProperties, TimelineTrack};
+pub use video::{VideoAsset, VideoClip, VideoSample};
 pub fn scene_prefix_delta(
     p: &Project,
     object: u64,

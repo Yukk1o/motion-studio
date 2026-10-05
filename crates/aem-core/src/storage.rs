@@ -39,7 +39,7 @@ fn read_json(path: &Path) -> Result<Project> {
 }
 pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
     let base = root.canonicalize()?;
-    let mut seen = HashSet::new();
+    let mut seen = std::collections::HashMap::new();
     let mut total = 0u64;
     for (asset_path, limit, bytes) in project
         .assets
@@ -51,12 +51,34 @@ pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
                 .iter()
                 .map(|a| (&a.path, MAX_MEDIA_ASSET, Some(a.bytes))),
         )
+        .chain(
+            project
+                .video_assets
+                .iter()
+                .map(|a| (&a.path, MAX_MEDIA_ASSET, Some(a.bytes))),
+        )
     {
         validate_relative_path(asset_path)?;
-        ensure(
-            seen.insert(asset_path.to_lowercase()),
-            "duplicate asset path",
-        )?;
+        if let Some((previous_path, previous_limit, previous_bytes)) =
+            seen.get(&asset_path.to_lowercase())
+        {
+            ensure(
+                previous_path == asset_path
+                    && *previous_limit == MAX_MEDIA_ASSET
+                    && limit == MAX_MEDIA_ASSET
+                    && *previous_bytes == bytes
+                    && project
+                        .video_assets
+                        .iter()
+                        .any(|v| v.path == *asset_path && v.audio_asset.is_some()),
+                "duplicate asset path",
+            )?;
+            continue;
+        }
+        seen.insert(
+            asset_path.to_lowercase(),
+            (asset_path.clone(), limit, bytes),
+        );
         let path = root.join(asset_path).canonicalize().map_err(|error| {
             crate::Error::Invalid(format!("素材无法读取：{asset_path} ({error})"))
         })?;
@@ -112,12 +134,17 @@ pub fn export_package(root: &Path, project: &Project, output: &Path) -> Result<(
     zip.start_file("project.json", options)?;
     zip.write_all(&serde_json::to_vec_pretty(project)?)?;
     let mut total = 0;
+    let mut written = HashSet::new();
     for path in project
         .assets
         .iter()
         .map(|a| &a.path)
         .chain(project.audio_assets.iter().map(|a| &a.path))
+        .chain(project.video_assets.iter().map(|a| &a.path))
     {
+        if !written.insert(path) {
+            continue;
+        }
         total += fs::metadata(root.join(path))?.len();
         ensure(total <= MAX_PACKAGE, "package resource budget exceeded")?;
         zip.start_file(path, options)?;
@@ -197,6 +224,7 @@ pub fn import_package(input: &Path, destination: &Path) -> Result<Project> {
         .iter()
         .map(|a| a.path.to_lowercase())
         .chain(project.audio_assets.iter().map(|a| a.path.to_lowercase()))
+        .chain(project.video_assets.iter().map(|a| a.path.to_lowercase()))
         .chain(std::iter::once("project.json".into()))
         .collect();
     ensure(

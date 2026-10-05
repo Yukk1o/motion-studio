@@ -1,10 +1,17 @@
-//! Owned, asynchronous audio import and bounded PCM mixing. No UI dependencies.
+//! Owned asynchronous media import, video caches and bounded PCM mixing. No UI dependencies.
+mod avc;
 mod decode;
 mod jobs;
 mod mixer;
 mod mp4;
+mod video;
+pub use avc::{avc_metadata, AvcMetadata};
 pub use jobs::{AudioJobs, ImportOptions, Limits, TaskStatus};
 pub use mixer::{read_waveform, AudioMixer, WaveBucket};
+pub use video::{
+    load_video_index, save_index, video_cache_path, ProbeVideo, VideoImportOptions, VideoJobs,
+    VideoProbe, VideoTaskStatus,
+};
 pub type Result<T> = std::result::Result<T, String>;
 pub const OUTPUT_RATE: u64 = 48_000;
 pub const MAX_BLOCK_FRAMES: usize = 48_000;

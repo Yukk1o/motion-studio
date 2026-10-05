@@ -20,6 +20,7 @@ dependencies = [
  "jni",
  "libc",
  "ndk",
+ "ndk-sys 0.6.0+11769913",
  "pollster",
  "raw-window-handle",
  "serde",
@@ -45,10 +46,12 @@ version = "0.1.0"
 dependencies = [
  "aem-core",
  "fs2",
+ "image",
  "serde",
  "serde_json",
  "symphonia",
  "tempfile",
+ "zip",
 ]
 
 [[package]]

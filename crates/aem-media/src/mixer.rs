@@ -1,5 +1,5 @@
 use crate::{cache_path, Result, MAX_BLOCK_FRAMES, OUTPUT_RATE};
-use aem_core::{AudioAsset, Content, Project};
+use aem_core::{AudioAsset, Project};
 use serde::Serialize;
 use std::{
     fs::File,
@@ -33,11 +33,11 @@ impl AudioMixer {
         let root = root.canonicalize().map_err(|e| e.to_string())?;
         let mut sources = Vec::new();
         for a in &project.audio_assets {
-            if !project
-                .layers
-                .iter()
-                .any(|l| matches!(&l.content,Content::Audio{audio} if audio.asset==a.id))
-            {
+            if !project.layers.iter().any(|l| {
+                project
+                    .layer_audio(l)
+                    .is_some_and(|audio| audio.asset == a.id)
+            }) {
                 continue;
             }
             let path = cache_path(&root, a)?.canonicalize().map_err(|_| {
@@ -79,7 +79,7 @@ impl AudioMixer {
         let count = (out.len() / 2).min((self.total_frames() - start_sample) as usize);
         let samples_per_frame = OUTPUT_RATE / u64::from(self.project.fps);
         for layer in &self.project.layers {
-            let Content::Audio { audio } = &layer.content else {
+            let Some(audio) = self.project.layer_audio(layer) else {
                 continue;
             };
             if audio.muted || audio.volume == 0.0 {

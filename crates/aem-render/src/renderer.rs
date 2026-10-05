@@ -48,6 +48,20 @@ struct GpuImage {
     _texture: wgpu::Texture,
     bind_group: wgpu::BindGroup,
     bytes: u64,
+    size: (u32, u32),
+    video_stamp: Option<(u64, u64)>,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum TextureKey {
+    Static(u64),
+    Video(u64),
+}
+fn texture_key(layer: &aem_core::DrawLayer) -> TextureKey {
+    if layer.video.is_some() {
+        TextureKey::Video(layer.id)
+    } else {
+        TextureKey::Static(layer.asset.unwrap_or(0))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -73,7 +87,7 @@ pub struct Renderer {
     compositor: PlaneCompositor,
     vertex_buffer: wgpu::Buffer,
     geometry_upload: Vec<GeometryVertex>,
-    images: HashMap<u64, GpuImage>,
+    images: HashMap<TextureKey, GpuImage>,
     texture_bytes: u64,
     pub target_format: wgpu::TextureFormat,
     gpu_failure: Arc<Mutex<Option<String>>>,
@@ -285,6 +299,43 @@ impl Renderer {
         self.images.len()
     }
     pub fn upload_image(&mut self, id: u64, width: u32, height: u32, rgba: &[u8]) -> Result<()> {
+        self.upload_pixels(TextureKey::Static(id), width, height, rgba, true)
+    }
+    pub fn upload_video_frame(
+        &mut self,
+        object: u64,
+        source: u64,
+        pts: u64,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) -> Result<()> {
+        self.check_health()?;
+        if u64::from(width) * u64::from(height) * 4 != rgba.len() as u64 {
+            return Err(RenderError::Invalid("video pixel length mismatch".into()));
+        }
+        if self
+            .images
+            .get(&TextureKey::Video(object))
+            .is_some_and(|i| i.video_stamp == Some((source, pts)) && i.size == (width, height))
+        {
+            return Ok(());
+        }
+        self.upload_pixels(TextureKey::Video(object), width, height, rgba, false)?;
+        self.images
+            .get_mut(&TextureKey::Video(object))
+            .unwrap()
+            .video_stamp = Some((source, pts));
+        Ok(())
+    }
+    fn upload_pixels(
+        &mut self,
+        id: TextureKey,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+        premultiply: bool,
+    ) -> Result<()> {
         self.check_health()?;
         let bytes = u64::from(width) * u64::from(height) * 4;
         if width == 0
@@ -303,13 +354,44 @@ impl Renderer {
                 "decoded preview textures exceed 128 MiB".into(),
             ));
         }
-        let mut premultiplied = rgba.to_vec();
+        let mut premultiplied = if premultiply {
+            rgba.to_vec()
+        } else {
+            Vec::new()
+        };
         for pixel in premultiplied.chunks_exact_mut(4) {
             let alpha = pixel[3] as f32 / 255.0;
             for channel in &mut pixel[..3] {
                 *channel = (linear_to_srgb(srgb_to_linear(*channel as f32 / 255.0) * alpha) * 255.0)
                     .round() as u8;
             }
+        }
+        let pixels = if premultiply {
+            premultiplied.as_slice()
+        } else {
+            rgba
+        };
+        if let Some(image) = self.images.get(&id).filter(|i| i.size == (width, height)) {
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &image._texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                pixels,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(width * 4),
+                    rows_per_image: Some(height),
+                },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+            );
+            return Ok(());
         }
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("AEM cached image"),
@@ -332,7 +414,7 @@ impl Renderer {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &premultiplied,
+            pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(width * 4),
@@ -365,6 +447,8 @@ impl Renderer {
                 _texture: texture,
                 bind_group,
                 bytes,
+                size: (width, height),
+                video_stamp: None,
             },
         );
         self.texture_bytes = self.texture_bytes - previous + bytes;
@@ -372,7 +456,7 @@ impl Renderer {
     }
     pub fn synchronize_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
         for asset in &project.assets {
-            if self.images.contains_key(&asset.id) {
+            if self.images.contains_key(&TextureKey::Static(asset.id)) {
                 continue;
             }
             let reader = ImageReader::open(root.join(&asset.path))?.with_guessed_format()?;
@@ -396,7 +480,13 @@ impl Renderer {
             .images
             .keys()
             .copied()
-            .filter(|id| *id != 0 && !project.assets.iter().any(|a| a.id == *id))
+            .filter(|id| match id {
+                TextureKey::Static(id) => *id != 0 && !project.assets.iter().any(|a| a.id == *id),
+                TextureKey::Video(id) => !project
+                    .layers
+                    .iter()
+                    .any(|l| l.id == *id && matches!(l.content, aem_core::Content::Video { .. })),
+            })
             .collect();
         for id in remove {
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
@@ -404,19 +494,31 @@ impl Renderer {
         Ok(())
     }
     pub fn clear_assets(&mut self) {
-        self.images.retain(|id, _| *id == 0);
-        self.texture_bytes = self.images.get(&0).map_or(0, |t| t.bytes);
+        self.images.retain(|id, _| *id == TextureKey::Static(0));
+        self.texture_bytes = self
+            .images
+            .get(&TextureKey::Static(0))
+            .map_or(0, |t| t.bytes);
     }
     /// New projects may reuse asset IDs from another directory. Load into a
     /// separate cache and keep the visible project's resources on failure.
     pub fn replace_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
         let mut previous = std::mem::take(&mut self.images);
         let previous_bytes = self.texture_bytes;
-        self.images
-            .insert(0, previous.remove(&0).expect("solid texture exists"));
+        self.images.insert(
+            TextureKey::Static(0),
+            previous
+                .remove(&TextureKey::Static(0))
+                .expect("solid texture exists"),
+        );
         self.texture_bytes = 4;
         if let Err(error) = self.synchronize_assets(project, root) {
-            previous.insert(0, self.images.remove(&0).expect("solid texture exists"));
+            previous.insert(
+                TextureKey::Static(0),
+                self.images
+                    .remove(&TextureKey::Static(0))
+                    .expect("solid texture exists"),
+            );
             self.images = previous;
             self.texture_bytes = previous_bytes;
             return Err(error);
@@ -475,11 +577,9 @@ impl Renderer {
             );
         }
         for (index, layer) in scene.layers.iter().enumerate() {
-            let asset = layer.asset.unwrap_or(0);
+            let asset = texture_key(layer);
             if !self.images.contains_key(&asset) {
-                return Err(RenderError::Invalid(format!(
-                    "image asset {asset} is not uploaded"
-                )));
+                return Err(RenderError::Invalid(format!("draw image is not uploaded")));
             }
             let mut color = layer.color;
             for c in &mut color[..3] {
@@ -543,7 +643,7 @@ impl Renderer {
                     &self.uniform_group,
                     &[(index * self.uniform_stride) as u32],
                 );
-                pass.set_bind_group(1, &self.images[&layer.asset.unwrap_or(0)].bind_group, &[]);
+                pass.set_bind_group(1, &self.images[&texture_key(layer)].bind_group, &[]);
                 pass.draw(batch.vertices.clone(), 0..1);
             }
         }

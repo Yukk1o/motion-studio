@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+image.workspace = true
 aem-core = { path = "../aem-core" }
 serde.workspace = true
 serde_json.workspace = true
@@ -12,4 +13,5 @@ fs2 = "0.4.3"
 symphonia = { version = "=0.5.5", default-features = false, features = ["aac", "mp3", "isomp4", "wav", "pcm"] }
 
 [dev-dependencies]
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
 tempfile = "3"
