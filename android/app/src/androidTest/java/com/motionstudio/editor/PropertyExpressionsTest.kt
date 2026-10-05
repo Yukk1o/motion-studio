@@ -49,6 +49,10 @@ class PropertyExpressionsTest {
             set(native,expression("time<.1 ? value : unknown()",target("position")))
             assertFalse(JSONObject(NativeBridge.seek(native,7.0)).getBoolean("ok"));assertFalse(JSONObject(NativeBridge.capture(native)).getBoolean("ok"))
             assertFalse(JSONObject(NativeBridge.renderPlanInfo(native)).getBoolean("ok"))
+            val failedExport=runCatching { VideoExporter(root,data(NativeBridge.state(native)).getJSONObject("project").toString()).run{_,_->} }
+            assertTrue("late expression error must stop MP4",failedExport.isFailure)
+            assertTrue(failedExport.exceptionOrNull().toString(),failedExport.exceptionOrNull().toString().contains("expression"))
+            assertTrue("partial MP4 must be removed",File(root,"exports").listFiles().orEmpty().none{it.extension=="mp4"})
             set(native,expression("time<.1 ? value : unknown()",target("position"),false),7)
             assertTrue(File(data(NativeBridge.capture(native)).getString("path")).isFile)
             val bad=JSONObject(frozen);bad.getJSONArray("expressions").getJSONObject(0).put("source","unknown()")
