@@ -65,6 +65,7 @@ pub struct TimelineLayer {
     pub out_frame: u32,
     pub offset_frame: i32,
     pub active: bool,
+    pub three_d: bool,
     pub properties: TimelineProperties,
 }
 impl Project {
@@ -80,6 +81,7 @@ impl Project {
                     out_frame: clip.out_frame,
                     offset_frame: clip.offset_frame,
                     active: l.active(frame, self.frames),
+                    three_d: l.three_d,
                     properties: TimelineProperties {
                         position: t.position.timeline(clip.offset_frame),
                         rotation: t.rotation.timeline(clip.offset_frame),

@@ -23,6 +23,11 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    #[serde(rename = "set_layer_3d")]
+    SetLayer3d {
+        object: u64,
+        enabled: bool,
+    },
     SeparateDimensions {
         object: u64,
         property: Property,
@@ -308,6 +313,13 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
     let mut result = None;
     match command {
+        Command::SetLayer3d { object, enabled } => {
+            let layer = project.layer_mut(object)?;
+            if layer.locked {
+                return Err(Error::Locked(object));
+            }
+            layer.three_d = enabled;
+        }
         Command::SeparateDimensions { object, property } => {
             match channel(project, object, property)? {
                 Channel::Vector(t) => t.separate()?,
@@ -672,7 +684,11 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 0.0,
             );
             let compensate = |frame: f64| {
-                let r = old.transform.rotation.sample(frame);
+                let mut r = old.transform.rotation.sample(frame);
+                if !old.three_d {
+                    r[0] = 0.0;
+                    r[1] = 0.0;
+                }
                 let rotation = Quat::from_euler(
                     EulerRot::XYZ,
                     r[0].to_radians(),

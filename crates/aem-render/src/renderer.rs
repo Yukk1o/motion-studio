@@ -1,4 +1,4 @@
-use aem_core::{Project, Scene, MAX_LAYERS};
+use aem_core::{PlaneCompositor, Project, Scene, MAX_LAYERS};
 use bytemuck::{Pod, Zeroable};
 use image::ImageReader;
 use std::{
@@ -38,6 +38,12 @@ struct DrawUniform {
     color: [f32; 4],
     extent_opacity: [f32; 4],
 }
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct GeometryVertex {
+    position: [f32; 3],
+    uv: [f32; 2],
+}
 struct GpuImage {
     _texture: wgpu::Texture,
     bind_group: wgpu::BindGroup,
@@ -64,6 +70,9 @@ pub struct Renderer {
     uniform_group: wgpu::BindGroup,
     uniform_stride: usize,
     upload: Vec<u8>,
+    compositor: PlaneCompositor,
+    vertex_buffer: wgpu::Buffer,
+    geometry_upload: Vec<GeometryVertex>,
     images: HashMap<u64, GpuImage>,
     texture_bytes: u64,
     pub target_format: wgpu::TextureFormat,
@@ -153,6 +162,12 @@ impl Renderer {
                 }),
             }],
         });
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Motion Studio bounded planar geometry"),
+            size: 65_536 * std::mem::size_of::<GeometryVertex>() as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let image_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("AEM image layout"),
             entries: &[
@@ -198,7 +213,11 @@ impl Renderer {
                 module: &shader,
                 entry_point: Some("vertex_main"),
                 compilation_options: Default::default(),
-                buffers: &[],
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<GeometryVertex>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x2],
+                }],
             },
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
@@ -231,6 +250,9 @@ impl Renderer {
             uniform_group,
             uniform_stride,
             upload: vec![0; uniform_stride * MAX_LAYERS],
+            compositor: PlaneCompositor::new(),
+            vertex_buffer,
+            geometry_upload: Vec::with_capacity(MAX_LAYERS * 12),
             images: HashMap::new(),
             texture_bytes: 0,
             target_format: format,
@@ -436,6 +458,22 @@ impl Renderer {
             ));
         }
         let started = Instant::now();
+        self.compositor
+            .prepare(scene)
+            .map_err(|e| RenderError::Invalid(e.to_string()))?;
+        self.geometry_upload.clear();
+        self.geometry_upload
+            .extend(self.compositor.vertices.iter().map(|v| GeometryVertex {
+                position: v.position,
+                uv: v.uv,
+            }));
+        if !self.geometry_upload.is_empty() {
+            self.queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.geometry_upload),
+            );
+        }
         for (index, layer) in scene.layers.iter().enumerate() {
             let asset = layer.asset.unwrap_or(0);
             if !self.images.contains_key(&asset) {
@@ -448,7 +486,7 @@ impl Renderer {
                 *c = srgb_to_linear(*c);
             }
             let uniform = DrawUniform {
-                mvp: (scene.camera.view_projection * layer.model).to_cols_array_2d(),
+                mvp: layer.view_projection.to_cols_array_2d(),
                 color,
                 extent_opacity: [layer.size[0], layer.size[1], layer.opacity, 0.0],
             };
@@ -496,21 +534,26 @@ impl Renderer {
                 1.0,
             );
             pass.set_pipeline(&self.pipeline);
-            for (index, layer) in scene.layers.iter().enumerate() {
+            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            for batch in &self.compositor.batches {
+                let index = batch.layer;
+                let layer = &scene.layers[index];
                 pass.set_bind_group(
                     0,
                     &self.uniform_group,
                     &[(index * self.uniform_stride) as u32],
                 );
                 pass.set_bind_group(1, &self.images[&layer.asset.unwrap_or(0)].bind_group, &[]);
-                pass.draw(0..6, 0..1);
+                pass.draw(batch.vertices.clone(), 0..1);
             }
         }
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
-            draw_calls: scene.layers.len() as u32,
+            draw_calls: self.compositor.batches.len() as u32,
             texture_bytes: self.texture_bytes,
-            parameter_upload_bytes: upload_bytes as u64,
+            parameter_upload_bytes: (upload_bytes
+                + self.geometry_upload.len() * std::mem::size_of::<GeometryVertex>())
+                as u64,
         })
     }
     pub fn render_target(&self, width: u32, height: u32) -> Result<RenderTarget> {
