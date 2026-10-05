@@ -4,9 +4,14 @@ use std::{io::Write, sync::Arc};
 #[test]
 fn entire_library_compiles_to_wgsl_and_es300() {
     let package = builtin::package().unwrap();
-    assert_eq!(package.manifest.effects.len(), 20);
+    assert_eq!(package.manifest.effects.len(), 36);
     for e in &package.manifest.effects {
-        assert_eq!(e.reference_version, "18.0.1");
+        if e.compatibility_profile == "ae2021-srgb8-v1" {
+            assert_eq!(e.reference_version, "18.0.1");
+        } else {
+            assert!(e.reference_match_name.is_empty());
+            assert!(e.reference_version.contains("unverified"));
+        }
         for i in 0..e.passes.len() {
             let shader = &package.shaders[&(e.id.clone(), i)];
             assert!(shader.glsl.fragment.contains("#version 300 es"));
@@ -19,6 +24,78 @@ fn entire_library_compiles_to_wgsl_and_es300() {
         .effects
         .iter()
         .all(|e| e.compatibility == aem_effects::Compatibility::Approximate));
+}
+#[test]
+fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
+    let packages = builtin::packages().unwrap();
+    let old = packages
+        .iter()
+        .find(|p| p.manifest.version == "1.0.0")
+        .unwrap();
+    let current = builtin::package().unwrap();
+    assert_eq!(current.manifest.version, "1.1.0");
+    assert_eq!(old.manifest.effects.len(), 20);
+    assert_eq!(
+        old.hash, "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
+        "published 1.0.0 bytes must never be repacked"
+    );
+    assert_ne!(old.hash, current.hash);
+    for definition in &old.manifest.effects {
+        assert_eq!(
+            current
+                .manifest
+                .effects
+                .iter()
+                .find(|e| e.id == definition.id)
+                .unwrap(),
+            definition
+        );
+        for index in 0..definition.passes.len() {
+            assert_eq!(
+                old.shaders[&(definition.id.clone(), index)].wgsl,
+                current.shaders[&(definition.id.clone(), index)].wgsl
+            );
+        }
+    }
+    let store = tempfile::tempdir().unwrap();
+    let mut registry = Registry::load(store.path()).unwrap();
+    for package in &packages {
+        assert!(store
+            .path()
+            .join(format!("{}.msfx", package.hash))
+            .is_file());
+        assert_eq!(
+            registry
+                .resolve(
+                    &package.manifest.id,
+                    &package.manifest.version,
+                    &package.hash
+                )
+                .unwrap()
+                .bytes,
+            package.bytes
+        );
+    }
+    registry
+        .enable(
+            store.path(),
+            &current.manifest.id,
+            &current.manifest.version,
+            &current.hash,
+            false,
+        )
+        .unwrap();
+    let restored = Registry::load(store.path()).unwrap();
+    assert!(restored
+        .resolve(
+            &current.manifest.id,
+            &current.manifest.version,
+            &current.hash
+        )
+        .is_err());
+    assert!(restored
+        .resolve(&old.manifest.id, &old.manifest.version, &old.hash)
+        .is_ok());
 }
 #[test]
 fn archive_rejects_parent_paths_and_duplicate_case_names() {
@@ -109,7 +186,7 @@ fn installation_is_idempotent_and_snapshots_hold_resources() {
     let snapshot = r.resolve(&a.id, &a.version, &a.hash).unwrap();
     r.enable(&store, &a.id, &a.version, &a.hash, false).unwrap();
     assert!(r.resolve(&a.id, &a.version, &a.hash).is_err());
-    assert_eq!(snapshot.manifest.effects.len(), 20);
+    assert_eq!(snapshot.manifest.effects.len(), 36);
     assert!(!r.install(&store, &input).unwrap().enabled);
     r.enable(&store, &a.id, &a.version, &a.hash, true).unwrap();
     let loaded = Registry::load(&store).unwrap();
