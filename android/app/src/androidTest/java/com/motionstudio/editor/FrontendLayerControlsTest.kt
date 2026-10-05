@@ -209,7 +209,8 @@ class FrontendLayerControlsTest {
         photo("axis-layout")
         compose.onNodeWithTag("open-curves").performClick()
         choose("curve-axis","Y");assertEquals(1,vm.rotationAxis)
-        compose.onNodeWithTag("easing-graph").assertIsDisplayed();photo("curve-layout")
+        photo("curve-layout");compose.onNodeWithTag("easing-graph").assertIsDisplayed()
+        assertTrue("Curve handles need vertical room",compose.onNodeWithTag("easing-graph").fetchSemanticsNode().boundsInRoot.height>=64*density)
         scenario.onActivity{activity->
             val config=activity.resources.configuration;val metrics=activity.resources.displayMetrics
             File(root,"layout-profile-report.json").writeText(JSONObject().put("widthPixels",metrics.widthPixels)
