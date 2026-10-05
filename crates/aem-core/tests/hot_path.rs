@@ -42,6 +42,8 @@ fn twenty_layer_animation_sampling_reuses_memory_at_sixty_hz() {
             [100.0 + i as f32 * 40.0, 960.0, i as f32 * 20.0],
             [0.3, 0.7, 0.8, 0.7],
         );
+        layer.three_d = true;
+        layer.transform.rotation.value[1] = if i % 2 == 0 { 12.0 } else { -12.0 };
         let start = layer.transform.position.value;
         layer
             .transform
@@ -90,11 +92,18 @@ fn twenty_layer_animation_sampling_reuses_memory_at_sixty_hz() {
     }
     project.validate().unwrap();
     let mut scene = Scene::new(&project);
+    let mut compositor = aem_core::PlaneCompositor::new();
+    // Warm all animated geometry sizes, then require scratch reuse on playback.
+    for tick in 0..360 {
+        scene.sample(&project, tick as f64 * 0.5, None).unwrap();
+        compositor.prepare(&scene).unwrap();
+    }
     scene.sample(&project, 0.0, None).unwrap();
     ALLOCATIONS.with(|count| count.set(0));
     MEASURING.with(|flag| flag.set(true));
     for tick in 0..360 {
         scene.sample(&project, tick as f64 * 0.5, None).unwrap();
+        compositor.prepare(&scene).unwrap();
     }
     MEASURING.with(|flag| flag.set(false));
     let count = ALLOCATIONS.with(Cell::get);
