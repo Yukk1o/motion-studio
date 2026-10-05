@@ -49,6 +49,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var timelineScale by mutableFloatStateOf(1.5f)
     var scaleLinked by mutableStateOf(true)
     var rotationAxis by mutableIntStateOf(2)
+    var componentAxis by mutableIntStateOf(0)
     var curveClipboard by mutableStateOf<String?>(null); private set
     var previewMode by mutableIntStateOf(if(projectDirectory==null)app.getSharedPreferences("motion-studio",0).getInt("previewMode",0).coerceIn(0,3) else 0);private set
     var previewInfo by mutableStateOf<JSONObject?>(null);private set
@@ -74,6 +75,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private val queued = AtomicBoolean(false)
     private val surfaceReady = AtomicBoolean(false)
     private val surfaceRequest=AtomicLong()
+    private val pickRequest=AtomicLong()
     private val dirty = AtomicBoolean(true)
     private val foreground=AtomicBoolean(true)
     private var currentSurface:Surface?=null
@@ -191,10 +193,15 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             val d=r.getJSONObject("data")
             main.post {
                 if(!closed.get()&&(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())) {
+                    val selectedExisted=selected!=0L&&layer(selected)!=null
                     val savedState=saved?:if(state.sample!=null&&state.sample!!.optLong("revision")!=d.optLong("revision"))false else state.saved
                     state=StudioState(d.getJSONObject("project"),d,d.optBoolean("canUndo"),
                         d.optBoolean("canRedo"),d.optBoolean("observing"),
                         if(d.isNull("renderError"))state.error else d.optString("renderError"),false,savedState)
+                    d.optJSONObject("edit_result")?.takeIf{it.optString("op")=="split_layer_clip"}?.let {
+                        if(selected==it.optLong("left_object"))selected=it.getLong("right_object")
+                    }
+                    if(selectedExisted&&selected!=0L&&layer(selected)==null){selected=0L;panelOpen=false}
                     if(d.has("root")) {
                         val nextRoot=File(d.getString("root"))
                         if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false}
@@ -215,7 +222,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             if(id==0L||closed.get())return@post
             try {
                 val result=operation()
-                if(save&&JSONObject(result).optBoolean("ok"))publish(NativeBridge.save(id),true)
+                if(save&&JSONObject(result).optBoolean("ok")) {
+                    val saved=JSONObject(NativeBridge.save(id))
+                    val edits=JSONObject(result).optJSONObject("data")
+                    for(key in listOf("edit_result","edit_results"))edits?.opt(key)?.let{saved.optJSONObject("data")?.put(key,it)}
+                    publish(saved.toString(),true)
+                }
                 else publish(result,repaint=repaint)
             } catch(e:Throwable){fail(e.message?:"操作失败")}
         }
@@ -354,11 +366,53 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val list=state.project?.optJSONArray("layers")?:return null
         return (0 until list.length()).map{list.getJSONObject(it)}.firstOrNull{it.getLong("id")==id}
     }
-    fun track():JSONObject? {
+    fun timelineLayer(objectId:Long):JSONObject?=state.sample?.optJSONArray("timeline_layers")?.let{a->
+        (0 until a.length()).map{a.getJSONObject(it)}.firstOrNull{it.getLong("object")==objectId}}
+    fun propertyTrack(objectId:Long=selected,key:String=property):JSONObject? {
         val p=state.project?:return null
-        return if(selected==0L)p.getJSONObject("camera").optJSONObject(property)
-        else layer(selected)?.getJSONObject("transform")?.optJSONObject(property)
+        return if(objectId==0L)state.sample?.optJSONObject("timeline_camera")?.optJSONObject(key)
+            ?:p.getJSONObject("camera").optJSONObject(key)
+        else timelineLayer(objectId)?.optJSONObject("properties")?.optJSONObject(key)
+            ?:layer(objectId)?.getJSONObject("transform")?.optJSONObject(key)
     }
+    fun isSeparated(objectId:Long=selected,key:String=property)=propertyTrack(objectId,key)?.has("axes")==true
+    fun activeAxis()=if(property=="rotation")rotationAxis else componentAxis
+    fun axisName(axis:Int=activeAxis())=listOf("x","y","z")[axis]
+    fun chooseAxis(axis:Int){pause();if(property=="rotation")rotationAxis=axis else componentAxis=axis}
+    fun threeD(objectId:Long=selected)=objectId==0L||layer(objectId)?.optBoolean("three_d",true)==true
+    fun pickLayer(x:Float,y:Float,width:Float,height:Float,onPicked:(Long?)->Unit) {
+        val p=state.project?:return
+        val fit=min(width/p.getInt("width"),height/p.getInt("height"))
+        if(fit<=0)return
+        val px=(x-(width-p.getInt("width")*fit)/2)/fit
+        val py=(y-(height-p.getInt("height")*fit)/2)/fit
+        val at=frame;val projectRoot=root;val request=pickRequest.incrementAndGet()
+        worker.post {
+            if(id==0L||closed.get())return@post
+            try {
+                val seek=JSONObject(NativeBridge.seek(id,at));check(seek.optBoolean("ok")){seek.optString("error")}
+                val result=JSONObject(GeometryBridge.hitCandidates(id,px.toDouble(),py.toDouble()))
+                check(result.optBoolean("ok")){result.optString("error")}
+                val candidates=result.getJSONObject("data").getJSONArray("candidates")
+                val picked=if(candidates.length()==0)null else candidates.getJSONObject(0).getLong("id")
+                main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&frame==at)onPicked(picked)}
+            }catch(e:Throwable){main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&frame==at){fail(e.message?:"图层点选失败");onPicked(null)}}}
+        }
+    }
+    fun visibleAxes():List<Int> = if(threeD())listOf(0,1,2)else if(property=="rotation")listOf(2)else listOf(0,1)
+    fun canSeparate():Boolean {
+        val capability=state.sample?.optJSONObject("capabilities")?.optJSONObject("separate_dimensions")?:return false
+        val names=capability.optJSONArray(if(selected==0L)"camera_properties"else"layer_properties")?:return false
+        return capability.optBoolean("supported")&&!isSeparated()&&(0 until names.length()).any{names.getString(it)==property}
+    }
+    fun separateDimensions(){if(canSeparate()&&editable()) {
+        if(property=="scale")scaleLinked=false
+        edit(JSONObject().put("op","separate_dimensions").put("object",selected).put("property",property))
+    }}
+    fun setThreeD(enabled:Boolean){if(selected!=0L&&editable())edit(JSONObject().put("op","set_layer_3d").put("object",selected).put("enabled",enabled))}
+    fun track():JSONObject?=propertyTrack()?.let{if(isSeparated())it.optJSONObject("axes")?.optJSONObject(axisName())else it}
+    private fun channelCommand(op:String,objectId:Long=selected,key:String=property,axis:Int?=if(isSeparated(objectId,key))activeAxis()else null)=
+        JSONObject().put("op",op).put("object",objectId).put("property",key).apply{axis?.let{put("axis",axisName(it))}}
     fun sampleValue():Any? {
         return sampleValueFor(selected,property)
     }
@@ -371,41 +425,48 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun setValue(value:Any,save:Boolean=true) {
         setPropertyValue(selected,property,floor(frame).toInt(),value,save)
     }
-    fun setPropertyValue(objectId:Long,key:String,at:Int,value:Any,save:Boolean=true) {
+    fun setPropertyValue(objectId:Long,key:String,at:Int,value:Any,save:Boolean=true,editedAxes:List<Int>?=null) {
+        if(value is JSONArray&&isSeparated(objectId,key)) {
+            val commands=JSONArray()
+            (editedAxes?:listOf(0,1,2)).forEach{axis->commands.put(channelCommand("set_component",objectId,key,axis).put("frame",at).put("value",value.getDouble(axis)))}
+            editBatch(commands,save);return
+        }
         edit(JSONObject().put("op",if(value is JSONArray)"set_vector" else "set_scalar")
             .put("object",objectId).put("property",key).put("frame",at).put("value",value),save)
     }
     fun animate() {
         val keys=track()?.optJSONArray("keys")?:return
-        edit(JSONObject().put("op","animate").put("object",selected).put("property",property)
+        edit(channelCommand("animate")
             .put("frame",floor(frame).toInt()).put("enabled",keys.length()==0))
     }
     fun addKey() {
-        val value=sampleValue()?:return
+        val sample=sampleValue()?:return
+        val value=if(isSeparated()&&sample is JSONArray)sample.getDouble(activeAxis())else sample
         val t=track()?:return
         val commands=JSONArray()
-        if(t.getJSONArray("keys").length()==0)commands.put(JSONObject().put("op","animate")
-            .put("object",selected).put("property",property).put("frame",floor(frame).toInt()).put("enabled",true))
-        commands.put(JSONObject().put("op",if(value is JSONArray)"set_vector" else "set_scalar")
-            .put("object",selected).put("property",property).put("frame",floor(frame).toInt()).put("value",value))
+        if(t.getJSONArray("keys").length()==0)commands.put(channelCommand("animate").put("frame",floor(frame).toInt()).put("enabled",true))
+        commands.put(channelCommand(if(isSeparated())"set_component"else if(value is JSONArray)"set_vector"else"set_scalar")
+            .put("frame",floor(frame).toInt()).put("value",value))
         editBatch(commands)
     }
-    fun keys():List<JSONObject> = track()?.getJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it)}}?:emptyList()
+    fun keys():List<JSONObject> = track()?.optJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it)}.filter{it.getLong("frame") in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()}}?:emptyList()
     fun currentKey():JSONObject?=keys().firstOrNull{it.getInt("frame")==floor(frame).toInt()}
     fun toggleKey(){currentKey()?.let{deleteKey(it.getInt("frame"))}?:addKey()}
     fun jumpKey(next:Boolean) {
-        val frames=keys().map{it.getInt("frame")}
+        val frames=keys().map{it.getInt("frame")}.filter{it in 0 until (state.project?.optInt("frames")?:0)}
         val target=if(next)frames.firstOrNull{it>frame}else frames.lastOrNull{it<frame}
         target?.let{seek(it.toDouble())}
     }
-    fun deleteKey(key:Int)=edit(JSONObject().put("op","delete_key").put("object",selected).put("property",property).put("frame",key))
-    fun moveKey(from:Int,to:Int)=edit(JSONObject().put("op","move_key").put("object",selected).put("property",property).put("from",from).put("to",to))
-    fun moveKeyFor(objectId:Long,key:String,from:Int,to:Int)=edit(JSONObject().put("op","move_key").put("object",objectId).put("property",key).put("from",from).put("to",to))
-    fun copyKey(from:Int,to:Int)=edit(JSONObject().put("op","copy_key").put("object",selected).put("property",property).put("from",from).put("to",to))
+    fun deleteKey(key:Int)=edit(channelCommand("delete_key").put("frame",key))
+    fun moveKey(from:Int,to:Int)=edit(channelCommand("move_key").put("from",from).put("to",to))
+    fun moveKeyFor(objectId:Long,key:String,from:Int,to:Int,axis:Int?=if(isSeparated(objectId,key))activeAxis()else null)=edit(channelCommand("move_key",objectId,key,axis).put("from",from).put("to",to))
+    fun copyKey(from:Int,to:Int)=edit(channelCommand("copy_key").put("from",from).put("to",to))
+    fun copyKeyFor(objectId:Long,key:String,from:Int,to:Int,axis:Int?)=edit(channelCommand("copy_key",objectId,key,axis).put("from",from).put("to",to))
+    fun deleteKeyFor(objectId:Long,key:String,frame:Int,axis:Int?)=edit(channelCommand("delete_key",objectId,key,axis).put("frame",frame))
     fun easingSegment():Pair<JSONObject,JSONObject>?=keys().zipWithNext().firstOrNull{(a,b)->frame>=a.getInt("frame")&&frame<b.getInt("frame")}
     fun ease(mode:String) {
         val key=easingSegment()?.first?:return
-        edit(JSONObject().put("op","ease").put("object",selected).put("property",property).put("frame",key.getInt("frame")).put("ease",mode))
+        edit(channelCommand("ease").put("frame",key.getInt("frame")).put("ease",mode))
     }
     fun easingDefinition():JSONObject?=easingSegment()?.first?.let{key->
         JSONObject().put("ease",key.optString("ease","linear")).apply{key.optJSONObject("curve")?.let{put("curve",JSONObject(it.toString()))}}
@@ -413,7 +474,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun setCurve(easing:JSONObject,save:Boolean=true) {
         val key=easingSegment()?.first?:return
         if(!editable())return
-        edit(JSONObject().put("op","curve").put("object",selected).put("property",property)
+        edit(channelCommand("curve")
             .put("frame",key.getInt("frame")).put("easing",JSONObject(easing.toString())),save)
     }
     fun copyCurve() {
@@ -477,12 +538,15 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         edit(JSONObject().put("op","reorder").put("object",selected).put("index",(index+delta).coerceIn(0,a.length()-1)))
     }
     fun reorderTo(objectId:Long,index:Int)=edit(JSONObject().put("op","reorder").put("object",objectId).put("index",index))
+    fun moveClip(objectId:Long,start:Int,save:Boolean=true)=edit(JSONObject().put("op","move_layer_clip").put("object",objectId).put("in_frame",start),save)
+    fun trimClip(objectId:Long,start:Int,end:Int,save:Boolean=true)=edit(JSONObject().put("op","trim_layer_clip").put("object",objectId).put("in_frame",start).put("out_frame",end),save)
+    fun splitClip(){if(selected!=0L&&editable())edit(JSONObject().put("op","split_layer_clip").put("object",selected).put("frame",floor(frame).toInt()))}
     private fun nextId(a:JSONArray):Long=(0 until a.length()).maxOfOrNull{a.getJSONObject(it).getLong("id")}?.plus(1)?:1
     private fun channel(value:Any)=JSONObject().put("value",value).put("keys",JSONArray())
     private fun newLayer(name:String,content:JSONObject,width:Float,height:Float):JSONObject {
         val p=state.project!!
         return JSONObject().put("id",nextId(p.getJSONArray("layers"))).put("name",name).put("content",content)
-            .put("size",JSONArray(listOf(width,height))).put("visible",true).put("locked",false)
+            .put("size",JSONArray(listOf(width,height))).put("visible",true).put("locked",false).put("three_d",false)
             .put("transform",JSONObject().put("position",channel(JSONArray(listOf(p.getInt("width")/2f,p.getInt("height")/2f,0))))
                 .put("rotation",channel(JSONArray(listOf(0,0,0)))).put("scale",channel(JSONArray(listOf(100,100,100))))
                 .put("opacity",channel(1)).put("anchor",JSONArray(listOf(0.5,0.5))))
@@ -572,7 +636,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val camera=JSONObject().put("created",false).put("mode","position").put("position",channel(JSONArray(listOf(width/2f,height/2f,-distance))))
             .put("target",channel(target)).put("roll",channel(0)).put("fov",channel(45))
             .put("radius",channel(distance)).put("azimuth",channel(0)).put("elevation",channel(0))
-        val project=JSONObject().put("version",1).put("name","新建工程").put("width",width).put("height",height)
+        val project=JSONObject().put("version",3).put("name","新建工程").put("width",width).put("height",height)
             .put("fps",fps).put("frames",fps*6).put("background",JSONArray(listOf(.05,.06,.09,1)))
             .put("camera",camera).put("assets",JSONArray()).put("layers",JSONArray())
         worker.post {
