@@ -23,6 +23,19 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    MoveLayerClip {
+        object: u64,
+        in_frame: u32,
+    },
+    TrimLayerClip {
+        object: u64,
+        in_frame: u32,
+        out_frame: u32,
+    },
+    SplitLayerClip {
+        object: u64,
+        frame: u32,
+    },
     Curve {
         object: u64,
         property: Property,
@@ -133,37 +146,37 @@ enum Channel<'a> {
     Vector(&'a mut Track<[f32; 3]>),
 }
 impl Channel<'_> {
-    fn curve(self, frame: u32, easing: Easing) -> Result<()> {
+    fn curve(self, frame: i32, easing: Easing) -> Result<()> {
         match self {
             Self::Scalar(t) => t.set_curve(frame, easing),
             Self::Vector(t) => t.set_curve(frame, easing),
         }
     }
-    fn copy_key(self, from: u32, to: u32) -> Result<()> {
+    fn copy_key(self, from: i32, to: i32) -> Result<()> {
         match self {
             Self::Scalar(t) => t.copy_key(from, to),
             Self::Vector(t) => t.copy_key(from, to),
         }
     }
-    fn animate(self, frame: u32, enabled: bool) -> Result<()> {
+    fn animate(self, frame: i32, enabled: bool) -> Result<()> {
         match self {
             Self::Scalar(t) => t.set_animated(frame, enabled),
             Self::Vector(t) => t.set_animated(frame, enabled),
         }
     }
-    fn move_key(self, from: u32, to: u32) -> Result<()> {
+    fn move_key(self, from: i32, to: i32) -> Result<()> {
         match self {
             Self::Scalar(t) => t.move_key(from, to),
             Self::Vector(t) => t.move_key(from, to),
         }
     }
-    fn delete_key(self, frame: u32) -> Result<()> {
+    fn delete_key(self, frame: i32) -> Result<()> {
         match self {
             Self::Scalar(t) => t.delete_key(frame),
             Self::Vector(t) => t.delete_key(frame),
         }
     }
-    fn ease(self, frame: u32, ease: Ease) -> Result<()> {
+    fn ease(self, frame: i32, ease: Ease) -> Result<()> {
         match self {
             Self::Scalar(t) => t.set_ease(frame, ease),
             Self::Vector(t) => t.set_ease(frame, ease),
@@ -213,9 +226,101 @@ fn channel(project: &mut Project, object: u64, property: Property) -> Result<Cha
     })
 }
 
-fn apply_to(project: &mut Project, command: Command) -> Result<()> {
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub enum EditResult {
+    SplitLayerClip { left_object: u64, right_object: u64 },
+}
+
+fn editable_clip(project: &mut Project, object: u64) -> Result<&mut Layer> {
+    ensure(object != 0, "camera has no editable clip")?;
+    let layer = project.layer_mut(object)?;
+    if layer.locked {
+        return Err(Error::Locked(object));
+    }
+    Ok(layer)
+}
+
+fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult>> {
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
+    let mut result = None;
     match command {
+        Command::MoveLayerClip { object, in_frame } => {
+            let frames = project.frames;
+            let layer = editable_clip(project, object)?;
+            let old = layer.clip(frames);
+            let delta = i64::from(in_frame) - i64::from(old.in_frame);
+            let out_frame = u32::try_from(i64::from(old.out_frame) + delta)
+                .map_err(|_| Error::Invalid("clip interval overflow".into()))?;
+            let offset_frame = i32::try_from(i64::from(old.offset_frame) + delta)
+                .map_err(|_| Error::Invalid("clip offset overflow".into()))?;
+            let clip = crate::LayerTimeline {
+                in_frame,
+                out_frame,
+                offset_frame,
+            };
+            clip.validate(frames)?;
+            if clip != old {
+                layer.timeline = Some(clip);
+            }
+        }
+        Command::TrimLayerClip {
+            object,
+            in_frame,
+            out_frame,
+        } => {
+            let frames = project.frames;
+            let layer = editable_clip(project, object)?;
+            let clip = crate::LayerTimeline {
+                in_frame,
+                out_frame,
+                ..layer.clip(frames)
+            };
+            clip.validate(frames)?;
+            if clip != layer.clip(frames) {
+                layer.timeline = Some(clip);
+            }
+        }
+        Command::SplitLayerClip { object, frame } => {
+            ensure(
+                project.layers.len() < crate::MAX_LAYERS,
+                "layer limit exceeded",
+            )?;
+            let frames = project.frames;
+            let mut right = editable_clip(project, object)?.clone();
+            let clip = right.clip(frames);
+            ensure(
+                clip.in_frame < frame && frame < clip.out_frame,
+                "split must be inside the layer clip",
+            )?;
+            right.id = project
+                .layers
+                .iter()
+                .map(|l| l.id)
+                .max()
+                .unwrap_or(0)
+                .checked_add(1)
+                .ok_or_else(|| Error::Invalid("layer ID space exhausted".into()))?;
+            right.timeline = Some(crate::LayerTimeline {
+                in_frame: frame,
+                ..clip
+            });
+            let right_object = right.id;
+            let index = project
+                .layers
+                .iter()
+                .position(|l| l.id == object)
+                .ok_or(Error::Missing(object))?;
+            project.layers[index].timeline = Some(crate::LayerTimeline {
+                out_frame: frame,
+                ..clip
+            });
+            project.layers.insert(index + 1, right);
+            result = Some(EditResult::SplitLayerClip {
+                left_object: object,
+                right_object,
+            });
+        }
         Command::Curve {
             object,
             property,
@@ -223,6 +328,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             easing,
         } => {
             valid_frame(frame)?;
+            let frame = project.edit_frame(object, frame)?;
             channel(project, object, property)?.curve(frame, easing)?;
         }
         Command::CopyKey {
@@ -233,6 +339,8 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
         } => {
             valid_frame(from)?;
             valid_frame(to)?;
+            let from = project.edit_frame(object, from)?;
+            let to = project.edit_frame(object, to)?;
             channel(project, object, property)?.copy_key(from, to)?;
         }
         Command::SetVector {
@@ -242,6 +350,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             value,
         } => {
             valid_frame(frame)?;
+            let frame = project.edit_frame(object, frame)?;
             match channel(project, object, property)? {
                 Channel::Vector(t) => t.set_at(frame, value)?,
                 _ => return Err(Error::Invalid("expected a scalar property".into())),
@@ -254,6 +363,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             value,
         } => {
             valid_frame(frame)?;
+            let frame = project.edit_frame(object, frame)?;
             match channel(project, object, property)? {
                 Channel::Scalar(t) => t.set_at(frame, value)?,
                 _ => return Err(Error::Invalid("expected a vector property".into())),
@@ -266,6 +376,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             enabled,
         } => {
             valid_frame(frame)?;
+            let frame = project.edit_frame(object, frame)?;
             channel(project, object, property)?.animate(frame, enabled)?;
         }
         Command::MoveKey {
@@ -276,6 +387,8 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
         } => {
             valid_frame(from)?;
             valid_frame(to)?;
+            let from = project.edit_frame(object, from)?;
+            let to = project.edit_frame(object, to)?;
             channel(project, object, property)?.move_key(from, to)?;
         }
         Command::DeleteKey {
@@ -284,6 +397,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             frame,
         } => {
             valid_frame(frame)?;
+            let frame = project.edit_frame(object, frame)?;
             channel(project, object, property)?.delete_key(frame)?;
         }
         Command::Ease {
@@ -293,6 +407,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             ease,
         } => {
             valid_frame(frame)?;
+            let frame = project.edit_frame(object, frame)?;
             channel(project, object, property)?.ease(frame, ease)?;
         }
         Command::RegisterAsset { asset } => project.assets.push(asset),
@@ -308,7 +423,12 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             layer.content = content;
             layer.size = size;
         }
-        Command::Add { layer } => project.layers.push(layer),
+        Command::Add { mut layer } => {
+            layer
+                .timeline
+                .get_or_insert_with(|| crate::LayerTimeline::full(project.frames));
+            project.layers.push(layer);
+        }
         Command::CreateCamera => {
             ensure(!project.camera.created, "camera already exists")?;
             project.camera = crate::Camera::new(project.width, project.height);
@@ -477,7 +597,23 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
                 || !old.transform.scale.keys.is_empty();
             let mut position = Track::constant(compensate(0.0));
             if animated {
-                for frame in 0..project.frames {
+                let first = old.clip(project.frames).edit_frame(0)?;
+                let last = old.clip(project.frames).edit_frame(project.frames - 1)?;
+                let key_frames = old
+                    .transform
+                    .position
+                    .keys
+                    .iter()
+                    .map(|k| k.frame)
+                    .chain(old.transform.rotation.keys.iter().map(|k| k.frame))
+                    .chain(old.transform.scale.keys.iter().map(|k| k.frame));
+                let (first, last) =
+                    key_frames.fold((first, last), |(a, b), f| (a.min(f), b.max(f)));
+                ensure(
+                    i64::from(last) - i64::from(first) < i64::from(crate::MAX_FRAMES),
+                    "anchor compensation exceeds key budget",
+                )?;
+                for frame in first..=last {
                     position.upsert(frame, compensate(f64::from(frame)), Ease::Linear)?;
                 }
             }
@@ -486,7 +622,8 @@ fn apply_to(project: &mut Project, command: Command) -> Result<()> {
             layer.transform.anchor = anchor;
         }
     }
-    project.validate()
+    project.validate()?;
+    Ok(result)
 }
 
 struct History {
@@ -503,7 +640,7 @@ pub struct Engine {
 }
 impl Engine {
     pub fn new(project: Project) -> Result<Self> {
-        project.validate()?;
+        let project = project.migrate()?;
         Ok(Self {
             project,
             revision: 0,
@@ -549,15 +686,20 @@ impl Engine {
         Ok(())
     }
     pub fn apply(&mut self, command: Command) -> Result<()> {
-        self.apply_batch(vec![command])
+        self.apply_batch(vec![command]).map(|_| ())
     }
     /// All edits either commit together or restore the pre-edit state.
-    pub fn apply_batch(&mut self, commands: Vec<Command>) -> Result<()> {
+    pub fn apply_batch(&mut self, commands: Vec<Command>) -> Result<Vec<EditResult>> {
         let before = self.project.clone();
+        let mut results = Vec::new();
         for command in commands {
-            if let Err(error) = apply_to(&mut self.project, command) {
-                self.project = before;
-                return Err(error);
+            match apply_to(&mut self.project, command) {
+                Ok(Some(result)) => results.push(result),
+                Ok(None) => {}
+                Err(error) => {
+                    self.project = before;
+                    return Err(error);
+                }
             }
         }
         if before != self.project {
@@ -567,7 +709,7 @@ impl Engine {
             }
             self.revision = self.revision.wrapping_add(1);
         }
-        Ok(())
+        Ok(results)
     }
     pub fn undo(&mut self) -> Result<bool> {
         if self.gesture.is_some() {

@@ -53,10 +53,23 @@ impl Transform {
         }
     }
     pub fn validate(&self, frames: u32) -> Result<()> {
-        self.position.validate(frames)?;
-        self.rotation.validate(frames)?;
-        self.scale.validate(frames)?;
-        self.opacity.validate(frames)?;
+        self.validate_tracks(Some(frames))
+    }
+    pub fn validate_local(&self) -> Result<()> {
+        self.validate_tracks(None)
+    }
+    fn validate_tracks(&self, frames: Option<u32>) -> Result<()> {
+        if let Some(frames) = frames {
+            self.position.validate(frames)?;
+            self.rotation.validate(frames)?;
+            self.scale.validate(frames)?;
+            self.opacity.validate(frames)?;
+        } else {
+            self.position.validate_local()?;
+            self.rotation.validate_local()?;
+            self.scale.validate_local()?;
+            self.opacity.validate_local()?;
+        }
         ensure(
             self.anchor
                 .into_iter()
@@ -99,6 +112,8 @@ pub struct Layer {
     pub locked: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<ParentLink>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeline: Option<LayerTimeline>,
 }
 impl Layer {
     pub fn solid(id: u64, name: &str, size: [f32; 2], position: [f32; 3], color: [f32; 4]) -> Self {
@@ -111,7 +126,48 @@ impl Layer {
             visible: true,
             locked: false,
             parent: None,
+            timeline: None,
         }
+    }
+    pub fn clip(&self, frames: u32) -> LayerTimeline {
+        self.timeline.unwrap_or_else(|| LayerTimeline::full(frames))
+    }
+    pub fn local_frame(&self, composition_frame: f64) -> f64 {
+        composition_frame - f64::from(self.timeline.map_or(0, |t| t.offset_frame))
+    }
+    pub fn active(&self, frame: f64, frames: u32) -> bool {
+        let t = self.clip(frames);
+        self.visible && frame >= f64::from(t.in_frame) && frame < f64::from(t.out_frame)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LayerTimeline {
+    pub in_frame: u32,
+    pub out_frame: u32,
+    pub offset_frame: i32,
+}
+impl LayerTimeline {
+    pub fn full(frames: u32) -> Self {
+        Self {
+            in_frame: 0,
+            out_frame: frames,
+            offset_frame: 0,
+        }
+    }
+    pub fn validate(&self, frames: u32) -> Result<()> {
+        ensure(
+            self.in_frame < self.out_frame && self.out_frame <= frames,
+            "invalid layer clip interval",
+        )?;
+        self.edit_frame(0)?;
+        self.edit_frame(frames - 1)?;
+        Ok(())
+    }
+    pub fn edit_frame(&self, frame: u32) -> Result<i32> {
+        i32::try_from(i64::from(frame) - i64::from(self.offset_frame))
+            .map_err(|_| crate::Error::Invalid("local keyframe time overflow".into()))
     }
 }
 
@@ -141,7 +197,7 @@ impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 1,
+            version: 2,
             name: "空间练习 01".into(),
             width,
             height,
@@ -185,7 +241,7 @@ impl Project {
         p
     }
     pub fn validate(&self) -> Result<()> {
-        ensure(self.version == 1, "unsupported project format")?;
+        ensure(matches!(self.version, 1 | 2), "unsupported project format")?;
         ensure(
             (1..=8192).contains(&self.width) && (1..=8192).contains(&self.height),
             "invalid composition size",
@@ -229,7 +285,12 @@ impl Project {
                     .all(|v| v.is_finite() && v > 0.0 && v <= 32768.0),
                 "invalid layer size",
             )?;
-            layer.transform.validate(self.frames)?;
+            layer.clip(self.frames).validate(self.frames)?;
+            if self.version == 1 && layer.timeline.is_none() {
+                layer.transform.validate(self.frames)?;
+            } else {
+                layer.transform.validate_local()?;
+            }
             match &layer.content {
                 Content::Null => {}
                 Content::Solid { color } => validate_color(*color)?,
@@ -261,6 +322,31 @@ impl Project {
     pub fn frame_pts_us(&self, frame: u32) -> Result<i64> {
         ensure(frame < self.frames, "output frame outside composition")?;
         Ok((u64::from(frame) * 1_000_000 + u64::from(self.fps) / 2) as i64 / i64::from(self.fps))
+    }
+    /// Upgrade in memory only. Opening an old project never overwrites its file.
+    pub fn migrate(mut self) -> Result<Self> {
+        self.validate()?;
+        if self.version == 1 {
+            self.version = 2;
+            for layer in &mut self.layers {
+                layer
+                    .timeline
+                    .get_or_insert_with(|| LayerTimeline::full(self.frames));
+            }
+        }
+        Ok(self)
+    }
+    pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {
+        ensure(frame < self.frames, "edit frame outside the composition")?;
+        if object == 0 {
+            return Ok(frame as i32);
+        }
+        self.layers
+            .iter()
+            .find(|l| l.id == object)
+            .ok_or(crate::Error::Missing(object))?
+            .clip(self.frames)
+            .edit_frame(frame)
     }
     pub fn layer_mut(&mut self, id: u64) -> Result<&mut Layer> {
         self.layers

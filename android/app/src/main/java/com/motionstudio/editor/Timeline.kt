@@ -22,25 +22,28 @@ import java.util.Locale
 import kotlin.math.*
 
 private data class TrackRow(val id:Long,val name:String,val color:Color,val visible:Boolean,val locked:Boolean,
-    val property:String,val keys:List<Int>,val allKeys:Set<Int>,val parent:Long?=null)
+    val property:String,val keys:List<Int>,val allKeys:Set<Int>,val parent:Long?=null,val inFrame:Int=0,val outFrame:Int=0)
 private data class KeyTarget(val objectId:Long,val property:String,val frame:Int)
 
 @Composable internal fun Timeline(vm:EditorViewModel,modifier:Modifier) {
     val density=LocalDensity.current.density
     val project=vm.state.project
-    val rows=remember(project,vm.selected,vm.property){buildList {
+    val rows=remember(project,vm.state.sample?.optJSONArray("timeline_layers"),vm.selected,vm.property){buildList {
         if(project!=null) {
-            fun keys(track:JSONObject?)=track?.optJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it).getInt("frame")}}?:emptyList()
+            fun keys(track:JSONObject?)=track?.optJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it).getLong("frame")}
+                .filter{it>=0&&it<project.getInt("frames")}.map{it.toInt()}}?:emptyList()
             fun allKeys(transform:JSONObject)=transform.keys().asSequence().flatMap{keys(transform.optJSONObject(it)).asSequence()}.toSet()
             val camera=project.getJSONObject("camera")
             val cameraKey=if(vm.selected==0L)vm.property else if(camera.getString("mode")=="orbit")"radius" else "position"
-            if(camera.optBoolean("created",true))add(TrackRow(0,"摄影机 1",Color(0xFFE5C17E),true,false,cameraKey,keys(camera.optJSONObject(cameraKey)),allKeys(camera)))
+            if(camera.optBoolean("created",true))add(TrackRow(0,"摄影机 1",Color(0xFFE5C17E),true,false,cameraKey,keys(camera.optJSONObject(cameraKey)),allKeys(camera),outFrame=project.getInt("frames")))
             val layers=project.getJSONArray("layers")
             for(i in layers.length()-1 downTo 0) {
                 val l=layers.getJSONObject(i);val key=if(vm.selected==l.getLong("id"))vm.property else "position"
-                val t=l.getJSONObject("transform")
+                val clip=vm.timelineLayer(l.getLong("id"))
+                val t=clip?.optJSONObject("properties")?:l.getJSONObject("transform")
                 add(TrackRow(l.getLong("id"),l.getString("name"),listOf(Color(0xFF6EADE8),Color(0xFFAD9DE0),Color(0xFF67BFAF))[i%3],
-                    l.getBoolean("visible"),l.getBoolean("locked"),key,keys(t.optJSONObject(key)),allKeys(t),parentOf(vm,l.getLong("id"))))
+                    l.getBoolean("visible"),l.getBoolean("locked"),key,keys(t.optJSONObject(key)),allKeys(t),parentOf(vm,l.getLong("id")),
+                    clip?.optInt("in_frame")?:0,clip?.optInt("out_frame")?:project.getInt("frames")))
             }
         }
     }}
@@ -159,7 +162,7 @@ private data class KeyTarget(val objectId:Long,val property:String,val frame:Int
             rows.forEachIndexed{index,row->
                 val y=head+index*rowHeight-vertical
                 if(y+rowHeight<head||y>size.height)return@forEachIndexed
-                val x=center-vm.frame.toFloat()*scale;val length=(project?.optInt("frames")?:180)*scale
+                val x=center+(row.inFrame-vm.frame).toFloat()*scale;val length=(row.outFrame-row.inFrame)*scale
                 val left=max(49*density,x);val width=max(0f,min(size.width-12*density,x+length)-left)
                 if(row.id==vm.selected) {
                     drawRect(Accent.copy(alpha=.08f),Offset(0f,y),Size(size.width,rowHeight))
