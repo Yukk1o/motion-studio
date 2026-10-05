@@ -79,10 +79,14 @@ impl Scene {
             if matches!(layer.content, Content::Null) {
                 continue;
             }
-            if !layer.visible {
+            if !layer.active(frame, project.frames) {
                 continue;
             }
-            let opacity = layer.transform.opacity.sample(frame).clamp(0.0, 1.0);
+            let opacity = layer
+                .transform
+                .opacity
+                .sample(layer.local_frame(frame))
+                .clamp(0.0, 1.0);
             if opacity <= 0.0 {
                 continue;
             }
@@ -187,6 +191,7 @@ pub(crate) fn geometry_offset(layer: &Layer) -> Mat4 {
     ))
 }
 pub(crate) fn pivot_matrix(layer: &Layer, frame: f64, width: u32, height: u32) -> Mat4 {
+    let frame = layer.local_frame(frame);
     let t = &layer.transform;
     let rotation = t.rotation.sample(frame);
     let quaternion = Quat::from_euler(
