@@ -1,0 +1,48 @@
+{
+  "comparisons": [
+    {
+      "frame": 19,
+      "meanRgbError": 5,
+      "coverageMismatchRatio": 0
+    },
+    {
+      "frame": 20,
+      "meanRgbError": 7.996052742084488,
+      "coverageMismatchRatio": 0
+    },
+    {
+      "frame": 35,
+      "meanRgbError": 7.536323171243806,
+      "coverageMismatchRatio": 0
+    },
+    {
+      "frame": 60,
+      "meanRgbError": 7.510204081632653,
+      "coverageMismatchRatio": 0
+    },
+    {
+      "frame": 80,
+      "meanRgbError": 7.256151843453431,
+      "coverageMismatchRatio": 0
+    },
+    {
+      "frame": 90,
+      "meanRgbError": 7.215587469555723,
+      "coverageMismatchRatio": 0
+    },
+    {
+      "frame": 99,
+      "meanRgbError": 7.261022927689594,
+      "coverageMismatchRatio": 0
+    },
+    {
+      "frame": 100,
+      "meanRgbError": 4.66549088771311,
+      "coverageMismatchRatio": 0
+    }
+  ],
+  "frames": 180,
+  "frozenPngPixelExact": true,
+  "frozenAgainstLiveEdits": true,
+  "scope": "Exact native PNG geometry; H264 coverage error below 1%; RGB error reported separately for saturated test colors"
+}

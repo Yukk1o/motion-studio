@@ -1,0 +1,6 @@
+
+com.motionstudio.editor.ExportParityTest:.
+
+Time: 16.438
+
+OK (1 test)

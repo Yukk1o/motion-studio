@@ -1,5 +1,5 @@
 {
-  "recorded_at_utc": "2026-10-05T13:29:03.113152+00:00",
+  "recorded_at_utc": "2026-10-05T13:54:56.404229+00:00",
   "branch": "codex/effects-ae2021",
   "integrated_main": "87eea34eac6aabe887bf5f06aea4d64922af5dc8",
   "rust": {
@@ -18,12 +18,79 @@
     "shared wgpu/GLES plan layer-local clock"
   ],
   "android": {
-    "status": "revalidation pending"
+    "status": "full-suite throughput failure; affected test passed isolated recheck",
+    "built_abis": [
+      "arm64-v8a",
+      "x86_64"
+    ],
+    "build_completed": true,
+    "build": "release native with diagnostics; assembleDebug and assembleDebugAndroidTest",
+    "environment": "MuMu Android emulator; x86_64",
+    "physical_device": false,
+    "application_id": "com.motionstudio.editor.effectsacceptance",
+    "full_suite": {
+      "run": 13,
+      "passed": 12,
+      "failed": 1,
+      "failed_test": "parentedCustomCurvesExport180FramesAndIndexedFramesMatchWgpu",
+      "reason": "throughput below unchanged 30 fps threshold",
+      "throughput_fps": 29.82024603199953,
+      "elapsed_seconds": 6.036167502,
+      "report_index": "main-integration-android/full-suite/run.json"
+    },
+    "classes": {
+      "EffectsRuntimeTest": {
+        "passed": 4,
+        "failed": 0
+      },
+      "ExportParityTest": {
+        "passed": 2,
+        "failed": 1
+      },
+      "LayerClipTimelineTest": {
+        "passed": 3,
+        "failed": 0
+      },
+      "SeparateDimensionsApiTest": {
+        "passed": 3,
+        "failed": 0
+      }
+    },
+    "performance_recheck": {
+      "run": 1,
+      "passed": 1,
+      "failed": 0,
+      "same_apks": true,
+      "source_changed": false,
+      "threshold_changed": false,
+      "throughput_fps": 30.594847517752207,
+      "report_index": "main-integration-android/performance-recheck/run.json"
+    },
+    "installed_apks_before": {
+      "com.motionstudio.editor.effectsacceptance": "1d7ee7f9dc111455188235807fbe6a819ec277e25545b4ffe12e5384ba50e5b9",
+      "com.motionstudio.editor.effectsacceptance.test": "2c301faacac1327a498f15db60bcd9c3aaf38f53277fa45f7d5aed203ec7b4f0"
+    },
+    "installed_apks_after": {
+      "com.motionstudio.editor.effectsacceptance": "1d7ee7f9dc111455188235807fbe6a819ec277e25545b4ffe12e5384ba50e5b9",
+      "com.motionstudio.editor.effectsacceptance.test": "2c301faacac1327a498f15db60bcd9c3aaf38f53277fa45f7d5aed203ec7b4f0"
+    },
+    "export_parity": {
+      "encoded_frames": 180,
+      "max_whole_rgb_mae_255": 2.1348765432098764,
+      "max_foreground_rgb_mae_255": 4.639422564343135,
+      "max_timestamp_error_us": 1
+    },
+    "interrupted_attempt": {
+      "report_index": "main-integration-android/interrupted/run.json",
+      "reason": "Initial suite stalled in codec Binder communication; isolated test application was force-stopped. Output says process crashed due to the explicit force-stop, not a spontaneous app crash. The same affected single test passed after restart in 5.173 seconds."
+    },
+    "scope": "All functional comparisons passed; full-suite performance threshold failure remains recorded. One isolated pass does not prove sustained physical device throughput or codec stability."
   },
   "ae": {
     "unchanged_static_pairs": 117,
     "threshold_pass": 75,
     "differences": 42,
     "accepted_effects": 0
-  }
+  },
+  "source_commit": "d98a6170b8e276573a7ac4cb03cf4fd618d4277c"
 }

@@ -1,0 +1,21 @@
+{
+  "recordedAt": "2026-10-05T13:52:39.310347+00:00",
+  "serial": "127.0.0.1:16416",
+  "installedApksBefore": {
+    "com.motionstudio.editor.effectsacceptance": "1d7ee7f9dc111455188235807fbe6a819ec277e25545b4ffe12e5384ba50e5b9",
+    "com.motionstudio.editor.effectsacceptance.test": "2c301faacac1327a498f15db60bcd9c3aaf38f53277fa45f7d5aed203ec7b4f0"
+  },
+  "installedApksAfter": {
+    "com.motionstudio.editor.effectsacceptance": "1d7ee7f9dc111455188235807fbe6a819ec277e25545b4ffe12e5384ba50e5b9",
+    "com.motionstudio.editor.effectsacceptance.test": "2c301faacac1327a498f15db60bcd9c3aaf38f53277fa45f7d5aed203ec7b4f0"
+  },
+  "instrumentationExitCode": 0,
+  "junitPassed": true,
+  "reports": {
+    "files/acceptance/export-parity-326be2bf-b5e6-4237-bb54-0d51a48ed012/export-parity-report.json": "01-export-parity-report.json",
+    "files/acceptance/export-parity-326be2bf-b5e6-4237-bb54-0d51a48ed012/exports/motion-1791208344852-report.json": "02-motion-1791208344852-report.json",
+    "files/acceptance/export-parity-326be2bf-b5e6-4237-bb54-0d51a48ed012/frame-comparisons.json": "03-frame-comparisons.json",
+    "files/acceptance/export-parity-326be2bf-b5e6-4237-bb54-0d51a48ed012/project.json": "04-project.json"
+  },
+  "source_commit": "d98a6170b8e276573a7ac4cb03cf4fd618d4277c"
+}
