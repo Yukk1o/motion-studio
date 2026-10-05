@@ -13,15 +13,10 @@ struct VertexOutput {
 };
 
 @vertex
-fn vertex_main(@builtin(vertex_index) index: u32) -> VertexOutput {
-    let positions = array<vec2<f32>, 6>(
-        vec2(-0.5, 0.5), vec2(-0.5, -0.5), vec2(0.5, 0.5),
-        vec2(0.5, 0.5), vec2(-0.5, -0.5), vec2(0.5, -0.5)
-    );
-    let p = positions[index];
+fn vertex_main(@location(0) position: vec3<f32>, @location(1) uv: vec2<f32>) -> VertexOutput {
     var out: VertexOutput;
-    out.position = draw.mvp * vec4(p * draw.extent_opacity.xy, 0.0, 1.0);
-    out.uv = vec2(p.x + 0.5, 0.5 - p.y);
+    out.position = draw.mvp * vec4(position, 1.0);
+    out.uv = uv;
     return out;
 }
 

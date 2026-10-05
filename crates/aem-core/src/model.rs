@@ -105,6 +105,9 @@ pub struct Layer {
     pub transform: Transform,
     pub visible: bool,
     pub locked: bool,
+    /// New layers are flat until the user explicitly enables spatial transforms.
+    #[serde(default)]
+    pub three_d: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<ParentLink>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -120,6 +123,7 @@ impl Layer {
             transform: Transform::new(position),
             visible: true,
             locked: false,
+            three_d: false,
             parent: None,
             timeline: None,
         }
@@ -192,7 +196,7 @@ impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 2,
+            version: 3,
             name: "空间练习 01".into(),
             width,
             height,
@@ -233,10 +237,17 @@ impl Project {
                 [0.88, 0.73, 0.43, 0.85],
             ),
         ];
+        // This is an explicitly spatial example, not the empty-project default.
+        for layer in &mut p.layers {
+            layer.three_d = true;
+        }
         p
     }
     pub fn validate(&self) -> Result<()> {
-        ensure(matches!(self.version, 1 | 2), "unsupported project format")?;
+        ensure(
+            matches!(self.version, 1 | 2 | 3),
+            "unsupported project format",
+        )?;
         ensure(
             (1..=8192).contains(&self.width) && (1..=8192).contains(&self.height),
             "invalid composition size",
@@ -328,6 +339,13 @@ impl Project {
                     .timeline
                     .get_or_insert_with(|| LayerTimeline::full(self.frames));
             }
+        }
+        if self.version < 3 {
+            // Versions 1/2 rendered every layer in 3D. Preserve that appearance.
+            for layer in &mut self.layers {
+                layer.three_d = true;
+            }
+            self.version = 3;
         }
         Ok(self)
     }

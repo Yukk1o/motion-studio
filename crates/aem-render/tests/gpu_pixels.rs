@@ -35,6 +35,9 @@ fn gpu_sorting_transparency_png_orientation_and_resource_reuse() {
             [0.0, 0.0, 1.0, 1.0],
         ),
     ];
+    for layer in &mut p.layers {
+        layer.three_d = true;
+    }
     let target = renderer.capture_target(64, 64).unwrap();
     let mut scene = Scene::new(&p);
     scene.sample(&p, 0.0, None).unwrap();
