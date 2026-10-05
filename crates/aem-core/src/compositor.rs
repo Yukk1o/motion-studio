@@ -1,7 +1,7 @@
 //! Exact back-to-front ordering of flat 3D layers, including intersections.
 //! BSP splitting preserves texture coordinates and premultiplied alpha order.
 //! No per-pixel lists, extra fullscreen passes, or unbounded geometry growth.
-use crate::{ensure, Result, Scene, MAX_LAYERS};
+use crate::{ensure, ProjectionKind, Result, Scene, MAX_LAYERS};
 use glam::{DVec2, DVec3};
 use std::ops::Range;
 
@@ -275,6 +275,8 @@ impl PlaneCompositor {
         Ok(())
     }
     fn traverse(&mut self, root: usize, scene: &Scene) -> Result<()> {
+        let eye = scene.camera.eye.as_dvec3();
+        let toward_viewer = eye - scene.camera.target.as_dvec3();
         self.visits.push((root, false));
         while let Some((node, emit)) = self.visits.pop() {
             if emit {
@@ -292,8 +294,13 @@ impl PlaneCompositor {
                 continue;
             }
             let n = &self.nodes[node];
-            let eye = scene.camera.eye.as_dvec3();
-            let (far, near) = if n.plane.distance(eye) >= 0.0 {
+            let viewer_side = match scene.camera.projection {
+                ProjectionKind::Perspective => n.plane.distance(eye),
+                // Parallel rays have a viewer at infinity, independent of the
+                // plane's position relative to the finite camera eye.
+                ProjectionKind::Orthographic => n.plane.normal.dot(toward_viewer),
+            };
+            let (far, near) = if viewer_side >= 0.0 {
                 (n.back, n.front)
             } else {
                 (n.front, n.back)
