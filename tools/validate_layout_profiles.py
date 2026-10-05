@@ -43,14 +43,19 @@ def main():
         result = run("shell", "run-as", "com.motionstudio.editor", "ls", "files/acceptance", check=False)
         return set(result.stdout.decode().splitlines())
 
-    original = {"size": shell("wm", "size"), "density": shell("wm", "density"),
+    original = {"size": shell("wm", "size"), "density": shell("wm", "density"), "rotation": shell("wm", "user-rotation"),
                 "fontScale": shell("settings", "get", "system", "font_scale")}
     (args.output / "settings-before.json").write_text(json.dumps(original, indent=2), encoding="utf-8")
     results = []
     try:
         for name in args.profiles:
             size, density, font = PROFILES[name]
-            shell("wm", "size", size)
+            # A size override alone need not rotate the Activity. Use portrait
+            # natural bounds and explicit system rotation, then verify the actual
+            # Activity dimensions in the report below.
+            natural_size = "x".join(map(str, sorted(map(int, size.split("x")))))
+            shell("wm", "size", natural_size)
+            shell("wm", "user-rotation", "lock", "1" if name.startswith("landscape") else "0")
             shell("wm", "density", density)
             shell("settings", "put", "system", "font_scale", font)
             time.sleep(1)
@@ -90,7 +95,8 @@ def main():
             shell("settings", "delete", "system", "font_scale")
         else:
             shell("settings", "put", "system", "font_scale", original["fontScale"])
-        restored = {"size": shell("wm", "size"), "density": shell("wm", "density"),
+        shell("wm", "user-rotation", *original["rotation"].split())
+        restored = {"size": shell("wm", "size"), "density": shell("wm", "density"), "rotation": shell("wm", "user-rotation"),
                     "fontScale": shell("settings", "get", "system", "font_scale")}
         (args.output / "settings-after.json").write_text(json.dumps(restored, indent=2), encoding="utf-8")
         (args.output / "summary.json").write_text(json.dumps({"serial": args.serial,

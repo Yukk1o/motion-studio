@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -43,10 +45,37 @@ private fun defaultCurve(kind:String,space:String):JSONObject {
 private fun graphData(easing:String):JSONObject?=runCatching {
     JSONObject(NativeBridge.curveGraph(easing)).takeIf{it.optBoolean("ok")}?.getJSONObject("data")
 }.getOrNull()
-private fun handles(easing:JSONObject,view:String):List<Pair<String,Offset>> {
+/** Presets keep their compact representation until the first handle drag. The
+ * Bezier control points reproduce the core's polynomial progress exactly. */
+private fun handleDefinition(easing:JSONObject,view:String):JSONObject {
+    if(easing.has("curve")||view!="progress"||easing.optString("ease")=="hold")return easing
+    val ease=easing.optString("ease","linear")
+    val kind=if(ease in listOf("in","out"))"quadratic"else"cubic"
+    return defaultCurve(kind,"progress").also{definition->
+        val shape=definition.getJSONObject("curve").getJSONObject("shape")
+        when(ease) {
+            "in"->shape.put("control",JSONArray(listOf(.5,0.0)))
+            "out"->shape.put("control",JSONArray(listOf(.5,1.0)))
+            "in_out"->shape.put("control1",JSONArray(listOf(1.0/3,0.0))).put("control2",JSONArray(listOf(2.0/3,1.0)))
+            else->shape.put("control1",JSONArray(listOf(1.0/3,1.0/3))).put("control2",JSONArray(listOf(2.0/3,2.0/3)))
+        }
+    }
+}
+private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float):List<Pair<String,Offset>> {
     val curve=easing.optJSONObject("curve")?:return emptyList()
-    if(curve.optString("space","progress")!=view)return emptyList()
     val shape=curve.getJSONObject("shape")
+    if(shape.optString("kind")=="elastic"&&points!=null) {
+        val oscillations=shape.getDouble("oscillations").toFloat()
+        fun point(t:Float):Offset {
+            val index=t*(points.length()-1);val left=floor(index).toInt();val right=min(left+1,points.length()-1)
+            val a=points.getJSONObject(left).getDouble(view).toFloat();val b=points.getJSONObject(right).getDouble(view).toFloat()
+            return Offset(t,(a+(b-a)*(index-left))/scale)
+        }
+        // One two-dimensional handle lies on the core's first sampled lobe.
+        // Horizontal movement changes frequency, vertical movement changes damping.
+        return listOf("elastic" to point((if(view=="progress").5f else .25f)/oscillations))
+    }
+    if(curve.optString("space","progress")!=view)return emptyList()
     val names=when(shape.getString("kind")){"quadratic"->listOf("control");"cubic"->listOf("control1","control2");else->emptyList()}
     return names.map{key->val p=shape.getJSONArray(key);key to Offset(p.getDouble(0).toFloat(),p.getDouble(1).toFloat())}
 }
@@ -66,27 +95,30 @@ private fun handles(easing:JSONObject,view:String):List<Pair<String,Offset>> {
     val data=remember(draft?:committed){graphData(draft?:committed)}
     val points=data?.optJSONArray("points")
     val scale=data?.optDouble("definitionScale",1.0)?.toFloat()?:1f
-    val controlPoints=handles(definition,view)
+    val controlDefinition=handleDefinition(definition,view)
+    val controlPoints=handles(controlDefinition,view,points,scale)
     val samples=points?.let{a->(0 until a.length()).map{a.getJSONObject(it).getDouble(view).toFloat()}}?:listOf(0f,1f)
     val ordinates=samples+controlPoints.map{it.second.y*scale}+listOf(0f,1f)
     val low=min(0f,ordinates.minOrNull()?:0f)
     val high=max(1f,ordinates.maxOrNull()?:1f)
     val range=frozenRange?:((low-.08f*(high-low)) to (high+.08f*(high-low)))
-    val liveDefinition by rememberUpdatedState(definition.toString())
+    val liveDefinition by rememberUpdatedState(controlDefinition.toString())
     val liveRange by rememberUpdatedState(range)
     val liveScale by rememberUpdatedState(scale)
     val liveHandles by rememberUpdatedState(controlPoints)
     Column(modifier) {
         Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
             listOf("progress" to "进度","velocity" to "速度").forEach{(key,label)->TextButton(onClick={view=key;copied=false},
-                modifier=Modifier.height(48.dp).testTag("curve-view-"+key).semantics{selected=view==key}){Text(label,color=if(view==key)Accent else Muted,fontSize=12.sp)}}
+                modifier=Modifier.height(48.dp).testTag("curve-view-"+key).semantics{selected=view==key}){Text(label,color=if(view==key)Accent else Muted,fontSize=14.sp)}}
+            Spacer(Modifier.weight(1f))
             Tool(Icons.Default.ContentCopy,if(copied)"曲线已复制"else"复制曲线",segment!=null){vm.copyCurve();copied=true}
             Tool(Icons.Default.ContentPaste,"粘贴曲线",segment!=null&&vm.editable()&&vm.curveClipboard!=null){vm.pasteCurve();copied=false}
             Tool(Icons.Default.Tune,"曲线参数",segment!=null&&vm.editable()){parameters=true}
         }
-        Text(segment?.let{"${it.first.getInt("frame")} → ${it.second.getInt("frame")} · "+if(view=="progress")"进度 0–1"else"归一化速度 · 1 为匀速"}?:"请移到两个关键帧之间",
-            color=Muted,fontSize=10.sp,lineHeight=14.sp,maxLines=1)
-        Canvas(Modifier.weight(1f).fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp).testTag("easing-graph")
+        Text(segment?.let{"第 ${it.first.getInt("frame")} → ${it.second.getInt("frame")} 帧 · "+if(view=="progress")"动画进度"else"速度 · 1 为匀速"}?:"此属性还没有可编辑的关键帧区间",
+            modifier=Modifier.padding(horizontal=12.dp),color=Muted,fontSize=12.sp,lineHeight=20.sp,maxLines=1)
+        Box(Modifier.weight(1f).fillMaxWidth().padding(12.dp).background(Background,RoundedCornerShape(12.dp))) {
+        Canvas(Modifier.fillMaxSize().padding(horizontal=20.dp,vertical=16.dp).testTag("easing-graph")
             .pointerInput(vm.selected,vm.property,segment?.first?.optInt("frame"),view) {
                 fun pixel(point:Offset,bounds:Pair<Float,Float>,factor:Float)=Offset(point.x*size.width,(bounds.second-point.y*factor)/(bounds.second-bounds.first)*size.height)
                 awaitEachGesture {
@@ -104,7 +136,13 @@ private fun handles(easing:JSONObject,view:String):List<Pair<String,Offset>> {
                         val p=Offset((origin.x+movement.x/size.width).coerceIn(0f,1f),
                             (origin.y-movement.y/size.height*(dragBounds.second-dragBounds.first)/dragScale).coerceIn(-8f,8f))
                         val edited=JSONObject(dragDefinition)
-                        edited.getJSONObject("curve").getJSONObject("shape").put(key,JSONArray(listOf(p.x.toDouble(),p.y.toDouble())))
+                        val shape=edited.getJSONObject("curve").getJSONObject("shape")
+                        if(shape.optString("kind")=="elastic") {
+                            val phase=if(view=="progress").5 else .25
+                            val time=(origin.x+movement.x/size.width).toDouble().coerceIn(phase/8,phase/.5)
+                            shape.put("oscillations",(phase/time).coerceIn(.5,8.0))
+                            shape.put("damping",(shape.getDouble("damping")+movement.y/size.height*20.0).coerceIn(.5,20.0))
+                        } else shape.put(key,JSONArray(listOf(p.x.toDouble(),p.y.toDouble())))
                         if(graphData(edited.toString())!=null){draft=edited.toString();vm.setCurve(edited,false)}
                     }} finally {
                         if(completed)vm.endGesture()else{vm.cancelGesture();draft=null}
@@ -120,28 +158,64 @@ private fun handles(easing:JSONObject,view:String):List<Pair<String,Offset>> {
             for(y in listOf(0f,1f))drawLine(Muted.copy(alpha=.35f),pixel(0f,y),pixel(1f,y),1f)
             val path=Path()
             samples.forEachIndexed{i,y->val p=pixel(i.toFloat()/(samples.size-1),y);if(i==0)path.moveTo(p.x,p.y)else path.lineTo(p.x,p.y)}
-            drawPath(path,Accent,style=Stroke(2.dp.toPx()))
+            drawPath(path,if(segment!=null)Accent else Muted.copy(alpha=.2f),style=Stroke(2.dp.toPx()))
             controlPoints.forEachIndexed{i,(_,point)->
-                val shape=definition.getJSONObject("curve").getJSONObject("shape")
-                val endpoint=if(i==0)pixel(0f,shape.optDouble("start",0.0).toFloat()*scale)else pixel(1f,shape.optDouble("end",1.0).toFloat()*scale)
                 val control=pixel(point.x,point.y*scale)
-                drawLine(Muted,endpoint,control,1.dp.toPx())
-                drawCircle(Background,8.dp.toPx(),control)
-                drawCircle(Accent,7.dp.toPx(),control,style=Stroke(2.dp.toPx()))
+                val shape=controlDefinition.getJSONObject("curve").getJSONObject("shape")
+                if(shape.optString("kind")!="elastic") {
+                    val start=pixel(0f,shape.optDouble("start",0.0).toFloat()*scale)
+                    val end=pixel(1f,shape.optDouble("end",1.0).toFloat()*scale)
+                    val anchors=if(shape.optString("kind")=="quadratic")listOf(start,end)else listOf(if(i==0)start else end)
+                    anchors.forEach{anchor->drawLine(Muted.copy(alpha=.65f),anchor,control,1.dp.toPx())}
+                }
+                drawCircle(if(i==0)Accent else Color(0xFF83BAEB),3.dp.toPx(),control)
             }
         }
-        Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState())) {
-            easeNames.forEach{(key,label)->TextButton(onClick={draft=null;vm.ease(key)},enabled=segment!=null&&vm.editable(),modifier=Modifier.height(48.dp)) {
-                Text(label,fontSize=11.sp,maxLines=1,color=if(definition.optJSONObject("curve")==null&&definition.optString("ease")==key)Accent else Muted)
+        if(segment==null)Column(Modifier.align(Alignment.Center).background(Background.copy(alpha=.95f)).padding(16.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Diamond,null,tint=Muted,modifier=Modifier.size(24.dp))
+            Spacer(Modifier.height(8.dp))
+            Text("先为此属性添加两个关键帧",color=Ink,fontSize=14.sp)
+            Text("再移动到两帧之间，调整运动节奏",color=Muted,fontSize=12.sp)
+        }
+        }
+        Row(Modifier.fillMaxWidth().height(72.dp).horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+            easeNames.forEach{(key,label)->CurvePreset(key,label,definition.optJSONObject("curve")==null&&definition.optString("ease")==key,segment!=null&&vm.editable()) {
+                draft=null;vm.ease(key)
             }}
             listOf("quadratic" to "二次贝塞尔","cubic" to "三次贝塞尔","elastic" to "弹性").forEach{(kind,label)->
-                TextButton(onClick={draft=null;vm.setCurve(defaultCurve(kind,view))},enabled=segment!=null&&vm.editable(),modifier=Modifier.height(48.dp).testTag("curve-kind-"+kind)) {
-                    Text(label,fontSize=11.sp,maxLines=1,color=if(definition.optJSONObject("curve")?.optJSONObject("shape")?.optString("kind")==kind)Accent else Muted)
+                CurvePreset(kind,label,definition.optJSONObject("curve")?.optJSONObject("shape")?.optString("kind")==kind,segment!=null&&vm.editable(),Modifier.testTag("curve-kind-"+kind)) {
+                    draft=null;vm.setCurve(defaultCurve(kind,view))
                 }
             }
         }
     }
     if(parameters)CurveParameters(definition,onDismiss={parameters=false}){vm.setCurve(it);parameters=false}
+}
+
+@Composable private fun CurvePreset(kind:String,label:String,selected:Boolean,enabled:Boolean,modifier:Modifier=Modifier,onClick:()->Unit) {
+    Surface(onClick=onClick,enabled=enabled,color=if(selected)Accent.copy(alpha=.12f)else Background,shape=RoundedCornerShape(10.dp),
+        border=if(selected)BorderStroke(1.dp,Accent.copy(alpha=.6f))else null,
+        modifier=modifier.width(76.dp).height(64.dp).semantics{this.selected=selected}) {
+        Column(Modifier.padding(8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(4.dp)) {
+            Canvas(Modifier.width(40.dp).height(24.dp)) {
+                val path=Path()
+                for(i in 0..32) {
+                    val t=i/32f
+                    val y=when(kind) {
+                        "in","quadratic"->t*t
+                        "out"->1-(1-t)*(1-t)
+                        "in_out","cubic"->t*t*(3-2*t)
+                        "hold"->if(i==32)1f else 0f
+                        "elastic"->(1-exp(-6f*t)*cos(5f*PI.toFloat()*t)).coerceIn(0f,1.3f)/1.3f
+                        else->t
+                    }
+                    if(i==0)path.moveTo(0f,size.height)else path.lineTo(t*size.width,(1-y)*size.height)
+                }
+                drawPath(path,if(selected)Accent else Muted.copy(alpha=if(enabled).8f else .3f),style=Stroke(1.5.dp.toPx()))
+            }
+            Text(label,color=if(selected)Accent else Muted,fontSize=11.sp,lineHeight=14.sp,maxLines=1)
+        }
+    }
 }
 
 @Composable private fun CurveParameters(initial:JSONObject,onDismiss:()->Unit,onApply:(JSONObject)->Unit) {

@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +27,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,14 +39,24 @@ import kotlin.math.*
     var more by remember{mutableStateOf(false)}
     Row(Modifier.fillMaxWidth().height(52.dp).background(Panel).padding(horizontal=8.dp)
         .then(if(vm.panelOpen)Modifier.clearAndSetSemantics{}else Modifier),verticalAlignment=Alignment.CenterVertically) {
-        Text(if(vm.selected==0L){if(vm.hasCamera())"摄影机 1"else"合成视图"} else vm.layer(vm.selected)?.optString("name")?:"图层",
-            Modifier.weight(1f),color=Ink,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f)) {
+            Text(if(vm.selected==0L&&!vm.hasCamera())"选择或新增图层"else"当前图层",color=Muted,fontSize=10.sp,lineHeight=14.sp)
+            Text(if(vm.selected==0L&&!vm.hasCamera())"开始编辑"else objectName(vm,vm.selected),color=Ink,fontSize=13.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+        }
         listOf("position" to "移动","rotation" to "旋转","scale" to "缩放").forEach{(key,label)->
             if(vm.selected!=0L||(vm.hasCamera()&&key=="position"))TextButton(onClick={vm.openProperty(key)},modifier=Modifier.height(48.dp)) {
-                Text(label,color=Accent,fontSize=12.sp)
+                Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                    Icon(when(key){"position"->Icons.Default.OpenWith;"rotation"->Icons.AutoMirrored.Filled.RotateRight;else->Icons.Default.OpenInFull},null,Modifier.size(18.dp),tint=Accent)
+                    Text(label,color=Ink,fontSize=11.sp,lineHeight=16.sp)
+                }
             }
         }
-        if(vm.selected==0L&&vm.hasCamera())TextButton(onClick={vm.openProperty("fov")},modifier=Modifier.height(48.dp)){Text("镜头",color=Accent,fontSize=12.sp)}
+        if(vm.selected==0L&&vm.hasCamera())TextButton(onClick={vm.openProperty("fov")},modifier=Modifier.height(48.dp)) {
+            Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Videocam,null,Modifier.size(18.dp),tint=Accent)
+                Text("镜头",color=Ink,fontSize=11.sp,lineHeight=16.sp)
+            }
+        }
         Box {
             Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
             DropdownMenu(more,{more=false}) {
@@ -96,12 +108,14 @@ private class ValueDrag(private val vm:EditorViewModel) {
     }
 }
 
-@Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier) {
+@Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier,onCurveMode:(Boolean)->Unit={}) {
     var rename by remember{mutableStateOf(false)}
     var anchor by remember{mutableStateOf(false)}
     var more by remember{mutableStateOf(false)}
     var parenting by remember{mutableStateOf(false)}
     var curves by remember(vm.selected,vm.property){mutableStateOf(false)}
+    LaunchedEffect(curves){onCurveMode(curves)}
+    DisposableEffect(Unit){onDispose{onCurveMode(false)}}
     BackHandler(enabled=curves){curves=false}
     val camera=vm.selected==0L
     val mode=vm.state.project?.optJSONObject("camera")?.optString("mode")?:"position"
@@ -109,13 +123,16 @@ private class ValueDrag(private val vm:EditorViewModel) {
         if(mode=="orbit")listOf("radius" to "距离","azimuth" to "方位","elevation" to "俯仰","target" to "目标点","fov" to "视角","roll" to "滚转")
         else listOf("position" to "位置","target" to "目标点","fov" to "视角","roll" to "滚转")
     } else listOf("position" to "位置","rotation" to "旋转","scale" to "缩放","opacity" to "透明度")
-    Column(modifier.testTag("properties-panel").background(Panel,RoundedCornerShape(topStart=12.dp,topEnd=12.dp))
+    Column(modifier.testTag("properties-panel").background(Panel,RoundedCornerShape(topStart=16.dp,topEnd=16.dp))
         .pointerInput(Unit){awaitPointerEventScope{while(true)awaitPointerEvent()}}.padding(horizontal=8.dp)) {
         Row(Modifier.fillMaxWidth().height(48.dp),verticalAlignment=Alignment.CenterVertically) {
             if(curves)Tool(Icons.AutoMirrored.Filled.ArrowBack,"返回变换参数"){curves=false}
-            Text(if(curves)"缓动曲线" else if(camera)"摄影机 1" else vm.layer(vm.selected)?.optString("name")?:"图层",
-                Modifier.weight(1f),color=Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-            if(!curves)Tool(Icons.AutoMirrored.Filled.ShowChart,"缓动曲线",vm.easingSegment()!=null){curves=true}
+            Text(if(curves)"缓动曲线" else objectName(vm,vm.selected),
+                Modifier.weight(1f),color=Ink,fontSize=15.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
+            if(!curves)TextButton(onClick={curves=true},modifier=Modifier.height(48.dp).testTag("open-curves")) {
+                Icon(Icons.AutoMirrored.Filled.ShowChart,"缓动曲线",Modifier.size(18.dp),tint=Accent)
+                Spacer(Modifier.width(4.dp));Text("曲线",color=Accent,fontSize=12.sp)
+            }
             Box {
                 Tool(Icons.Default.MoreVert,"图层操作"){more=true}
                 DropdownMenu(more,{more=false}) {
@@ -139,63 +156,47 @@ private class ValueDrag(private val vm:EditorViewModel) {
             }
             Tool(Icons.Default.Close,"关闭属性面板"){vm.panelOpen=false}
         }
-        Row(Modifier.weight(1f).fillMaxWidth()) {
-            Column(Modifier.width(48.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.SpaceEvenly) {
-                Tool(Icons.Default.SkipPrevious,"上一关键帧",vm.keys().any{it.getInt("frame")<vm.frame}){vm.jumpKey(false)}
-                Box(Modifier.testTag("property-key")) {
-                    Tool(Icons.Default.Diamond,if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧",vm.editable(),vm::toggleKey)
-                    Text(if(vm.currentKey()==null)"+" else "−",Modifier.align(Alignment.Center),color=if(vm.currentKey()!=null)Background else Ink,fontSize=13.sp)
-                }
-                Tool(Icons.Default.SkipNext,"下一关键帧",vm.keys().any{it.getInt("frame")>vm.frame}){vm.jumpKey(true)}
-            }
-            if(curves)CurveEditor(vm,Modifier.weight(1f).fillMaxHeight())
-            else Column(Modifier.weight(1f).fillMaxHeight().testTag("property-values")) {
+        HorizontalDivider(color=Muted.copy(alpha=.10f))
+        if(curves)CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())
+        else {
+            val scrollValues=LocalDensity.current.fontScale>1.3f
+            Column(Modifier.weight(1f).fillMaxWidth().testTag("property-values")
+                .then(if(scrollValues)Modifier.verticalScroll(rememberScrollState())else Modifier)) {
                 Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState())) {
                     choices.forEach{(key,label)->TextButton(onClick={vm.pause();vm.property=key},modifier=Modifier.height(48.dp)
                         .testTag("property-tab-"+key).semantics{selected=vm.property==key;role=Role.Tab}) {
                         Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                            Text(label,fontSize=12.sp,lineHeight=16.sp,maxLines=1,color=if(vm.property==key)Accent else Muted)
+                            Text(label,fontSize=13.sp,lineHeight=18.sp,maxLines=1,color=if(vm.property==key)Accent else Muted)
                             Spacer(Modifier.height(4.dp))
                             Box(Modifier.height(2.dp).width(24.dp).background(if(vm.property==key)Accent else Color.Transparent))
                         }
                     }}
                 }
                 val value=vm.sampleValue()
-                if(value is JSONArray)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                if(value is JSONArray)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     for(i in 0 until min(3,value.length()))ScrubField(vm,listOf("X","Y","Z")[i],value.getDouble(i),i,Modifier.weight(1f))
                 } else if(value is Number)ScrubField(vm,choices.firstOrNull{it.first==vm.property}?.second?:"数值",value.toDouble(),0,Modifier.fillMaxWidth())
-                TransformPad(vm,Modifier.weight(1f).fillMaxWidth().padding(vertical=4.dp))
+                TransformPad(vm,(if(scrollValues)Modifier.height(96.dp)else Modifier.weight(1f)).fillMaxWidth().padding(vertical=4.dp))
+            }
+            Row(Modifier.fillMaxWidth().height(48.dp),verticalAlignment=Alignment.CenterVertically) {
+                val parent=parentOf(vm,vm.selected)
+                TextButton(onClick={parenting=true},enabled=vm.editable(),modifier=Modifier.weight(1f).height(48.dp).testTag("open-parent"),contentPadding=PaddingValues(horizontal=8.dp)) {
+                    Icon(if(parent==null)Icons.Default.LinkOff else Icons.Default.Link,null,Modifier.size(18.dp),tint=if(parent==null)Muted else Accent)
+                    Spacer(Modifier.width(6.dp))
+                    Text("父级 · "+(parent?.let{objectName(vm,it)}?:"未绑定"),color=if(parent==null)Muted else Accent,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                }
+                Tool(Icons.Default.SkipPrevious,"上一关键帧",vm.keys().any{it.getInt("frame")<vm.frame}){vm.jumpKey(false)}
+                Box(Modifier.testTag("property-key")) {
+                    Tool(Icons.Default.Diamond,if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧",vm.editable(),vm::toggleKey)
+                    Text(if(vm.currentKey()==null)"+" else "−",Modifier.align(Alignment.Center),color=Background,fontSize=13.sp)
+                }
+                Tool(Icons.Default.SkipNext,"下一关键帧",vm.keys().any{it.getInt("frame")>vm.frame}){vm.jumpKey(true)}
             }
         }
     }
     if(rename)InputDialog("图层名称",vm.layer(vm.selected)?.optString("name")?:"",onDismiss={rename=false}){vm.rename(it);rename=false}
     if(anchor)AnchorDialog(vm){anchor=false}
-    if(parenting)ParentDialog(vm){parenting=false}
-}
-
-@Composable private fun ParentDialog(vm:EditorViewModel,onDismiss:()->Unit) {
-    val objects=buildList<Pair<Long,String>> {
-        if(vm.hasCamera())add(0L to "摄影机 1")
-        vm.state.project?.optJSONArray("layers")?.let{array->for(i in 0 until array.length()){val l=array.getJSONObject(i);add(l.getLong("id") to l.getString("name"))}}
-    }
-    fun parentOf(id:Long):Long? {
-        val objectData=if(id==0L)vm.state.project?.optJSONObject("camera")else vm.layer(id)
-        val link=objectData?.optJSONObject("parent")?:return null
-        return if(link.isNull("object"))null else link.optLong("object")
-    }
-    fun allowed(id:Long):Boolean {
-        var current:Long?=id
-        repeat(objects.size+1){if(current==vm.selected)return false;if(current==null)return true;current=parentOf(current!!)}
-        return false
-    }
-    val current=parentOf(vm.selected)
-    AlertDialog(onDismissRequest=onDismiss,title={Text("设置父级")},text={Column(Modifier.heightIn(max=360.dp).verticalScroll(rememberScrollState())) {
-        Text("保持当前画面；子级继承父级的位置、旋转和缩放",fontSize=12.sp,lineHeight=18.sp,color=Muted)
-        TextButton(onClick={vm.setParent(null);onDismiss()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("parent-none")){Text("解除绑定")}
-        objects.filter{allowed(it.first)}.forEach{(id,name)->TextButton(onClick={vm.setParent(id);onDismiss()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("parent-"+id)) {
-            Text(name,color=if(current==id)Accent else Ink)
-        }}
-    }},confirmButton={TextButton(onClick=onDismiss){Text("关闭")}})
+    if(parenting)ParentSheet(vm){parenting=false}
 }
 
 @Composable private fun AnchorDialog(vm:EditorViewModel,onDismiss:()->Unit) {
@@ -218,14 +219,14 @@ private class ValueDrag(private val vm:EditorViewModel) {
     val density=LocalDensity.current.density
     val factor=if(vm.property=="opacity")100.0 else 1.0
     val key=vm.property;val objectId=vm.selected;val frame=floor(vm.frame).toInt()
-    Surface(color=Background,shape=RoundedCornerShape(4.dp),modifier=modifier.heightIn(min=56.dp).testTag("value-"+label)
+    Surface(color=Background,shape=RoundedCornerShape(10.dp),modifier=modifier.heightIn(min=56.dp).testTag("value-"+label)
         .draggable(rememberDraggableState{delta->drag?.adjust(axis,delta/density.toDouble())},Orientation.Horizontal,
             enabled=vm.editable(),onDragStarted={drag=ValueDrag(vm);vm.beginGesture()},onDragStopped={vm.endGesture();drag=null})
         .clickable(enabled=vm.editable()){vm.pause();editing=true}) {
         Column(Modifier.padding(horizontal=6.dp,vertical=6.dp),verticalArrangement=Arrangement.Center) {
             Text(label+(if(key=="scale"||key=="opacity")" %" else if(key=="rotation"||key=="fov"||key=="roll")" °" else ""),color=Muted,fontSize=11.sp,lineHeight=14.sp,maxLines=1)
             Text(String.format(Locale.US,"%.1f",value*factor),modifier=Modifier.testTag("number-"+label),color=if(vm.editable())Ink else Muted,
-                fontSize=14.sp,lineHeight=18.sp,fontFamily=FontFamily.Monospace,maxLines=1,overflow=TextOverflow.Ellipsis)
+                fontSize=16.sp,lineHeight=20.sp,fontFamily=FontFamily.Monospace,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
     }
     if(editing)InputDialog(label,String.format(Locale.US,"%.3f",value*factor),onDismiss={editing=false},numeric=true){input->
@@ -249,7 +250,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
     var zAxis by remember(vm.property){mutableStateOf(false)}
     val density=LocalDensity.current.density
     val vector=vm.sampleValue() is JSONArray
-    Box(modifier.background(Background,RoundedCornerShape(4.dp)).testTag("transform-pad")
+    Box(modifier.background(Background,RoundedCornerShape(10.dp)).testTag("transform-pad")
         .pointerInput(vm.selected,vm.property,zAxis,vm.scaleLinked,vm.editable()) {
             if(vm.editable())detectDragGestures(onDragStart={drag=ValueDrag(vm);vm.beginGesture()},
                 onDragEnd={vm.endGesture();drag=null},onDragCancel={vm.endGesture();drag=null}){change,amount->
@@ -270,7 +271,6 @@ private class ValueDrag(private val vm:EditorViewModel) {
             "position","target"->if(zAxis)"上下滑动调整 Z" else "滑动移动 · XY"
             "rotation"->"滑动旋转 · Z";"scale"->"滑动缩放";"opacity"->"滑动调整透明度";else->"滑动调节数值"
         },color=Muted,fontSize=12.sp,lineHeight=18.sp)
-        if(vm.editable())Text("数值可滑动 · 点按输入",color=Muted.copy(alpha=.7f),fontSize=10.sp,lineHeight=14.sp)
         }
         if(vm.property in listOf("position","target"))TextButton(onClick={zAxis=!zAxis},modifier=Modifier.align(Alignment.TopEnd).size(48.dp)) {
             Text(if(zAxis)"XY" else "Z",color=Accent,fontSize=11.sp,lineHeight=14.sp)

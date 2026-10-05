@@ -22,7 +22,7 @@ import java.util.Locale
 import kotlin.math.*
 
 private data class TrackRow(val id:Long,val name:String,val color:Color,val visible:Boolean,val locked:Boolean,
-    val property:String,val keys:List<Int>,val allKeys:Set<Int>)
+    val property:String,val keys:List<Int>,val allKeys:Set<Int>,val parent:Long?=null)
 private data class KeyTarget(val objectId:Long,val property:String,val frame:Int)
 
 @Composable internal fun Timeline(vm:EditorViewModel,modifier:Modifier) {
@@ -40,7 +40,7 @@ private data class KeyTarget(val objectId:Long,val property:String,val frame:Int
                 val l=layers.getJSONObject(i);val key=if(vm.selected==l.getLong("id"))vm.property else "position"
                 val t=l.getJSONObject("transform")
                 add(TrackRow(l.getLong("id"),l.getString("name"),listOf(Color(0xFF6EADE8),Color(0xFFAD9DE0),Color(0xFF67BFAF))[i%3],
-                    l.getBoolean("visible"),l.getBoolean("locked"),key,keys(t.optJSONObject(key)),allKeys(t)))
+                    l.getBoolean("visible"),l.getBoolean("locked"),key,keys(t.optJSONObject(key)),allKeys(t),parentOf(vm,l.getLong("id"))))
             }
         }
     }}
@@ -135,7 +135,20 @@ private data class KeyTarget(val objectId:Long,val property:String,val frame:Int
             drawPath(path,if(active)Accent else Muted.copy(alpha=.28f))
             if(active)drawPath(path,Ink,style=Stroke(density))
         }
-        rows.firstOrNull{it.id==vm.selected}?.keys?.forEach{diamond(it,9*density,true)}
+        // Group marks only in the drawing. Every key retains its original hit
+        // target and frame, and pinching reveals the individual marks again.
+        fun keyMarks(frames:Collection<Int>,y:Float,activeFrames:Collection<Int>) {
+            val bin=max(1,ceil(14*density/scale).toInt())
+            frames.sorted().groupBy{it/bin}.values.forEach{group->
+                if(group.size==1)diamond(group.first(),y,group.first() in activeFrames)
+                else {
+                    val x=center+(group.average()-vm.frame).toFloat()*scale
+                    drawCircle(if(group.any{it in activeFrames})Accent.copy(alpha=.65f)else Muted.copy(alpha=.35f),2.5f*density,Offset(x,y))
+                    group.firstOrNull{it in activeFrames&&abs(it-vm.frame)<.5}?.let{diamond(it,y,true)}
+                }
+            }
+        }
+        rows.firstOrNull{it.id==vm.selected}?.let{keyMarks(it.keys,9*density,it.keys)}
         movedKey?.let{diamond(it.frame,9*density,true)}
         val fps=project?.optInt("fps")?:30;val current=floor(vm.frame).toInt()
         val time=String.format(Locale.US,"%02d:%02d:%02d",current/fps/60,current/fps%60,current%fps)
@@ -150,16 +163,19 @@ private data class KeyTarget(val objectId:Long,val property:String,val frame:Int
                 val left=max(49*density,x);val width=max(0f,min(size.width-12*density,x+length)-left)
                 if(row.id==vm.selected) {
                     drawRect(Accent.copy(alpha=.08f),Offset(0f,y),Size(size.width,rowHeight))
-                    drawRoundRect(Accent,Offset(left-2*density,y+5*density),Size(width+4*density,34*density),androidx.compose.ui.geometry.CornerRadius(5*density))
                 }
-                drawRoundRect(row.color.copy(alpha=if(row.visible)1f else .3f),Offset(left,y+7*density),Size(width,30*density),androidx.compose.ui.geometry.CornerRadius(4*density))
-                paint.color=android.graphics.Color.rgb(23,33,41);paint.textAlign=android.graphics.Paint.Align.LEFT;paint.textSize=12*density
+                drawRoundRect(row.color.copy(alpha=if(row.visible).18f else .06f),Offset(left,y+7*density),Size(width,30*density),androidx.compose.ui.geometry.CornerRadius(6*density))
+                if(row.id==vm.selected)drawRoundRect(Accent.copy(alpha=.65f),Offset(left,y+7*density),Size(width,30*density),androidx.compose.ui.geometry.CornerRadius(6*density),style=Stroke(density))
+                drawRoundRect(row.color,Offset(left+3*density,y+13*density),Size(3*density,18*density),androidx.compose.ui.geometry.CornerRadius(1.5f*density))
+                paint.color=(if(row.visible)Ink else Muted).let{android.graphics.Color.argb(255,(it.red*255).toInt(),(it.green*255).toInt(),(it.blue*255).toInt())};paint.textAlign=android.graphics.Paint.Align.LEFT;paint.textSize=12*density
                 paint.typeface=if(row.id==vm.selected)android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
-                drawContext.canvas.nativeCanvas.drawText(row.name,left+10*density,y+27*density,paint)
+                clipRect(left=left+10*density,top=y+7*density,right=left+width-6*density,bottom=y+37*density) {
+                    drawContext.canvas.nativeCanvas.drawText((if(row.parent!=null)"↳ "else"")+row.name,left+12*density,y+27*density,paint)
+                }
                 val eye=Path().apply{moveTo(12*density,y+25*density);quadraticTo(23*density,y+10*density,34*density,y+25*density);quadraticTo(23*density,y+40*density,12*density,y+25*density)}
                 drawPath(eye,if(row.visible)Ink else Muted,style=Stroke(1.3f*density))
                 if(row.visible)drawCircle(Ink,3*density,Offset(23*density,y+25*density))
-                row.allKeys.forEach{diamond(it,y+44*density,row.id==vm.selected&&it in row.keys)}
+                keyMarks(row.allKeys,y+44*density,if(row.id==vm.selected)row.keys else emptyList())
                 if(row.locked)drawRect(Muted,Offset(size.width-19*density,y+16*density),Size(7*density,8*density))
             }
             hoveredRow?.let{index->drawLine(Accent,Offset(48*density,head+index*rowHeight-vertical),Offset(size.width,head+index*rowHeight-vertical),2*density)}
