@@ -17,6 +17,9 @@ pub struct Asset {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Content {
+    Audio {
+        audio: crate::AudioClip,
+    },
     Null,
     Solid {
         color: [f32; 4],
@@ -188,6 +191,8 @@ pub struct Project {
     pub frames: u32,
     pub background: [f32; 4],
     pub assets: Vec<Asset>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio_assets: Vec<crate::AudioAsset>,
     pub camera: Camera,
     /// Index zero is the back of the same-depth stack.
     pub layers: Vec<Layer>,
@@ -196,7 +201,7 @@ impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 3,
+            version: 4,
             name: "空间练习 01".into(),
             width,
             height,
@@ -204,6 +209,7 @@ impl Project {
             frames,
             background: [0.05, 0.06, 0.09, 1.0],
             assets: Vec::new(),
+            audio_assets: Vec::new(),
             camera: Camera::new(width, height),
             layers: Vec::new(),
         };
@@ -245,7 +251,7 @@ impl Project {
     }
     pub fn validate(&self) -> Result<()> {
         ensure(
-            matches!(self.version, 1 | 2 | 3),
+            matches!(self.version, 1 | 2 | 3 | 4),
             "unsupported project format",
         )?;
         ensure(
@@ -265,6 +271,10 @@ impl Project {
         ensure(self.layers.len() <= MAX_LAYERS, "layer limit exceeded")?;
         ensure(self.assets.len() <= MAX_LAYERS * 2, "asset limit exceeded")?;
         self.camera.validate(self.frames)?;
+        ensure(
+            self.version >= 4 || self.audio_assets.is_empty(),
+            "audio requires project format four",
+        )?;
         let mut asset_ids = HashSet::new();
         for asset in &self.assets {
             ensure(
@@ -277,6 +287,17 @@ impl Project {
             )?;
             crate::storage::validate_relative_path(&asset.path)?;
         }
+        ensure(
+            self.audio_assets.len() + self.assets.len() <= MAX_LAYERS * 2,
+            "asset limit exceeded",
+        )?;
+        for asset in &self.audio_assets {
+            ensure(
+                asset.id != 0 && asset_ids.insert(asset.id),
+                "asset IDs must be unique and nonzero",
+            )?;
+            asset.validate()?;
+        }
         let mut ids = HashSet::new();
         for layer in &self.layers {
             ensure(
@@ -285,10 +306,11 @@ impl Project {
             )?;
             ensure(layer.name.len() <= 1024, "layer name too long")?;
             ensure(
-                layer
-                    .size
-                    .into_iter()
-                    .all(|v| v.is_finite() && v > 0.0 && v <= 32768.0),
+                matches!(layer.content, Content::Audio { .. }) && layer.size == [0.0; 2]
+                    || layer
+                        .size
+                        .into_iter()
+                        .all(|v| v.is_finite() && v > 0.0 && v <= 32768.0),
                 "invalid layer size",
             )?;
             layer.clip(self.frames).validate(self.frames)?;
@@ -298,10 +320,37 @@ impl Project {
                 layer.transform.validate_local()?;
             }
             match &layer.content {
+                Content::Audio { audio } => {
+                    audio.validate()?;
+                    let asset = self
+                        .audio_assets
+                        .iter()
+                        .find(|a| a.id == audio.asset)
+                        .ok_or_else(|| {
+                            crate::Error::Invalid("audio references a missing audio asset".into())
+                        })?;
+                    ensure(
+                        !layer.three_d
+                            && layer.parent.is_none()
+                            && layer.size == [0.0; 2]
+                            && layer.transform == Transform::new([0.0; 3]),
+                        "audio has no spatial properties or parent",
+                    )?;
+                    let clip = layer.clip(self.frames);
+                    let start = i128::from(audio.source_offset_us) * i128::from(self.fps)
+                        + (i128::from(clip.in_frame) - i128::from(clip.offset_frame)) * 1_000_000;
+                    let last = i128::from(audio.source_offset_us) * i128::from(self.fps)
+                        + (i128::from(clip.out_frame) - 1 - i128::from(clip.offset_frame))
+                            * 1_000_000;
+                    ensure(
+                        start >= 0 && last < i128::from(asset.duration_us) * i128::from(self.fps),
+                        "audio clip exceeds recoverable source interval",
+                    )?;
+                }
                 Content::Null => {}
                 Content::Solid { color } => validate_color(*color)?,
                 Content::Image { asset } => ensure(
-                    asset_ids.contains(asset),
+                    self.assets.iter().any(|a| a.id == *asset),
                     "image references a missing asset",
                 )?,
                 Content::Text {
@@ -316,7 +365,7 @@ impl Project {
                     )?;
                     validate_color(*color)?;
                     ensure(
-                        asset_ids.contains(raster_asset),
+                        self.assets.iter().any(|a| a.id == *raster_asset),
                         "text raster asset is missing",
                     )?;
                 }
@@ -347,6 +396,7 @@ impl Project {
             }
             self.version = 3;
         }
+        self.version = 4;
         Ok(self)
     }
     pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {
