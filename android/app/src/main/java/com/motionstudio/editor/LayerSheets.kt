@@ -64,7 +64,7 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
 @Composable private fun AddCard(title:String,description:String,icon:ImageVector,color:Color,modifier:Modifier,enabled:Boolean=true,onClick:()->Unit) {
     Surface(onClick=onClick,enabled=enabled,color=Background,shape=RoundedCornerShape(12.dp),modifier=modifier.heightIn(min=88.dp)) {
         Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-            Icon(icon,null,tint=if(enabled)color else Muted.copy(alpha=.4f),modifier=Modifier.size(26.dp))
+            Icon(editorIcon(icon),null,tint=if(enabled)color else Muted.copy(alpha=.4f),modifier=Modifier.size(26.dp))
             Column(Modifier.weight(1f)) {
                 Text(title,color=if(enabled)Ink else Muted,fontSize=15.sp,maxLines=1)
                 Text(description,color=Muted,fontSize=12.sp,lineHeight=18.sp)
@@ -103,7 +103,7 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
             Text("绑定后跟随父级变换，保留当前画面位置。",color=Muted,fontSize=13.sp,lineHeight=20.sp)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(query,{query=it},placeholder={Text("搜索可绑定的图层")},singleLine=true,
-                leadingIcon={Icon(Icons.Default.Search,null)},modifier=Modifier.fillMaxWidth().testTag("parent-search"),shape=RoundedCornerShape(12.dp))
+                leadingIcon={Icon(editorIcon(Icons.Default.Search),null)},modifier=Modifier.fillMaxWidth().testTag("parent-search"),shape=RoundedCornerShape(12.dp))
             Spacer(Modifier.height(12.dp))
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 ParentOption("不绑定父级","独立控制此图层",Icons.Default.LinkOff,chosen==null,Modifier.testTag("parent-none")){chosen=null}
@@ -128,13 +128,13 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
     Surface(onClick=onClick,color=if(selected)Accent.copy(alpha=.10f)else Color.Transparent,shape=RoundedCornerShape(10.dp),
         border=if(selected)BorderStroke(1.dp,Accent.copy(alpha=.45f))else null,modifier=modifier.fillMaxWidth().padding(bottom=6.dp)) {
         Row(Modifier.padding(horizontal=12.dp,vertical=12.dp).heightIn(min=40.dp),verticalAlignment=Alignment.CenterVertically) {
-            Icon(icon,null,tint=if(selected)Accent else Muted,modifier=Modifier.size(22.dp))
+            Icon(editorIcon(icon),null,tint=if(selected)Accent else Muted,modifier=Modifier.size(22.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(name,color=Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                 Text(description,color=Muted,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
             }
-            if(selected)Icon(Icons.Default.Check,"已选父级",tint=Accent,modifier=Modifier.size(20.dp))
+            if(selected)Icon(editorIcon(Icons.Default.Check),"已选父级",tint=Accent,modifier=Modifier.size(20.dp))
         }
     }
 }

@@ -27,7 +27,12 @@ def main():
     parser.add_argument("--serial", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profiles", nargs="+", choices=PROFILES, default=list(PROFILES))
+    parser.add_argument("--suite", choices=["editor", "rotation"], default="editor")
     args = parser.parse_args()
+    test_class, project_prefix = {
+        "editor": ("DeviceReadinessTest#a10LayoutProfileKeepsControlsTouchableAndNumericInputPrecise", "device"),
+        "rotation": ("RotationControlsTest#rotationControlsRemainUsableWithNarrowWindowsAndLargeFonts", "rotation"),
+    }[args.suite]
     shared = next(p for p in [ROOT, *ROOT.parents] if (p / ".tools/environment.json").exists())
     config = json.loads((shared / ".tools/environment.json").read_text(encoding="utf-8"))
     adb = [str(Path(config["sdk"]) / "platform-tools/adb.exe"), "-s", args.serial]
@@ -64,11 +69,11 @@ def main():
             folder = args.output / name
             folder.mkdir(parents=True, exist_ok=True)
             result = run("shell", "am", "instrument", "-w", "-e", "class",
-                         "com.motionstudio.editor.DeviceReadinessTest#a10LayoutProfileKeepsControlsTouchableAndNumericInputPrecise",
+                         "com.motionstudio.editor." + test_class,
                          "com.motionstudio.editor.test/androidx.test.runner.AndroidJUnitRunner")
             log = (result.stdout + result.stderr).decode("utf-8", errors="replace")
             (folder / "instrumentation.txt").write_text(log, encoding="utf-8")
-            new = sorted(n for n in roots() - before if re.fullmatch(r"device-[a-f0-9-]+", n))
+            new = sorted(n for n in roots() - before if re.fullmatch(project_prefix + r"-[a-f0-9-]+", n))
             if new:
                 archive = folder / "acceptance.tar"
                 with archive.open("wb") as stream:
@@ -99,7 +104,7 @@ def main():
         restored = {"size": shell("wm", "size"), "density": shell("wm", "density"), "rotation": shell("wm", "user-rotation"),
                     "fontScale": shell("settings", "get", "system", "font_scale")}
         (args.output / "settings-after.json").write_text(json.dumps(restored, indent=2), encoding="utf-8")
-        (args.output / "summary.json").write_text(json.dumps({"serial": args.serial,
+        (args.output / "summary.json").write_text(json.dumps({"serial": args.serial, "suite": args.suite,
             "settingsRestored": restored == original, "profiles": results}, indent=2), encoding="utf-8")
         run("shell", "am", "start", "-n", "com.motionstudio.editor/.MainActivity", check=False)
     if restored != original or len(results) != len(args.profiles) or not all(p["passed"] for p in results):
