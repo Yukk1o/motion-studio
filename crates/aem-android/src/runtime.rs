@@ -346,15 +346,15 @@ impl Session {
         let p = self.engine.project();
         let f = self.frame;
         let camera = json!({"position":p.camera.position_at(f),"target":p.camera.target.sample(f),
-            "fov":p.camera.fov.sample(f),"roll":p.camera.roll.sample(f),"radius":p.camera.radius.sample(f),
-            "azimuth":p.camera.azimuth.sample(f),"elevation":p.camera.elevation.sample(f)});
+            "fov":p.camera.fov.sample(f).clamp(10.0,120.0),"roll":p.camera.roll.sample(f),"radius":p.camera.radius.sample(f).clamp(1.0,10_000_000.0),
+            "azimuth":p.camera.azimuth.sample(f),"elevation":p.camera.elevation.sample(f).clamp(-89.0,89.0)});
         let layers: Vec<_> = p
             .layers
             .iter()
             .map(|l| {
                 json!({"id":l.id,"position":l.transform.position.sample(f),
             "rotation":l.transform.rotation.sample(f),"scale":l.transform.scale.sample(f),
-            "opacity":l.transform.opacity.sample(f)})
+            "opacity":l.transform.opacity.sample(f).clamp(0.0,1.0)})
             })
             .collect();
         let mut projected: Vec<_> = self
@@ -480,6 +480,20 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_create(
             0
         }
     }
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_curveGraph(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
+    let parsed = read_string(&mut env, &text);
+    string_result(&mut env, || {
+        let easing: aem_core::Easing = serde_json::from_str(&parsed?).map_err(|e| e.to_string())?;
+        easing.validate().map_err(|e| e.to_string())?;
+        let points: Vec<_> = (0..=160).map(|i| easing.sample(i as f64 / 160.0)).collect();
+        Ok(json!({"points": points, "definitionScale": easing.curve.map_or(1.0, |c| c.definition_scale())}))
+    })
 }
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_projectTemplate(

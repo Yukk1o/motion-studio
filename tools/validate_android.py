@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--app-apk", type=Path, default=ROOT / "android/app/build/outputs/apk/debug/app-debug.apk")
     parser.add_argument("--test-apk", type=Path, default=ROOT / "android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
-    parser.add_argument("--classes", default="com.motionstudio.editor.AcceptanceInstrumentedTest,com.motionstudio.editor.EditorGestureTest,com.motionstudio.editor.PropertyOverlayTest,com.motionstudio.editor.MotionInteractionTest,com.motionstudio.editor.CameraSceneAcceptanceTest,com.motionstudio.editor.ProjectReliabilityTest,com.motionstudio.editor.ReferenceFilmTest,com.motionstudio.editor.DeviceReadinessTest,com.motionstudio.editor.PreviewPerformanceTest,com.motionstudio.editor.CameraRigTest")
+    parser.add_argument("--classes", default="com.motionstudio.editor.AcceptanceInstrumentedTest,com.motionstudio.editor.EditorGestureTest,com.motionstudio.editor.PropertyOverlayTest,com.motionstudio.editor.MotionInteractionTest,com.motionstudio.editor.CameraSceneAcceptanceTest,com.motionstudio.editor.ProjectReliabilityTest,com.motionstudio.editor.ReferenceFilmTest,com.motionstudio.editor.DeviceReadinessTest,com.motionstudio.editor.PreviewPerformanceTest,com.motionstudio.editor.CameraRigTest,com.motionstudio.editor.CurveEditingTest")
     args = parser.parse_args()
     shared = next(p for p in [ROOT, *ROOT.parents] if (p / ".tools/environment.json").exists())
     config = json.loads((shared / ".tools/environment.json").read_text(encoding="utf-8"))

@@ -1,4 +1,4 @@
-use aem_core::{Ease, Layer, Project, Scene};
+use aem_core::{Curve, CurveShape, CurveSpace, Ease, Easing, Layer, Project, Scene};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
@@ -52,6 +52,29 @@ fn twenty_layer_animation_sampling_reuses_memory_at_sixty_hz() {
             .transform
             .position
             .upsert(150, [start[0] + 100.0, 860.0, start[2]], Ease::Linear)
+            .unwrap();
+        layer
+            .transform
+            .position
+            .set_curve(
+                0,
+                Easing {
+                    ease: Ease::Linear,
+                    curve: Some(Curve {
+                        space: if i % 2 == 0 {
+                            CurveSpace::Progress
+                        } else {
+                            CurveSpace::Velocity
+                        },
+                        shape: CurveShape::Cubic {
+                            control1: [0.2, 0.3],
+                            control2: [0.8, 1.5],
+                            start: 0.0,
+                            end: 1.0,
+                        },
+                    }),
+                },
+            )
             .unwrap();
         project.layers.push(layer);
     }
