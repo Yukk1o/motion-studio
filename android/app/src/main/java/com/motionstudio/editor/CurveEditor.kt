@@ -108,6 +108,17 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
     val liveHandles by rememberUpdatedState(controlPoints)
     BoxWithConstraints(modifier) {
     val compact=maxHeight<240.dp
+    val short=maxHeight<180.dp
+    val presets:@Composable ()->Unit = {
+        easeNames.forEach{(key,label)->CurvePreset(key,label,definition.optJSONObject("curve")==null&&definition.optString("ease")==key,segment!=null&&vm.editable(),compact=compact) {
+            draft=null;vm.ease(key)
+        }}
+        listOf("quadratic" to "二次贝塞尔","cubic" to "三次贝塞尔","elastic" to "弹性").forEach{(kind,label)->
+            CurvePreset(kind,label,definition.optJSONObject("curve")?.optJSONObject("shape")?.optString("kind")==kind,segment!=null&&vm.editable(),Modifier.testTag("curve-kind-"+kind),compact=compact) {
+                draft=null;vm.setCurve(defaultCurve(kind,view))
+            }
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
             if(vm.isSeparated())PropertyAxisMenu(vm,"curve-axis")
@@ -118,9 +129,10 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
             Tool(Icons.Default.ContentPaste,"粘贴曲线",segment!=null&&vm.editable()&&vm.curveClipboard!=null){vm.pasteCurve();copied=false}
             Tool(Icons.Default.Tune,"曲线参数",segment!=null&&vm.editable()){parameters=true}
         }
-        Text(segment?.let{"第 ${it.first.getInt("frame")} → ${it.second.getInt("frame")} 帧 · "+if(view=="progress")"动画进度"else"速度 · 1 为匀速"}?:"此属性还没有可编辑的关键帧区间",
+        if(!short)Text(segment?.let{"第 ${it.first.getInt("frame")} → ${it.second.getInt("frame")} 帧 · "+if(view=="progress")"动画进度"else"速度 · 1 为匀速"}?:"此属性还没有可编辑的关键帧区间",
             modifier=Modifier.padding(horizontal=12.dp),color=Muted,fontSize=12.sp,lineHeight=20.sp,maxLines=1)
-        Box(Modifier.weight(1f).fillMaxWidth().padding(if(compact)4.dp else 12.dp).background(Background,RoundedCornerShape(12.dp))) {
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxHeight().padding(if(compact)4.dp else 12.dp).background(Background,RoundedCornerShape(12.dp))) {
         Canvas(Modifier.fillMaxSize().padding(horizontal=if(compact)12.dp else 20.dp,vertical=if(compact)4.dp else 16.dp).testTag("easing-graph")
             .pointerInput(vm.selected,vm.property,vm.activeAxis(),segment?.first?.optInt("frame"),view) {
                 fun pixel(point:Offset,bounds:Pair<Float,Float>,factor:Float)=Offset(point.x*size.width,(bounds.second-point.y*factor)/(bounds.second-bounds.first)*size.height)
@@ -180,15 +192,10 @@ private fun handles(easing:JSONObject,view:String,points:JSONArray?,scale:Float)
             if(!compact)Text("再移动到两帧之间，调整运动节奏",color=Muted,fontSize=12.sp)
         }
         }
-        Row(Modifier.fillMaxWidth().height(if(compact)48.dp else 72.dp).horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-            easeNames.forEach{(key,label)->CurvePreset(key,label,definition.optJSONObject("curve")==null&&definition.optString("ease")==key,segment!=null&&vm.editable(),compact=compact) {
-                draft=null;vm.ease(key)
-            }}
-            listOf("quadratic" to "二次贝塞尔","cubic" to "三次贝塞尔","elastic" to "弹性").forEach{(kind,label)->
-                CurvePreset(kind,label,definition.optJSONObject("curve")?.optJSONObject("shape")?.optString("kind")==kind,segment!=null&&vm.editable(),Modifier.testTag("curve-kind-"+kind),compact=compact) {
-                    draft=null;vm.setCurve(defaultCurve(kind,view))
-                }
-            }
+        if(short)Column(Modifier.width(104.dp).fillMaxHeight().verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(4.dp)){presets()}
+        }
+        if(!short)Row(Modifier.fillMaxWidth().height(if(compact)48.dp else 72.dp).horizontalScroll(rememberScrollState()).padding(horizontal=8.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+            presets()
         }
     }}
     if(parameters)CurveParameters(definition,onDismiss={parameters=false}){vm.setCurve(it);parameters=false}

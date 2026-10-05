@@ -75,6 +75,25 @@ class IntegratedFrontendTest {
         val instance=vm.layer(vm.selected)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
         compose.onNodeWithTag("effect-instance-$instance").onChildren()[0].performClick()
     }
+    private fun assertTimelineVisible() {
+        val preview=compose.onNodeWithTag("preview-gesture").fetchSemanticsNode().boundsInRoot
+        val timeline=compose.onNodeWithTag("timeline").fetchSemanticsNode().boundsInRoot
+        val panel=compose.onNodeWithTag("effects-panel").fetchSemanticsNode().boundsInRoot
+        val transport=compose.onNodeWithTag("transport").fetchSemanticsNode().boundsInRoot
+        val density=context.resources.displayMetrics.density
+        assertTrue("timeline does not show a complete layer",timeline.height/density>=103)
+        assertTrue("preview is too small",preview.height/density>=48&&preview.width/density>=120)
+        assertFalse("effects cover timeline",panel.overlaps(timeline))
+        assertFalse("effects cover preview",panel.overlaps(preview))
+        assertFalse("effects cover playback controls",panel.overlaps(transport))
+        assertFalse("preview covers timeline",preview.overlaps(timeline))
+        compose.onNodeWithTag("effect-time").assertDoesNotExist()
+    }
+    private fun longPressKey(frame:Int) {
+        val offset=(frame-vm.frame).toFloat()*vm.timelineScale*context.resources.displayMetrics.density
+        val y=9*context.resources.displayMetrics.density
+        compose.onNodeWithTag("timeline").performTouchInput{longClick(androidx.compose.ui.geometry.Offset(centerX+offset,y))}
+    }
     private fun import(kind:String,file:String,withAudio:Boolean=true) {
         scenario.onActivity{vm.panelOpen=false;vm.importMedia(Uri.parse("content://com.motionstudio.editor.test.audio-fixtures/$file"),kind,withAudio)}
         compose.waitUntil(45000){vm.importTask==null&&vm.contentKind()==kind&&vm.state.saved}
@@ -86,12 +105,13 @@ class IntegratedFrontendTest {
         photo("effect-catalogue")
         addEffect("brightness_contrast");enterEffect()
         photo("effect-parameters")
-        compose.onNodeWithContentDescription("播放效果预览").performClick()
+        assertTimelineVisible()
+        compose.onNodeWithContentDescription("播放/暂停").performClick()
         compose.waitUntil(10000){vm.playing&&vm.frame>3.0}
         // Playback continuously recomposes the playhead, so use a real system
         // tap rather than asking Compose/Espresso to become idle first.
         UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-            .wait(Until.findObject(By.desc("暂停效果预览")),10000).also{assertNotNull(it)}!!.click()
+            .wait(Until.findObject(By.desc("播放/暂停")),10000).also{assertNotNull(it)}!!.click()
         compose.waitUntil(10000){!vm.playing}
         val instance=vm.layer(vm.selected)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
         compose.onNodeWithTag("effect-slider-p0001-0").performScrollTo().performTouchInput{swipe(center,androidx.compose.ui.geometry.Offset(width*.8f,centerY),400)}
@@ -104,29 +124,30 @@ class IntegratedFrontendTest {
         solid();effects();addEffect("brightness_contrast");enterEffect()
         val objectId=vm.selected
         val instance=vm.layer(objectId)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
-        compose.onNodeWithTag("effect-animate-p0001").performScrollTo().performClick()
+        compose.onNodeWithTag("effect-select-p0001").performScrollTo().performClick()
+        compose.onNodeWithTag("effect-animate-p0001").performClick()
         compose.waitUntil(10000){vm.effectParam(objectId,instance,"p0001")!!.getJSONObject("track").getJSONArray("keys").length()==1}
-        compose.onNodeWithTag("effect-key-0").performScrollTo().performTouchInput{longClick()}
-        compose.onNodeWithTag("effect-key-copy").performClick()
-        compose.onNodeWithTag("effect-key-destination").performTextReplacement("20")
-        compose.onNodeWithTag("effect-key-confirm").performClick()
+        longPressKey(0)
+        compose.onNodeWithTag("timeline-key-copy").assertIsNotEnabled()
+        compose.onNodeWithTag("timeline-key-destination").performTextReplacement("20")
+        compose.onNodeWithTag("timeline-key-copy").performClick()
         compose.waitUntil(10000){vm.keys().size==2&&vm.state.saved}
-        compose.onNodeWithTag("effect-key-20").performTouchInput{longClick()}
-        compose.onNodeWithTag("effect-key-move").performClick()
-        compose.onNodeWithTag("effect-key-destination").performTextReplacement("25")
-        compose.onNodeWithTag("effect-key-confirm").performClick()
+        longPressKey(20)
+        compose.onNodeWithTag("timeline-key-destination").performTextReplacement("25")
+        compose.onNodeWithTag("timeline-key-move").performClick()
         compose.waitUntil(10000){vm.keys().any{it.getInt("frame")==25}&&vm.state.saved}
-        compose.onNodeWithTag("effect-key-25").performTouchInput{longClick()}
-        compose.onNodeWithTag("effect-key-delete").performClick()
+        longPressKey(25)
+        compose.onNodeWithTag("timeline-key-delete").performClick()
         compose.waitUntil(10000){vm.keys().size==1&&vm.state.saved}
         scenario.onActivity{vm.seek(30.0);vm.chooseEffectParam(instance,"p0001");vm.setValue(JSONArray(listOf(80,0,0,0)))}
         compose.waitUntil(10000){vm.keys().size==2&&vm.state.saved}
         scenario.onActivity{vm.seek(15.0)}
         compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==15.0}
-        compose.onNodeWithTag("effect-easing").performScrollTo().performClick()
+        compose.onNodeWithTag("effect-easing").performClick()
         compose.onNodeWithTag("curve-kind-elastic").performScrollTo().performClick()
         compose.waitUntil(10000){vm.easingDefinition()?.optJSONObject("curve")?.getJSONObject("shape")?.getString("kind")=="elastic"}
         photo("effect-easing")
+        assertTimelineVisible()
         scenario.onActivity{vm.trimClip(objectId,0,45);vm.moveClip(objectId,10)}
         compose.waitUntil(10000){vm.timelineLayer(objectId)?.optInt("in_frame")==10}
         assertEquals(listOf(10,40),vm.keys().map{it.getInt("frame")})
@@ -141,6 +162,55 @@ class IntegratedFrontendTest {
         compose.waitUntil(10000){vm.state.saved&&vm.effectParam(vm.selected,instance,"p0001")?.getJSONObject("curve")?.getJSONObject("value")?.getJSONArray("channels")?.getJSONArray(0)?.length()==3}
         assertEquals(5,vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("curve").getJSONObject("value").getJSONArray("channels").length())
         photo("effect-color-curves")
+        assertTimelineVisible()
+    }
+    @Test fun scrubbingWhileEditingUpdatesTheSelectedParameterAndPreview() {
+        solid();effects();addEffect("brightness_contrast");enterEffect()
+        compose.onNodeWithTag("effect-select-p0001").performScrollTo().performClick()
+        compose.onNodeWithTag("effect-animate-p0001").performClick()
+        val objectId=vm.selected
+        val instance=vm.layer(objectId)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
+        val property="effect:$instance:p0001"
+        val contrastBefore=vm.effectParam(objectId,instance,"p0002")!!.toString()
+        compose.waitUntil(10000){vm.keys().size==1&&vm.state.saved}
+        scenario.onActivity{vm.seek(30.0);vm.setValue(JSONArray(listOf(100,0,0,0)))}
+        compose.waitUntil(10000){vm.keys().size==2&&vm.state.saved}
+        scenario.onActivity{vm.seek(0.0)}
+        compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==0.0}
+        val distance=15*vm.timelineScale*context.resources.displayMetrics.density
+        compose.onNodeWithTag("timeline").performTouchInput {
+            down(androidx.compose.ui.geometry.Offset(centerX,24*context.resources.displayMetrics.density))
+            moveBy(androidx.compose.ui.geometry.Offset(-distance,0f),300);up()
+        }
+        compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==15.0}
+        assertEquals(property,vm.property);assertEquals(objectId,vm.selected)
+        assertEquals(50.0,(vm.sampleValue() as JSONArray).getDouble(0),.01)
+        compose.onNodeWithTag("effect-value-p0001-0").assertTextContains("50.000")
+        assertTimelineVisible();photo("effect-timeline-scrubbed")
+        compose.onNodeWithTag("effect-animate-p0001").performClick()
+        compose.waitUntil(10000){vm.keys().size==3&&vm.state.saved}
+        assertEquals(listOf(0,15,30),vm.keys().map{it.getInt("frame")})
+        assertEquals(contrastBefore,vm.effectParam(objectId,instance,"p0002")!!.toString())
+    }
+    @Test fun focusedTimelineKeepsLayerOrderAndBackRestoresTheEditor() {
+        solid()
+        scenario.onActivity{vm.addRectangle()}
+        compose.waitUntil(10000){vm.state.project!!.getJSONArray("layers").length()==2&&vm.state.saved}
+        effects();addEffect("brightness_contrast");enterEffect()
+        val order=vm.state.project!!.getJSONArray("layers").objects().map{it.getLong("id")}
+        val density=context.resources.displayMetrics.density
+        compose.onNodeWithTag("timeline").performTouchInput {
+            down(androidx.compose.ui.geometry.Offset(centerX+40*density,65*density));advanceEventTime(650)
+            moveBy(androidx.compose.ui.geometry.Offset(0f,25*density),100);up()
+        }
+        compose.waitForIdle()
+        assertEquals(order,vm.state.project!!.getJSONArray("layers").objects().map{it.getLong("id")})
+        assertTimelineVisible()
+        compose.onNodeWithContentDescription("关闭效果").performClick()
+        compose.onNodeWithTag("effects-panel").assertDoesNotExist()
+        compose.onNodeWithTag("timeline").assertIsDisplayed()
+        compose.onNodeWithTag("add-layer").assertIsDisplayed()
+        assertNull(vm.state.error)
     }
     @Test fun audioImportsWaveformPlaysAndMutesWithoutSpatialControls() {
         import("audio","tone-stereo-48000.wav")
@@ -189,6 +259,7 @@ class IntegratedFrontendTest {
     }
     @Test fun effectsAndAddMediaControlsFitTheRealWindow() {
         solid();effects();photo("layout-effect-catalogue")
+        assertTimelineVisible()
         val nodes=compose.onAllNodes(hasClickAction()).fetchSemanticsNodes()
         val density=context.resources.displayMetrics.density
         val visible=nodes.filter{it.boundsInRoot.width>0&&it.boundsInRoot.height>0}
@@ -197,7 +268,18 @@ class IntegratedFrontendTest {
             if(node.boundsInRoot.height>=1)assertTrue("short touch target ${node.boundsInRoot}",node.boundsInRoot.height/density>=47.5)
         }
         addEffect("brightness_contrast");enterEffect();photo("layout-effect-parameters")
+        assertTimelineVisible()
         compose.onNodeWithTag("effect-slider-p0001-0").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("effect-select-p0001").performScrollTo().performClick()
+        compose.onNodeWithTag("effect-animate-p0001").performClick()
+        compose.waitUntil(10000){vm.keys().size==1&&vm.state.saved}
+        scenario.onActivity{vm.seek(30.0);vm.setValue(JSONArray(listOf(80,0,0,0)))}
+        compose.waitUntil(10000){vm.keys().size==2&&vm.state.saved}
+        scenario.onActivity{vm.seek(15.0)}
+        compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==15.0}
+        compose.onNodeWithTag("effect-easing").performClick()
+        assertTimelineVisible();photo("layout-effect-easing")
+        assertTrue("curve graph is too small",compose.onNodeWithTag("easing-graph").fetchSemanticsNode().boundsInRoot.height/density>=60)
         scenario.onActivity{vm.effectsOpen=false;vm.property="position"}
         import("audio","tone-stereo-48000.wav")
         photo("layout-audio")
