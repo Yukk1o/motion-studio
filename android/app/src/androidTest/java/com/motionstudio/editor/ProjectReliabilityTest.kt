@@ -146,7 +146,7 @@ class ProjectReliabilityTest {
             compose.onNodeWithContentDescription("合成设置").performClick()
             compose.onNodeWithTag("new-"+w+"-"+h+"-"+fps).performClick()
             compose.waitUntil(15000){vm.root!=original&&!vm.state.busy&&vm.state.project?.optInt("width")==w&&vm.state.project?.optInt("height")==h&&vm.state.project?.optInt("fps")==fps}
-            val p=vm.state.project!!;assertEquals(fps*6,p.getInt("frames"));assertEquals(0,p.getJSONArray("layers").length())
+            val p=vm.state.project!!;assertEquals(fps*6,p.getInt("frames"));assertEquals(0,p.getJSONArray("layers").length());assertFalse(vm.hasCamera())
             assertTrue(File(vm.root,"project.json").isFile);created.add(vm.root.name)
             assertArrayEquals(originalJson,File(original,"project.json").readBytes())
             assertArrayEquals(originalAsset,File(original,"assets/original.png").readBytes())
