@@ -127,6 +127,12 @@ impl AudioJobs {
             .cloned()
             .ok_or_else(|| "audio task does not exist".into())
     }
+    pub fn contains(&self, id: &str) -> bool {
+        self.tasks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(id)
+    }
     fn reserve(&self, id: &str, operation: &str) -> Result<(Arc<Mutex<Task>>, Worker)> {
         if id.is_empty() || id.len() > 128 {
             return Err("invalid media request id".into());
@@ -386,6 +392,7 @@ impl AudioJobs {
                 .iter()
                 .map(|a| a.id)
                 .chain(p.audio_assets.iter().map(|a| a.id))
+                .chain(p.video_assets.iter().map(|a| a.id))
                 .max()
                 .unwrap_or(0)
                 .checked_add(1)
