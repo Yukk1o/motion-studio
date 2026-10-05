@@ -356,17 +356,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun track():JSONObject? {
         val p=state.project?:return null
         return if(selected==0L)p.getJSONObject("camera").optJSONObject(property)
-        else timelineLayer(selected)?.optJSONObject("properties")?.optJSONObject(property)
-            ?:layer(selected)?.getJSONObject("transform")?.optJSONObject(property)
+        else layer(selected)?.getJSONObject("transform")?.optJSONObject(property)
     }
-    fun timelineLayer(objectId:Long):JSONObject?=state.sample?.optJSONArray("timeline_layers")?.let{a->
-        (0 until a.length()).map{a.getJSONObject(it)}.firstOrNull{it.getLong("object")==objectId}}
-    fun moveLayerClip(objectId:Long,inFrame:Int,save:Boolean=true)=edit(JSONObject().put("op","move_layer_clip")
-        .put("object",objectId).put("in_frame",inFrame),save)
-    fun trimLayerClip(objectId:Long,inFrame:Int,outFrame:Int,save:Boolean=true)=edit(JSONObject().put("op","trim_layer_clip")
-        .put("object",objectId).put("in_frame",inFrame).put("out_frame",outFrame),save)
-    fun splitLayerClip(objectId:Long,atFrame:Int)=edit(JSONObject().put("op","split_layer_clip")
-        .put("object",objectId).put("frame",atFrame))
     fun sampleValue():Any? {
         return sampleValueFor(selected,property)
     }
@@ -402,8 +393,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun currentKey():JSONObject?=keys().firstOrNull{it.getInt("frame")==floor(frame).toInt()}
     fun toggleKey(){currentKey()?.let{deleteKey(it.getInt("frame"))}?:addKey()}
     fun jumpKey(next:Boolean) {
-        val limit=state.project?.optInt("frames")?:return
-        val frames=keys().map{it.getLong("frame")}.filter{it>=0&&it<limit}
+        val frames=keys().map{it.getInt("frame")}
         val target=if(next)frames.firstOrNull{it>frame}else frames.lastOrNull{it<frame}
         target?.let{seek(it.toDouble())}
     }
