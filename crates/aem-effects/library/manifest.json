@@ -2,8 +2,8 @@
   "format_version": 1,
   "sdk_version": 1,
   "id": "com.motionstudio.effects.ae2021",
-  "version": "1.0.0",
-  "name": "motion-studio · AE 2021 常用效果",
+  "version": "1.1.0",
+  "name": "Motion Studio 核心效果",
   "author": "motion-studio contributors",
   "license": "MIT",
   "effects": [
@@ -3458,6 +3458,2690 @@
       "known_differences": [
         "独立算法实现；尚未通过完整 AE 参考用例，不能声明精确还原。",
         "枚举选项暂保留 AE 数值编号；原生菜单名称尚待采集。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "glow",
+      "name": "柔光发光",
+      "english_name": "Glow",
+      "category": "光效",
+      "params": [
+        {
+          "id": "strength",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "threshold",
+          "name": "高光阈值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "radius",
+          "name": "半径",
+          "kind": "float",
+          "default": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "affect_alpha",
+          "name": "扩展透明度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "expand",
+          "name": "扩展边界",
+          "kind": "bool",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/glow.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/glow.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "multiply",
+        "a": {
+          "op": "abs",
+          "value": {
+            "op": "parameter",
+            "id": "radius"
+          }
+        },
+        "b": {
+          "op": "parameter",
+          "id": "expand"
+        }
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_Glow；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "线性预乘高光提取与两次65点高斯采样；不提供 RGB 独立宽度或大气模型。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "glow_edges",
+      "name": "边缘发光",
+      "english_name": "Glow Edges",
+      "category": "光效",
+      "params": [
+        {
+          "id": "strength",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "threshold",
+          "name": "高光阈值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "radius",
+          "name": "半径",
+          "kind": "float",
+          "default": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "affect_alpha",
+          "name": "扩展透明度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "expand",
+          "name": "扩展边界",
+          "kind": "bool",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/glow_edges.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/glow_edges.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/glow_edges.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "multiply",
+        "a": {
+          "op": "abs",
+          "value": {
+            "op": "parameter",
+            "id": "radius"
+          }
+        },
+        "b": {
+          "op": "parameter",
+          "id": "expand"
+        }
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_GlowEdges；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "中心差分边缘提取后进行两次高斯采样。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "rays",
+      "name": "放射光束",
+      "english_name": "Rays",
+      "category": "光效",
+      "params": [
+        {
+          "id": "strength",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "threshold",
+          "name": "高光阈值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "length",
+          "name": "光束长度",
+          "kind": "float",
+          "default": [
+            0.8,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "decay",
+          "name": "衰减",
+          "kind": "float",
+          "default": [
+            2,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 8,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "affect_alpha",
+          "name": "扩展透明度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/rays.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_Rays；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "64点径向积分；输出限于当前图层边界。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "edge_rays",
+      "name": "边缘光束",
+      "english_name": "Edge Rays",
+      "category": "光效",
+      "params": [
+        {
+          "id": "strength",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "threshold",
+          "name": "高光阈值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "length",
+          "name": "光束长度",
+          "kind": "float",
+          "default": [
+            0.8,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "decay",
+          "name": "衰减",
+          "kind": "float",
+          "default": [
+            2,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 8,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "affect_alpha",
+          "name": "扩展透明度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/edge_rays.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/edge_rays.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_EdgeRays；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "边缘提取后64点径向积分，输出限于当前图层边界。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "streaks",
+      "name": "高光光条",
+      "english_name": "Streaks",
+      "category": "光效",
+      "params": [
+        {
+          "id": "strength",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "threshold",
+          "name": "高光阈值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "radius",
+          "name": "半径",
+          "kind": "float",
+          "default": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "affect_alpha",
+          "name": "扩展透明度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "expand",
+          "name": "扩展边界",
+          "kind": "bool",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "angle",
+          "name": "角度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/streaks.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "multiply",
+        "a": {
+          "op": "abs",
+          "value": {
+            "op": "parameter",
+            "id": "radius"
+          }
+        },
+        "b": {
+          "op": "parameter",
+          "id": "expand"
+        }
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_Streaks；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "单方向65点指数光条；长半径采用固定采样数。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "glint",
+      "name": "高光星芒",
+      "english_name": "Glint",
+      "category": "光效",
+      "params": [
+        {
+          "id": "strength",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "threshold",
+          "name": "高光阈值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "radius",
+          "name": "半径",
+          "kind": "float",
+          "default": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "affect_alpha",
+          "name": "扩展透明度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "expand",
+          "name": "扩展边界",
+          "kind": "bool",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "angle",
+          "name": "角度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/glint.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "multiply",
+        "a": {
+          "op": "abs",
+          "value": {
+            "op": "parameter",
+            "id": "radius"
+          }
+        },
+        "b": {
+          "op": "parameter",
+          "id": "expand"
+        }
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_Glint；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "4条等权轴形成8向星芒，共196次高光采样；无独立方向颜色。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "light_leak",
+      "name": "镜头漏光",
+      "english_name": "Light Leak",
+      "category": "光效",
+      "params": [
+        {
+          "id": "amount",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "radius",
+          "name": "范围",
+          "kind": "float",
+          "default": [
+            120,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 2048,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            1,
+            0.3,
+            0.05,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "speed",
+          "name": "移动速度",
+          "kind": "float",
+          "default": [
+            0.25,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 10,
+          "step": 0.01,
+          "units": "Hz",
+          "animatable": true
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/light_leak.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_LightLeak；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "种子驱动移动椭圆光斑，保留源Alpha；不模拟物理镜头或遮光片。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "warp_chroma",
+      "name": "色差分离",
+      "english_name": "Chromatic Warp",
+      "category": "扭曲",
+      "params": [
+        {
+          "id": "amount",
+          "name": "色差距离",
+          "kind": "float",
+          "default": [
+            8,
+            0,
+            0,
+            0
+          ],
+          "min": -256,
+          "max": 256,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "expand",
+          "name": "扩展边界",
+          "kind": "bool",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/warp_chroma.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "multiply",
+        "a": {
+          "op": "abs",
+          "value": {
+            "op": "parameter",
+            "id": "amount"
+          }
+        },
+        "b": {
+          "op": "parameter",
+          "id": "expand"
+        }
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_WarpChroma；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "红/蓝沿中心径向反向平移，绿色不动；Alpha取三次采样并集。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "kaleido",
+      "name": "镜面万花筒",
+      "english_name": "Kaleidoscope",
+      "category": "扭曲",
+      "params": [
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "segments",
+          "name": "分段数",
+          "kind": "float",
+          "default": [
+            6,
+            0,
+            0,
+            0
+          ],
+          "min": 2,
+          "max": 32,
+          "step": 0.01,
+          "units": "count",
+          "animatable": true
+        },
+        {
+          "id": "angle",
+          "name": "旋转",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true
+        },
+        {
+          "id": "mix",
+          "name": "混合",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/kaleido.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_Kaleido；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "等角扇区镜像，无外部图层或透视控制。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "kaleido_polar",
+      "name": "极坐标万花筒",
+      "english_name": "Polar Kaleidoscope",
+      "category": "扭曲",
+      "params": [
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "segments",
+          "name": "分段数",
+          "kind": "float",
+          "default": [
+            6,
+            0,
+            0,
+            0
+          ],
+          "min": 2,
+          "max": 32,
+          "step": 0.01,
+          "units": "count",
+          "animatable": true
+        },
+        {
+          "id": "angle",
+          "name": "旋转",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true
+        },
+        {
+          "id": "mix",
+          "name": "混合",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "ring_size",
+          "name": "环宽",
+          "kind": "float",
+          "default": [
+            64,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 2048,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/kaleido_polar.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_KaleidoPolar；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "角向镜像叠加径向重复，未实现Sapphire全部极坐标映射控制。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "shake",
+      "name": "镜头抖动",
+      "english_name": "Shake",
+      "category": "运动",
+      "params": [
+        {
+          "id": "amount",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "translation",
+          "name": "位移幅度",
+          "kind": "vec2",
+          "default": [
+            12,
+            12,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "rotation",
+          "name": "旋转幅度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 30,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true
+        },
+        {
+          "id": "zoom",
+          "name": "缩放幅度",
+          "kind": "float",
+          "default": [
+            0.02,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0.5,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "frequency",
+          "name": "频率",
+          "kind": "float",
+          "default": [
+            6,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 60,
+          "step": 0.01,
+          "units": "Hz",
+          "animatable": true
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/shake.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_Shake；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "平滑整数哈希噪声驱动位移、旋转、缩放；固定画幅，默认镜像边缘，无时间素材取帧。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "transform_blur",
+      "name": "变换运动模糊",
+      "english_name": "Transform Motion Blur",
+      "category": "运动",
+      "params": [
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": true
+        },
+        {
+          "id": "shift",
+          "name": "位移",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -8192,
+          "max": 8192,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "rotation",
+          "name": "旋转",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true
+        },
+        {
+          "id": "zoom",
+          "name": "缩放",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0.1,
+          "max": 10,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "translation_blur",
+          "name": "曝光位移",
+          "kind": "vec2",
+          "default": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "min": -2048,
+          "max": 2048,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "rotation_blur",
+          "name": "曝光旋转",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -180,
+          "max": 180,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true
+        },
+        {
+          "id": "zoom_blur",
+          "name": "曝光缩放",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/transform_blur.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "linear",
+      "alpha_mode": "premultiplied",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_BlurMoCurves；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "32点显式曝光路径积分，曝光位移/旋转/缩放由用户指定；不会自动读取动画曲线导数，不取相邻素材帧。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "grain",
+      "name": "胶片颗粒",
+      "english_name": "Film Grain",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "amount",
+          "name": "颗粒强度",
+          "kind": "float",
+          "default": [
+            0.08,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0.5,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "size",
+          "name": "颗粒尺寸",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0.25,
+          "max": 16,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "monochrome",
+          "name": "单色",
+          "kind": "bool",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "rate",
+          "name": "更新频率",
+          "kind": "float",
+          "default": [
+            24,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 60,
+          "step": 0.01,
+          "units": "Hz",
+          "animatable": true
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/grain.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_Grain；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "分块均匀整数哈希颗粒，无胶片库存响应、相关颗粒模型。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "scan_lines",
+      "name": "扫描线",
+      "english_name": "Scan Lines",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "amount",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            0.35,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "spacing",
+          "name": "线距",
+          "kind": "float",
+          "default": [
+            4,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 128,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "speed",
+          "name": "移动速度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -1024,
+          "max": 1024,
+          "step": 0.01,
+          "units": "px/s",
+          "animatable": true
+        },
+        {
+          "id": "direction",
+          "name": "方向",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "横线",
+            "竖线"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/scan_lines.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_ScanLines；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "余弦明暗扫描线，无模拟电视色彩或交错场处理。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "film_damage",
+      "name": "旧胶片损伤",
+      "english_name": "Film Damage",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "amount",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "grain",
+          "name": "颗粒",
+          "kind": "float",
+          "default": [
+            0.04,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0.5,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "scratches",
+          "name": "划痕",
+          "kind": "float",
+          "default": [
+            0.25,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "dust",
+          "name": "灰尘",
+          "kind": "float",
+          "default": [
+            0.2,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "flicker",
+          "name": "闪烁",
+          "kind": "float",
+          "default": [
+            0.12,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "shake",
+          "name": "跳片位移",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 64,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "rate",
+          "name": "更新频率",
+          "kind": "float",
+          "default": [
+            12,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 60,
+          "step": 0.01,
+          "units": "Hz",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/film_damage.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_FilmDamage；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "颗粒、点状灰尘、竖向划痕、闪烁与跳片组合；未实现毛发、污渍、自动失焦。"
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "multipass",
+        "dynamic_bounds",
+        "color_profile"
+      ]
+    },
+    {
+      "id": "digital_damage",
+      "name": "数字故障",
+      "english_name": "Digital Damage",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "amount",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "density",
+          "name": "故障概率",
+          "kind": "float",
+          "default": [
+            0.35,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "id": "displacement",
+          "name": "错行位移",
+          "kind": "float",
+          "default": [
+            32,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1024,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "block_height",
+          "name": "条带高度",
+          "kind": "float",
+          "default": [
+            8,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 256,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "chroma",
+          "name": "色差",
+          "kind": "float",
+          "default": [
+            4,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 128,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true
+        },
+        {
+          "id": "rate",
+          "name": "更新频率",
+          "kind": "float",
+          "default": [
+            12,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 60,
+          "step": 0.01,
+          "units": "Hz",
+          "animatable": true
+        },
+        {
+          "id": "edge",
+          "name": "边缘采样",
+          "kind": "enum",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "options": [
+            "透明",
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/digital_damage.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "transparent",
+      "edge_param": "edge",
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-creative-sapphire-inspired-v1",
+      "reference_match_name": "",
+      "reference_version": "Sapphire AE documentation 2026.5; implementation unverified",
+      "known_differences": [
+        "视觉参考 S_DigitalDamage；独立算法与参数子集，未完成 Sapphire 实机对照。",
+        "8 bpc 有界输出，不提供 HDR、Mocha、外部背景/蒙版或跨时间素材输入。",
+        "确定性条带错行、色差与亮度闪断；Alpha沿绿色采样，不提供数据MOSH或跨帧损坏。"
       ],
       "required_capabilities": [
         "single_frame",

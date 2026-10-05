@@ -6,12 +6,21 @@
 cargo run -p aem-effects --bin effect_tool -- pack sdk/effect-template artifacts/gain.msfx
 cargo run -p aem-effects --bin effect_tool -- check artifacts/gain.msfx
 cargo run -p aem-effects --bin effect_tool -- glsl artifacts/gain.msfx artifacts/gain-glsl
-cargo run -p aem-effects --bin effect_tool -- builtin artifacts/ae-library.msfx
+cargo run -p aem-effects --bin effect_tool -- builtin artifacts/core-effects.msfx
 ```
 
 打包按路径排序并固定 ZIP 时间戳，包 SHA-256 包括原始完整 ZIP 字节。插件 ID/效果 ID/参数 ID 只允许 ASCII 字母、数字、点、下划线和连字符；版本使用 semver。更新算法、参数或资源必须增加插件版本。SDK 1 只支持静态着色器，不支持 JavaScript、原生代码或网络调用。
 
 内置库直接嵌入版本控制中的library/core-effects.msfx固定字节，不在不同目标系统上重新压缩，保证桌面和Android解析同一SHA-256。修改内置manifest/源码后，先增加版本，再执行 `effect_tool pack crates/aem-effects/library crates/aem-effects/library/core-effects.msfx`，然后重新构建并运行对照。宿主检查嵌入包与manifest一致，陈旧的包会明确报错。
+
+当前核心版本1.1.0包含36项；已发布的1.0.0字节保留在 `library/legacy/core-effects-1.0.0.msfx` 并一同预装，既有工程继续解析原版本。`builtin` 命令导出当前版。内部插件ID保持兼容，包文件名与显示名称不再使用AE版本命名。生成新增16项源码和描述后再打包：
+
+```powershell
+py -X utf8 tools/generate_creative_library.py
+cargo run -p aem-effects --bin effect_tool -- pack crates/aem-effects/library crates/aem-effects/library/core-effects.msfx
+```
+
+生成器保留原有20项AE描述与源码，不读取本地reference资料。打包只收入manifest引用的文件，legacy目录不会嵌入新包。
 
 ## Manifest
 
@@ -49,6 +58,8 @@ fn main_fx(p: vec2<f32>) -> vec4<f32> {
 | mode | 边缘0/1/2/3、输入色彩0线性/1sRGB、输入Alpha0预乘/1直通、宿主原始资源标记 |
 | output_mode | 输出色彩、输出Alpha、效果混合量、预览采样比例 |
 | params | 按 manifest 顺序的四分量参数 |
+
+SDK 1的clock各分量均为f32；seed由工程u32转换而来，超过2^24时相邻整数可能映射到同一值。随机效果使用clock.w的浮点位模式散列，保证同一工程、帧和包版本随机寻帧稳定；不要承诺所有u32种子都产生不同图像。需要完整32位种子时须升级参数块协议。
 
 宿主会在效果前后转换 working_space/alpha_mode，合成统一使用线性预乘 Alpha。8 bpc 临时目标会量化并截断到0～1；扩展到HDR/浮点是后续宿主能力。内置 effect_opacity 由最终 pass 与 sample_source 混合，插件无需重复实现这个额外宿主参数。
 
