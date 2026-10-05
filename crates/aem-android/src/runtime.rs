@@ -25,6 +25,14 @@ use std::{
     thread::{self, ThreadId},
     time::Instant,
 };
+#[path = "audio_runtime.rs"]
+mod audio_runtime;
+#[path = "video_decode.rs"]
+mod video_decode;
+#[path = "video_frames.rs"]
+mod video_frames;
+#[path = "video_runtime.rs"]
+mod video_runtime;
 
 type Result<T> = std::result::Result<T, String>;
 static NEXT: AtomicI64 = AtomicI64::new(1);
@@ -59,8 +67,14 @@ struct Graphics {
     timer: Option<GpuTimer>,
 }
 struct Session {
+    video_jobs: aem_media::VideoJobs,
+    video_frames: video_frames::VideoFrames,
+    audio_jobs: aem_media::AudioJobs,
+    audio_mixer: Option<(u64, aem_media::AudioMixer)>,
+    audio_pcm: Vec<f32>,
     engine: Engine,
     scene: Scene,
+    geometry: aem_core::PlaneCompositor,
     observer: Observer,
     observing: bool,
     frame: f64,
@@ -77,9 +91,13 @@ struct Session {
     surface_epoch: u64,
     preview: PreviewPolicy,
     recorder: Option<FrameRecorder>,
+    effects: aem_render::effect_plan::PlanBuilder,
+    plugin_root: PathBuf,
 }
 impl Session {
     fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
+        let audio_jobs = aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?;
+        let video_jobs = aem_media::VideoJobs::new(root.clone())?;
         if let Some(g) = &mut self.graphics {
             g.renderer
                 .replace_assets(engine.project(), &root)
@@ -88,6 +106,10 @@ impl Session {
         self.scene = Scene::new(engine.project());
         self.observer = Observer::new(engine.project().width, engine.project().height);
         self.engine = engine;
+        self.audio_jobs = audio_jobs;
+        self.video_jobs = video_jobs;
+        self.video_frames.clear();
+        self.audio_mixer = None;
         self.root = root;
         self.frame = 0.0;
         self.observing = false;
@@ -97,14 +119,29 @@ impl Session {
         self.sample()
     }
     fn new(project: Project, root: PathBuf) -> Result<Self> {
-        let mut scene = Scene::new(&project);
+        let engine = Engine::new(project).map_err(|e| e.to_string())?;
+        let project = engine.project();
+        let mut scene = Scene::new(project);
         scene
-            .sample(&project, 0.0, None)
+            .sample(project, 0.0, None)
             .map_err(|e| e.to_string())?;
         let observer = Observer::new(project.width, project.height);
+        let plugin_root = root
+            .parent()
+            .ok_or("project directory has no parent")?
+            .join("plugins");
+        let effects = aem_render::effect_plan::PlanBuilder::new(
+            aem_effects::Registry::load(&plugin_root).map_err(|e| e.to_string())?,
+        )?;
         Ok(Self {
-            engine: Engine::new(project).map_err(|e| e.to_string())?,
+            video_jobs: aem_media::VideoJobs::new(root.clone())?,
+            video_frames: video_frames::VideoFrames::default(),
+            audio_jobs: aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?,
+            audio_mixer: None,
+            audio_pcm: Vec::new(),
+            engine,
             scene,
+            geometry: aem_core::PlaneCompositor::new(),
             observer,
             observing: false,
             frame: 0.0,
@@ -121,6 +158,8 @@ impl Session {
             surface_epoch: 0,
             preview: PreviewPolicy::default(),
             recorder: None,
+            effects,
+            plugin_root,
         })
     }
     fn check_thread(&self) -> Result<()> {
@@ -131,6 +170,7 @@ impl Session {
         }
     }
     fn detach(&mut self) {
+        self.video_frames.clear();
         if let Some(g) = self.graphics.take() {
             g.renderer.device.poll(wgpu::Maintain::Wait);
             drop(g);
@@ -150,6 +190,7 @@ impl Session {
             true,
         ))
         .map_err(|e| e.to_string())?;
+        renderer.set_effect_registry(self.effects.registry.clone());
         let caps = surface.get_capabilities(&renderer.adapter);
         let format = caps
             .formats
@@ -211,6 +252,37 @@ impl Session {
         let Some(g) = &mut self.graphics else {
             return Ok(false);
         };
+        let Some(frames) = self.video_frames.prepare_scene(
+            self.engine.project(),
+            &self.root,
+            &self.scene,
+            frame,
+        )?
+        else {
+            return Ok(false);
+        };
+        for (object, image) in frames {
+            let source = self
+                .scene
+                .layers
+                .iter()
+                .find(|l| l.id == object)
+                .unwrap()
+                .video
+                .as_ref()
+                .unwrap()
+                .asset;
+            g.renderer
+                .upload_video_frame(
+                    object,
+                    source,
+                    image.pts,
+                    image.width,
+                    image.height,
+                    &image.rgba,
+                )
+                .map_err(|e| e.to_string())?;
+        }
         g.renderer.device.poll(wgpu::Maintain::Poll);
         g.renderer.check_health().map_err(|e| e.to_string())?;
         let mut gpu_work_us = None;
@@ -355,7 +427,7 @@ impl Session {
                 let local = l.local_frame(f);
                 json!({"id":l.id,"position":l.transform.position.sample(local),
             "rotation":l.transform.rotation.sample(local),"scale":l.transform.scale.sample(local),
-            "opacity":l.transform.opacity.sample(local).clamp(0.0,1.0),"active":l.active(f,p.frames)})
+            "opacity":l.transform.opacity.sample(local).clamp(0.0,1.0),"active":l.active(f,p.frames),"three_d":l.three_d})
             })
             .collect();
         let mut projected: Vec<_> = self
@@ -363,7 +435,7 @@ impl Session {
             .layers
             .iter()
             .filter_map(|layer| {
-                let mvp = self.scene.camera.view_projection * layer.model;
+                let mvp = layer.view_projection * layer.model;
                 let corners = [[-0.5, 0.5], [0.5, 0.5], [0.5, -0.5], [-0.5, -0.5]].map(|[x, y]| {
                     mvp.x_axis * (x * layer.size[0]) + mvp.y_axis * (y * layer.size[1]) + mvp.w_axis
                 });
@@ -374,8 +446,7 @@ impl Session {
                     .layers
                     .iter()
                     .find(|l| l.id == layer.id)
-                    .and_then(|l| self.scene.node_position(l.id))
-                    .map(|point| self.scene.project_point(point));
+                    .and_then(|l| self.scene.project_node(l.id));
                 Some(
                     json!({"id":layer.id,"anchor":anchor,"corners":corners.map(|c|[
                 (c.x/c.w*0.5+0.5)*p.width as f32,
@@ -388,8 +459,7 @@ impl Session {
             .iter()
             .filter(|l| matches!(l.content, aem_core::Content::Null) && l.active(f, p.frames))
         {
-            if let Some(position) = self.scene.node_position(layer.id) {
-                let point = self.scene.project_point(position);
+            if let Some(point) = self.scene.project_node(layer.id) {
                 let [x, y, _] = point;
                 if x.is_finite() && y.is_finite() {
                     projected.push(json!({"id":layer.id,"anchor":point,"null":true,
@@ -406,14 +476,24 @@ impl Session {
         };
         json!({"project":p,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "main_composition":"comp-main",
-            "capabilities":{"layer_clips":true,"separate_dimensions":{"supported":true,"activation":"explicit",
+            "capabilities":{"layer_clips":true,"layer_3d":{"supported":true,"default":false,"activation":"explicit","command":"set_layer_3d"},
+                "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
+                "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
-                "multiple_compositions":false,"video_import":false,"audio_import":false,"model_import":false,"prerender":false},
+                "multiple_compositions":false,"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","max_pixels":2073600,"max_fps":120,
+                "max_duration_seconds":3600,"async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
+                "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true},
+                "audio":{"supported_formats":["M4A/AAC-LC","MP3","WAV/PCM16"],"sample_rates":[44100,48000],"channels":[1,2],
+                "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
+                "source_limit_bytes":aem_core::storage::MAX_MEDIA_ASSET,"source_duration_limit_seconds":3600,
+                "pcm_block_limit_frames":aem_media::MAX_BLOCK_FRAMES,"async_import":true,"ui_playback_integrated":true,"mp4_audio_mux_integrated":true}},
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
             "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),
             "timeline_camera":{"position":p.camera.position.timeline(0),"target":p.camera.target.timeline(0)},
             "projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
-            "renderError":self.last_error,"lastPresentedFrame":self.last_presented_frame,
+            "renderError":self.last_error,"effectErrors":self.graphics.as_ref().map(|g|&g.renderer.effect_diagnostics),
+            "sampledEffects":self.scene.effects.iter().map(|e|json!({"layer":e.layer,"instance":e.instance,"values":e.param_ids.iter().enumerate().map(|(i,id)|(id.clone(),json!(e.values[i]))).collect::<serde_json::Map<String,Value>>(),"curve_lut":e.lut.map(|i|&self.scene.curve_luts[i][..])})).collect::<Vec<_>>(),"lastPresentedFrame":self.last_presented_frame,
             "lastPresentedRevision":self.last_presented_revision,"viewRevision":self.view_revision,
             "lastPresentedViewRevision":self.last_presented_view_revision,"surfaceEpoch":self.surface_epoch,
             "diagnosticsEnabled":cfg!(feature="diagnostics"),
@@ -450,6 +530,234 @@ fn read_string(env: &mut JNIEnv<'_>, text: &JString<'_>) -> Result<String> {
     env.get_string(text)
         .map(|s| s.into())
         .map_err(|e| e.to_string())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    request: JString,
+) -> jstring {
+    let request = read_string(&mut env, &request);
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            let v: Value = serde_json::from_str(&request?).map_err(|e| e.to_string())?;
+            let text = |name: &str| v[name].as_str().ok_or_else(|| format!("missing {name}"));
+            let registry = &mut s.effects.registry;
+            match text("op")? {
+                "catalogue" => {
+                    return Ok(
+                        json!({"packages":registry.packages.iter().map(|(key,p)|json!({"manifest":p.manifest,"hash":p.hash,"enabled":!registry.disabled.contains(key)})).collect::<Vec<_>>(),"errors":registry.diagnostics}),
+                    )
+                }
+                "install" => {
+                    registry
+                        .install(&s.plugin_root, &PathBuf::from(text("path")?))
+                        .map_err(|e| e.to_string())?;
+                }
+                "enable" => registry
+                    .enable(
+                        &s.plugin_root,
+                        text("plugin")?,
+                        text("version")?,
+                        text("hash")?,
+                        v["enabled"].as_bool().ok_or("missing enabled")?,
+                    )
+                    .map_err(|e| e.to_string())?,
+                "uninstall" => registry
+                    .uninstall(
+                        &s.plugin_root,
+                        text("plugin")?,
+                        text("version")?,
+                        text("hash")?,
+                    )
+                    .map_err(|e| e.to_string())?,
+                "add" | "upgrade" => {
+                    let p = registry
+                        .resolve(text("plugin")?, text("version")?, text("hash")?)
+                        .map_err(|e| e.to_string())?;
+                    let def = p
+                        .manifest
+                        .effects
+                        .iter()
+                        .find(|d| Some(d.id.as_str()) == v["effect"].as_str())
+                        .ok_or("unknown effect")?;
+                    let object = v["object"].as_u64().ok_or("missing layer")?;
+                    let layer = s
+                        .engine
+                        .project()
+                        .layers
+                        .iter()
+                        .find(|l| l.id == object)
+                        .ok_or("layer does not exist")?;
+                    let upgrading = text("op")? == "upgrade";
+                    let instance = if upgrading {
+                        v["instance"].as_u64().ok_or("missing instance")?
+                    } else {
+                        layer.effects.iter().map(|e| e.id).max().unwrap_or(0) + 1
+                    };
+                    let index = if upgrading {
+                        layer
+                            .effects
+                            .iter()
+                            .position(|e| e.id == instance)
+                            .ok_or("instance does not exist")?
+                    } else {
+                        layer.effects.len()
+                    };
+                    let effect = aem_core::EffectInstance::new(
+                        instance,
+                        &p.manifest.id,
+                        &p.manifest.version,
+                        &p.hash,
+                        def,
+                        layer.size,
+                    );
+                    let mut cmds = Vec::new();
+                    if upgrading {
+                        cmds.push(Command::Effect {
+                            object,
+                            action: aem_core::EffectAction::Remove { effect: instance },
+                        });
+                    }
+                    cmds.push(Command::Effect {
+                        object,
+                        action: aem_core::EffectAction::Insert { instance: effect },
+                    });
+                    if upgrading {
+                        cmds.push(Command::Effect {
+                            object,
+                            action: aem_core::EffectAction::Move {
+                                effect: instance,
+                                index,
+                            },
+                        });
+                    }
+                    s.engine.apply_batch(cmds).map_err(|e| e.to_string())?;
+                    s.sample()?;
+                    return Ok(s.snapshot());
+                }
+                _ => return Err("unknown plugin operation".into()),
+            }
+            let next = registry.clone();
+            s.effects.set_registry(next.clone());
+            if let Some(g) = &mut s.graphics {
+                g.renderer.set_effect_registry(next);
+            }
+            s.view_revision += 1;
+            s.last_presented_frame = None;
+            Ok(s.snapshot())
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+) -> jstring {
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            s.observing = false;
+            s.sample()?;
+            let p = s.engine.project();
+            s.effects.preflight_project(p)?;
+            let assets = std::iter::once(0)
+                .chain(p.assets.iter().map(|a| a.id))
+                .collect::<Vec<_>>();
+            s.effects
+                .build(&s.scene, &assets, p.width, p.height, true)?;
+            let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"resources":program.resources.iter().map(|path|{
+   let bytes=&program.package.as_ref().unwrap().files[path];let dimensions=image::load_from_memory(bytes).map(|v|(v.width(),v.height())).unwrap_or((0,0));json!({"path":path,"width":dimensions.0,"height":dimensions.1})
+  }).collect::<Vec<_>>() })).collect::<Vec<_>>();
+            let count = p
+                .layers
+                .iter()
+                .map(|l| l.effects.iter().filter(|e| e.enabled).count())
+                .sum::<usize>();
+            let passes = count * 10 + p.layers.len();
+            let buffer_bytes = 64
+                + p.layers.len() * 128
+                + passes * (32 + aem_effects::shader::UNIFORM_BYTES)
+                + count * 1024 + 8192 * 12 + 65536 * 20;
+            Ok(
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+            )
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleRenderPlanInto(
+    env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    frame: jint,
+    buffer: JByteBuffer,
+) -> jint {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<i32> {
+        let capacity = env
+            .get_direct_buffer_capacity(&buffer)
+            .map_err(|e| e.to_string())?;
+        let pointer = env
+            .get_direct_buffer_address(&buffer)
+            .map_err(|e| e.to_string())?;
+        with_session(id, |s| {
+            s.frame = f64::from(frame);
+            s.sample()?;
+            let p = s.engine.project();
+            let assets = std::iter::once(0)
+                .chain(p.assets.iter().map(|a| a.id))
+                .collect::<Vec<_>>();
+            let result = (|| {
+                let plan = s
+                    .effects
+                    .build(&s.scene, &assets, p.width, p.height, true)?;
+                let bytes = unsafe { std::slice::from_raw_parts_mut(pointer, capacity) };
+                plan.write(&s.scene, bytes).map(|n| n as i32)
+            })();
+            if let Err(error) = &result {
+                s.last_error = Some(error.clone());
+            }
+            result
+        })
+    }));
+    result.ok().and_then(std::result::Result::ok).unwrap_or(-1)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_pluginPixels(
+    env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    program: jint,
+    resource: jint,
+) -> jbyteArray {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        with_session(id, |s| {
+            let program = s
+                .effects
+                .programs
+                .get(program as usize)
+                .ok_or("unknown program")?;
+            let path = program
+                .resources
+                .get(resource as usize)
+                .ok_or("unknown resource")?;
+            let package = program.package.as_ref().ok_or("program has no resources")?;
+            image::load_from_memory(&package.files[path])
+                .map(|v| v.into_rgba8().into_raw())
+                .map_err(|e| e.to_string())
+        })
+    }));
+    match result {
+        Ok(Ok(bytes)) => env
+            .byte_array_from_slice(&bytes)
+            .map_or(std::ptr::null_mut(), |v| v.into_raw()),
+        _ => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -653,35 +961,50 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_drag(
                 return Err("drag layer is outside its clip".into());
             }
             let position = layer.transform.position.sample(layer.local_frame(s.frame));
+            let separated = layer.transform.position.axes.is_some();
             let world_position = s
                 .scene
                 .node_position(object as u64)
                 .ok_or("object transform is unavailable")?;
-            let offset = s
-                .scene
-                .screen_translation(
-                    world_position,
-                    [dx as f32, dy as f32],
-                    [width as u32, height as u32],
-                )
-                .map_err(|e| e.to_string())?;
-            s.engine
-                .apply(Command::SetVector {
+            let offset = if layer.three_d {
+                s.scene
+                    .screen_translation(
+                        world_position,
+                        [dx as f32, dy as f32],
+                        [width as u32, height as u32],
+                    )
+                    .map_err(|e| e.to_string())?
+            } else {
+                let p = s.engine.project();
+                let scale = (width as f32 / p.width as f32).min(height as f32 / p.height as f32);
+                [dx as f32 / scale, dy as f32 / scale, 0.0]
+            };
+            let offset =
+                aem_core::scene_prefix_delta(s.engine.project(), object as u64, s.frame, offset)
+                    .map_err(|e| e.to_string())?;
+            let frame = s.frame.floor() as u32;
+            let commands = if separated {
+                [aem_core::Axis::X, aem_core::Axis::Y, aem_core::Axis::Z]
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(i, _)| offset[*i].abs() > 1e-6)
+                    .map(|(i, axis)| Command::SetComponent {
+                        object: object as u64,
+                        property: aem_core::Property::Position,
+                        axis,
+                        frame,
+                        value: position[i] + offset[i],
+                    })
+                    .collect()
+            } else {
+                vec![Command::SetVector {
                     object: object as u64,
                     property: aem_core::Property::Position,
-                    frame: s.frame.floor() as u32,
-                    value: {
-                        let offset = aem_core::scene_prefix_delta(
-                            s.engine.project(),
-                            object as u64,
-                            s.frame,
-                            offset,
-                        )
-                        .map_err(|e| e.to_string())?;
-                        std::array::from_fn(|i| position[i] + offset[i])
-                    },
-                })
-                .map_err(|e| e.to_string())?;
+                    frame,
+                    value: std::array::from_fn(|i| position[i] + offset[i]),
+                }]
+            };
+            s.engine.apply_batch(commands).map_err(|e| e.to_string())?;
             s.sample()?;
             Ok(s.snapshot())
         })
@@ -1042,6 +1365,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
     string_result(&mut env, || {
         with_session(id, |s| {
             let p = s.engine.project();
+            s.effects.preflight_project(p)?;
             let mut scene = Scene::new(p);
             scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
             let mut temporary = None;
@@ -1054,12 +1378,38 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
             } else {
                 temporary.as_mut().unwrap()
             };
+            renderer.set_effect_registry(s.effects.registry.clone());
             renderer
                 .synchronize_assets(p, &s.root)
                 .map_err(|e| e.to_string())?;
             let target = renderer
                 .capture_target(p.width, p.height)
                 .map_err(|e| e.to_string())?;
+            let frames = s
+                .video_frames
+                .prepare_scene(p, &s.root, &scene, s.frame)?
+                .ok_or("video capture pending; request frames and retry")?;
+            for (object, image) in frames {
+                let source = scene
+                    .layers
+                    .iter()
+                    .find(|l| l.id == object)
+                    .unwrap()
+                    .video
+                    .as_ref()
+                    .unwrap()
+                    .asset;
+                renderer
+                    .upload_video_frame(
+                        object,
+                        source,
+                        image.pts,
+                        image.width,
+                        image.height,
+                        &image.rgba,
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
             let (pixels, _) = renderer
                 .capture(&scene, &target)
                 .map_err(|e| e.to_string())?;
@@ -1101,7 +1451,10 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_newProject(
     string_result(&mut env, || {
         with_session(id, |s| {
             let project: Project = serde_json::from_str(&text?).map_err(|e| e.to_string())?;
-            if !project.assets.is_empty() {
+            if !project.assets.is_empty()
+                || !project.audio_assets.is_empty()
+                || !project.video_assets.is_empty()
+            {
                 return Err("new project must have no external assets".into());
             }
             let engine = Engine::new(project).map_err(|e| e.to_string())?;
@@ -1231,20 +1584,37 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleInto(
         let address = address.map_err(|e| e.to_string())?;
         let capacity = capacity.map_err(|e| e.to_string())?;
         with_session(id, |s| {
+            if s.engine
+                .project()
+                .layers
+                .iter()
+                .any(|l| l.effects.iter().any(|e| e.enabled))
+            {
+                return Err("effects require render plan SDK 1".into());
+            }
+
             s.frame = f64::from(frame);
             s.scene
                 .sample(s.engine.project(), s.frame, None)
                 .map_err(|e| e.to_string())?;
-            let words = s.scene.layers.len() * 32;
+            s.geometry.prepare(&s.scene).map_err(|e| e.to_string())?;
+            if s.scene.layers.iter().any(|l| l.video.is_some()) {
+                return Err("video export requires dynamic frame reads and GeometryBridge".into());
+            }
+            if s.geometry.batches.iter().any(|b| b.vertices.len() != 6)
+                || s.geometry.vertices.len() > s.scene.layers.len() * 6
+            {
+                return Err("intersecting layers require GeometryBridge.sampleGeometryInto".into());
+            }
+            let words = s.geometry.batches.len() * 32;
             if capacity < words * 4 {
                 return Err("draw parameter buffer is too small".into());
             }
             let output = unsafe { std::slice::from_raw_parts_mut(address, words * 4) };
-            for (i, layer) in s.scene.layers.iter().enumerate() {
+            for (i, batch) in s.geometry.batches.iter().enumerate() {
+                let layer = &s.scene.layers[batch.layer];
                 let mut data = [0.0f32; 32];
-                data[..16].copy_from_slice(
-                    &(s.scene.camera.view_projection * layer.model).to_cols_array(),
-                );
+                data[..16].copy_from_slice(&(layer.view_projection * layer.model).to_cols_array());
                 data[16..20].copy_from_slice(&layer.color);
                 for c in &mut data[16..19] {
                     *c = if *c <= 0.04045 {
@@ -1266,11 +1636,138 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleInto(
                 });
                 output[i * 128..(i + 1) * 128].copy_from_slice(bytemuck::cast_slice(&data));
             }
-            Ok(s.scene.layers.len() as i32)
+            Ok(s.geometry.batches.len() as i32)
         })
     }));
     result.ok().and_then(std::result::Result::ok).unwrap_or(-1)
 }
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_hitCandidates(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    x: jdouble,
+    y: jdouble,
+) -> jstring {
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            s.sample()?;
+            let candidates = s
+                .scene
+                .hit_candidates([x as f32, y as f32])
+                .map_err(|e| e.to_string())?;
+            Ok(
+                json!({"candidates":candidates,"coordinates":"composition_pixels","selection":"geometry_bounds"}),
+            )
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_sampleGeometryInto(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    frame: jdouble,
+    parameters: JByteBuffer,
+    vertices: JByteBuffer,
+) -> jstring {
+    let parameter_address = env.get_direct_buffer_address(&parameters);
+    let parameter_capacity = env.get_direct_buffer_capacity(&parameters);
+    let vertex_address = env.get_direct_buffer_address(&vertices);
+    let vertex_capacity = env.get_direct_buffer_capacity(&vertices);
+    let parameter_readonly = env
+        .call_method(&parameters, "isReadOnly", "()Z", &[])
+        .and_then(|v| v.z());
+    let vertex_readonly = env
+        .call_method(&vertices, "isReadOnly", "()Z", &[])
+        .and_then(|v| v.z());
+    string_result(&mut env, || {
+        if parameter_readonly.map_err(|e| e.to_string())?
+            || vertex_readonly.map_err(|e| e.to_string())?
+        {
+            return Err("geometry buffers must be writable".into());
+        }
+        let pa = parameter_address.map_err(|e| e.to_string())?;
+        let pc = parameter_capacity.map_err(|e| e.to_string())?;
+        let va = vertex_address.map_err(|e| e.to_string())?;
+        let vc = vertex_capacity.map_err(|e| e.to_string())?;
+        with_session(id, |s| {
+            s.scene
+                .sample(s.engine.project(), frame, None)
+                .map_err(|e| e.to_string())?;
+            s.geometry.prepare(&s.scene).map_err(|e| e.to_string())?;
+            let pb = s.geometry.batches.len() * 128;
+            let vb = s.geometry.vertices.len() * 20;
+            if pc < pb || vc < vb {
+                return Err(format!(
+                    "geometry buffers too small: need {pb} parameter bytes and {vb} vertex bytes"
+                ));
+            }
+            let pend = (pa as usize)
+                .checked_add(pb)
+                .ok_or("parameter address overflow")?;
+            let vend = (va as usize)
+                .checked_add(vb)
+                .ok_or("vertex address overflow")?;
+            if pb > 0 && vb > 0 && (pa as usize) < vend && (va as usize) < pend {
+                return Err("geometry buffers must not overlap".into());
+            }
+            let parameters = unsafe { std::slice::from_raw_parts_mut(pa, pb) };
+            let vertices = unsafe { std::slice::from_raw_parts_mut(va, vb) };
+            for (i, batch) in s.geometry.batches.iter().enumerate() {
+                let layer = &s.scene.layers[batch.layer];
+                let mut data = [0.0f32; 32];
+                data[..16].copy_from_slice(&layer.view_projection.to_cols_array());
+                data[16..20].copy_from_slice(&layer.color);
+                for c in &mut data[16..19] {
+                    *c = if *c <= 0.04045 {
+                        *c / 12.92
+                    } else {
+                        ((*c + 0.055) / 1.055).powf(2.4)
+                    };
+                }
+                data[20] = layer.size[0];
+                data[21] = layer.size[1];
+                data[22] = layer.opacity;
+                data[24] = layer.asset.map_or(0.0, |id| {
+                    s.engine
+                        .project()
+                        .assets
+                        .iter()
+                        .position(|a| a.id == id)
+                        .map_or(0.0, |i| i as f32 + 1.0)
+                });
+                if layer.video.is_some() {
+                    data[24] = -(layer.order as f32 + 1.0);
+                }
+                data[25] = batch.vertices.start as f32;
+                data[26] = (batch.vertices.end - batch.vertices.start) as f32;
+                data[27] = layer.order as f32;
+                data[28] = if layer.three_d { 1.0 } else { 0.0 };
+                parameters[i * 128..(i + 1) * 128].copy_from_slice(bytemuck::cast_slice(&data));
+            }
+            for (i, v) in s.geometry.vertices.iter().enumerate() {
+                let data = [
+                    v.position[0],
+                    v.position[1],
+                    v.position[2],
+                    v.uv[0],
+                    v.uv[1],
+                ];
+                vertices[i * 20..(i + 1) * 20].copy_from_slice(bytemuck::cast_slice(&data));
+            }
+            s.frame = frame;
+            Ok(
+                json!({"batches":s.geometry.batches.len(),"vertices":s.geometry.vertices.len(),
+                "parameterBytes":pb,"vertexBytes":vb,"batchStrideBytes":128,"vertexStrideBytes":20,
+                "videoLayers":s.scene.layers.iter().filter_map(|l|l.video.as_ref().map(|v|json!({"object":l.id,"asset":v.asset,
+                    "texture_slot":-(l.order as i64+1),"source_time_us":v.source_time_us}))).collect::<Vec<_>>()}),
+            )
+        })
+    })
+}
+
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_assetPixels(
     env: JNIEnv,

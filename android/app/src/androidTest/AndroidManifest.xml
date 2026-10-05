@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <application>
+        <provider android:name="com.motionstudio.editor.AudioFixtureProvider"
+            android:authorities="com.motionstudio.editor.test.audio-fixtures" android:exported="true" />
         <!-- AndroidX tests do not use the deprecated framework test runner.
              MuMu omits its optional shared libraries. -->
         <uses-library android:name="android.test.runner" android:required="false"

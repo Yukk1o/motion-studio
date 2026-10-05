@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--abis",default="arm64-v8a,x86_64")
     parser.add_argument("--rust-only",action="store_true")
     parser.add_argument("--diagnostics",action="store_true",help="Enable opt-in GPU fault injection for the debug acceptance build")
+    parser.add_argument("--effects-acceptance",action="store_true",help="Use an isolated debug application ID for effects tests")
     parser.add_argument("--task",nargs="+",default=["assembleDebug"])
     parser.add_argument("--target-dir",type=Path,help="Override the native output directory")
     args=parser.parse_args()
@@ -57,6 +58,7 @@ def main():
         sdk=Path(config["sdk"]).as_posix().replace(":","\\:")
         (android/"local.properties").write_text("sdk.dir="+sdk+"\n",encoding="utf-8")
         properties=["-PperformanceTest=true"] if benchmark else []
+        if args.effects_acceptance: properties.append("-PeffectsAcceptance=true")
         subprocess.run([config["gradle"],"--no-daemon","--console=plain",*properties,*args.task],cwd=android,env=env,check=True)
         print("Android build completed",flush=True)
 

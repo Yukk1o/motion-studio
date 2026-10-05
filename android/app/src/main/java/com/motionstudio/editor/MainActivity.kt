@@ -33,6 +33,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -107,9 +108,14 @@ open class MainActivity:ComponentActivity() {
     var settings by remember{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
     var library by remember{mutableStateOf(false)}
+    var videoImport by remember{mutableStateOf(false)}
+    var keepSound by remember{mutableStateOf(true)}
     var curveExpanded by remember{mutableStateOf(false)}
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importImage)}
     val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importProject)}
+    val audioPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"audio")}}
+    val videoPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"video",keepSound)}}
+    val pluginPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::installPlugin)}
     val pngSave=rememberLauncherForActivityResult(CreateOutputDocument("image/png")){uri->
         vm.completeOutputSelection(uri)
     }
@@ -175,15 +181,16 @@ open class MainActivity:ComponentActivity() {
             }
             // This sibling overlays the stable editor; it never changes Surface
             // or timeline constraints and adds no scrim over the preview.
+            val propertyBounds=if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-(if(curveExpanded)0.dp else 44.dp)).coerceAtLeast(0.dp))
+                else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
+                else Modifier.fillMaxWidth().height(if(curveExpanded||vm.effectsOpen)(availableHeight*.64f).coerceAtMost(440.dp)
+                    else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp))
             AnimatedVisibility(visible=vm.panelOpen&&(vm.selected!=0L||vm.hasCamera()),
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
-                Properties(vm,if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-44.dp).coerceAtLeast(0.dp))
-                    else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
-                    else Modifier.fillMaxWidth().height(if(curveExpanded)(availableHeight*.64f).coerceAtMost(440.dp)
-                        else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp)),
-                    onCurveMode={curveExpanded=it})
+                if(vm.effectsOpen)EffectsPanel(vm,propertyBounds,onCurveMode={curveExpanded=it}){vm.effectsOpen=false;vm.property="position";vm.panelOpen=false}
+                else Properties(vm,propertyBounds,onCurveMode={curveExpanded=it})
             }
             if(vm.state.project==null&&vm.loadFailed&&!vm.state.busy) {
                 Column(Modifier.fillMaxSize().background(Background).padding(24.dp),verticalArrangement=Arrangement.Center,
@@ -207,6 +214,8 @@ open class MainActivity:ComponentActivity() {
         addMenu=false
         when(kind) {
             "image"->imagePicker.launch(arrayOf("image/png","image/jpeg"))
+            "audio"->audioPicker.launch(arrayOf("audio/*","application/octet-stream"))
+            "video"->videoImport=true
             "text"->textDialog=true
             "solid"->vm.addRectangle()
             "null"->vm.addNull()
@@ -220,6 +229,14 @@ open class MainActivity:ComponentActivity() {
             when(vm.pendingOutputKind){"video"->videoSave.launch("MotionStudio.mp4");"project"->projectSave.launch("MotionStudio.motion");else->pngSave.launch("motion-frame.png")}
         }){Text("重新选择位置")}else if(vm.state.project!=null)TextButton(onClick=vm::retryPreview){Text("重试预览")}})}
     if(textDialog)InputDialog("添加文字","Motion Studio",onDismiss={textDialog=false}){vm.addText(it);textDialog=false}
+    if(videoImport)AlertDialog(onDismissRequest={videoImport=false},title={Text("导入视频")},text={Column{Text("支持 MP4 / H.264，最多 1080p。",color=Muted)
+        Row(verticalAlignment=Alignment.CenterVertically){Checkbox(keepSound,{keepSound=it});Text("保留原声")}}},confirmButton={TextButton(onClick={videoImport=false;videoPicker.launch(arrayOf("video/mp4","application/octet-stream"))}){Text("选择视频")}},dismissButton={TextButton(onClick={videoImport=false}){Text("取消")}})
+    vm.importTask?.let{task->AlertDialog(onDismissRequest={},title={Text("导入媒体")},text={Column {
+        val phase=when(task.optString("phase")){"opening"->"打开文件";"copying"->"保存素材";"probing"->"检查画面";"decoding","decoding_audio"->"解码声音";"waveform"->"生成波形";"awaiting_commit"->"保存片段";else->"准备素材"}
+        Text(phase);Spacer(Modifier.height(12.dp));LinearProgressIndicator(progress={task.optDouble("progress").toFloat().coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
+    }},confirmButton={},dismissButton={TextButton(onClick=vm::cancelMediaImport){Text("取消导入")}})}
+    vm.mediaNotice?.let{notice->AlertDialog(onDismissRequest=vm::clearMediaNotice,title={Text("导入完成")},text={Text(notice)},confirmButton={TextButton(onClick=vm::clearMediaNotice){Text("知道了")}})}
+    if(vm.pluginsOpen)PluginsPanel(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onDismiss={vm.pluginsOpen=false})
     if(vm.exporting)AlertDialog(onDismissRequest={},title={Text("导出视频")},
         text={Column{LinearProgressIndicator(progress={vm.exportProgress},modifier=Modifier.fillMaxWidth(),color=Accent)
             Spacer(Modifier.height(12.dp));Text((vm.exportProgress*100).toInt().toString()+"% · 本机编码")}},
@@ -230,6 +247,8 @@ open class MainActivity:ComponentActivity() {
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
             TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
+            TextButton(onClick={settings=false;vm.pluginsOpen=true},modifier=Modifier.testTag("open-plugins")){Text("效果包")}
+            if(vm.state.project?.optJSONArray("audio_assets")?.length()?.let{it>0}==true||vm.state.project?.optJSONArray("video_assets")?.length()?.let{it>0}==true)TextButton(onClick={settings=false;vm.prepareMediaCaches(true)}){Text("重建媒体缓存")}
             Text("预览清晰度",fontSize=12.sp,color=Muted)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 listOf("自动","清晰","流畅","省电").forEachIndexed{mode,label->
@@ -262,7 +281,7 @@ open class MainActivity:ComponentActivity() {
 
 @Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
     var menu by remember{mutableStateOf(false)}
-    Box(modifier.background(Color(0xFF0B0D10))) {
+    Box(modifier.background(Color(0xFF0B0D10)).clipToBounds()) {
         AndroidView(factory={context->SurfaceView(context).also{view->
             view.holder.addCallback(object:SurfaceHolder.Callback {
                 override fun surfaceCreated(holder:SurfaceHolder) {}
@@ -285,15 +304,32 @@ open class MainActivity:ComponentActivity() {
                 val selectedCorners=previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).firstOrNull{it.first==vm.selected}?.second
                 val handleRadius=selectedCorners?.let{points->min(20.dp.toPx(),points.indices.minOf{(points[it]-points[(it+1)%points.size]).getDistance()}/3f)}?:0f
                 val resize=!vm.state.observing&&selectedCorners?.any{(it-down.position).getDistance()<=handleRadius}==true
-                val picked=if(!resize&&!vm.state.observing)previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).asReversed()
-                    .firstOrNull{insideQuad(down.position,it.second)}else null
-                if(vm.selected!=0L||!vm.hasCamera())picked?.let{vm.select(it.first,false)}
-                var total=Offset.Zero;var active=false
-                val at=floor(vm.frame).toInt();val objectId=vm.selected
+                var total=Offset.Zero;var active=false;var ended=false;var cancelled=false
+                var pendingZoom=1f;var pendingAngle=0f
+                val at=floor(vm.frame).toInt()
+                var picked:Long?=null;var resolved=resize||vm.state.observing
+                val cameraFocused=vm.selected==0L&&vm.hasCamera()
+                if(!resize&&!vm.state.observing)vm.pickLayer(down.position.x,down.position.y,size.width.toFloat(),size.height.toFloat()){candidate->
+                    resolved=true;picked=candidate
+                    if(!cancelled&&!active&&(ended||!cameraFocused))candidate?.let{vm.select(it,false)}
+                    // A short gesture may finish before the worker returns the
+                    // hit result. Apply its accumulated motion to that target.
+                    if(ended&&!cancelled&&!active&&!cameraFocused&&vm.editable()&&
+                        (total.getDistance()>viewConfiguration.touchSlop||abs(pendingZoom-1f)>.002f||abs(pendingAngle)>.1f)) {
+                        vm.beginGesture()
+                        if(total.getDistance()>.1f)vm.moveLayer(total.x,total.y,size.width,size.height)
+                        (vm.sampleValueFor(vm.selected,"scale") as? JSONArray)?.let{old->if(abs(pendingZoom-1f)>.002f)
+                            vm.setPropertyValue(vm.selected,"scale",at,JSONArray(old.toString()).put(0,(old.getDouble(0)*pendingZoom).coerceIn(-100000.0,100000.0)).put(1,(old.getDouble(1)*pendingZoom).coerceIn(-100000.0,100000.0)),false,listOf(0,1))}
+                        (vm.sampleValueFor(vm.selected,"rotation") as? JSONArray)?.let{old->if(abs(pendingAngle)>.1f)
+                            vm.setPropertyValue(vm.selected,"rotation",at,JSONArray(old.toString()).put(2,old.getDouble(2)+pendingAngle),false,listOf(2))}
+                        vm.endGesture();active=true
+                    }
+                }
+                var objectId=vm.selected
                 var scale=vm.sampleValueFor(objectId,"scale") as? JSONArray
-                val initialScale=scale?.let{JSONArray(it.toString())}
-                val anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
-                val startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
+                var initialScale=scale?.let{JSONArray(it.toString())}
+                var anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
+                var startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
                 var rotation=vm.sampleValueFor(objectId,"rotation") as? JSONArray
                 var azimuth=(vm.sampleValueFor(0,"azimuth") as? Number)?.toDouble()?:0.0
                 var elevation=(vm.sampleValueFor(0,"elevation") as? Number)?.toDouble()?:0.0
@@ -302,11 +338,22 @@ open class MainActivity:ComponentActivity() {
                 try {
                     do {
                         val event=awaitPointerEvent()
+                        if(event.changes.any{it.isConsumed})break
                         val pan=event.calculatePan();total+=pan
-                        val zoom=event.calculateZoom();val angle=event.calculateRotation()
+                        var zoom=event.calculateZoom();var angle=event.calculateRotation()
+                        if(!active){pendingZoom*=zoom;pendingAngle+=angle}
                         var startedNow=false
-                        if(!active&&(total.getDistance()>viewConfiguration.touchSlop||abs(zoom-1f)>.002f||abs(angle)>.1f)) {
-                            if(vm.editable()||observing){if(!observing)vm.beginGesture();active=true;startedNow=true}
+                        if(!active&&(resolved||cameraFocused)&&(total.getDistance()>viewConfiguration.touchSlop||abs(zoom-1f)>.002f||abs(angle)>.1f)) {
+                            if(vm.editable()||observing){
+                                objectId=vm.selected
+                                scale=vm.sampleValueFor(objectId,"scale") as? JSONArray
+                                rotation=vm.sampleValueFor(objectId,"rotation") as? JSONArray
+                                initialScale=scale?.let{JSONArray(it.toString())}
+                                anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
+                                startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
+                                if(!observing)vm.beginGesture();active=true;startedNow=true
+                                zoom=pendingZoom;angle=pendingAngle
+                            }
                         }
                         if(active) {
                             val movement=if(startedNow)total else pan
@@ -322,23 +369,24 @@ open class MainActivity:ComponentActivity() {
                                     val ratio=(event.changes.first().position-anchor).getDistance()/startRadius
                                     scale=JSONArray(initialScale.toString()).put(0,(initialScale.getDouble(0)*ratio).coerceIn(-100000.0,100000.0))
                                         .put(1,(initialScale.getDouble(1)*ratio).coerceIn(-100000.0,100000.0))
-                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false)
+                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false,listOf(0,1))
                                 } else if(movement.getDistance()>.1f)vm.moveLayer(movement.x,movement.y,size.width,size.height)
                                 if(!resize&&abs(zoom-1f)>.002f)scale?.let{old->
                                     scale=JSONArray(old.toString()).put(0,(old.getDouble(0)*zoom).coerceIn(-100000.0,100000.0))
                                         .put(1,(old.getDouble(1)*zoom).coerceIn(-100000.0,100000.0))
-                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false)
+                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false,listOf(0,1))
                                 }
                                 if(!resize&&abs(angle)>.1f)rotation?.let{old->
                                     rotation=JSONArray(old.toString()).put(2,old.getDouble(2)+angle)
-                                    vm.setPropertyValue(objectId,"rotation",at,rotation!!,false)
+                                    vm.setPropertyValue(objectId,"rotation",at,rotation!!,false,listOf(2))
                                 }
                             }
                             event.changes.forEach{it.consume()}
                         }
-                    } while(event.changes.any{it.pressed})
-                } finally {if(active&&!observing)vm.endGesture()}
-                if(!active&&!observing)picked?.let{vm.select(it.first,false)}
+                        ended=event.changes.none{it.pressed}
+                    } while(!ended)
+                } finally {if(!ended)cancelled=true;if(active&&!observing){if(ended)vm.endGesture()else vm.cancelGesture()}}
+                if(!active&&!observing)picked?.let{vm.select(it,false)}
             }
         })
         Box(Modifier.padding(start=12.dp,top=4.dp)) {

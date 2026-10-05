@@ -17,6 +17,12 @@ pub struct Asset {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Content {
+    Video {
+        video: crate::VideoClip,
+    },
+    Audio {
+        audio: crate::AudioClip,
+    },
     Null,
     Solid {
         color: [f32; 4],
@@ -105,8 +111,13 @@ pub struct Layer {
     pub transform: Transform,
     pub visible: bool,
     pub locked: bool,
+    /// New layers are flat until the user explicitly enables spatial transforms.
+    #[serde(default)]
+    pub three_d: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<ParentLink>,
+    #[serde(default)]
+    pub effects: Vec<crate::EffectInstance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeline: Option<LayerTimeline>,
 }
@@ -120,7 +131,9 @@ impl Layer {
             transform: Transform::new(position),
             visible: true,
             locked: false,
+            three_d: false,
             parent: None,
+            effects: Vec::new(),
             timeline: None,
         }
     }
@@ -184,15 +197,21 @@ pub struct Project {
     pub frames: u32,
     pub background: [f32; 4],
     pub assets: Vec<Asset>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio_assets: Vec<crate::AudioAsset>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub video_assets: Vec<crate::VideoAsset>,
     pub camera: Camera,
     /// Index zero is the back of the same-depth stack.
     pub layers: Vec<Layer>,
+    #[serde(default)]
+    pub plugin_dependencies: Vec<crate::PluginDependency>,
 }
 impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 2,
+            version: 5,
             name: "空间练习 01".into(),
             width,
             height,
@@ -200,8 +219,11 @@ impl Project {
             frames,
             background: [0.05, 0.06, 0.09, 1.0],
             assets: Vec::new(),
+            audio_assets: Vec::new(),
+            video_assets: Vec::new(),
             camera: Camera::new(width, height),
             layers: Vec::new(),
+            plugin_dependencies: Vec::new(),
         };
         project.camera.created = false;
         project.validate()?;
@@ -233,10 +255,25 @@ impl Project {
                 [0.88, 0.73, 0.43, 0.85],
             ),
         ];
+        // This is an explicitly spatial example, not the empty-project default.
+        for layer in &mut p.layers {
+            layer.three_d = true;
+        }
         p
     }
     pub fn validate(&self) -> Result<()> {
-        ensure(matches!(self.version, 1 | 2), "unsupported project format")?;
+        ensure(
+            matches!(self.version, 1 | 2 | 3 | 4 | 5),
+            "unsupported project format",
+        )?;
+        ensure(
+            self.version >= 2 || self.layers.iter().all(|l| l.effects.is_empty()),
+            "version 1 projects cannot contain effects",
+        )?;
+        ensure(
+            self.plugin_dependencies == crate::effects::dependencies(&self.layers),
+            "plugin dependency list does not match effect instances",
+        )?;
         ensure(
             (1..=8192).contains(&self.width) && (1..=8192).contains(&self.height),
             "invalid composition size",
@@ -254,6 +291,18 @@ impl Project {
         ensure(self.layers.len() <= MAX_LAYERS, "layer limit exceeded")?;
         ensure(self.assets.len() <= MAX_LAYERS * 2, "asset limit exceeded")?;
         self.camera.validate(self.frames)?;
+        ensure(
+            self.version >= 5 || self.video_assets.is_empty(),
+            "video requires project format five",
+        )?;
+        ensure(
+            self.video_assets.len() <= MAX_LAYERS * 2,
+            "video asset limit exceeded",
+        )?;
+        ensure(
+            self.version >= 4 || self.audio_assets.is_empty(),
+            "audio requires project format four",
+        )?;
         let mut asset_ids = HashSet::new();
         for asset in &self.assets {
             ensure(
@@ -266,6 +315,62 @@ impl Project {
             )?;
             crate::storage::validate_relative_path(&asset.path)?;
         }
+        ensure(
+            self.audio_assets.len() + self.video_assets.len() + self.assets.len() <= MAX_LAYERS * 2,
+            "asset limit exceeded",
+        )?;
+        for asset in &self.audio_assets {
+            ensure(
+                asset.id != 0 && asset_ids.insert(asset.id),
+                "asset IDs must be unique and nonzero",
+            )?;
+            asset.validate()?;
+        }
+        for asset in &self.video_assets {
+            ensure(
+                asset.id != 0 && asset_ids.insert(asset.id),
+                "asset IDs must be unique and nonzero",
+            )?;
+            asset.validate()?;
+            if let Some(id) = asset.audio_asset {
+                let audio = self
+                    .audio_assets
+                    .iter()
+                    .find(|a| a.id == id)
+                    .ok_or_else(|| crate::Error::Invalid("video audio asset missing".into()))?;
+                ensure(
+                    audio.path == asset.path
+                        && audio.bytes == asset.bytes
+                        && audio.mime == "audio/mp4"
+                        && audio.duration_us <= asset.duration_us,
+                    "video/audio source timeline mismatch",
+                )?;
+            }
+        }
+        let mut audio_paths = HashSet::new();
+        for a in &self.audio_assets {
+            ensure(
+                audio_paths.insert(a.path.to_lowercase()),
+                "audio assets cannot share different track caches at one path",
+            )?;
+            if let Some(v) = self
+                .video_assets
+                .iter()
+                .find(|v| v.path.eq_ignore_ascii_case(&a.path))
+            {
+                ensure(
+                    v.path == a.path && v.audio_asset == Some(a.id),
+                    "shared MP4 must reference its matching audio asset",
+                )?;
+            }
+        }
+        let mut video_paths = HashSet::new();
+        for a in &self.video_assets {
+            ensure(
+                video_paths.insert(a.path.to_lowercase()),
+                "duplicate video source path",
+            )?;
+        }
         let mut ids = HashSet::new();
         for layer in &self.layers {
             ensure(
@@ -274,10 +379,11 @@ impl Project {
             )?;
             ensure(layer.name.len() <= 1024, "layer name too long")?;
             ensure(
-                layer
-                    .size
-                    .into_iter()
-                    .all(|v| v.is_finite() && v > 0.0 && v <= 32768.0),
+                matches!(layer.content, Content::Audio { .. }) && layer.size == [0.0; 2]
+                    || layer
+                        .size
+                        .into_iter()
+                        .all(|v| v.is_finite() && v > 0.0 && v <= 32768.0),
                 "invalid layer size",
             )?;
             layer.clip(self.frames).validate(self.frames)?;
@@ -286,11 +392,69 @@ impl Project {
             } else {
                 layer.transform.validate_local()?;
             }
+            ensure(
+                layer.effects.len() <= aem_effects::MAX_EFFECTS_PER_LAYER,
+                "too many layer effects",
+            )?;
+            ensure(
+                !matches!(layer.content, Content::Null) || layer.effects.is_empty(),
+                "null layers cannot contain effects",
+            )?;
+            let mut effect_ids = HashSet::new();
+            for e in &layer.effects {
+                ensure(effect_ids.insert(e.id), "duplicate effect instance ID")?;
+                e.validate(self.frames)?;
+            }
             match &layer.content {
+                Content::Video { video } => {
+                    video.validate()?;
+                    let asset = self
+                        .video_assets
+                        .iter()
+                        .find(|a| a.id == video.asset)
+                        .ok_or_else(|| crate::Error::Invalid("video asset missing".into()))?;
+                    let clip = layer.clip(self.frames);
+                    let start = i128::from(video.source_offset_us) * i128::from(self.fps)
+                        + (i128::from(clip.in_frame) - i128::from(clip.offset_frame)) * 1_000_000;
+                    let last = i128::from(video.source_offset_us) * i128::from(self.fps)
+                        + (i128::from(clip.out_frame) - 1 - i128::from(clip.offset_frame))
+                            * 1_000_000;
+                    ensure(
+                        start >= 0 && last < i128::from(asset.duration_us) * i128::from(self.fps),
+                        "video clip exceeds recoverable source interval",
+                    )?;
+                }
+                Content::Audio { audio } => {
+                    audio.validate()?;
+                    let asset = self
+                        .audio_assets
+                        .iter()
+                        .find(|a| a.id == audio.asset)
+                        .ok_or_else(|| {
+                            crate::Error::Invalid("audio references a missing audio asset".into())
+                        })?;
+                    ensure(
+                        !layer.three_d
+                            && layer.parent.is_none()
+                            && layer.size == [0.0; 2]
+                            && layer.transform == Transform::new([0.0; 3]),
+                        "audio has no spatial properties or parent",
+                    )?;
+                    let clip = layer.clip(self.frames);
+                    let start = i128::from(audio.source_offset_us) * i128::from(self.fps)
+                        + (i128::from(clip.in_frame) - i128::from(clip.offset_frame)) * 1_000_000;
+                    let last = i128::from(audio.source_offset_us) * i128::from(self.fps)
+                        + (i128::from(clip.out_frame) - 1 - i128::from(clip.offset_frame))
+                            * 1_000_000;
+                    ensure(
+                        start >= 0 && last < i128::from(asset.duration_us) * i128::from(self.fps),
+                        "audio clip exceeds recoverable source interval",
+                    )?;
+                }
                 Content::Null => {}
                 Content::Solid { color } => validate_color(*color)?,
                 Content::Image { asset } => ensure(
-                    asset_ids.contains(asset),
+                    self.assets.iter().any(|a| a.id == *asset),
                     "image references a missing asset",
                 )?,
                 Content::Text {
@@ -305,7 +469,7 @@ impl Project {
                     )?;
                     validate_color(*color)?;
                     ensure(
-                        asset_ids.contains(raster_asset),
+                        self.assets.iter().any(|a| a.id == *raster_asset),
                         "text raster asset is missing",
                     )?;
                 }
@@ -318,6 +482,23 @@ impl Project {
         ensure(frame < self.frames, "output frame outside composition")?;
         Ok((u64::from(frame) * 1_000_000 + u64::from(self.fps) / 2) as i64 / i64::from(self.fps))
     }
+    pub fn layer_audio(&self, layer: &Layer) -> Option<crate::AudioClip> {
+        match &layer.content {
+            Content::Audio { audio } => Some(audio.clone()),
+            Content::Video { video } => self
+                .video_assets
+                .iter()
+                .find(|a| a.id == video.asset)
+                .and_then(|a| a.audio_asset)
+                .map(|asset| crate::AudioClip {
+                    asset,
+                    source_offset_us: video.source_offset_us,
+                    volume: video.volume,
+                    muted: video.muted,
+                }),
+            _ => None,
+        }
+    }
     /// Upgrade in memory only. Opening an old project never overwrites its file.
     pub fn migrate(mut self) -> Result<Self> {
         self.validate()?;
@@ -329,6 +510,14 @@ impl Project {
                     .get_or_insert_with(|| LayerTimeline::full(self.frames));
             }
         }
+        if self.version < 3 {
+            // Versions 1/2 rendered every layer in 3D. Preserve that appearance.
+            for layer in &mut self.layers {
+                layer.three_d = true;
+            }
+            self.version = 3;
+        }
+        self.version = 5;
         Ok(self)
     }
     pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {
@@ -352,6 +541,9 @@ impl Project {
     pub fn estimated_bytes(&self) -> usize {
         // A bounded approximation for history, independent of image/GPU caches.
         serde_json::to_vec(self).map_or(usize::MAX, |v| v.len())
+    }
+    pub fn rebuild_plugin_dependencies(&mut self) {
+        self.plugin_dependencies = crate::effects::dependencies(&self.layers);
     }
 }
 fn validate_color(color: [f32; 4]) -> Result<()> {

@@ -32,6 +32,12 @@ data class StudioState(
     val busy: Boolean = false, val saved: Boolean = false,
 )
 data class ProjectSummary(val directory:String,val name:String,val width:Int,val height:Int,val fps:Int,val modified:Long)
+internal fun JSONArray?.objects():List<JSONObject> = this?.let{a->(0 until a.length()).map{a.getJSONObject(it)}}?:emptyList()
+internal fun effectTarget(key:String):Pair<Long,String>? {
+    if(!key.startsWith("effect:"))return null
+    val parts=key.removePrefix("effect:").split(':',limit=2)
+    return if(parts.size==2)parts[0].toLongOrNull()?.let{it to parts[1]}else null
+}
 
 private fun activeProjectDirectory(app:Application):File {
     val saved=app.getSharedPreferences("motion-studio",0).getString("activeProject","default")?:"default"
@@ -46,9 +52,21 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var selected by mutableLongStateOf(0L)
     var property by mutableStateOf("position")
     var panelOpen by mutableStateOf(false)
+    var effectsOpen by mutableStateOf(false)
+    var pluginsOpen by mutableStateOf(false)
+    var catalogue by mutableStateOf<JSONObject?>(null); private set
+    var importTask by mutableStateOf<JSONObject?>(null); private set
+    var mediaNotice by mutableStateOf<String?>(null); private set
+    var waveforms by mutableStateOf<Map<Long,JSONObject>>(emptyMap()); private set
+    private var pendingMedia:String?=null
+    private var preparedRoot:File?=null
+    private val mediaGeneration=AtomicLong()
+    private val playGeneration=AtomicLong()
+    private val audioPlayer=AudioPlayback {message->main.post{pause();fail(message)}}
     var timelineScale by mutableFloatStateOf(1.5f)
     var scaleLinked by mutableStateOf(true)
     var rotationAxis by mutableIntStateOf(2)
+    var componentAxis by mutableIntStateOf(0)
     var curveClipboard by mutableStateOf<String?>(null); private set
     var previewMode by mutableIntStateOf(if(projectDirectory==null)app.getSharedPreferences("motion-studio",0).getInt("previewMode",0).coerceIn(0,3) else 0);private set
     var previewInfo by mutableStateOf<JSONObject?>(null);private set
@@ -74,6 +92,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private val queued = AtomicBoolean(false)
     private val surfaceReady = AtomicBoolean(false)
     private val surfaceRequest=AtomicLong()
+    private val pickRequest=AtomicLong()
     private val dirty = AtomicBoolean(true)
     private val foreground=AtomicBoolean(true)
     private var currentSurface:Surface?=null
@@ -91,7 +110,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             if (closed.get()) return
             val p = state.project
             if (playing && p != null) {
-                frame = playbackFrame(startFrame,startNanos,time,p.getInt("fps"),p.getInt("frames"))
+                frame = audioPlayer.frame(p.getInt("fps")) ?: playbackFrame(startFrame,startNanos,time,p.getInt("fps"),p.getInt("frames"))
                 dirty.set(true)
             }
             val due=!playing||time+100_000>=nextPreviewNanos
@@ -125,6 +144,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
                 updatePreviewInfo(NativeBridge.previewMode(id,previewMode,thermalStatus))
                 publish(NativeBridge.state(id),root.resolve("project.json").exists())
+                readCatalogue()
             } catch(e:Throwable) {main.post{loadFailed=true};fail(e.message?:"原生引擎初始化失败")}
         }
         Choreographer.getInstance().postFrameCallback(tick)
@@ -191,17 +211,23 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             val d=r.getJSONObject("data")
             main.post {
                 if(!closed.get()&&(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())) {
+                    val selectedExisted=selected!=0L&&layer(selected)!=null
                     val savedState=saved?:if(state.sample!=null&&state.sample!!.optLong("revision")!=d.optLong("revision"))false else state.saved
                     state=StudioState(d.getJSONObject("project"),d,d.optBoolean("canUndo"),
                         d.optBoolean("canRedo"),d.optBoolean("observing"),
                         if(d.isNull("renderError"))state.error else d.optString("renderError"),false,savedState)
+                    d.optJSONObject("edit_result")?.takeIf{it.optString("op")=="split_layer_clip"}?.let {
+                        if(selected==it.optLong("left_object"))selected=it.getLong("right_object")
+                    }
+                    if(selectedExisted&&selected!=0L&&layer(selected)==null){selected=0L;panelOpen=false}
                     if(d.has("root")) {
                         val nextRoot=File(d.getString("root"))
-                        if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false}
+                        if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false;effectsOpen=false}
                         root=nextRoot
                         if(persistProjectSelection)getApplication<Application>().getSharedPreferences("motion-studio",0)
                             .edit().putString("activeProject",root.name).apply()
                     }
+                    if(preparedRoot!=root)prepareMediaCaches()
                     // Seek updates the UI immediately. Older worker replies must
                     // not pull the playhead back while the user is scrubbing.
                     if(repaint)dirty.set(true)
@@ -215,7 +241,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             if(id==0L||closed.get())return@post
             try {
                 val result=operation()
-                if(save&&JSONObject(result).optBoolean("ok"))publish(NativeBridge.save(id),true)
+                if(save&&JSONObject(result).optBoolean("ok")) {
+                    val saved=JSONObject(NativeBridge.save(id))
+                    val edits=JSONObject(result).optJSONObject("data")
+                    for(key in listOf("edit_result","edit_results"))edits?.opt(key)?.let{saved.optJSONObject("data")?.put(key,it)}
+                    publish(saved.toString(),true)
+                }
                 else publish(result,repaint=repaint)
             } catch(e:Throwable){fail(e.message?:"操作失败")}
         }
@@ -244,6 +275,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         worker.post {if(id!=0L&&request==surfaceRequest.get())NativeBridge.surface(id,null,0,0)}
     }
     fun pause() {
+        playGeneration.incrementAndGet();audioPlayer.stop()
         if(playing) {playing=false;val f=frame;invoke {NativeBridge.seek(id,f)}}
     }
     fun suspendPreview(){pause();foreground.set(false)}
@@ -290,7 +322,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun openProject(directory:String) {
-        pause();state=state.copy(busy=true,error=null)
+        pause();cancelMediaImport();state=state.copy(busy=true,error=null)
         worker.post {
             try {
                 if(id==0L) {
@@ -309,7 +341,18 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun togglePlay() {
         if(playing)pause() else if(state.project!=null) {
-            startFrame=frame;startNanos=System.nanoTime();playing=true
+            val p=state.project!!
+            val hasSound=p.optJSONArray("layers").objects().any{audioClip(it.getLong("id"))!=null}
+            if(!hasSound){startFrame=frame;startNanos=System.nanoTime();playing=true;return}
+            val at=frame;val ticket=playGeneration.incrementAndGet()
+            worker.post {try {
+                val frozen=nativeData(MediaBridge.freezeAudio(id))
+                val handle=frozen.getLong("handle")
+                if(ticket!=playGeneration.get()){MediaBridge.releaseFrozenAudio(handle);return@post}
+                audioPlayer.start(handle,(at*48000/p.getInt("fps")).toLong(),frozen.getLong("total_frames")) {
+                    main.post {if(ticket==playGeneration.get()){startFrame=at;startNanos=System.nanoTime();playing=true}}
+                }
+            }catch(e:Throwable){fail(e.message?:"声音播放失败")}}
         }
     }
     fun seek(value:Double) {
@@ -322,12 +365,13 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun select(objectId:Long,openEditor:Boolean=true) {
         pause()
         if(selected!=objectId) {
+            effectsOpen=false
             selected=objectId
             property=if(objectId==0L&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else "position"
         }
         if(openEditor)panelOpen=true
     }
-    fun openProperty(key:String) {
+    fun openProperty(key:String) {effectsOpen=false;
         pause()
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
@@ -335,9 +379,9 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun hasCamera()=state.project?.optJSONObject("camera")?.optBoolean("created",true)==true
     fun editable():Boolean=if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false
     fun edit(command:JSONObject,save:Boolean=true) {
-        pause();invoke(save){NativeBridge.command(id,command.toString())}
+        pause();val routed=routeEffectCommand(command);invoke(save){NativeBridge.command(id,routed.toString())}
     }
-    fun editBatch(commands:JSONArray,save:Boolean=true) {pause();invoke(save){NativeBridge.command(id,commands.toString())}}
+    fun editBatch(commands:JSONArray,save:Boolean=true) {pause();val routed=JSONArray(commands.objects().map(::routeEffectCommand));invoke(save){NativeBridge.command(id,routed.toString())}}
     fun undo() {pause();invoke(true){NativeBridge.history(id,0)}}
     fun redo() {pause();invoke(true){NativeBridge.history(id,1)}}
     fun beginGesture() {pause();invoke{NativeBridge.history(id,2)}}
@@ -354,15 +398,78 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val list=state.project?.optJSONArray("layers")?:return null
         return (0 until list.length()).map{list.getJSONObject(it)}.firstOrNull{it.getLong("id")==id}
     }
-    fun track():JSONObject? {
+    fun timelineLayer(objectId:Long):JSONObject?=state.sample?.optJSONArray("timeline_layers")?.let{a->
+        (0 until a.length()).map{a.getJSONObject(it)}.firstOrNull{it.getLong("object")==objectId}}
+    fun propertyTrack(objectId:Long=selected,key:String=property):JSONObject? {
+        effectTarget(key)?.let{(instance,param)->
+            val data=effectParam(objectId,instance,param)?:return null
+            val track=data.optJSONObject("curve")?:data.optJSONObject("track")?:return null
+            val result=JSONObject(track.toString())
+            val offset=timelineLayer(objectId)?.optInt("offset_frame")?:0
+            result.optJSONArray("keys")?.objects()?.forEach{it.put("frame",it.getLong("frame")+offset)}
+            return result
+        }
         val p=state.project?:return null
-        return if(selected==0L)p.getJSONObject("camera").optJSONObject(property)
-        else layer(selected)?.getJSONObject("transform")?.optJSONObject(property)
+        return if(objectId==0L)state.sample?.optJSONObject("timeline_camera")?.optJSONObject(key)
+            ?:p.getJSONObject("camera").optJSONObject(key)
+        else timelineLayer(objectId)?.optJSONObject("properties")?.optJSONObject(key)
+            ?:layer(objectId)?.getJSONObject("transform")?.optJSONObject(key)
     }
+    fun isSeparated(objectId:Long=selected,key:String=property)=propertyTrack(objectId,key)?.has("axes")==true
+    fun activeAxis()=if(property=="rotation")rotationAxis else componentAxis
+    fun axisName(axis:Int=activeAxis())=listOf("x","y","z")[axis]
+    fun chooseAxis(axis:Int){pause();if(property=="rotation")rotationAxis=axis else componentAxis=axis}
+    fun threeD(objectId:Long=selected)=objectId==0L||layer(objectId)?.optBoolean("three_d",true)==true
+    fun pickLayer(x:Float,y:Float,width:Float,height:Float,onPicked:(Long?)->Unit) {
+        val p=state.project?:return
+        val fit=min(width/p.getInt("width"),height/p.getInt("height"))
+        if(fit<=0)return
+        val px=(x-(width-p.getInt("width")*fit)/2)/fit
+        val py=(y-(height-p.getInt("height")*fit)/2)/fit
+        val at=frame;val projectRoot=root;val request=pickRequest.incrementAndGet()
+        worker.post {
+            if(id==0L||closed.get())return@post
+            try {
+                val seek=JSONObject(NativeBridge.seek(id,at));check(seek.optBoolean("ok")){seek.optString("error")}
+                val result=JSONObject(GeometryBridge.hitCandidates(id,px.toDouble(),py.toDouble()))
+                check(result.optBoolean("ok")){result.optString("error")}
+                val candidates=result.getJSONObject("data").getJSONArray("candidates")
+                val picked=if(candidates.length()==0)null else candidates.getJSONObject(0).getLong("id")
+                main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&frame==at)onPicked(picked)}
+            }catch(e:Throwable){main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&frame==at){fail(e.message?:"图层点选失败");onPicked(null)}}}
+        }
+    }
+    fun visibleAxes():List<Int> = if(threeD())listOf(0,1,2)else if(property=="rotation")listOf(2)else listOf(0,1)
+    fun canSeparate():Boolean {
+        val capability=state.sample?.optJSONObject("capabilities")?.optJSONObject("separate_dimensions")?:return false
+        val names=capability.optJSONArray(if(selected==0L)"camera_properties"else"layer_properties")?:return false
+        return capability.optBoolean("supported")&&!isSeparated()&&(0 until names.length()).any{names.getString(it)==property}
+    }
+    fun separateDimensions(){if(canSeparate()&&editable()) {
+        if(property=="scale")scaleLinked=false
+        edit(JSONObject().put("op","separate_dimensions").put("object",selected).put("property",property))
+    }}
+    fun setThreeD(enabled:Boolean){if(selected!=0L&&editable())edit(JSONObject().put("op","set_layer_3d").put("object",selected).put("enabled",enabled))}
+    fun track():JSONObject?=propertyTrack()?.let{if(isSeparated())it.optJSONObject("axes")?.optJSONObject(axisName())else it}
+    private fun channelCommand(op:String,objectId:Long=selected,key:String=property,axis:Int?=if(isSeparated(objectId,key))activeAxis()else null)=
+        JSONObject().put("op",op).put("object",objectId).put("property",key).apply{axis?.let{put("axis",axisName(it))}}
     fun sampleValue():Any? {
         return sampleValueFor(selected,property)
     }
     fun sampleValueFor(objectId:Long,key:String):Any? {
+        effectTarget(key)?.let{(instance,param)->
+            val saved=effectParam(objectId,instance,param)
+            if(saved?.optString("kind")=="curve") {
+                val track=propertyTrack(objectId,key)?:return null
+                val keys=track.optJSONArray("keys").objects()
+                val value=keys.lastOrNull{it.getDouble("frame")<=frame}?.getJSONObject("value")?:keys.firstOrNull()?.getJSONObject("value")?:track.getJSONObject("value")
+                val result=JSONObject(value.toString())
+                state.sample?.optJSONArray("sampledEffects").objects().firstOrNull{it.getLong("layer")==objectId&&it.getLong("instance")==instance}?.optJSONArray("curve_lut")?.let{result.put("sampled_lut",it)}
+                return result
+            }
+            return state.sample?.optJSONArray("sampledEffects").objects().firstOrNull{it.getLong("layer")==objectId&&it.getLong("instance")==instance}
+                ?.optJSONObject("values")?.optJSONArray(param) ?: effectParam(objectId,instance,param)?.optJSONObject("track")?.optJSONArray("value")
+        }
         val s=state.sample?:return null
         return if(objectId==0L)s.optJSONObject("sampledCamera")?.opt(key)
         else s.optJSONArray("sampledLayers")?.let{a->
@@ -371,41 +478,48 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun setValue(value:Any,save:Boolean=true) {
         setPropertyValue(selected,property,floor(frame).toInt(),value,save)
     }
-    fun setPropertyValue(objectId:Long,key:String,at:Int,value:Any,save:Boolean=true) {
+    fun setPropertyValue(objectId:Long,key:String,at:Int,value:Any,save:Boolean=true,editedAxes:List<Int>?=null) {
+        if(value is JSONArray&&isSeparated(objectId,key)) {
+            val commands=JSONArray()
+            (editedAxes?:listOf(0,1,2)).forEach{axis->commands.put(channelCommand("set_component",objectId,key,axis).put("frame",at).put("value",value.getDouble(axis)))}
+            editBatch(commands,save);return
+        }
         edit(JSONObject().put("op",if(value is JSONArray)"set_vector" else "set_scalar")
             .put("object",objectId).put("property",key).put("frame",at).put("value",value),save)
     }
     fun animate() {
         val keys=track()?.optJSONArray("keys")?:return
-        edit(JSONObject().put("op","animate").put("object",selected).put("property",property)
+        edit(channelCommand("animate")
             .put("frame",floor(frame).toInt()).put("enabled",keys.length()==0))
     }
     fun addKey() {
-        val value=sampleValue()?:return
+        val sample=sampleValue()?:return
+        val value=if(isSeparated()&&sample is JSONArray)sample.getDouble(activeAxis())else sample
         val t=track()?:return
         val commands=JSONArray()
-        if(t.getJSONArray("keys").length()==0)commands.put(JSONObject().put("op","animate")
-            .put("object",selected).put("property",property).put("frame",floor(frame).toInt()).put("enabled",true))
-        commands.put(JSONObject().put("op",if(value is JSONArray)"set_vector" else "set_scalar")
-            .put("object",selected).put("property",property).put("frame",floor(frame).toInt()).put("value",value))
+        if(t.getJSONArray("keys").length()==0)commands.put(channelCommand("animate").put("frame",floor(frame).toInt()).put("enabled",true))
+        commands.put(channelCommand(if(isSeparated())"set_component"else if(value is JSONArray)"set_vector"else"set_scalar")
+            .put("frame",floor(frame).toInt()).put("value",value))
         editBatch(commands)
     }
-    fun keys():List<JSONObject> = track()?.getJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it)}}?:emptyList()
+    fun keys():List<JSONObject> = track()?.optJSONArray("keys")?.let{a->(0 until a.length()).map{a.getJSONObject(it)}.filter{it.getLong("frame") in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()}}?:emptyList()
     fun currentKey():JSONObject?=keys().firstOrNull{it.getInt("frame")==floor(frame).toInt()}
     fun toggleKey(){currentKey()?.let{deleteKey(it.getInt("frame"))}?:addKey()}
     fun jumpKey(next:Boolean) {
-        val frames=keys().map{it.getInt("frame")}
+        val frames=keys().map{it.getInt("frame")}.filter{it in 0 until (state.project?.optInt("frames")?:0)}
         val target=if(next)frames.firstOrNull{it>frame}else frames.lastOrNull{it<frame}
         target?.let{seek(it.toDouble())}
     }
-    fun deleteKey(key:Int)=edit(JSONObject().put("op","delete_key").put("object",selected).put("property",property).put("frame",key))
-    fun moveKey(from:Int,to:Int)=edit(JSONObject().put("op","move_key").put("object",selected).put("property",property).put("from",from).put("to",to))
-    fun moveKeyFor(objectId:Long,key:String,from:Int,to:Int)=edit(JSONObject().put("op","move_key").put("object",objectId).put("property",key).put("from",from).put("to",to))
-    fun copyKey(from:Int,to:Int)=edit(JSONObject().put("op","copy_key").put("object",selected).put("property",property).put("from",from).put("to",to))
+    fun deleteKey(key:Int)=edit(channelCommand("delete_key").put("frame",key))
+    fun moveKey(from:Int,to:Int)=edit(channelCommand("move_key").put("from",from).put("to",to))
+    fun moveKeyFor(objectId:Long,key:String,from:Int,to:Int,axis:Int?=if(isSeparated(objectId,key))activeAxis()else null)=edit(channelCommand("move_key",objectId,key,axis).put("from",from).put("to",to))
+    fun copyKey(from:Int,to:Int)=edit(channelCommand("copy_key").put("from",from).put("to",to))
+    fun copyKeyFor(objectId:Long,key:String,from:Int,to:Int,axis:Int?)=edit(channelCommand("copy_key",objectId,key,axis).put("from",from).put("to",to))
+    fun deleteKeyFor(objectId:Long,key:String,frame:Int,axis:Int?)=edit(channelCommand("delete_key",objectId,key,axis).put("frame",frame))
     fun easingSegment():Pair<JSONObject,JSONObject>?=keys().zipWithNext().firstOrNull{(a,b)->frame>=a.getInt("frame")&&frame<b.getInt("frame")}
     fun ease(mode:String) {
         val key=easingSegment()?.first?:return
-        edit(JSONObject().put("op","ease").put("object",selected).put("property",property).put("frame",key.getInt("frame")).put("ease",mode))
+        edit(channelCommand("ease").put("frame",key.getInt("frame")).put("ease",mode))
     }
     fun easingDefinition():JSONObject?=easingSegment()?.first?.let{key->
         JSONObject().put("ease",key.optString("ease","linear")).apply{key.optJSONObject("curve")?.let{put("curve",JSONObject(it.toString()))}}
@@ -413,7 +527,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun setCurve(easing:JSONObject,save:Boolean=true) {
         val key=easingSegment()?.first?:return
         if(!editable())return
-        edit(JSONObject().put("op","curve").put("object",selected).put("property",property)
+        edit(channelCommand("curve")
             .put("frame",key.getInt("frame")).put("easing",JSONObject(easing.toString())),save)
     }
     fun copyCurve() {
@@ -470,19 +584,22 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun flags(id:Long,visible:Boolean,locked:Boolean)=edit(JSONObject().put("op","flags").put("object",id).put("visible",visible).put("locked",locked))
     fun rename(name:String) {if(selected!=0L)edit(JSONObject().put("op","rename").put("object",selected).put("name",name))}
     fun duplicate() {if(selected!=0L)edit(JSONObject().put("op","duplicate").put("object",selected))}
-    fun deleteLayer() {if(selected!=0L||hasCamera()){edit(JSONObject().put("op","remove").put("object",selected).put("frame",floor(frame).toInt()));selected=0L;property="position";panelOpen=false}}
+    fun deleteLayer() {if(selected!=0L||hasCamera()){edit(JSONObject().put("op","remove").put("object",selected).put("frame",floor(frame).toInt()));selected=0L;property="position";panelOpen=false;effectsOpen=false}}
     fun reorder(delta:Int) {
         val p=state.project?:return;val a=p.getJSONArray("layers")
         val index=(0 until a.length()).firstOrNull{a.getJSONObject(it).getLong("id")==selected}?:return
         edit(JSONObject().put("op","reorder").put("object",selected).put("index",(index+delta).coerceIn(0,a.length()-1)))
     }
     fun reorderTo(objectId:Long,index:Int)=edit(JSONObject().put("op","reorder").put("object",objectId).put("index",index))
+    fun moveClip(objectId:Long,start:Int,save:Boolean=true)=edit(JSONObject().put("op","move_layer_clip").put("object",objectId).put("in_frame",start),save)
+    fun trimClip(objectId:Long,start:Int,end:Int,save:Boolean=true)=edit(JSONObject().put("op","trim_layer_clip").put("object",objectId).put("in_frame",start).put("out_frame",end),save)
+    fun splitClip(){if(selected!=0L&&editable())edit(JSONObject().put("op","split_layer_clip").put("object",selected).put("frame",floor(frame).toInt()))}
     private fun nextId(a:JSONArray):Long=(0 until a.length()).maxOfOrNull{a.getJSONObject(it).getLong("id")}?.plus(1)?:1
     private fun channel(value:Any)=JSONObject().put("value",value).put("keys",JSONArray())
     private fun newLayer(name:String,content:JSONObject,width:Float,height:Float):JSONObject {
         val p=state.project!!
         return JSONObject().put("id",nextId(p.getJSONArray("layers"))).put("name",name).put("content",content)
-            .put("size",JSONArray(listOf(width,height))).put("visible",true).put("locked",false)
+            .put("size",JSONArray(listOf(width,height))).put("visible",true).put("locked",false).put("three_d",false)
             .put("transform",JSONObject().put("position",channel(JSONArray(listOf(p.getInt("width")/2f,p.getInt("height")/2f,0))))
                 .put("rotation",channel(JSONArray(listOf(0,0,0)))).put("scale",channel(JSONArray(listOf(100,100,100))))
                 .put("opacity",channel(1)).put("anchor",JSONArray(listOf(0.5,0.5))))
@@ -566,13 +683,13 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun newProject(width:Int,height:Int,fps:Int=30) {
-        pause();state=state.copy(busy=true,error=null)
+        pause();cancelMediaImport();state=state.copy(busy=true,error=null)
         val target=JSONArray(listOf(width/2f,height/2f,0))
         val distance=height/(2*tan(Math.toRadians(22.5)))
         val camera=JSONObject().put("created",false).put("mode","position").put("position",channel(JSONArray(listOf(width/2f,height/2f,-distance))))
             .put("target",channel(target)).put("roll",channel(0)).put("fov",channel(45))
             .put("radius",channel(distance)).put("azimuth",channel(0)).put("elevation",channel(0))
-        val project=JSONObject().put("version",1).put("name","新建工程").put("width",width).put("height",height)
+        val project=JSONObject().put("version",3).put("name","新建工程").put("width",width).put("height",height)
             .put("fps",fps).put("frames",fps*6).put("background",JSONArray(listOf(.05,.06,.09,1)))
             .put("camera",camera).put("assets",JSONArray()).put("layers",JSONArray())
         worker.post {
@@ -584,14 +701,14 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     val result=attachRecoveredSession();main.post{loadFailed=false};publish(result,true)
                 }else {
                     val result=NativeBridge.newProject(id,project.toString())
-                    if(JSONObject(result).optBoolean("ok"))main.post{loadFailed=false;selected=0L;property="position";panelOpen=false}
+                    if(JSONObject(result).optBoolean("ok"))main.post{loadFailed=false;selected=0L;property="position";panelOpen=false;effectsOpen=false}
                     publish(result,true)
                 }
             }catch(e:Throwable){fail(e.message?:"新建工程失败")}
         }
     }
     fun importProject(uri:Uri) {
-        pause();state=state.copy(busy=true)
+        pause();cancelMediaImport();state=state.copy(busy=true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val file=File(root.parentFile,"incoming-"+UUID.randomUUID()+".motion")
@@ -641,9 +758,164 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }
         }
     }
+    fun contentKind(objectId:Long=selected)=layer(objectId)?.optJSONObject("content")?.optString("kind")
+    fun audioClip(objectId:Long=selected):JSONObject? {
+        timelineLayer(objectId)?.optJSONObject("audio")?.let{return it}
+        val content=layer(objectId)?.optJSONObject("content")?:return null
+        if(content.optString("kind")=="audio")return content.optJSONObject("audio")
+        val clip=content.optJSONObject("video")?:return null
+        val asset=state.project?.optJSONArray("video_assets").objects().firstOrNull{it.getLong("id")==clip.getLong("asset")}?:return null
+        if(asset.isNull("audio_asset"))return null
+        return JSONObject(clip.toString()).put("asset",asset.getLong("audio_asset"))
+    }
+    fun setAudio(objectId:Long,volume:Double?=null,muted:Boolean?=null,save:Boolean=true) {
+        edit(JSONObject().put("op","set_audio").put("object",objectId).apply{volume?.let{put("volume",it.coerceIn(0.0,2.0))};muted?.let{put("muted",it)}},save)
+    }
+    fun effectInstance(objectId:Long,instance:Long)=layer(objectId)?.optJSONArray("effects").objects().firstOrNull{it.getLong("id")==instance}
+    fun effectParam(objectId:Long,instance:Long,param:String)=effectInstance(objectId,instance)?.optJSONObject("params")?.optJSONObject(param)
+    fun effectDefinition(instance:JSONObject):JSONObject?=catalogue?.optJSONArray("packages").objects().firstOrNull{pkg->
+        val m=pkg.getJSONObject("manifest");m.getString("id")==instance.getString("plugin")&&m.getString("version")==instance.getString("version")&&pkg.getString("hash")==instance.getString("hash")
+    }?.getJSONObject("manifest")?.getJSONArray("effects").objects()?.firstOrNull{it.getString("id")==instance.getString("effect")}
+    fun effectAction(objectId:Long,instance:Long,kind:String,extras:JSONObject=JSONObject(),save:Boolean=true) {
+        val action=JSONObject(extras.toString()).put("kind",kind).put("effect",instance)
+        edit(JSONObject().put("op","effect").put("object",objectId).put("action",action),save)
+    }
+    private fun routeEffectCommand(command:JSONObject):JSONObject {
+        val target=effectTarget(command.optString("property"))?:return command
+        val action=JSONObject(command.toString())
+        val op=action.getString("op");val objectId=action.getLong("object")
+        action.remove("op");action.remove("object");action.remove("property");action.remove("axis")
+        action.put("kind",when(op){"set_vector","set_scalar"->if(action.opt("value") is JSONObject)"set_curve_object"else"set";"ease"->"curve";else->op})
+        if(op=="ease"){action.put("easing",JSONObject().put("ease",action.getString("ease")));action.remove("ease")}
+        return JSONObject().put("op","effect").put("object",objectId).put("action",action.put("effect",target.first).put("param",target.second))
+    }
+    private fun readCatalogue() {
+        val result=nativeData(NativeBridge.plugin(id,JSONObject().put("op","catalogue").toString()))
+        main.post{if(!closed.get())catalogue=result}
+    }
+    fun refreshCatalogue(){worker.post{try{readCatalogue()}catch(e:Throwable){fail(e.message?:"效果目录读取失败")}}}
+    fun pluginOperation(request:JSONObject,save:Boolean=false) {
+        pause();worker.post {try {
+            val raw=NativeBridge.plugin(id,request.toString())
+            nativeData(raw)
+            if(save)publish(NativeBridge.save(id),true)else publish(raw)
+            readCatalogue()
+        }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
+    }
+    fun openEffects(){pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun chooseEffectParam(instance:Long,param:String){pause();property="effect:$instance:$param"}
+    fun installPlugin(uri:Uri) {
+        pause();state=state.copy(busy=true);val sourceRoot=root
+        viewModelScope.launch(Dispatchers.IO) {
+            val file=File(getApplication<Application>().cacheDir,"incoming-${UUID.randomUUID()}.msfx")
+            try {
+                getApplication<Application>().contentResolver.openInputStream(uri)?.use{input->file.outputStream().use{out->
+                    val chunk=ByteArray(65536);var total=0L
+                    while(true){val n=input.read(chunk);if(n<0)break;total+=n;check(total<=16L*1024*1024){"效果包超过 16 MiB"};out.write(chunk,0,n)}
+                }}?:error("无法打开效果包")
+                worker.post {try {
+                    check(root==sourceRoot&&!closed.get()){"工程已切换，请重新安装"}
+                    publish(NativeBridge.plugin(id,JSONObject().put("op","install").put("path",file.absolutePath).toString()))
+                    readCatalogue()
+                }catch(e:Throwable){fail(e.message?:"效果包安装失败")}finally{file.delete()}}
+            }catch(e:Throwable){file.delete();fail(e.message?:"效果包安装失败")}
+        }
+    }
+    fun importMedia(uri:Uri,kind:String,withAudio:Boolean=true) {
+        if(pendingMedia!=null||state.project==null)return
+        pause();val ticket=mediaGeneration.incrementAndGet();val request="import-${UUID.randomUUID()}"
+        val at=floor(frame).toInt();val sourceRoot=root
+        importTask=JSONObject().put("state","running").put("phase","opening").put("progress",0).put("kind",kind)
+        worker.post {try {
+            check(root==sourceRoot){"工程已切换"};pendingMedia=request
+            val query=JSONObject().put("op","import_media").put("kind",kind).put("request_id",request).put("uri",uri.toString()).put("at_frame",at)
+                .put("name",if(kind=="audio")"音频"else"视频")
+            if(kind=="video")query.put("with_audio",withAudio)
+            nativeData(MediaBridge.request(id,getApplication<Application>(),query.toString()))
+            pollMedia(request,ticket)
+        }catch(e:Throwable){releaseMedia(request);main.post{importTask=null};fail(e.message?:"媒体导入失败")}}
+    }
+    private fun releaseMedia(request:String) {
+        runCatching{MediaBridge.request(id,null,JSONObject().put("op","release_media_task").put("request_id",request).toString())}
+        if(pendingMedia==request)pendingMedia=null
+    }
+    private fun pollMedia(request:String,ticket:Long) {
+        if(closed.get()||ticket!=mediaGeneration.get())return
+        try {
+            val task=nativeData(MediaBridge.request(id,null,JSONObject().put("op","media_status").put("request_id",request).toString()))
+            main.post{if(ticket==mediaGeneration.get())importTask=task}
+            when(task.getString("state")) {
+                "ready"->{
+                    val done=nativeData(MediaBridge.request(id,null,JSONObject().put("op","finish_media_import").put("request_id",request).toString()))
+                    val snapshot=done.getJSONObject("state")
+                    publish(JSONObject().put("ok",true).put("data",snapshot).toString(),true)
+                    val result=done.getJSONObject("task").getJSONObject("edit_result")
+                    main.post{
+                        effectsOpen=false;selected=result.getLong("object");property=if(result.getString("kind")=="audio")"audio"else"position";panelOpen=true;waveforms=emptyMap()
+                        importTask=null;if(result.optBoolean("truncated_to_composition"))mediaNotice="素材已导入，片段尾部已裁至合成结束。"
+                    }
+                    releaseMedia(request)
+                }
+                "failed","cancelled"->{releaseMedia(request);main.post{importTask=null};if(task.getString("state")=="failed")fail(task.optString("error","媒体导入失败"))}
+                else->worker.postDelayed({pollMedia(request,ticket)},150)
+            }
+        }catch(e:Throwable){releaseMedia(request);main.post{importTask=null};fail(e.message?:"媒体导入失败")}
+    }
+    fun cancelMediaImport() {
+        mediaGeneration.incrementAndGet();importTask=null
+        worker.post{pendingMedia?.let{request->
+            runCatching{MediaBridge.request(id,null,JSONObject().put("op","cancel_media_import").put("request_id",request).toString())}
+            releaseMedia(request)
+        }}
+    }
+    fun clearMediaNotice(){mediaNotice=null}
+    fun requestWaveform(objectId:Long,firstBucket:Int=0,count:Int=4096) {
+        val clip=audioClip(objectId)?:return
+        val asset=clip.getLong("asset");val previous=waveforms[objectId]
+        if(previous?.optInt("first_bucket")==firstBucket&&previous.optInt("requested_count")==count)return
+        val sourceRoot=root
+        worker.post {try {
+            val data=nativeData(MediaBridge.request(id,null,JSONObject().put("op","audio_waveform").put("asset",asset).put("first_bucket",firstBucket.coerceAtLeast(0)).put("count",count.coerceIn(1,4096)).toString())).put("requested_count",count)
+            main.post{if(root==sourceRoot)waveforms=waveforms+(objectId to data)}
+        }catch(e:Throwable){fail(e.message?:"波形读取失败")}}
+    }
+    fun prepareMediaCaches(force:Boolean=false) {
+        if(!force&&preparedRoot==root)return
+        if(importTask!=null)return
+        val sourceRoot=root;preparedRoot=sourceRoot;waveforms=emptyMap()
+        val p=state.project?:return
+        val work=p.optJSONArray("audio_assets").objects().map{"prepare_audio" to it.getLong("id")}+
+            p.optJSONArray("video_assets").objects().map{"prepare_video" to it.getLong("id")}
+        if(work.isEmpty())return
+        val ticket=mediaGeneration.incrementAndGet()
+        fun next(index:Int) {
+            if(index==work.size||ticket!=mediaGeneration.get()||closed.get()){main.post{if(ticket==mediaGeneration.get())importTask=null};return}
+            val request="cache-${UUID.randomUUID()}"
+            worker.post {try {
+                check(sourceRoot==root){"工程已切换"};pendingMedia=request
+                nativeData(MediaBridge.request(id,null,JSONObject().put("op",work[index].first).put("asset",work[index].second).put("request_id",request).toString()))
+                fun poll() {
+                    if(ticket!=mediaGeneration.get()||closed.get())return
+                    try {
+                        val status=nativeData(MediaBridge.request(id,null,JSONObject().put("op","media_status").put("request_id",request).toString()))
+                        main.post{if(ticket==mediaGeneration.get())importTask=status}
+                        when(status.getString("state")) {
+                            "succeeded"->{releaseMedia(request);next(index+1)}
+                            "failed","cancelled"->{releaseMedia(request);main.post{importTask=null};if(status.getString("state")=="failed")fail(status.optString("error","媒体缓存恢复失败"))}
+                            else->worker.postDelayed(::poll,150)
+                        }
+                    }catch(e:Throwable){releaseMedia(request);main.post{importTask=null};fail(e.message?:"媒体缓存恢复失败")}
+                }
+                poll()
+            }catch(e:Throwable){releaseMedia(request);main.post{importTask=null};fail(e.message?:"媒体缓存恢复失败")}}
+        }
+        importTask=JSONObject().put("phase","opening").put("state","running").put("progress",0)
+        next(0)
+    }
     fun cancelExport() {exporter?.cancelled?.set(true)}
     override fun onCleared() {
         closed.set(true);playing=false
+        audioPlayer.close();mediaGeneration.incrementAndGet()
         exporter?.cancelled?.set(true)
         Choreographer.getInstance().removeFrameCallback(tick)
         thermalMonitor.removeThermalStatusListener(thermalListener)

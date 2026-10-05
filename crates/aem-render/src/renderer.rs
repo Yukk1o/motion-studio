@@ -1,4 +1,4 @@
-use aem_core::{Project, Scene, MAX_LAYERS};
+use aem_core::{PlaneCompositor, Project, Scene, MAX_LAYERS};
 use bytemuck::{Pod, Zeroable};
 use image::ImageReader;
 use std::{
@@ -37,11 +37,33 @@ struct DrawUniform {
     mvp: [[f32; 4]; 4],
     color: [f32; 4],
     extent_opacity: [f32; 4],
+    uv_scale: [f32; 4],
 }
-struct GpuImage {
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct GeometryVertex {
+    position: [f32; 3],
+    uv: [f32; 2],
+}
+pub(crate) struct GpuImage {
     _texture: wgpu::Texture,
+    pub(crate) view: wgpu::TextureView,
     bind_group: wgpu::BindGroup,
     bytes: u64,
+    size: (u32, u32),
+    video_stamp: Option<(u64, u64)>,
+}
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum TextureKey {
+    Static(u64),
+    Video(u64),
+}
+fn texture_key(layer: &aem_core::DrawLayer) -> TextureKey {
+    if layer.video.is_some() {
+        TextureKey::Video(layer.id)
+    } else {
+        TextureKey::Static(layer.asset.unwrap_or(0))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -50,6 +72,7 @@ pub struct RenderStats {
     pub draw_calls: u32,
     pub texture_bytes: u64,
     pub parameter_upload_bytes: u64,
+    pub parameter_resource_upload_bytes: u64,
 }
 
 pub struct Renderer {
@@ -64,10 +87,16 @@ pub struct Renderer {
     uniform_group: wgpu::BindGroup,
     uniform_stride: usize,
     upload: Vec<u8>,
-    images: HashMap<u64, GpuImage>,
+    compositor: PlaneCompositor,
+    vertex_buffer: wgpu::Buffer,
+    geometry_upload: Vec<GeometryVertex>,
+    images: HashMap<TextureKey, GpuImage>,
     texture_bytes: u64,
     pub target_format: wgpu::TextureFormat,
     gpu_failure: Arc<Mutex<Option<String>>>,
+    effect_gpu: crate::effect_gpu::EffectGpu,
+    asset_order: Vec<u64>,
+    pub effect_diagnostics: Vec<String>,
 }
 
 impl Renderer {
@@ -153,6 +182,12 @@ impl Renderer {
                 }),
             }],
         });
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Motion Studio bounded planar geometry"),
+            size: 65_536 * std::mem::size_of::<GeometryVertex>() as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let image_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("AEM image layout"),
             entries: &[
@@ -198,7 +233,11 @@ impl Renderer {
                 module: &shader,
                 entry_point: Some("vertex_main"),
                 compilation_options: Default::default(),
-                buffers: &[],
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<GeometryVertex>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x2],
+                }],
             },
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
@@ -219,6 +258,7 @@ impl Renderer {
             multiview: None,
             cache: None,
         });
+        let effect_gpu = crate::effect_gpu::EffectGpu::new(&device, &queue, &image_layout)?;
         let mut renderer = Self {
             adapter,
             device,
@@ -231,11 +271,19 @@ impl Renderer {
             uniform_group,
             uniform_stride,
             upload: vec![0; uniform_stride * MAX_LAYERS],
+            compositor: PlaneCompositor::new(),
+            vertex_buffer,
+            geometry_upload: Vec::with_capacity(MAX_LAYERS * 12),
             images: HashMap::new(),
             texture_bytes: 0,
             target_format: format,
             gpu_failure,
+            effect_gpu,
+            asset_order: Vec::new(),
+            effect_diagnostics: Vec::new(),
         };
+        renderer.effect_gpu.builder.device_dimension =
+            renderer.device.limits().max_texture_dimension_2d.min(8192);
         renderer.upload_image(0, 1, 1, &[255; 4])?;
         Ok(renderer)
     }
@@ -244,7 +292,30 @@ impl Renderer {
         Self::new(&instance, None, TARGET_FORMAT).await
     }
     pub fn texture_bytes(&self) -> u64 {
-        self.texture_bytes
+        self.texture_bytes + self.effect_gpu.state.bytes()
+    }
+    pub fn set_effect_registry(&mut self, registry: aem_effects::Registry) {
+        self.effect_gpu.set_registry(registry);
+    }
+    pub fn preflight_effects(&mut self, scene: &Scene, width: u32, height: u32) -> Result<()> {
+        self.effect_gpu
+            .builder
+            .build(scene, &self.asset_order, width, height, true)
+            .map_err(RenderError::Invalid)?;
+        self.effect_gpu.state.prepare(
+            &self.device,
+            &self.queue,
+            &self.image_layout,
+            &self.effect_gpu.builder,
+            scene,
+            self.texture_bytes,
+        )?;
+        if self.texture_bytes + self.effect_gpu.state.resource_bytes > TEXTURE_BUDGET {
+            return Err(RenderError::Invalid(
+                "images and plugin resources exceed 128 MiB".into(),
+            ));
+        }
+        Ok(())
     }
     pub fn gpu_error(&self) -> Option<String> {
         self.gpu_failure
@@ -263,6 +334,43 @@ impl Renderer {
         self.images.len()
     }
     pub fn upload_image(&mut self, id: u64, width: u32, height: u32, rgba: &[u8]) -> Result<()> {
+        self.upload_pixels(TextureKey::Static(id), width, height, rgba, true)
+    }
+    pub fn upload_video_frame(
+        &mut self,
+        object: u64,
+        source: u64,
+        pts: u64,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) -> Result<()> {
+        self.check_health()?;
+        if u64::from(width) * u64::from(height) * 4 != rgba.len() as u64 {
+            return Err(RenderError::Invalid("video pixel length mismatch".into()));
+        }
+        if self
+            .images
+            .get(&TextureKey::Video(object))
+            .is_some_and(|i| i.video_stamp == Some((source, pts)) && i.size == (width, height))
+        {
+            return Ok(());
+        }
+        self.upload_pixels(TextureKey::Video(object), width, height, rgba, false)?;
+        self.images
+            .get_mut(&TextureKey::Video(object))
+            .unwrap()
+            .video_stamp = Some((source, pts));
+        Ok(())
+    }
+    fn upload_pixels(
+        &mut self,
+        id: TextureKey,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+        premultiply: bool,
+    ) -> Result<()> {
         self.check_health()?;
         let bytes = u64::from(width) * u64::from(height) * 4;
         if width == 0
@@ -276,18 +384,51 @@ impl Renderer {
             ));
         }
         let previous = self.images.get(&id).map_or(0, |t| t.bytes);
-        if self.texture_bytes - previous + bytes > TEXTURE_BUDGET {
+        if self.texture_bytes - previous + bytes + self.effect_gpu.state.resource_bytes
+            > TEXTURE_BUDGET
+        {
             return Err(RenderError::Invalid(
                 "decoded preview textures exceed 128 MiB".into(),
             ));
         }
-        let mut premultiplied = rgba.to_vec();
+        let mut premultiplied = if premultiply {
+            rgba.to_vec()
+        } else {
+            Vec::new()
+        };
         for pixel in premultiplied.chunks_exact_mut(4) {
             let alpha = pixel[3] as f32 / 255.0;
             for channel in &mut pixel[..3] {
                 *channel = (linear_to_srgb(srgb_to_linear(*channel as f32 / 255.0) * alpha) * 255.0)
                     .round() as u8;
             }
+        }
+        let pixels = if premultiply {
+            premultiplied.as_slice()
+        } else {
+            rgba
+        };
+        if let Some(image) = self.images.get(&id).filter(|i| i.size == (width, height)) {
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &image._texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                pixels,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(width * 4),
+                    rows_per_image: Some(height),
+                },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+            );
+            return Ok(());
         }
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("AEM cached image"),
@@ -310,7 +451,7 @@ impl Renderer {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &premultiplied,
+            pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(width * 4),
@@ -341,16 +482,25 @@ impl Renderer {
             id,
             GpuImage {
                 _texture: texture,
+                view,
                 bind_group,
                 bytes,
+                size: (width, height),
+                video_stamp: None,
             },
         );
+        if let TextureKey::Static(asset) = id {
+            if !self.asset_order.contains(&asset) {
+                self.asset_order.push(asset);
+            }
+        }
+        self.effect_gpu.invalidate();
         self.texture_bytes = self.texture_bytes - previous + bytes;
         Ok(())
     }
     pub fn synchronize_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
         for asset in &project.assets {
-            if self.images.contains_key(&asset.id) {
+            if self.images.contains_key(&TextureKey::Static(asset.id)) {
                 continue;
             }
             let reader = ImageReader::open(root.join(&asset.path))?.with_guessed_format()?;
@@ -374,29 +524,56 @@ impl Renderer {
             .images
             .keys()
             .copied()
-            .filter(|id| *id != 0 && !project.assets.iter().any(|a| a.id == *id))
+            .filter(|id| match id {
+                TextureKey::Static(id) => *id != 0 && !project.assets.iter().any(|a| a.id == *id),
+                TextureKey::Video(id) => !project
+                    .layers
+                    .iter()
+                    .any(|l| l.id == *id && matches!(l.content, aem_core::Content::Video { .. })),
+            })
             .collect();
         for id in remove {
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
+            if let TextureKey::Static(asset) = id { self.asset_order.retain(|v| *v != asset); }
+            self.effect_gpu.invalidate();
         }
         Ok(())
     }
     pub fn clear_assets(&mut self) {
-        self.images.retain(|id, _| *id == 0);
-        self.texture_bytes = self.images.get(&0).map_or(0, |t| t.bytes);
+        self.images.retain(|id, _| *id == TextureKey::Static(0));
+        self.asset_order.retain(|id| *id == 0);
+        self.effect_gpu.invalidate();
+        self.texture_bytes = self
+            .images
+            .get(&TextureKey::Static(0))
+            .map_or(0, |t| t.bytes);
     }
     /// New projects may reuse asset IDs from another directory. Load into a
     /// separate cache and keep the visible project's resources on failure.
     pub fn replace_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
         let mut previous = std::mem::take(&mut self.images);
         let previous_bytes = self.texture_bytes;
-        self.images
-            .insert(0, previous.remove(&0).expect("solid texture exists"));
+        let previous_order = self.asset_order.clone();
+        self.asset_order = vec![0];
+        self.effect_gpu.invalidate();
+        self.images.insert(
+            TextureKey::Static(0),
+            previous
+                .remove(&TextureKey::Static(0))
+                .expect("solid texture exists"),
+        );
         self.texture_bytes = 4;
         if let Err(error) = self.synchronize_assets(project, root) {
-            previous.insert(0, self.images.remove(&0).expect("solid texture exists"));
+            previous.insert(
+                TextureKey::Static(0),
+                self.images
+                    .remove(&TextureKey::Static(0))
+                    .expect("solid texture exists"),
+            );
             self.images = previous;
             self.texture_bytes = previous_bytes;
+            self.asset_order = previous_order;
+            self.effect_gpu.invalidate();
             return Err(error);
         }
         Ok(())
@@ -436,21 +613,41 @@ impl Renderer {
             ));
         }
         let started = Instant::now();
+        if scene.effects.iter().any(|e| e.enabled) {
+            return self.encode_effects(scene, view, width, height, encoder, timestamps);
+        }
+        self.effect_diagnostics.clear();
+        self.effect_gpu.state.release_scratch();
+        self.compositor
+            .prepare(scene)
+            .map_err(|e| RenderError::Invalid(e.to_string()))?;
+        self.geometry_upload.clear();
+        self.geometry_upload
+            .extend(self.compositor.vertices.iter().map(|v| GeometryVertex {
+                position: v.position,
+                uv: v.uv,
+            }));
+        if !self.geometry_upload.is_empty() {
+            self.queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.geometry_upload),
+            );
+        }
         for (index, layer) in scene.layers.iter().enumerate() {
-            let asset = layer.asset.unwrap_or(0);
+            let asset = texture_key(layer);
             if !self.images.contains_key(&asset) {
-                return Err(RenderError::Invalid(format!(
-                    "image asset {asset} is not uploaded"
-                )));
+                return Err(RenderError::Invalid(format!("draw image is not uploaded")));
             }
             let mut color = layer.color;
             for c in &mut color[..3] {
                 *c = srgb_to_linear(*c);
             }
             let uniform = DrawUniform {
-                mvp: (scene.camera.view_projection * layer.model).to_cols_array_2d(),
+                mvp: layer.view_projection.to_cols_array_2d(),
                 color,
                 extent_opacity: [layer.size[0], layer.size[1], layer.opacity, 0.0],
+                uv_scale: [1.0, 1.0, 0.0, 0.0],
             };
             let offset = index * self.uniform_stride;
             self.upload[offset..offset + DRAW_SIZE as usize]
@@ -496,21 +693,196 @@ impl Renderer {
                 1.0,
             );
             pass.set_pipeline(&self.pipeline);
-            for (index, layer) in scene.layers.iter().enumerate() {
+            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            for batch in &self.compositor.batches {
+                let index = batch.layer;
+                let layer = &scene.layers[index];
                 pass.set_bind_group(
                     0,
                     &self.uniform_group,
                     &[(index * self.uniform_stride) as u32],
                 );
-                pass.set_bind_group(1, &self.images[&layer.asset.unwrap_or(0)].bind_group, &[]);
-                pass.draw(0..6, 0..1);
+                pass.set_bind_group(1, &self.images[&texture_key(layer)].bind_group, &[]);
+                pass.draw(batch.vertices.clone(), 0..1);
             }
         }
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
-            draw_calls: scene.layers.len() as u32,
+            draw_calls: self.compositor.batches.len() as u32,
             texture_bytes: self.texture_bytes,
-            parameter_upload_bytes: upload_bytes as u64,
+            parameter_upload_bytes: (upload_bytes
+                + self.geometry_upload.len() * std::mem::size_of::<GeometryVertex>())
+                as u64,
+            parameter_resource_upload_bytes: 0,
+        })
+    }
+    fn encode_effects(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<RenderStats> {
+        let started = Instant::now();
+        loop {
+            self.effect_gpu
+                .builder
+                .build(scene, &self.asset_order, width, height, false)
+                .map_err(RenderError::Invalid)?;
+            match self.effect_gpu.state.prepare(
+                &self.device,
+                &self.queue,
+                &self.image_layout,
+                &self.effect_gpu.builder,
+                scene,
+                self.texture_bytes,
+            ) {
+                Ok(()) => break,
+                Err(error) => {
+                    if let Some((program, message)) = self.effect_gpu.state.failed_program.take() {
+                        self.effect_gpu
+                            .builder
+                            .program_errors
+                            .insert(program, message);
+                        continue;
+                    }
+                    self.effect_diagnostics = vec![error.to_string()];
+                    return Err(error);
+                }
+            }
+        }
+        let frame = &self.effect_gpu.builder.frame;
+        self.geometry_upload.clear();
+        self.geometry_upload.extend(frame.vertices.iter().map(|v| GeometryVertex {position:v.position,uv:v.uv}));
+        if !self.geometry_upload.is_empty() {
+            self.queue.write_buffer(&self.vertex_buffer,0,bytemuck::cast_slice(&self.geometry_upload));
+        }
+        self.effect_diagnostics.clone_from(&frame.diagnostics);
+        for (i, draw) in frame.draws.iter().enumerate() {
+            let w = &draw.words;
+            let uniform = DrawUniform {
+                mvp: std::array::from_fn(|c| std::array::from_fn(|r| w[c * 4 + r])),
+                color: w[16..20].try_into().unwrap(),
+                extent_opacity: [w[20], w[21], w[22], 0.0],
+                uv_scale: [w[25], w[26], 0.0, 0.0],
+            };
+            self.upload[i * self.uniform_stride..i * self.uniform_stride + DRAW_SIZE as usize]
+                .copy_from_slice(bytemuck::bytes_of(&uniform));
+        }
+        let bytes = frame.draws.len() * self.uniform_stride;
+        if bytes > 0 {
+            self.queue
+                .write_buffer(&self.uniform_buffer, 0, &self.upload[..bytes]);
+        }
+        let alpha = scene.background[3];
+        let clear = wgpu::Color {
+            r: (srgb_to_linear(scene.background[0]) * alpha) as f64,
+            g: (srgb_to_linear(scene.background[1]) * alpha) as f64,
+            b: (srgb_to_linear(scene.background[2]) * alpha) as f64,
+            a: alpha as f64,
+        };
+        {
+            let writes = timestamps
+                .as_ref()
+                .map(|t| wgpu::RenderPassTimestampWrites {
+                    query_set: t.query_set,
+                    beginning_of_pass_write_index: t.beginning_of_pass_write_index,
+                    end_of_pass_write_index: None,
+                });
+            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("effect composition clear"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: writes,
+                occlusion_query_set: None,
+            });
+        }
+        let mut materialized = None;
+        let mut executed_passes = 0;
+        for (batch_index, batch) in frame.batches.iter().enumerate() {
+            let i = batch.layer;
+            let draw = &frame.draws[i];
+            for p in draw.pass_start..draw.pass_end {
+                if materialized == Some(i) { break; }
+                self.effect_gpu.state.encode_pass(
+                    p,
+                    frame,
+                    &self.asset_order,
+                    &self.images,
+                    &self.device,
+                    &self.queue,
+                    encoder,
+                )?;
+                executed_passes += 1;
+            }
+            materialized = Some(i);
+            let writes = if batch_index + 1 == frame.batches.len() {
+                timestamps
+                    .as_ref()
+                    .map(|t| wgpu::RenderPassTimestampWrites {
+                        query_set: t.query_set,
+                        beginning_of_pass_write_index: None,
+                        end_of_pass_write_index: t.end_of_pass_write_index,
+                    })
+            } else {
+                None
+            };
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("effect composition layer"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: writes,
+                occlusion_query_set: None,
+            });
+            let scale =
+                (width as f32 / scene.width as f32).min(height as f32 / scene.height as f32);
+            let vw = scene.width as f32 * scale;
+            let vh = scene.height as f32 * scale;
+            pass.set_viewport(
+                (width as f32 - vw) / 2.0,
+                (height as f32 - vh) / 2.0,
+                vw,
+                vh,
+                0.0,
+                1.0,
+            );
+            pass.set_pipeline(&self.pipeline);
+            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            pass.set_bind_group(0, &self.uniform_group, &[(i * self.uniform_stride) as u32]);
+            let group = if draw.words[27] >= 0.0 {
+                &self.effect_gpu.state.pool[0].as_ref().unwrap().composite
+            } else {
+                &self.images[&texture_key(&scene.layers[i])].bind_group
+            };
+            pass.set_bind_group(1, group, &[]);
+            pass.draw(batch.vertices.clone(), 0..1);
+        }
+        Ok(RenderStats {
+            cpu_prepare_us: started.elapsed().as_micros() as u64,
+            draw_calls: (frame.batches.len() + executed_passes) as u32,
+            texture_bytes: self.texture_bytes + self.effect_gpu.state.bytes(),
+            parameter_upload_bytes: (bytes
+                + executed_passes * aem_effects::shader::UNIFORM_BYTES + frame.vertices.len()*20)
+                as u64,
+            parameter_resource_upload_bytes: std::mem::take(
+                &mut self.effect_gpu.state.parameter_resource_upload_bytes,
+            ),
         })
     }
     pub fn render_target(&self, width: u32, height: u32) -> Result<RenderTarget> {
@@ -571,6 +943,7 @@ impl Renderer {
         scene: &Scene,
         target: &CaptureTarget,
     ) -> Result<(Vec<u8>, RenderStats)> {
+        self.preflight_effects(scene, target.width, target.height)?;
         let stats = self.draw(scene, &target.view, target.width, target.height)?;
         Ok((self.read_target(target)?, stats))
     }
