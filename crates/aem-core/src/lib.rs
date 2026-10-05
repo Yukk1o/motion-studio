@@ -4,6 +4,7 @@ mod camera;
 mod curve;
 mod editor;
 mod effects;
+mod expressions;
 mod hierarchy;
 mod model;
 mod scene;
@@ -18,6 +19,9 @@ pub use effects::{
     CurveLut, CurveObject, CurveTrack, EffectAction, EffectInstance, EffectParam, PluginDependency,
     SampledEffect,
 };
+pub use expressions::{
+    ExpressionTarget, ExpressionValue, PropertyExpression, EXPRESSION_PROFILE, MAX_EXPRESSIONS,
+};
 pub use model::{
     Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS,
 };
@@ -29,7 +33,8 @@ pub fn scene_prefix_delta(
     frame: f64,
     delta: [f32; 3],
 ) -> Result<[f32; 3]> {
-    let prefix = hierarchy::prefix(p, object, frame)?;
+    let evaluated = p.evaluated_at(frame)?;
+    let prefix = hierarchy::prefix(&evaluated, object, frame)?;
     ensure(
         prefix.determinant().abs() > 1e-8,
         "cannot drag through a zero-scale parent",
@@ -42,6 +47,12 @@ pub fn scene_prefix_delta(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("expression {target} at frame {frame}: {message}")]
+    Expression {
+        target: String,
+        frame: f64,
+        message: String,
+    },
     #[error("{0}")]
     Invalid(String),
     #[error("object {0} does not exist")]

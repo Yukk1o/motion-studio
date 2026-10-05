@@ -192,6 +192,8 @@ pub struct Project {
     pub layers: Vec<Layer>,
     #[serde(default)]
     pub plugin_dependencies: Vec<crate::PluginDependency>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub expressions: Vec<crate::PropertyExpression>,
 }
 impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
@@ -208,6 +210,7 @@ impl Project {
             camera: Camera::new(width, height),
             layers: Vec::new(),
             plugin_dependencies: Vec::new(),
+            expressions: Vec::new(),
         };
         project.camera.created = false;
         project.validate()?;
@@ -242,9 +245,12 @@ impl Project {
         p
     }
     pub fn validate(&self) -> Result<()> {
-        ensure(matches!(self.version, 1 | 2), "unsupported project format")?;
         ensure(
-            self.version == 2 || self.layers.iter().all(|l| l.effects.is_empty()),
+            matches!(self.version, 1..=3),
+            "unsupported project format",
+        )?;
+        ensure(
+            self.version >= 2 || self.layers.iter().all(|l| l.effects.is_empty()),
             "version 1 projects cannot contain effects",
         )?;
         ensure(
@@ -339,6 +345,7 @@ impl Project {
             }
         }
         crate::hierarchy::validate(self)?;
+        crate::expressions::validate(self)?;
         Ok(())
     }
     pub fn frame_pts_us(&self, frame: u32) -> Result<i64> {
