@@ -489,7 +489,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val p=state.project?:return
         val l=newLayer("矩形",JSONObject().put("kind","solid").put("color",JSONArray(listOf(0.43,0.68,0.91,1))),
             p.getInt("width")*.5f,p.getInt("height")*.2f)
-        edit(JSONObject().put("op","add").put("layer",l));selected=l.getLong("id");panelOpen=true
+        edit(JSONObject().put("op","add").put("layer",l));selected=l.getLong("id");property="position";panelOpen=true
     }
     fun addCamera(){edit(JSONObject().put("op","create_camera"));selected=0L;property="position";panelOpen=true}
     fun addNull() {
@@ -514,7 +514,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 bitmap.recycle()
                 withContext(Dispatchers.Main) {
                     editBatch(JSONArray().put(JSONObject().put("op","register_asset").put("asset",a)).put(JSONObject().put("op","add").put("layer",l)))
-                    selected=l.getLong("id");panelOpen=true
+                    selected=l.getLong("id");property="position";panelOpen=true
                 }
             } catch(e:Throwable){fail(e.message?:"图片导入失败")}
         }
@@ -537,7 +537,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 val l=newLayer("文字",content,w.toFloat(),160f);bitmap.recycle()
                 withContext(Dispatchers.Main) {
                     editBatch(JSONArray().put(JSONObject().put("op","register_asset").put("asset",a)).put(JSONObject().put("op","add").put("layer",l)))
-                    selected=l.getLong("id");panelOpen=true
+                    selected=l.getLong("id");property="position";panelOpen=true
                 }
             } catch(e:Throwable){fail(e.message?:"文字添加失败")}
         }

@@ -59,11 +59,11 @@ import java.io.File
 import java.util.Locale
 import kotlin.math.*
 
-internal val Background=Color(0xFF171A26)
-internal val Panel=Color(0xFF202431)
-internal val Accent=Color(0xFF37D4BE)
-internal val Ink=Color(0xFFE6EAF2)
-internal val Muted=Color(0xFF9DA6B7)
+internal val Background=Color(0xFF121519)
+internal val Panel=Color(0xFF1C2128)
+internal val Accent=Color(0xFF54DCC7)
+internal val Ink=Color(0xFFEDF1F5)
+internal val Muted=Color(0xFFAAB4C2)
 private class CreateOutputDocument(private val mime:String):ActivityResultContract<String,Uri?>() {
     override fun createIntent(context:Context,input:String)=Intent(Intent.ACTION_CREATE_DOCUMENT)
         .addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE,input)
@@ -107,6 +107,7 @@ open class MainActivity:ComponentActivity() {
     var settings by remember{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
     var library by remember{mutableStateOf(false)}
+    var curveExpanded by remember{mutableStateOf(false)}
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importImage)}
     val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importProject)}
     val pngSave=rememberLauncherForActivityResult(CreateOutputDocument("image/png")){uri->
@@ -134,9 +135,12 @@ open class MainActivity:ComponentActivity() {
                         if(vm.panelOpen)vm.panelOpen=false else {vm.refreshProjects();library=true}
                     }
                     Text(vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    Tool(Icons.Default.Settings,"合成设置"){settings=true}
+                    Tool(Icons.Default.Tune,"合成设置"){settings=true}
                     Box {
-                        Tool(Icons.Default.IosShare,"输出"){outputMenu=true}
+                        TextButton(onClick={outputMenu=true},modifier=Modifier.height(48.dp)) {
+                            Icon(Icons.Default.IosShare,"输出",Modifier.size(18.dp),tint=Accent)
+                            Spacer(Modifier.width(6.dp));Text("导出",color=Accent,fontSize=13.sp)
+                        }
                         DropdownMenu(outputMenu,{outputMenu=false}) {
                             DropdownMenuItem(text={Text("视频 MP4")},onClick={outputMenu=false;vm.exportVideo{vm.pendingOutput=it;vm.pendingOutputKind="video";videoSave.launch("MotionStudio.mp4")}})
                             DropdownMenuItem(text={Text("当前帧 PNG")},onClick={outputMenu=false;vm.output(true){vm.pendingOutput=it;vm.pendingOutputKind="png";pngSave.launch("motion-frame.png")}})
@@ -162,14 +166,10 @@ open class MainActivity:ComponentActivity() {
             }
             if(!vm.panelOpen) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {
-                    OutlinedIconButton(onClick={addMenu=true},modifier=Modifier.size(54.dp),
-                        border=BorderStroke(1.5.dp,Accent)) {Icon(Icons.Default.Add,"添加图层",tint=Accent)}
-                    DropdownMenu(addMenu,{addMenu=false}) {
-                        DropdownMenuItem(text={Text("矩形")},onClick={addMenu=false;vm.addRectangle()})
-                        DropdownMenuItem(text={Text("图片")},onClick={addMenu=false;imagePicker.launch(arrayOf("image/png","image/jpeg"))})
-                        DropdownMenuItem(text={Text("文字")},onClick={addMenu=false;textDialog=true})
-                        DropdownMenuItem(text={Text("空对象")},onClick={addMenu=false;vm.addNull()})
-                        DropdownMenuItem(text={Text("摄影机")},enabled=!vm.hasCamera(),onClick={addMenu=false;vm.addCamera()})
+                    Button(onClick={vm.pause();addMenu=true},modifier=Modifier.height(48.dp).testTag("add-layer"),
+                        shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=Background)) {
+                        Icon(Icons.Default.Add,"添加图层",Modifier.size(20.dp))
+                        Spacer(Modifier.width(6.dp));Text("图层",fontSize=14.sp)
                     }
                 }
             }
@@ -181,8 +181,9 @@ open class MainActivity:ComponentActivity() {
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
                 Properties(vm,if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-44.dp).coerceAtLeast(0.dp))
                     else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
-                    else Modifier.fillMaxWidth().height((availableHeight*.42f).coerceAtMost(304.dp)
-                        .coerceAtMost(timelineHeight+8.dp)))
+                    else Modifier.fillMaxWidth().height(if(curveExpanded)(availableHeight*.64f).coerceAtMost(440.dp)
+                        else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp)),
+                    onCurveMode={curveExpanded=it})
             }
             if(vm.state.project==null&&vm.loadFailed&&!vm.state.busy) {
                 Column(Modifier.fillMaxSize().background(Background).padding(24.dp),verticalArrangement=Arrangement.Center,
@@ -202,6 +203,16 @@ open class MainActivity:ComponentActivity() {
             }
         }
     }
+    if(addMenu)AddLayerSheet(hasCamera=vm.hasCamera(),onDismiss={addMenu=false},onAdd={kind->
+        addMenu=false
+        when(kind) {
+            "image"->imagePicker.launch(arrayOf("image/png","image/jpeg"))
+            "text"->textDialog=true
+            "solid"->vm.addRectangle()
+            "null"->vm.addNull()
+            "camera"->vm.addCamera()
+        }
+    })
     vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,
         title={Text("操作未完成")},text={Text(message)},
         confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}},
@@ -251,7 +262,7 @@ open class MainActivity:ComponentActivity() {
 
 @Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
     var menu by remember{mutableStateOf(false)}
-    Box(modifier.background(Color(0xFF10121A))) {
+    Box(modifier.background(Color(0xFF0B0D10))) {
         AndroidView(factory={context->SurfaceView(context).also{view->
             view.holder.addCallback(object:SurfaceHolder.Callback {
                 override fun surfaceCreated(holder:SurfaceHolder) {}
@@ -331,7 +342,7 @@ open class MainActivity:ComponentActivity() {
             }
         })
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
-            TextButton(onClick={menu=true},modifier=Modifier.heightIn(min=48.dp)) {
+            TextButton(onClick={menu=true},modifier=Modifier.heightIn(min=48.dp).background(Background.copy(alpha=.8f),RoundedCornerShape(10.dp))) {
                 Text(if(vm.state.observing)"空间观察" else if(vm.hasCamera())"成片摄影机"else"合成视图",color=Ink,fontSize=12.sp)
                 Icon(Icons.Default.ArrowDropDown,null,Modifier.size(18.dp))
             }
@@ -342,28 +353,31 @@ open class MainActivity:ComponentActivity() {
                 DropdownMenuItem(text={Text("侧视")},onClick={menu=false;vm.view(3)})
             }
         }
-        Text(if(vm.state.observing)"观察 · 不录入" else if(vm.selected==0L) {
-            if(vm.state.project?.getJSONObject("camera")?.getString("mode")=="orbit")"摄影机 · 环绕" else "摄影机 · 平移"
-        }else"图层 · 变换",Modifier.align(Alignment.BottomStart).padding(10.dp),color=Muted,fontSize=10.sp)
+        if(vm.state.observing)Text("空间观察 · 不录入动画",Modifier.align(Alignment.BottomStart)
+            .padding(10.dp).background(Background.copy(alpha=.8f),RoundedCornerShape(6.dp)).padding(6.dp),color=Muted,fontSize=12.sp)
     }
 }
 @Composable private fun Transport(vm:EditorViewModel) {
     var more by remember{mutableStateOf(false)}
     BoxWithConstraints(Modifier.fillMaxWidth().height(48.dp).testTag("transport")) {
     val compact=maxWidth<352.dp
-    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),
-        horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-        Tool(Icons.AutoMirrored.Filled.Undo,"撤销",vm.state.canUndo,vm::undo)
-        Tool(Icons.AutoMirrored.Filled.Redo,"重做",vm.state.canRedo,vm::redo)
-        Tool(Icons.Default.SkipPrevious,"上一帧"){vm.step(-1)}
-        Tool(if(vm.playing)Icons.Default.Pause else Icons.Default.PlayArrow,"播放/暂停",action=vm::togglePlay)
-        Tool(Icons.Default.SkipNext,"下一帧"){vm.step(1)}
-        if(!compact) {
-            Tool(Icons.Default.Diamond,if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧",vm.editable(),vm::toggleKey)
-            Tool(Icons.Default.CropFree,"观察视图"){vm.observe(!vm.state.observing)}
-        }else Box {
+    Box(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp)) {
+        Row(Modifier.align(Alignment.CenterStart)) {
+            Tool(Icons.AutoMirrored.Filled.Undo,"撤销",vm.state.canUndo,vm::undo)
+            if(!compact)Tool(Icons.AutoMirrored.Filled.Redo,"重做",vm.state.canRedo,vm::redo)
+        }
+        Row(Modifier.align(Alignment.Center),verticalAlignment=Alignment.CenterVertically) {
+            Tool(Icons.Default.SkipPrevious,"上一帧"){vm.step(-1)}
+            FilledIconButton(onClick=vm::togglePlay,modifier=Modifier.size(48.dp),
+                colors=IconButtonDefaults.filledIconButtonColors(containerColor=Accent.copy(alpha=.14f),contentColor=Accent)) {
+                Icon(if(vm.playing)Icons.Default.Pause else Icons.Default.PlayArrow,"播放/暂停",Modifier.size(26.dp))
+            }
+            Tool(Icons.Default.SkipNext,"下一帧"){vm.step(1)}
+        }
+        Box(Modifier.align(Alignment.CenterEnd)) {
             Tool(Icons.Default.MoreHoriz,"更多播放操作"){more=true}
             DropdownMenu(more,{more=false}) {
+                if(compact)DropdownMenuItem(text={Text("重做")},enabled=vm.state.canRedo,onClick={more=false;vm.redo()})
                 DropdownMenuItem(text={Text(if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧")},enabled=vm.editable(),onClick={more=false;vm.toggleKey()})
                 DropdownMenuItem(text={Text("观察视图")},onClick={more=false;vm.observe(!vm.state.observing)})
             }
