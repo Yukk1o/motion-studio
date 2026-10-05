@@ -43,6 +43,8 @@ val response = MediaBridge.request(0L, null, "{\"op\":\"media_capabilities\"}")
 
 容器和编码是独立维度；表内组合需 Android MediaExtractor 支持。损坏文件、复杂编辑列表、动态输出格式变化仍可拒绝。HE-AAC 与 AMR 已接通原生能力路径；没有相应样片验收时不可将其写成已验证编码。
 
+部分 Android 原生解码路径未暴露末包的填充裁剪信息，缓存可能保留少量末尾样本；当前样片中最长为 Opus 的 13.5 ms。API 返回实际保留的 `sample_frames / duration_us`，不能承诺所有容器都逐样本等同于桌面解码器。比对工具分别检查完整长度和共有区间的样本，不通过忽略长度来掩盖缺帧。
+
 ## 验证
 
 `tools/generate_media_format_fixtures.py` 从本项目原创脉冲声音与颜色画面生成样片，记录 SHA-256、编码、采样率和颜色元数据。FFmpeg 仅用于开发机器生成与比对，不随 APK 分发。
