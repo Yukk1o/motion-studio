@@ -1,5 +1,6 @@
 //! Deterministic animation and project state, independent of UI and GPU APIs.
 mod animation;
+mod audio;
 mod camera;
 mod compositor;
 mod curve;
@@ -12,6 +13,7 @@ pub mod storage;
 mod timeline;
 
 pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
+pub use audio::{AudioAsset, AudioClip};
 pub use camera::{
     to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer, ProjectionKind,
 };

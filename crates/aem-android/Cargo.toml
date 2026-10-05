@@ -15,6 +15,8 @@ diagnostics = []
 aem-effects = { path = "../aem-effects" }
 aem-core = { path = "../aem-core" }
 aem-render = { path = "../aem-render" }
+aem-media = { path = "../aem-media" }
+serde.workspace = true
 serde_json.workspace = true
 pollster.workspace = true
 wgpu.workspace = true
@@ -25,4 +27,4 @@ bytemuck.workspace = true
 jni = "0.21"
 ndk = "0.9"
 raw-window-handle = "0.6"
-
+libc = "0.2"

@@ -1,5 +1,7 @@
 # 编辑核心接口
 
+独立音频的异步 URI 导入、波形、PCM 及冻结混音接口见 [音频后端](../aem-media/README.md)。
+
 ## 图层片段
 
 所有普通图层使用左闭右开区间 `[in_frame, out_frame)`。`timeline.offset_frame`

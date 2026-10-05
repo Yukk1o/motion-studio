@@ -29,6 +29,12 @@ pub fn validate(p: &Project) -> Result<()> {
                 "parent bind must be affine",
             )?;
             let Some(parent) = link.object else { break };
+            ensure(
+                !p.layers
+                    .iter()
+                    .any(|l| l.id == parent && matches!(l.content, crate::Content::Audio { .. })),
+                "audio cannot be a spatial parent",
+            )?;
             if parent == 0 {
                 ensure(p.camera.created, "parent camera does not exist")?;
             } else {
