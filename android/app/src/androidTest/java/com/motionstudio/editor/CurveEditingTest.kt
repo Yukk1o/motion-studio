@@ -170,4 +170,28 @@ class CurveEditingTest {
         compose.waitUntil(10000){curve()!!.getJSONObject("shape").getDouble("damping")==8.0}
         photo("elastic-definition");verifyExportParameters();assertNull(vm.state.error)
     }
+
+    @Test fun insertingKeysDuringElasticOvershootKeepsPhysicalPropertiesEditable() {
+        val easing=JSONObject().put("ease","linear").put("curve",JSONObject().put("space","progress")
+            .put("shape",JSONObject().put("kind","elastic").put("oscillations",2.5).put("damping",6.0)))
+        val commands=JSONArray()
+        for(case in listOf(listOf(3,"opacity",10,90,.8,1.0),listOf(0,"fov",0,120,110,120))) {
+            val id=case[0];val key=case[1];val start=case[2];val end=case[3];val a=case[4];val b=case[5]
+            for((frame,value) in listOf(start to a,end to b))commands.put(JSONObject().put("op","set_scalar").put("object",id).put("property",key).put("frame",frame).put("value",value))
+            commands.put(JSONObject().put("op","curve").put("object",id).put("property",key).put("frame",start).put("easing",easing))
+        }
+        scenario.onActivity{vm.editBatch(commands);vm.select(3);vm.openProperty("opacity");vm.seek(22.0)}
+        compose.waitUntil(10000){curve(3,"opacity")!=null&&vm.state.sample?.optDouble("frame")==22.0}
+        assertEquals(1.0,(vm.sampleValue() as Number).toDouble(),.00001)
+        scenario.onActivity{vm.addKey()}
+        compose.waitUntil(10000){track(3,"opacity").getJSONArray("keys").length()==3}
+        assertEquals(1.0,track(3,"opacity").getJSONArray("keys").getJSONObject(1).getDouble("value"),.00001)
+        scenario.onActivity{vm.undo();vm.select(0);vm.openProperty("fov")}
+        compose.waitUntil(10000){track(3,"opacity").getJSONArray("keys").length()==2}
+        assertEquals(120.0,(vm.sampleValue() as Number).toDouble(),.00001)
+        scenario.onActivity{vm.addKey()}
+        compose.waitUntil(10000){track(0,"fov").getJSONArray("keys").length()==3}
+        assertEquals(120.0,track(0,"fov").getJSONArray("keys").getJSONObject(1).getDouble("value"),.00001)
+        assertNull(vm.state.error)
+    }
 }
