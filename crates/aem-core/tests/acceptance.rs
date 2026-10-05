@@ -77,6 +77,7 @@ fn a2_key_collision_move_undo_and_redo_restore_both_keys() {
     let mut engine = Engine::new(Project::demo()).unwrap();
     engine
         .apply(Command::Animate {
+            axis: None,
             object: 2,
             property: Property::Position,
             frame: 0,
@@ -89,6 +90,7 @@ fn a2_key_collision_move_undo_and_redo_restore_both_keys() {
     let before = engine.snapshot();
     engine
         .apply(Command::MoveKey {
+            axis: None,
             object: 2,
             property: Property::Position,
             from: 60,

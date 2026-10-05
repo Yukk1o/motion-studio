@@ -15,11 +15,28 @@ pub struct TimelineKey<T> {
 pub struct TimelineTrack<T> {
     pub value: T,
     pub keys: Vec<TimelineKey<T>>,
+    pub separated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub axes: Option<Box<TimelineAxes>>,
+}
+#[derive(Debug, Serialize)]
+pub struct TimelineAxes {
+    pub x: TimelineTrack<f32>,
+    pub y: TimelineTrack<f32>,
+    pub z: TimelineTrack<f32>,
 }
 impl<T: Tween> Track<T> {
-    fn timeline(&self, offset: i32) -> TimelineTrack<T> {
+    pub fn timeline(&self, offset: i32) -> TimelineTrack<T> {
         TimelineTrack {
-            value: self.value,
+            value: self.static_value(),
+            separated: self.axes.is_some(),
+            axes: self.axes.as_ref().map(|a| {
+                Box::new(TimelineAxes {
+                    x: a.x.timeline(offset),
+                    y: a.y.timeline(offset),
+                    z: a.z.timeline(offset),
+                })
+            }),
             keys: self
                 .keys
                 .iter()
