@@ -227,6 +227,8 @@ pub struct EffectInstance {
     pub enabled: bool,
     pub seed: u32,
     pub params: BTreeMap<String, EffectParam>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene: Option<aem_effects::SceneSettings>,
 }
 impl EffectInstance {
     pub fn new(
@@ -277,6 +279,7 @@ impl EffectInstance {
             enabled: true,
             seed: id as u32,
             params,
+            scene: definition.scene.clone(),
         }
     }
     pub fn dependency(&self) -> PluginDependency {
@@ -303,6 +306,11 @@ impl EffectInstance {
             self.params.len() <= MAX_PARAMS,
             "too many effect parameters",
         )?;
+        if let Some(scene) = &self.scene {
+            scene
+                .validate()
+                .map_err(|e| Error::Invalid(e.to_string()))?;
+        }
         for (id, p) in &self.params {
             ensure(aem_effects::valid_id(id), "invalid effect parameter ID")?;
             p.validate(frames)?;
@@ -313,6 +321,14 @@ impl EffectInstance {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EffectAction {
+    SetScene {
+        effect: u64,
+        scene: aem_effects::SceneSettings,
+    },
+    Seed {
+        effect: u64,
+        seed: u32,
+    },
     Insert {
         instance: EffectInstance,
     },
@@ -397,6 +413,15 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
         clip.edit_frame(f)
     };
     match action {
+        EffectAction::SetScene { effect, scene } => {
+            scene
+                .validate()
+                .map_err(|e| Error::Invalid(e.to_string()))?;
+            let instance = instance_mut(layer, effect)?;
+            ensure(instance.scene.is_some(), "effect has no scene editor")?;
+            instance.scene = Some(scene);
+        }
+        EffectAction::Seed { effect, seed } => instance_mut(layer, effect)?.seed = seed,
         EffectAction::Insert { instance } => {
             ensure(
                 layer.effects.len() < MAX_EFFECTS_PER_LAYER,
@@ -643,6 +668,7 @@ pub struct SampledEffect {
     pub param_ids: Vec<String>,
     pub values: [[f32; 4]; MAX_PARAMS],
     pub lut: Option<usize>,
+    pub scene: Option<aem_effects::SceneSettings>,
 }
 impl SampledEffect {
     pub(crate) fn new(layer: u64, e: &EffectInstance) -> Self {
@@ -659,6 +685,7 @@ impl SampledEffect {
             param_ids: e.params.keys().cloned().collect(),
             values: [[0.0; 4]; MAX_PARAMS],
             lut: None,
+            scene: e.scene.clone(),
         }
     }
     pub(crate) fn matches(&self, layer: u64, e: &EffectInstance) -> bool {

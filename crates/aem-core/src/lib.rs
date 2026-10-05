@@ -7,6 +7,7 @@ mod effects;
 mod expressions;
 mod hierarchy;
 mod model;
+pub mod plugin_editor;
 mod scene;
 pub mod storage;
 mod timeline;

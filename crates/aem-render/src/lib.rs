@@ -6,6 +6,7 @@ mod measurement;
 mod presenter;
 mod quality;
 mod renderer;
+pub mod scene_generator;
 mod timing;
 pub use aem_core::Scene;
 pub use measurement::{FrameMeasurement, FrameRecorder};

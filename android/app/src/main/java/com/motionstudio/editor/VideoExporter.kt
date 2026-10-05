@@ -169,7 +169,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         } catch(error:Throwable) {close();throw error}
     }
     fun draw(buffer:ByteBuffer,count:Int) {
-        check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==1&&buffer.getInt(28) in 64..buffer.capacity()){"不兼容的帧计划"}
+        check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==2&&buffer.getInt(28) in 64..buffer.capacity()){"不兼容的帧计划"}
         effects?.prepare(buffer)
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
         GLES30.glClearColor(clear[0],clear[1],clear[2],clear[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
@@ -194,6 +194,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             GLES30.glUniform3f(extentLocation,values.get(base+20),values.get(base+21),values.get(base+22))
             val asset=values.get(base+24).toInt();check(asset in textures.indices){"纹理索引失效"}
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,if(values.get(base+27)>=0f)effects!!.texture(values.get(base+27).toInt()) else textures[asset])
+            GLES30.glBlendFuncSeparate(GLES30.GL_ONE,if(values.get(base+23)>0.5f)GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA,GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
             GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,6)
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0);GLES30.glDisable(GLES30.GL_BLEND)
