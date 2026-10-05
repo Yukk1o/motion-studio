@@ -5,6 +5,7 @@ import java.io.File
 
 /** Same isolated host as debug, compiled into the non-debuggable benchmark. */
 class AcceptanceActivity:MainActivity() {
+    override fun initialProjectJson():String=if(intent.getBooleanExtra("emptyProject",false))"" else org.json.JSONObject(NativeBridge.projectTemplate(0)).getJSONObject("data").toString()
     companion object {var lastActivityResult:String=""}
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
         lastActivityResult="request="+requestCode+" result="+resultCode+" flags="+data?.flags+" uri="+data?.data

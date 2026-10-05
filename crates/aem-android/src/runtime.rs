@@ -357,7 +357,7 @@ impl Session {
             "opacity":l.transform.opacity.sample(f)})
             })
             .collect();
-        let projected: Vec<_> = self
+        let mut projected: Vec<_> = self
             .scene
             .layers
             .iter()
@@ -373,7 +373,8 @@ impl Session {
                     .layers
                     .iter()
                     .find(|l| l.id == layer.id)
-                    .map(|l| self.scene.project_point(l.transform.position.sample(f)));
+                    .and_then(|l| self.scene.node_position(l.id))
+                    .map(|point| self.scene.project_point(point));
                 Some(
                     json!({"id":layer.id,"anchor":anchor,"corners":corners.map(|c|[
                 (c.x/c.w*0.5+0.5)*p.width as f32,
@@ -381,6 +382,20 @@ impl Session {
                 )
             })
             .collect();
+        for layer in p
+            .layers
+            .iter()
+            .filter(|l| matches!(l.content, aem_core::Content::Null) && l.visible)
+        {
+            if let Some(position) = self.scene.node_position(layer.id) {
+                let point = self.scene.project_point(position);
+                let [x, y, _] = point;
+                if x.is_finite() && y.is_finite() {
+                    projected.push(json!({"id":layer.id,"anchor":point,"null":true,
+                    "corners":[[x-12.0,y-12.0],[x+12.0,y-12.0],[x+12.0,y+12.0],[x-12.0,y+12.0]]}));
+                }
+            }
+        }
         json!({"project":p,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
             "sampledLayers":layers,"projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
@@ -438,7 +453,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_create(
             if root.join("project.json").exists() {
                 aem_core::storage::load(&root).map_err(|e| e.to_string())?
             } else {
-                Project::demo()
+                Project::new(1080, 1920, 30, 180).map_err(|e| e.to_string())?
             }
         } else {
             serde_json::from_str(&text).map_err(|e| e.to_string())?
@@ -465,6 +480,19 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_create(
             0
         }
     }
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_projectTemplate(
+    mut env: JNIEnv,
+    _class: JClass,
+    kind: jint,
+) -> jstring {
+    string_result(&mut env, || {
+        if kind != 0 {
+            return Err("unknown project template".into());
+        }
+        serde_json::to_value(Project::demo()).map_err(|e| e.to_string())
+    })
 }
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_creationError(
@@ -555,10 +583,14 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_drag(
                 .find(|l| l.id == object as u64)
                 .ok_or("drag layer does not exist")?;
             let position = layer.transform.position.sample(s.frame);
+            let world_position = s
+                .scene
+                .node_position(object as u64)
+                .ok_or("object transform is unavailable")?;
             let offset = s
                 .scene
                 .screen_translation(
-                    position,
+                    world_position,
                     [dx as f32, dy as f32],
                     [width as u32, height as u32],
                 )
@@ -568,7 +600,16 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_drag(
                     object: object as u64,
                     property: aem_core::Property::Position,
                     frame: s.frame.floor() as u32,
-                    value: std::array::from_fn(|i| position[i] + offset[i]),
+                    value: {
+                        let offset = aem_core::scene_prefix_delta(
+                            s.engine.project(),
+                            object as u64,
+                            s.frame,
+                            offset,
+                        )
+                        .map_err(|e| e.to_string())?;
+                        std::array::from_fn(|i| position[i] + offset[i])
+                    },
                 })
                 .map_err(|e| e.to_string())?;
             s.sample()?;

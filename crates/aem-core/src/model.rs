@@ -17,6 +17,7 @@ pub struct Asset {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Content {
+    Null,
     Solid {
         color: [f32; 4],
     },
@@ -96,6 +97,8 @@ pub struct Layer {
     pub transform: Transform,
     pub visible: bool,
     pub locked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<ParentLink>,
 }
 impl Layer {
     pub fn solid(id: u64, name: &str, size: [f32; 2], position: [f32; 3], color: [f32; 4]) -> Self {
@@ -107,8 +110,16 @@ impl Layer {
             transform: Transform::new(position),
             visible: true,
             locked: false,
+            parent: None,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ParentLink {
+    pub object: Option<u64>,
+    pub bind: [[f32; 4]; 4],
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -129,7 +140,7 @@ pub struct Project {
 impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
-        let project = Self {
+        let mut project = Self {
             version: 1,
             name: "空间练习 01".into(),
             width,
@@ -141,11 +152,13 @@ impl Project {
             camera: Camera::new(width, height),
             layers: Vec::new(),
         };
+        project.camera.created = false;
         project.validate()?;
         Ok(project)
     }
     pub fn demo() -> Self {
         let mut p = Self::new(1080, 1920, 30, 180).unwrap();
+        p.camera.created = true;
         p.layers = vec![
             Layer::solid(
                 1,
@@ -218,6 +231,7 @@ impl Project {
             )?;
             layer.transform.validate(self.frames)?;
             match &layer.content {
+                Content::Null => {}
                 Content::Solid { color } => validate_color(*color)?,
                 Content::Image { asset } => ensure(
                     asset_ids.contains(asset),
@@ -241,6 +255,7 @@ impl Project {
                 }
             }
         }
+        crate::hierarchy::validate(self)?;
         Ok(())
     }
     pub fn frame_pts_us(&self, frame: u32) -> Result<i64> {

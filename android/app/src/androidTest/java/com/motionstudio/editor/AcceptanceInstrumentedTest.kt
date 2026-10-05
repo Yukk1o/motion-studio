@@ -21,7 +21,7 @@ class AcceptanceInstrumentedTest {
     @Before fun setup() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         root=File(context.filesDir,"acceptance/"+UUID.randomUUID()).apply{mkdirs()}
-        session=NativeBridge.create(root.absolutePath,"");assertTrue(session>0)
+        session=NativeBridge.create(root.absolutePath,data(NativeBridge.projectTemplate(0)).toString());assertTrue(session>0)
     }
     @After fun teardown() {if(session!=0L)NativeBridge.destroy(session)}
     private fun data(raw:String):JSONObject {

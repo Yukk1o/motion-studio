@@ -19,6 +19,9 @@ pub struct Scene {
     pub background: [f32; 4],
     pub width: u32,
     pub height: u32,
+    node_world: Vec<Mat4>,
+    node_states: Vec<u8>,
+    node_ids: Vec<u64>,
 }
 impl Scene {
     pub fn new(project: &Project) -> Self {
@@ -28,6 +31,9 @@ impl Scene {
             background: project.background,
             width: project.width,
             height: project.height,
+            node_world: Vec::with_capacity(crate::MAX_LAYERS + 1),
+            node_states: Vec::with_capacity(crate::MAX_LAYERS + 1),
+            node_ids: Vec::with_capacity(crate::MAX_LAYERS + 1),
         }
     }
     pub fn sample(
@@ -40,8 +46,28 @@ impl Scene {
             frame.is_finite() && frame >= 0.0 && frame < f64::from(project.frames),
             "invalid sample time",
         )?;
+        crate::hierarchy::matrices(project, frame, &mut self.node_world, &mut self.node_states)?;
+        self.node_ids.clear();
+        self.node_ids.extend(project.layers.iter().map(|l| l.id));
+        self.node_ids.push(0);
+        let link = project.camera.parent.as_ref();
+        let prefix = if let Some(link) = link {
+            let parent = link.object.map_or(Mat4::IDENTITY, |id| {
+                self.node_world[self.node_ids.iter().position(|v| *v == id).unwrap()]
+            });
+            parent * Mat4::from_cols_array_2d(&link.bind)
+        } else {
+            Mat4::IDENTITY
+        };
+        let implicit;
+        let camera = if project.camera.created {
+            &project.camera
+        } else {
+            implicit = crate::Camera::new(project.width, project.height);
+            &implicit
+        };
         self.camera = observer.map_or_else(
-            || project.camera.pose(frame, project.width, project.height),
+            || camera.pose_parented(frame, project.width, project.height, prefix),
             |o| o.pose(project.width, project.height),
         );
         self.width = project.width;
@@ -50,6 +76,9 @@ impl Scene {
         self.layers.clear();
         let forward = (self.camera.target - self.camera.eye).normalize();
         for (order, layer) in project.layers.iter().enumerate() {
+            if matches!(layer.content, Content::Null) {
+                continue;
+            }
             if !layer.visible {
                 continue;
             }
@@ -57,12 +86,9 @@ impl Scene {
             if opacity <= 0.0 {
                 continue;
             }
-            let center = to_world(
-                layer.transform.position.sample(frame),
-                project.width,
-                project.height,
-            );
+            let center = self.node_world[order].w_axis.truncate();
             let (color, asset) = match &layer.content {
+                Content::Null => unreachable!(),
                 Content::Solid { color } => (*color, None),
                 Content::Image { asset } => ([1.0; 4], Some(*asset)),
                 Content::Text {
@@ -73,7 +99,7 @@ impl Scene {
             };
             self.layers.push(DrawLayer {
                 id: layer.id,
-                model: model_matrix(layer, frame, project.width, project.height),
+                model: self.node_world[order] * geometry_offset(layer),
                 size: layer.size,
                 color,
                 opacity,
@@ -87,6 +113,21 @@ impl Scene {
         self.layers
             .sort_unstable_by(|a, b| b.depth.total_cmp(&a.depth).then(a.order.cmp(&b.order)));
         Ok(())
+    }
+    pub fn node_position(&self, id: u64) -> Option<[f32; 3]> {
+        self.node_ids.iter().position(|v| *v == id).map(|i| {
+            crate::to_project(
+                self.node_world[i].w_axis.truncate(),
+                self.width,
+                self.height,
+            )
+        })
+    }
+    pub fn world_matrix(&self, id: u64) -> Option<Mat4> {
+        self.node_ids
+            .iter()
+            .position(|v| *v == id)
+            .map(|i| self.node_world[i])
     }
     pub fn project_point(&self, point: [f32; 3]) -> [f32; 3] {
         let clip =
@@ -138,7 +179,14 @@ impl Scene {
     }
 }
 
-pub fn model_matrix(layer: &Layer, frame: f64, width: u32, height: u32) -> Mat4 {
+pub(crate) fn geometry_offset(layer: &Layer) -> Mat4 {
+    Mat4::from_translation(Vec3::new(
+        (0.5 - layer.transform.anchor[0]) * layer.size[0],
+        (layer.transform.anchor[1] - 0.5) * layer.size[1],
+        0.0,
+    ))
+}
+pub(crate) fn pivot_matrix(layer: &Layer, frame: f64, width: u32, height: u32) -> Mat4 {
     let t = &layer.transform;
     let rotation = t.rotation.sample(frame);
     let quaternion = Quat::from_euler(
@@ -148,14 +196,9 @@ pub fn model_matrix(layer: &Layer, frame: f64, width: u32, height: u32) -> Mat4 
         -rotation[2].to_radians(),
     );
     let scale = Vec3::from_array(t.scale.sample(frame)) / 100.0;
-    let offset = Vec3::new(
-        (0.5 - t.anchor[0]) * layer.size[0],
-        (t.anchor[1] - 0.5) * layer.size[1],
-        0.0,
-    );
     Mat4::from_scale_rotation_translation(
         scale,
         quaternion,
         to_world(t.position.sample(frame), width, height),
-    ) * Mat4::from_translation(offset)
+    )
 }

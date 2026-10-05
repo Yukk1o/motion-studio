@@ -34,7 +34,7 @@ private data class KeyTarget(val objectId:Long,val property:String,val frame:Int
             fun allKeys(transform:JSONObject)=transform.keys().asSequence().flatMap{keys(transform.optJSONObject(it)).asSequence()}.toSet()
             val camera=project.getJSONObject("camera")
             val cameraKey=if(vm.selected==0L)vm.property else if(camera.getString("mode")=="orbit")"radius" else "position"
-            add(TrackRow(0,"摄影机 1",Color(0xFFE5C17E),true,false,cameraKey,keys(camera.optJSONObject(cameraKey)),allKeys(camera)))
+            if(camera.optBoolean("created",true))add(TrackRow(0,"摄影机 1",Color(0xFFE5C17E),true,false,cameraKey,keys(camera.optJSONObject(cameraKey)),allKeys(camera)))
             val layers=project.getJSONArray("layers")
             for(i in layers.length()-1 downTo 0) {
                 val l=layers.getJSONObject(i);val key=if(vm.selected==l.getLong("id"))vm.property else "position"

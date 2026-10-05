@@ -38,7 +38,7 @@ class PropertyOverlayTest {
         val app=InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as Application
         root=File(app.filesDir,"acceptance/overlay-"+UUID.randomUUID())
         compose.runOnUiThread {
-            vm=EditorViewModel(app,root)
+            vm=EditorViewModel(app,root,org.json.JSONObject(NativeBridge.projectTemplate(0)).getJSONObject("data").toString())
             store.put("overlay",vm)
         }
         compose.setContent {
