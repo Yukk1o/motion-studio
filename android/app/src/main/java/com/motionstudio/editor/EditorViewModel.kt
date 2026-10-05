@@ -2,6 +2,8 @@ package com.motionstudio.editor
 
 import android.app.Application
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.*
 import android.net.Uri
 import android.os.Handler
@@ -46,6 +48,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var panelOpen by mutableStateOf(false)
     var timelineScale by mutableFloatStateOf(1.5f)
     var scaleLinked by mutableStateOf(true)
+    var curveClipboard by mutableStateOf<String?>(null); private set
     var previewMode by mutableIntStateOf(if(projectDirectory==null)app.getSharedPreferences("motion-studio",0).getInt("previewMode",0).coerceIn(0,3) else 0);private set
     var previewInfo by mutableStateOf<JSONObject?>(null);private set
     var loadFailed by mutableStateOf(false);private set
@@ -337,6 +340,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun redo() {pause();invoke(true){NativeBridge.history(id,1)}}
     fun beginGesture() {pause();invoke{NativeBridge.history(id,2)}}
     fun endGesture() {invoke(true){NativeBridge.history(id,3)}}
+    fun cancelGesture() {invoke{NativeBridge.history(id,4)}}
     fun moveLayer(dx:Float,dy:Float,width:Int,height:Int) {
         val objectId=selected
         if(objectId==0L)return
@@ -400,6 +404,35 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun ease(mode:String) {
         val key=easingSegment()?.first?:return
         edit(JSONObject().put("op","ease").put("object",selected).put("property",property).put("frame",key.getInt("frame")).put("ease",mode))
+    }
+    fun easingDefinition():JSONObject?=easingSegment()?.first?.let{key->
+        JSONObject().put("ease",key.optString("ease","linear")).apply{key.optJSONObject("curve")?.let{put("curve",JSONObject(it.toString()))}}
+    }
+    fun setCurve(easing:JSONObject,save:Boolean=true) {
+        val key=easingSegment()?.first?:return
+        if(!editable())return
+        edit(JSONObject().put("op","curve").put("object",selected).put("property",property)
+            .put("frame",key.getInt("frame")).put("easing",JSONObject(easing.toString())),save)
+    }
+    fun copyCurve() {
+        val easing=easingDefinition()?:return
+        val payload=JSONObject().put("format","motionstudio.curve").put("version",1).put("easing",easing).toString()
+        curveClipboard=payload
+        getApplication<Application>().getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText("Motion Studio 曲线",payload))
+    }
+    fun refreshCurveClipboard() {
+        val clipboard=getApplication<Application>().getSystemService(ClipboardManager::class.java)
+        if(clipboard.primaryClipDescription?.label?.toString()!="Motion Studio 曲线")return
+        val text=clipboard.primaryClip?.getItemAt(0)?.text?.toString()?:return
+        if(text.length>4096)return
+        val payload=runCatching{JSONObject(text)}.getOrNull()?:return
+        if(payload.optString("format")=="motionstudio.curve"&&payload.optInt("version")==1&&payload.optJSONObject("easing")!=null)curveClipboard=text
+    }
+    fun pasteCurve() {
+        refreshCurveClipboard()
+        val payload=curveClipboard?.let{runCatching{JSONObject(it)}.getOrNull()}?:return
+        payload.optJSONObject("easing")?.let{setCurve(it)}
     }
     fun observe(enabled:Boolean,azimuth:Double=0.0,elevation:Double=0.0) {
         pause();invoke{NativeBridge.observe(id,enabled,azimuth,elevation)}

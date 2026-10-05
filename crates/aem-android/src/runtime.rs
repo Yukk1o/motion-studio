@@ -482,6 +482,20 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_create(
     }
 }
 #[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_curveGraph(
+    mut env: JNIEnv,
+    _class: JClass,
+    text: JString,
+) -> jstring {
+    let parsed = read_string(&mut env, &text);
+    string_result(&mut env, || {
+        let easing: aem_core::Easing = serde_json::from_str(&parsed?).map_err(|e| e.to_string())?;
+        easing.validate().map_err(|e| e.to_string())?;
+        let points: Vec<_> = (0..=160).map(|i| easing.sample(i as f64 / 160.0)).collect();
+        Ok(json!({"points": points, "definitionScale": easing.curve.map_or(1.0, |c| c.definition_scale())}))
+    })
+}
+#[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_projectTemplate(
     mut env: JNIEnv,
     _class: JClass,
