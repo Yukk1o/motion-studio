@@ -96,13 +96,29 @@ impl Session {
         self.last_presented_frame = None;
         self.last_error = None;
         self.view_revision += 1;
-        self.sample()
+        // Imported expression source must remain editable even when frame zero fails.
+        // Strict preview/export sampling still reports the expression error.
+        if let Err(error) = self.sample() {
+            self.last_error = Some(error);
+        }
+        Ok(())
     }
     fn new(project: Project, root: PathBuf) -> Result<Self> {
-        let mut scene = Scene::new(&project);
-        scene
-            .sample(&project, 0.0, None)
-            .map_err(|e| e.to_string())?;
+        let engine = Engine::new(project).map_err(|e| e.to_string())?;
+        let project = engine.project();
+        let mut scene = Scene::new(project);
+        let initial_error = match scene.sample(project, 0.0, None) {
+            Ok(()) => None,
+            Err(error @ aem_core::Error::Expression { .. }) => {
+                let mut base = project.clone();
+                for expression in &mut base.expressions {
+                    expression.enabled = false;
+                }
+                scene.sample(&base, 0.0, None).map_err(|e| e.to_string())?;
+                Some(error.to_string())
+            }
+            Err(error) => return Err(error.to_string()),
+        };
         let observer = Observer::new(project.width, project.height);
         let plugin_root = root
             .parent()
@@ -112,7 +128,7 @@ impl Session {
             aem_effects::Registry::load(&plugin_root).map_err(|e| e.to_string())?,
         )?;
         Ok(Self {
-            engine: Engine::new(project).map_err(|e| e.to_string())?,
+            engine,
             scene,
             observer,
             observing: false,
@@ -122,7 +138,7 @@ impl Session {
             owner: thread::current().id(),
             presented: 0,
             last_cpu_us: 0,
-            last_error: None,
+            last_error: initial_error,
             last_presented_frame: None,
             last_presented_revision: 0,
             view_revision: 0,
@@ -335,7 +351,8 @@ impl Session {
         Ok(true)
     }
     fn sample(&mut self) -> Result<()> {
-        self.scene
+        let result = self
+            .scene
             .sample(
                 self.engine.project(),
                 self.frame,
@@ -345,7 +362,17 @@ impl Session {
                     None
                 },
             )
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string());
+        if let Err(error) = &result {
+            self.last_error = Some(error.clone());
+        } else if self
+            .last_error
+            .as_ref()
+            .is_some_and(|e| e.starts_with("expression "))
+        {
+            self.last_error = None;
+        }
+        result
     }
     fn preview_info(&self) -> Value {
         let tier = self.preview.tier();
@@ -355,7 +382,8 @@ impl Session {
             "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY))})
     }
     fn snapshot(&self) -> Value {
-        let p = self.engine.project();
+        let original = self.engine.project();
+        let p = self.scene.sampled_project(original);
         let f = self.frame;
         let camera = json!({"position":p.camera.position_at(f),"target":p.camera.target.sample(f),
             "fov":p.camera.fov.sample(f).clamp(10.0,120.0),"roll":p.camera.roll.sample(f),"radius":p.camera.radius.sample(f).clamp(1.0,10_000_000.0),
@@ -416,14 +444,14 @@ impl Session {
         } else {
             vec!["target"]
         };
-        json!({"project":p,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
+        json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "main_composition":"comp-main",
-            "capabilities":{"layer_clips":true,"separate_dimensions":{"supported":true,"activation":"explicit",
+            "capabilities":{"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
                 "multiple_compositions":false,"video_import":false,"audio_import":false,"model_import":false,"prerender":false},
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
-            "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),
-            "timeline_camera":{"position":p.camera.position.timeline(0),"target":p.camera.target.timeline(0)},
+            "sampledLayers":layers,"timeline_layers":original.timeline_layers(f),
+            "timeline_camera":{"position":original.camera.position.timeline(0),"target":original.camera.target.timeline(0)},
             "projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
             "renderError":self.last_error,"effectErrors":self.graphics.as_ref().map(|g|&g.renderer.effect_diagnostics),
             "sampledEffects":self.scene.effects.iter().map(|e|json!({"layer":e.layer,"instance":e.instance,"values":e.param_ids.iter().enumerate().map(|(i,id)|(id.clone(),json!(e.values[i]))).collect::<serde_json::Map<String,Value>>() })).collect::<Vec<_>>(),"lastPresentedFrame":self.last_presented_frame,
@@ -854,7 +882,11 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
                     }
                 }
             }
-            s.sample()?;
+            // The edit has committed. A frame-specific expression failure is reported
+            // in renderError without pretending the stored edit failed or losing it.
+            if let Err(error) = s.sample() {
+                s.last_error = Some(error);
+            }
             let mut snapshot = s.snapshot();
             if let Some(result) = results.last() {
                 snapshot["edit_result"] =
@@ -954,7 +986,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
                     .synchronize_assets(s.engine.project(), &s.root)
                     .map_err(|e| e.to_string())?;
             }
-            s.sample()?;
+            if let Err(error) = s.sample() {
+                s.last_error = Some(error);
+            }
             Ok(s.snapshot())
         })
     })
