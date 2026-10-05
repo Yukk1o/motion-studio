@@ -78,6 +78,13 @@ fn twenty_layer_animation_sampling_reuses_memory_at_sixty_hz() {
             .unwrap();
         project.layers.push(layer);
     }
+    for (i, layer) in project.layers.iter_mut().enumerate() {
+        layer.timeline = Some(aem_core::LayerTimeline {
+            in_frame: 0,
+            out_frame: 180,
+            offset_frame: i as i32 - 10,
+        });
+    }
     project.validate().unwrap();
     let mut scene = Scene::new(&project);
     scene.sample(&project, 0.0, None).unwrap();
