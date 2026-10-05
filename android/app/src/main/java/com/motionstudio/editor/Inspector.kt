@@ -280,30 +280,3 @@ private class ValueDrag(private val vm:EditorViewModel) {
         }
     }
 }
-
-private val easeNames=listOf("linear" to "线性","in" to "缓入","out" to "缓出","in_out" to "缓入缓出","hold" to "保持")
-private fun easingValue(mode:String,t:Float)=when(mode){"in"->t*t;"out"->1-(1-t)*(1-t);"in_out"->t*t*(3-2*t);"hold"->if(t<1)0f else 1f;else->t}
-@Composable private fun CurveEditor(vm:EditorViewModel,modifier:Modifier) {
-    val segment=vm.easingSegment()
-    val selected=segment?.first?.optString("ease")?:"linear"
-    Column(modifier) {
-        Text(segment?.let{"帧 "+it.first.getInt("frame")+" → "+it.second.getInt("frame")}?:"请移到两个关键帧之间",color=Muted,fontSize=10.sp,lineHeight=14.sp)
-        Canvas(Modifier.weight(1f).fillMaxWidth().padding(12.dp).testTag("easing-graph")) {
-            for(i in 0..4) {
-                drawLine(Muted.copy(alpha=.16f),Offset(0f,size.height*i/4),Offset(size.width,size.height*i/4),1f)
-                drawLine(Muted.copy(alpha=.16f),Offset(size.width*i/4,0f),Offset(size.width*i/4,size.height),1f)
-            }
-            val path=Path()
-            for(i in 0..60) {
-                val t=i/60f;val x=t*size.width;val y=(1-easingValue(selected,t))*size.height
-                if(i==0)path.moveTo(x,y) else path.lineTo(x,y)
-            }
-            drawPath(path,Accent,style=Stroke(2.dp.toPx()))
-        }
-        Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState())) {
-            easeNames.forEach{(key,label)->TextButton(onClick={vm.ease(key)},enabled=segment!=null,modifier=Modifier.height(48.dp)) {
-                Text(label,fontSize=11.sp,lineHeight=14.sp,maxLines=1,color=if(selected==key)Accent else Muted)
-            }}
-        }
-    }
-}

@@ -129,9 +129,9 @@ impl Camera {
             return self.position.sample(frame);
         }
         let target = self.target.sample(frame);
-        let r = self.radius.sample(frame);
+        let r = self.radius.sample(frame).clamp(1.0, 10_000_000.0);
         let az = self.azimuth.sample(frame).to_radians();
-        let el = self.elevation.sample(frame).to_radians();
+        let el = self.elevation.sample(frame).clamp(-89.0, 89.0).to_radians();
         [
             target[0] + r * az.sin() * el.cos(),
             target[1] - r * el.sin(),
@@ -174,7 +174,7 @@ impl Camera {
         let view = Mat4::look_at_rh(eye, target, up);
         // glam's non-GL RH projection has the 0..1 depth range wgpu requires.
         let projection = Mat4::perspective_rh(
-            self.fov.sample(frame).to_radians(),
+            self.fov.sample(frame).clamp(10.0, 120.0).to_radians(),
             width as f32 / height as f32,
             0.5,
             100_000.0,
