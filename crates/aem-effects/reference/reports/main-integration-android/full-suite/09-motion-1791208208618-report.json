@@ -1,0 +1,27 @@
+{
+  "environment": "Android system codec",
+  "codec": "OMX.google.h264.encoder",
+  "hardwareAccelerated": false,
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "expectedFrames": 180,
+  "encodedFrames": 6,
+  "timestampsUs": [
+    0,
+    33333,
+    66667,
+    100000,
+    133333,
+    166667
+  ],
+  "elapsedSeconds": 0.585701238,
+  "throughputFps": 10.244130643275165,
+  "applicationFrameReadbacks": 0,
+  "applicationFrameUploads": 0,
+  "parameterTransferBytes": 20992,
+  "cancelled": true,
+  "completed": false,
+  "cleanupErrors": [],
+  "copyScope": "Application-level frame transfers only; driver/system internal copies are not measured"
+}

@@ -1,0 +1,187 @@
+{
+  "version": 2,
+  "name": "时间轴边界验收",
+  "width": 256,
+  "height": 256,
+  "fps": 30,
+  "frames": 180,
+  "background": [
+    0.0,
+    0.0,
+    1.0,
+    1.0
+  ],
+  "assets": [],
+  "camera": {
+    "created": false,
+    "mode": "position",
+    "position": {
+      "value": [
+        540.0,
+        960.0,
+        -2317.645
+      ],
+      "keys": []
+    },
+    "target": {
+      "value": [
+        540.0,
+        960.0,
+        0.0
+      ],
+      "keys": []
+    },
+    "roll": {
+      "value": 0.0,
+      "keys": []
+    },
+    "fov": {
+      "value": 45.0,
+      "keys": []
+    },
+    "radius": {
+      "value": 2317.645,
+      "keys": []
+    },
+    "azimuth": {
+      "value": 0.0,
+      "keys": []
+    },
+    "elevation": {
+      "value": 0.0,
+      "keys": []
+    }
+  },
+  "layers": [
+    {
+      "id": 2,
+      "name": "红色片段",
+      "content": {
+        "kind": "solid",
+        "color": [
+          1.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "size": [
+        256.0,
+        256.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            128.0,
+            128.0,
+            0.0
+          ],
+          "keys": []
+        },
+        "rotation": {
+          "axes": {
+            "x": {
+              "value": 0.0,
+              "keys": [
+                {
+                  "frame": -15,
+                  "value": 30.0,
+                  "ease": "linear"
+                },
+                {
+                  "frame": 0,
+                  "value": 0.0,
+                  "ease": "linear",
+                  "curve": {
+                    "space": "progress",
+                    "shape": {
+                      "kind": "elastic",
+                      "oscillations": 2.5,
+                      "damping": 6.0
+                    }
+                  }
+                },
+                {
+                  "frame": 80,
+                  "value": 0.0,
+                  "ease": "hold"
+                }
+              ]
+            },
+            "y": {
+              "value": 0.0,
+              "keys": [
+                {
+                  "frame": 0,
+                  "value": 0.0,
+                  "ease": "linear",
+                  "curve": {
+                    "space": "progress",
+                    "shape": {
+                      "kind": "elastic",
+                      "oscillations": 2.5,
+                      "damping": 6.0
+                    }
+                  }
+                },
+                {
+                  "frame": 80,
+                  "value": 0.0,
+                  "ease": "hold"
+                }
+              ]
+            },
+            "z": {
+              "value": 0.0,
+              "keys": [
+                {
+                  "frame": 0,
+                  "value": 0.0,
+                  "ease": "linear",
+                  "curve": {
+                    "space": "progress",
+                    "shape": {
+                      "kind": "elastic",
+                      "oscillations": 2.5,
+                      "damping": 6.0
+                    }
+                  }
+                },
+                {
+                  "frame": 80,
+                  "value": 720.0,
+                  "ease": "hold"
+                }
+              ]
+            }
+          }
+        },
+        "scale": {
+          "value": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "keys": []
+        },
+        "opacity": {
+          "value": 1.0,
+          "keys": []
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": [],
+      "timeline": {
+        "in_frame": 0,
+        "out_frame": 100,
+        "offset_frame": 20
+      }
+    }
+  ],
+  "plugin_dependencies": []
+}

@@ -42,3 +42,7 @@ effects-acceptance只为debug增加applicationIdSuffix，安装为com.motionstud
 
 
 对齐 main (`87eea34`) 后新增片段/效果参数、负局部 Curves 键及共享执行计划时钟检查，Rust 工作区71项通过（core 57、effects 6、render 8）。原有 validation.json 对应集成前运行，不能视为本次集成后 Android 验证；本次结果单独保存在 reference/reports/main-integration.json。
+
+集成后的 ARM64/x86_64 原生构建和两份 APK 构建通过。MuMu 独立应用完整13项仪器复核：12项通过，1项1080p吞吐检查失败（29.82 fps，阈值仍为30 fps）；该用例的180帧、8帧画面对照与时间戳均通过。同一 APK 的一次单独性能复核通过，吞吐30.59 fps。初次集合还出现编码器 Binder 通信停滞，停止测试应用后相关单测5.173秒通过；保留中断、完整集合失败及单独复核的全部原始日志。不能将单次复核通过表述为整组13项全通过，性能稳定性仍需物理设备及持续测试。
+
+测试前后 APK SHA-256 一致；原始 JSON、日志及来源提交位于 reference/reports/main-integration-android 的 interrupted/full-suite/performance-recheck 三个目录，各有 run.json 索引。汇总见 main-integration.json。

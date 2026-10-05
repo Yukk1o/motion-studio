@@ -1,0 +1,58 @@
+[
+  {
+    "meanRgbError": 1.2995859053497942,
+    "foregroundMeanRgbError": 2.641294565593631,
+    "foregroundP95MeanRgbError": 4.333333333333333,
+    "activeSamples": 38520,
+    "frame": 0
+  },
+  {
+    "meanRgbError": 1.5000925925925925,
+    "foregroundMeanRgbError": 3.309666986709788,
+    "foregroundP95MeanRgbError": 6.666666666666667,
+    "activeSamples": 39578,
+    "frame": 15
+  },
+  {
+    "meanRgbError": 1.5204398148148148,
+    "foregroundMeanRgbError": 3.414745719396882,
+    "foregroundP95MeanRgbError": 7,
+    "activeSamples": 39130,
+    "frame": 21
+  },
+  {
+    "meanRgbError": 1.5654449588477366,
+    "foregroundMeanRgbError": 3.5378636856847256,
+    "foregroundP95MeanRgbError": 7,
+    "activeSamples": 39629,
+    "frame": 30
+  },
+  {
+    "meanRgbError": 1.8827623456790124,
+    "foregroundMeanRgbError": 4.163428854422259,
+    "foregroundP95MeanRgbError": 7.333333333333333,
+    "activeSamples": 44423,
+    "frame": 60
+  },
+  {
+    "meanRgbError": 2.068858024691358,
+    "foregroundMeanRgbError": 4.592437832713483,
+    "foregroundP95MeanRgbError": 8.333333333333334,
+    "activeSamples": 45710,
+    "frame": 90
+  },
+  {
+    "meanRgbError": 2.1348765432098764,
+    "foregroundMeanRgbError": 4.636522592063458,
+    "foregroundP95MeanRgbError": 8.666666666666666,
+    "activeSamples": 46897,
+    "frame": 150
+  },
+  {
+    "meanRgbError": 2.1334053497942387,
+    "foregroundMeanRgbError": 4.639422564343135,
+    "foregroundP95MeanRgbError": 8.666666666666666,
+    "activeSamples": 46897,
+    "frame": 179
+  }
+]

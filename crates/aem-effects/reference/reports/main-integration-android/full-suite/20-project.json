@@ -1,0 +1,4011 @@
+{
+  "version": 2,
+  "name": "A13 曲线与父子级编码",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "frames": 180,
+  "background": [
+    0.04,
+    0.06,
+    0.09,
+    1.0
+  ],
+  "assets": [
+    {
+      "id": 1,
+      "path": "assets/transparent.png",
+      "width": 256,
+      "height": 256
+    },
+    {
+      "id": 2,
+      "path": "assets/text.png",
+      "width": 640,
+      "height": 144
+    }
+  ],
+  "camera": {
+    "parent": {
+      "object": 21,
+      "bind": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    "mode": "position",
+    "position": {
+      "value": [
+        540.0,
+        960.0,
+        -2317.645
+      ],
+      "keys": []
+    },
+    "target": {
+      "value": [
+        540.0,
+        960.0,
+        0.0
+      ],
+      "keys": []
+    },
+    "roll": {
+      "value": 0.0,
+      "keys": []
+    },
+    "fov": {
+      "value": 45.0,
+      "keys": []
+    },
+    "radius": {
+      "value": 2317.645,
+      "keys": []
+    },
+    "azimuth": {
+      "value": 0.0,
+      "keys": []
+    },
+    "elevation": {
+      "value": 0.0,
+      "keys": []
+    }
+  },
+  "layers": [
+    {
+      "id": 1,
+      "name": "export-1",
+      "content": {
+        "kind": "text",
+        "text": "Motion Studio",
+        "font": "sans-bold",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "raster_asset": 2
+      },
+      "size": [
+        190.0,
+        44.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            105.0,
+            245.0,
+            -120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                105.0,
+                245.0,
+                -120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                175.0,
+                190.0,
+                -120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                12.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 2,
+      "name": "export-2",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            317.0,
+            245.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                317.0,
+                245.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                387.0,
+                190.0,
+                0.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            7.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                7.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                19.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "parent": {
+        "object": 22,
+        "bind": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      "effects": []
+    },
+    {
+      "id": 3,
+      "name": "export-3",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            529.0,
+            245.0,
+            120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                529.0,
+                245.0,
+                120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                599.0,
+                190.0,
+                120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            14.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                14.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                26.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 4,
+      "name": "export-4",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            741.0,
+            245.0,
+            -120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                741.0,
+                245.0,
+                -120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                811.0,
+                190.0,
+                -120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            21.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                21.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                33.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 5,
+      "name": "export-5",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            953.0,
+            245.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                953.0,
+                245.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                1023.0,
+                190.0,
+                0.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                12.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 6,
+      "name": "export-6",
+      "content": {
+        "kind": "text",
+        "text": "Motion Studio",
+        "font": "sans-bold",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "raster_asset": 2
+      },
+      "size": [
+        190.0,
+        44.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            105.0,
+            665.0,
+            120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                105.0,
+                665.0,
+                120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                175.0,
+                610.0,
+                120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            7.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                7.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                19.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "parent": {
+        "object": 2,
+        "bind": [
+          [
+            1.102829,
+            0.13541038,
+            0.0,
+            0.0
+          ],
+          [
+            -0.13541038,
+            1.102829,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            342.74927,
+            -758.32623,
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      "effects": []
+    },
+    {
+      "id": 7,
+      "name": "export-7",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            317.0,
+            665.0,
+            -120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                317.0,
+                665.0,
+                -120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                387.0,
+                610.0,
+                -120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            14.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                14.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                26.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 8,
+      "name": "export-8",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            529.0,
+            665.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                529.0,
+                665.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                599.0,
+                610.0,
+                0.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            21.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                21.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                33.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 9,
+      "name": "export-9",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            741.0,
+            665.0,
+            120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                741.0,
+                665.0,
+                120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                811.0,
+                610.0,
+                120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                12.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 10,
+      "name": "export-10",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            953.0,
+            665.0,
+            -120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                953.0,
+                665.0,
+                -120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                1023.0,
+                610.0,
+                -120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            7.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                7.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                19.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 11,
+      "name": "export-11",
+      "content": {
+        "kind": "text",
+        "text": "Motion Studio",
+        "font": "sans-bold",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "raster_asset": 2
+      },
+      "size": [
+        190.0,
+        44.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            105.0,
+            1085.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                105.0,
+                1085.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                175.0,
+                1030.0,
+                0.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            14.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                14.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                26.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 12,
+      "name": "export-12",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            317.0,
+            1085.0,
+            120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                317.0,
+                1085.0,
+                120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                387.0,
+                1030.0,
+                120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            21.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                21.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                33.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 13,
+      "name": "export-13",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            529.0,
+            1085.0,
+            -120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                529.0,
+                1085.0,
+                -120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                599.0,
+                1030.0,
+                -120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                12.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 14,
+      "name": "export-14",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            741.0,
+            1085.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                741.0,
+                1085.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                811.0,
+                1030.0,
+                0.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            7.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                7.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                19.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 15,
+      "name": "export-15",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            953.0,
+            1085.0,
+            120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                953.0,
+                1085.0,
+                120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                1023.0,
+                1030.0,
+                120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            14.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                14.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                26.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 16,
+      "name": "export-16",
+      "content": {
+        "kind": "text",
+        "text": "Motion Studio",
+        "font": "sans-bold",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "raster_asset": 2
+      },
+      "size": [
+        190.0,
+        44.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            105.0,
+            1505.0,
+            -120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                105.0,
+                1505.0,
+                -120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                175.0,
+                1450.0,
+                -120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            21.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                21.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                33.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 17,
+      "name": "export-17",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            317.0,
+            1505.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                317.0,
+                1505.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                387.0,
+                1450.0,
+                0.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                12.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 18,
+      "name": "export-18",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            529.0,
+            1505.0,
+            120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                529.0,
+                1505.0,
+                120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                599.0,
+                1450.0,
+                120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            7.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                7.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                19.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 19,
+      "name": "export-19",
+      "content": {
+        "kind": "image",
+        "asset": 1
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            741.0,
+            1505.0,
+            -120.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                741.0,
+                1505.0,
+                -120.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                811.0,
+                1450.0,
+                -120.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            14.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                14.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                26.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.25,
+          0.75
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    },
+    {
+      "id": 20,
+      "name": "export-20",
+      "content": {
+        "kind": "solid",
+        "color": [
+          0.9,
+          0.3,
+          0.16,
+          0.8
+        ]
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            953.0,
+            1505.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                953.0,
+                1505.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                1023.0,
+                1450.0,
+                0.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            21.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                21.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                4.0,
+                -5.0,
+                33.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            90.0,
+            90.0,
+            100.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                90.0,
+                90.0,
+                100.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                105.0,
+                105.0,
+                100.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "opacity": {
+          "value": 0.2,
+          "keys": [
+            {
+              "frame": 0,
+              "value": 0.2,
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 120,
+              "value": 0.95,
+              "ease": "linear"
+            }
+          ]
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "parent": {
+        "object": 22,
+        "bind": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      "effects": []
+    },
+    {
+      "id": 21,
+      "name": "export-21",
+      "content": {
+        "kind": "null"
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            540.0,
+            960.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                540.0,
+                960.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "quadratic",
+                  "control": [
+                    0.35,
+                    0.8
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                570.0,
+                945.0,
+                -30.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                0.0,
+                0.0,
+                2.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "keys": []
+        },
+        "opacity": {
+          "value": 1.0,
+          "keys": []
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "parent": {
+        "object": 23,
+        "bind": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      "effects": []
+    },
+    {
+      "id": 22,
+      "name": "export-22",
+      "content": {
+        "kind": "null"
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            540.0,
+            960.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                540.0,
+                960.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "velocity",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    1.5
+                  ],
+                  "control2": [
+                    0.75,
+                    2.0
+                  ],
+                  "start": 0.0,
+                  "end": 0.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                590.0,
+                945.0,
+                -55.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                0.0,
+                0.0,
+                -1.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "keys": []
+        },
+        "opacity": {
+          "value": 1.0,
+          "keys": []
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "parent": {
+        "object": 23,
+        "bind": [
+          [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      "effects": []
+    },
+    {
+      "id": 23,
+      "name": "export-23",
+      "content": {
+        "kind": "null"
+      },
+      "size": [
+        180.0,
+        280.0
+      ],
+      "transform": {
+        "position": {
+          "value": [
+            540.0,
+            960.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                540.0,
+                960.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "elastic",
+                  "oscillations": 2.5,
+                  "damping": 6.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                610.0,
+                945.0,
+                -80.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "rotation": {
+          "value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "keys": [
+            {
+              "frame": 0,
+              "value": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "ease": "linear",
+              "curve": {
+                "space": "progress",
+                "shape": {
+                  "kind": "cubic",
+                  "control1": [
+                    0.2,
+                    -0.2
+                  ],
+                  "control2": [
+                    0.75,
+                    1.2
+                  ],
+                  "start": 0.0,
+                  "end": 1.0
+                }
+              }
+            },
+            {
+              "frame": 150,
+              "value": [
+                0.0,
+                0.0,
+                -1.0
+              ],
+              "ease": "linear"
+            }
+          ]
+        },
+        "scale": {
+          "value": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "keys": []
+        },
+        "opacity": {
+          "value": 1.0,
+          "keys": []
+        },
+        "anchor": [
+          0.5,
+          0.5
+        ]
+      },
+      "visible": true,
+      "locked": false,
+      "effects": []
+    }
+  ],
+  "plugin_dependencies": []
+}
