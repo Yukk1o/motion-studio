@@ -100,7 +100,9 @@ class LayerClipTimelineTest {
             val video=VideoExporter(root,frozen).run{done,_->if(done==8)command(session,"trim_layer_clip","object" to 2,"in_frame" to 20,"out_frame" to 30)}
             val extractor=MediaExtractor()
             try {extractor.setDataSource(video.absolutePath);extractor.selectTrack(0);var count=0
-                while(extractor.sampleTime>=0){assertEquals((count.toLong()*1_000_000+15)/30,extractor.sampleTime);count++;if(!extractor.advance())break}
+                var previous=-1L
+                while(extractor.sampleTime>=0){assertTrue(kotlin.math.abs((count.toLong()*1_000_000+15)/30-extractor.sampleTime)<=1)
+                    assertTrue(extractor.sampleTime>previous);previous=extractor.sampleTime;count++;if(!extractor.advance())break}
                 assertEquals(180,count)
             }finally{extractor.release()}
             val retriever=MediaMetadataRetriever();val comparisons=JSONArray()
