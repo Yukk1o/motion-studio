@@ -6,6 +6,7 @@ use wgpu::util::DeviceExt;
 pub struct Presenter {
     pipeline: wgpu::RenderPipeline,
     group: wgpu::BindGroup,
+    format: wgpu::TextureFormat,
 }
 impl Presenter {
     pub fn new(
@@ -108,7 +109,11 @@ impl Presenter {
             multiview: None,
             cache: None,
         });
-        Self { pipeline, group }
+        Self {
+            pipeline,
+            group,
+            format,
+        }
     }
     pub fn draw(&self, renderer: &Renderer, output: &wgpu::TextureView) {
         let mut encoder = renderer
@@ -116,6 +121,27 @@ impl Presenter {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("AEM present"),
             });
+        self.encode(&mut encoder, output, None, None, [0.0, 0.0, 0.0, 1.0]);
+        renderer.queue.submit(Some(encoder.finish()));
+    }
+    pub fn encode(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        output: &wgpu::TextureView,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        viewport: Option<[f32; 4]>,
+        background: [f32; 4],
+    ) {
+        let mut clear = [0.0; 4];
+        clear[3] = background[3];
+        for i in 0..3 {
+            let linear = crate::renderer::srgb_to_linear(background[i]) * background[3];
+            clear[i] = if self.format.is_srgb() {
+                linear
+            } else {
+                crate::renderer::linear_to_srgb(linear)
+            };
+        }
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -123,18 +149,25 @@ impl Presenter {
                     view: output,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: clear[0] as f64,
+                            g: clear[1] as f64,
+                            b: clear[2] as f64,
+                            a: clear[3] as f64,
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: None,
-                timestamp_writes: None,
+                timestamp_writes: timestamps,
                 occlusion_query_set: None,
             });
+            if let Some([x, y, w, h]) = viewport {
+                pass.set_viewport(x, y, w, h, 0.0, 1.0);
+            }
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.group, &[]);
             pass.draw(0..3, 0..1);
         }
-        renderer.queue.submit(Some(encoder.finish()));
     }
 }
