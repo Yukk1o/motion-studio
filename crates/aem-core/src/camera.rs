@@ -37,7 +37,14 @@ fn is_created(value: &bool) -> bool {
 pub struct CameraPose {
     pub eye: Vec3,
     pub target: Vec3,
+    pub projection: ProjectionKind,
     pub view_projection: Mat4,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProjectionKind {
+    Perspective,
+    Orthographic,
 }
 
 pub fn to_world(point: [f32; 3], width: u32, height: u32) -> Vec3 {
@@ -177,6 +184,7 @@ impl Camera {
         CameraPose {
             eye,
             target,
+            projection: ProjectionKind::Perspective,
             view_projection: projection * view,
         }
     }
@@ -281,6 +289,7 @@ impl Observer {
         CameraPose {
             eye,
             target,
+            projection: ProjectionKind::Orthographic,
             view_projection: Mat4::orthographic_rh(
                 -half_width,
                 half_width,

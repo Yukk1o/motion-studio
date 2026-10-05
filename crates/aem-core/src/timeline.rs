@@ -65,7 +65,32 @@ pub struct TimelineLayer {
     pub out_frame: u32,
     pub offset_frame: i32,
     pub active: bool,
+    pub three_d: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio: Option<TimelineAudio>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video: Option<TimelineVideo>,
     pub properties: TimelineProperties,
+}
+#[derive(Debug, Serialize)]
+pub struct TimelineAudio {
+    pub asset: u64,
+    pub source_offset_us: u64,
+    pub source_time_us: i64,
+    pub source_duration_us: u64,
+    pub volume: f32,
+    pub muted: bool,
+    pub spatial_properties: bool,
+}
+#[derive(Debug, Serialize)]
+pub struct TimelineVideo {
+    pub asset: u64,
+    pub source_time_us: i64,
+    pub source_offset_us: u64,
+    pub duration_us: u64,
+    pub display_width: u32,
+    pub display_height: u32,
+    pub has_audio: bool,
 }
 impl Project {
     pub fn timeline_layers(&self, frame: f64) -> Vec<TimelineLayer> {
@@ -79,7 +104,50 @@ impl Project {
                     in_frame: clip.in_frame,
                     out_frame: clip.out_frame,
                     offset_frame: clip.offset_frame,
-                    active: l.active(frame, self.frames),
+                    active: if matches!(l.content, crate::Content::Audio { .. }) {
+                        frame >= f64::from(clip.in_frame) && frame < f64::from(clip.out_frame)
+                    } else {
+                        l.active(frame, self.frames)
+                    },
+                    three_d: l.three_d,
+                    audio: if let Some(audio) = self.layer_audio(l) {
+                        Some(TimelineAudio {
+                            asset: audio.asset,
+                            source_offset_us: audio.source_offset_us,
+                            source_time_us: audio.source_offset_us as i64
+                                + ((frame - f64::from(clip.offset_frame)) * 1_000_000.0
+                                    / f64::from(self.fps))
+                                .round() as i64,
+                            source_duration_us: self
+                                .audio_assets
+                                .iter()
+                                .find(|a| a.id == audio.asset)
+                                .map_or(0, |a| a.duration_us),
+                            volume: audio.volume,
+                            muted: audio.muted,
+                            spatial_properties: matches!(l.content, crate::Content::Video { .. }),
+                        })
+                    } else {
+                        None
+                    },
+                    video: if let crate::Content::Video { video } = &l.content {
+                        let a = self
+                            .video_assets
+                            .iter()
+                            .find(|a| a.id == video.asset)
+                            .unwrap();
+                        Some(TimelineVideo {
+                            asset: a.id,
+                            source_time_us: video.source_time_us(l.local_frame(frame), self.fps),
+                            source_offset_us: video.source_offset_us,
+                            duration_us: a.duration_us,
+                            display_width: a.display_width,
+                            display_height: a.display_height,
+                            has_audio: a.audio_asset.is_some(),
+                        })
+                    } else {
+                        None
+                    },
                     properties: TimelineProperties {
                         position: t.position.timeline(clip.offset_frame),
                         rotation: t.rotation.timeline(clip.offset_frame),

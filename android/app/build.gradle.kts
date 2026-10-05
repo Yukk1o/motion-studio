@@ -16,13 +16,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
+    sourceSets.getByName("androidTest").assets.srcDir("../../crates/aem-media/tests/fixtures")
+    androidResources { noCompress += listOf("wav", "mp3", "m4a", "mp4", "bin") }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
     buildTypes {
-        debug { isDebuggable = true }
+        debug {
+            isDebuggable = true
+            if (providers.gradleProperty("effectsAcceptance").orNull == "true") {
+                applicationIdSuffix = ".effectsacceptance"
+            }
+        }
         release { isMinifyEnabled = false }
         create("preview") {
             initWith(getByName("release"))

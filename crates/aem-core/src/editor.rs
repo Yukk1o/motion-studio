@@ -23,6 +23,28 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    RegisterAudioAsset {
+        asset: crate::AudioAsset,
+    },
+    RegisterVideoAsset {
+        asset: crate::VideoAsset,
+    },
+    SetAudio {
+        object: u64,
+        #[serde(default)]
+        volume: Option<f32>,
+        #[serde(default)]
+        muted: Option<bool>,
+    },
+    #[serde(rename = "set_layer_3d")]
+    SetLayer3d {
+        object: u64,
+        enabled: bool,
+    },
+    Effect {
+        object: u64,
+        action: crate::EffectAction,
+    },
     SeparateDimensions {
         object: u64,
         property: Property,
@@ -258,6 +280,10 @@ fn channel(project: &mut Project, object: u64, property: Property) -> Result<Cha
         });
     }
     let layer = project.layer_mut(object)?;
+    ensure(
+        !matches!(layer.content, Content::Audio { .. }),
+        "audio has no spatial or opacity properties",
+    )?;
     if layer.locked {
         return Err(Error::Locked(object));
     }
@@ -308,6 +334,45 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
     let mut result = None;
     match command {
+        Command::RegisterAudioAsset { asset } => project.audio_assets.push(asset),
+        Command::RegisterVideoAsset { asset } => project.video_assets.push(asset),
+        Command::SetAudio {
+            object,
+            volume,
+            muted,
+        } => {
+            let layer = editable_clip(project, object)?;
+            match &mut layer.content {
+                Content::Audio { audio } => {
+                    if let Some(v) = volume {
+                        audio.volume = v;
+                    }
+                    if let Some(v) = muted {
+                        audio.muted = v;
+                    }
+                }
+                Content::Video { video } => {
+                    if let Some(v) = volume {
+                        video.volume = v;
+                    }
+                    if let Some(v) = muted {
+                        video.muted = v;
+                    }
+                }
+                _ => return Err(Error::Invalid("object has no audio controls".into())),
+            }
+        }
+        Command::SetLayer3d { object, enabled } => {
+            let layer = project.layer_mut(object)?;
+            if layer.locked {
+                return Err(Error::Locked(object));
+            }
+            layer.three_d = enabled;
+        }
+        Command::Effect { object, action } => {
+            let frames = project.frames;
+            crate::effects::apply(project.layer_mut(object)?, action, frames)?;
+        }
         Command::SeparateDimensions { object, property } => {
             match channel(project, object, property)? {
                 Channel::Vector(t) => t.separate()?,
@@ -672,7 +737,11 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 0.0,
             );
             let compensate = |frame: f64| {
-                let r = old.transform.rotation.sample(frame);
+                let mut r = old.transform.rotation.sample(frame);
+                if !old.three_d {
+                    r[0] = 0.0;
+                    r[1] = 0.0;
+                }
                 let rotation = Quat::from_euler(
                     EulerRot::XYZ,
                     r[0].to_radians(),
@@ -715,6 +784,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             layer.transform.anchor = anchor;
         }
     }
+    project.rebuild_plugin_dependencies();
     project.validate()?;
     Ok(result)
 }
@@ -783,6 +853,26 @@ impl Engine {
     }
     /// All edits either commit together or restore the pre-edit state.
     pub fn apply_batch(&mut self, commands: Vec<Command>) -> Result<Vec<EditResult>> {
+        self.apply_batch_inner(commands, None)
+    }
+    /// Publish history and revision only after the project file is saved successfully.
+    /// Used by media imports after their owned source has been staged and validated.
+    pub fn apply_batch_saved(
+        &mut self,
+        commands: Vec<Command>,
+        root: &std::path::Path,
+    ) -> Result<Vec<EditResult>> {
+        ensure(
+            self.gesture.is_none(),
+            "finish the active gesture before importing media",
+        )?;
+        self.apply_batch_inner(commands, Some(root))
+    }
+    fn apply_batch_inner(
+        &mut self,
+        commands: Vec<Command>,
+        root: Option<&std::path::Path>,
+    ) -> Result<Vec<EditResult>> {
         let before = self.project.clone();
         let mut results = Vec::new();
         for command in commands {
@@ -796,6 +886,12 @@ impl Engine {
             }
         }
         if before != self.project {
+            if let Some(root) = root {
+                if let Err(error) = crate::storage::save(root, &self.project) {
+                    self.project = before;
+                    return Err(error);
+                }
+            }
             if self.gesture.is_none() {
                 self.push_undo(before);
                 self.redo.clear();

@@ -333,6 +333,9 @@ fn same_depth_uses_stack_order_and_distinct_depth_uses_camera_space() {
             [0.0, 0.0, 1.0, 1.0],
         ),
     ];
+    for layer in &mut p.layers {
+        layer.three_d = true;
+    }
     let mut s = Scene::new(&p);
     s.sample(&p, 0.0, None).unwrap();
     assert_eq!(

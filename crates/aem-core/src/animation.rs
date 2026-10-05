@@ -54,15 +54,15 @@ impl Tween for f32 {
         self.is_finite()
     }
 }
-impl Tween for [f32; 3] {
+impl<const N: usize> Tween for [f32; N] {
     fn bounded(self, bound: f32) -> bool {
         self.into_iter().all(|v| v.is_finite() && v.abs() <= bound)
     }
     fn components(self) -> Option<[f32; 3]> {
-        Some(self)
+        self.as_slice().try_into().ok()
     }
     fn from_components(value: [f32; 3]) -> Option<Self> {
-        Some(value)
+        value.as_slice().try_into().ok()
     }
     fn mix(self, other: Self, t: f32) -> Self {
         std::array::from_fn(|i| self[i].mix(other[i], t))

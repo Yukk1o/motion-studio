@@ -1,30 +1,46 @@
 //! Deterministic animation and project state, independent of UI and GPU APIs.
 mod animation;
+mod audio;
 mod camera;
+mod compositor;
 mod curve;
 mod editor;
+mod effects;
 mod hierarchy;
 mod model;
 mod scene;
 pub mod storage;
 mod timeline;
+mod video;
 
 pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
-pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer};
+pub use audio::{AudioAsset, AudioClip};
+pub use camera::{
+    to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer, ProjectionKind,
+};
+pub use compositor::{PlaneBatch, PlaneCompositor, PlaneVertex};
 pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
 pub use editor::{parse_commands, Command, EditResult, Engine, Property};
+pub use effects::{
+    CurveLut, CurveObject, CurveTrack, EffectAction, EffectInstance, EffectParam, PluginDependency,
+    SampledEffect,
+};
 pub use model::{
     Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS,
 };
-pub use scene::{DrawLayer, Scene};
+pub use scene::{DrawLayer, HitCandidate, Scene};
 pub use timeline::{TimelineKey, TimelineLayer, TimelineProperties, TimelineTrack};
+pub use video::{VideoAsset, VideoClip, VideoSample};
 pub fn scene_prefix_delta(
     p: &Project,
     object: u64,
     frame: f64,
     delta: [f32; 3],
 ) -> Result<[f32; 3]> {
-    let prefix = hierarchy::prefix(p, object, frame)?;
+    let mut prefix = hierarchy::prefix(p, object, frame)?;
+    if p.layers.iter().any(|l| l.id == object && !l.three_d) {
+        prefix = scene::flat_matrix(prefix);
+    }
     ensure(
         prefix.determinant().abs() > 1e-8,
         "cannot drag through a zero-scale parent",

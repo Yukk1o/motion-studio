@@ -12,3 +12,5 @@
 /android/app/src/main/jniLibs/
 *.tmp
 __pycache__/
+refer/
+reference/
