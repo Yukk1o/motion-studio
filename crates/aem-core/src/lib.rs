@@ -11,7 +11,9 @@ pub mod storage;
 mod timeline;
 
 pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
-pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer};
+pub use camera::{
+    to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer, ProjectionKind,
+};
 pub use compositor::{PlaneBatch, PlaneCompositor, PlaneVertex};
 pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
 pub use editor::{parse_commands, Command, EditResult, Engine, Property};
