@@ -128,11 +128,8 @@ fn native(
     if declared > 3_600_000_000 {
         return Err("audio duration exceeds one hour".into());
     }
-    let delay = f.i32("encoder-delay").unwrap_or(0).max(0) as u64;
-    let padding = f.i32("encoder-padding").unwrap_or(0).max(0) as u64;
-    // Platform decoders consume delay/padding metadata themselves (e.g. Opus
-    // pre-skip). Do not trim a second time; presentation timestamps govern PCM.
-    let _ = (delay, padding);
+    // Decoders consume initial delay (e.g. Opus pre-skip); do not trim twice.
+    // Some extractors omit end padding, so report the actual kept PCM length.
     f.set_i32("pcm-encoding", 4);
     ex.select(track)?;
     let codec = MediaCodec::from_decoder_type(&mime)
