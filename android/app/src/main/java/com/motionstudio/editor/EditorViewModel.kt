@@ -567,7 +567,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         pause();state=state.copy(busy=true,error=null)
         val target=JSONArray(listOf(width/2f,height/2f,0))
         val distance=height/(2*tan(Math.toRadians(22.5)))
-        val camera=JSONObject().put("mode","position").put("position",channel(JSONArray(listOf(width/2f,height/2f,-distance))))
+        val camera=JSONObject().put("created",false).put("mode","position").put("position",channel(JSONArray(listOf(width/2f,height/2f,-distance))))
             .put("target",channel(target)).put("roll",channel(0)).put("fov",channel(45))
             .put("radius",channel(distance)).put("azimuth",channel(0)).put("elevation",channel(0))
         val project=JSONObject().put("version",1).put("name","新建工程").put("width",width).put("height",height)
