@@ -111,3 +111,26 @@ fn over_budget_effect_is_reported_and_preview_keeps_input() {
     assert!(preview.passes.is_empty());
     assert_eq!(preview.draws[0].words[27], -1.0);
 }
+
+#[test]
+fn shared_execution_plan_uses_layer_local_effect_clock() {
+    let mut p = fixture();
+    p.layers[0].timeline = Some(aem_core::LayerTimeline {
+        in_frame: 10,
+        out_frame: 50,
+        offset_frame: 10,
+    });
+    p.layers[0].effects.push(instance("wave_warp", 1));
+    p.rebuild_plugin_dependencies();
+    p.validate().unwrap();
+    let mut scene = Scene::new(&p);
+    scene.sample(&p, 25.0, None).unwrap();
+    let mut builder =
+        PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    let plan = builder.build(&scene, &[0], 64, 64, true).unwrap();
+    assert!(!plan.passes.is_empty());
+    for pass in &plan.passes {
+        assert_eq!(pass.uniform.clock[0], 0.5);
+        assert_eq!(pass.uniform.clock[1], 15.0);
+    }
+}

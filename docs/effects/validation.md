@@ -39,3 +39,6 @@ EffectsRuntimeTest检查缺失依赖阻止PNG/MP4、禁用Curves保留数据且�
 effects-acceptance只为debug增加applicationIdSuffix，安装为com.motionstudio.editor.effectsacceptance，与前端开发的普通App并存；不改变发布版本应用ID。测试前后核对安装APK的SHA-256，避免共享设备上其它构建替换App导致报告混用。
 
 物理设备交付前还要验证：高参数导致预算超限、不同预览分辨率、实际GPU驱动失败后的输入旁路、8pass/16实例上限、PNG资源、重复导入/冲突/版本卸载、导出取消和冻结资源、长时间预览后的资源释放。前端界面清单独立列在frontend-integration.md，当前分支不包含其实现。
+
+
+对齐 main (`87eea34`) 后新增片段/效果参数、负局部 Curves 键及共享执行计划时钟检查，Rust 工作区71项通过（core 57、effects 6、render 8）。原有 validation.json 对应集成前运行，不能视为本次集成后 Android 验证；本次结果单独保存在 reference/reports/main-integration.json。

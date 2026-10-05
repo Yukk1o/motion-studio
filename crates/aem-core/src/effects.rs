@@ -110,7 +110,7 @@ impl CurveTrack {
         }
         let a = &self.keys[upper - 1];
         let b = &self.keys[upper];
-        let t = ((frame - f64::from(a.frame)) / f64::from(b.frame - a.frame)) as f32;
+        let t = ((frame - f64::from(a.frame)) / (f64::from(b.frame) - f64::from(a.frame))) as f32;
         let t = a
             .curve
             .map_or_else(|| a.ease.map(t), |c| c.sample(f64::from(t)).progress as f32);
@@ -118,15 +118,15 @@ impl CurveTrack {
         let bb = b.value.lut();
         std::array::from_fn(|i| std::array::from_fn(|c| aa[i][c] + (bb[i][c] - aa[i][c]) * t))
     }
-    fn validate(&self, frames: u32) -> Result<()> {
+    fn validate(&self, _frames: u32) -> Result<()> {
         self.value.validate()?;
-        ensure(self.keys.len() <= frames as usize, "too many curve keys")?;
+        ensure(
+            self.keys.len() <= crate::MAX_FRAMES as usize,
+            "too many curve keys",
+        )?;
         let mut last = None;
         for k in &self.keys {
-            ensure(
-                k.frame < frames && last.is_none_or(|v| v < k.frame),
-                "invalid curve key time",
-            )?;
+            ensure(last.is_none_or(|v| v < k.frame), "invalid curve key time")?;
             k.value.validate()?;
             if let Some(c) = k.curve {
                 c.validate()?;
@@ -173,7 +173,7 @@ impl EffectParam {
             self.min.is_finite() && self.max.is_finite() && self.min <= self.max,
             "invalid effect parameter range",
         )?;
-        self.track.validate(frames)?;
+        self.track.validate_local()?;
         ensure(
             self.animatable || self.track.keys.is_empty(),
             "effect parameter is not animatable",
@@ -391,7 +391,11 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
         !matches!(layer.content, crate::Content::Null),
         "null objects do not have image effects",
     )?;
-    let valid = |f| ensure(f < frames, "effect edit frame outside composition");
+    let clip = layer.clip(frames);
+    let local = |f| {
+        ensure(f < frames, "effect edit frame outside composition")?;
+        clip.edit_frame(f)
+    };
     match action {
         EffectAction::Insert { instance } => {
             ensure(
@@ -442,7 +446,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             frame,
             value,
         } => {
-            valid(frame)?;
+            let frame = local(frame)?;
             let p = param_mut(layer, effect, &param)?;
             ensure(
                 p.kind != ParamKind::Curve,
@@ -462,7 +466,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             frame,
             enabled,
         } => {
-            valid(frame)?;
+            let frame = local(frame)?;
             let p = param_mut(layer, effect, &param)?;
             ensure(p.animatable, "effect parameter is not animatable")?;
             if let Some(c) = &mut p.curve {
@@ -501,7 +505,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             param,
             frame,
         } => {
-            valid(frame)?;
+            let frame = local(frame)?;
             let p = param_mut(layer, effect, &param)?;
             if let Some(c) = &mut p.curve {
                 let i = c
@@ -523,8 +527,8 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             from,
             to,
         } => {
-            valid(from)?;
-            valid(to)?;
+            let from = local(from)?;
+            let to = local(to)?;
             let p = param_mut(layer, effect, &param)?;
             if let Some(c) = &mut p.curve {
                 let i = c
@@ -548,8 +552,8 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             from,
             to,
         } => {
-            valid(from)?;
-            valid(to)?;
+            let from = local(from)?;
+            let to = local(to)?;
             let p = param_mut(layer, effect, &param)?;
             if let Some(c) = &mut p.curve {
                 let mut key = c
@@ -573,7 +577,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             frame,
             easing,
         } => {
-            valid(frame)?;
+            let frame = local(frame)?;
             let p = param_mut(layer, effect, &param)?;
             ensure(
                 !p.kind.discrete(),
@@ -599,7 +603,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             frame,
             value,
         } => {
-            valid(frame)?;
+            let frame = local(frame)?;
             value.validate()?;
             let p = param_mut(layer, effect, &param)?;
             let c = p
@@ -628,6 +632,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
 #[derive(Clone, Debug)]
 pub struct SampledEffect {
     pub layer: u64,
+    pub local_frame: f64,
     pub instance: u64,
     pub plugin: String,
     pub effect: String,
@@ -643,6 +648,7 @@ impl SampledEffect {
     pub(crate) fn new(layer: u64, e: &EffectInstance) -> Self {
         Self {
             layer,
+            local_frame: 0.0,
             instance: e.id,
             plugin: e.plugin.clone(),
             effect: e.effect.clone(),

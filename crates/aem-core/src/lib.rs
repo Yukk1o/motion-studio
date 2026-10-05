@@ -8,17 +8,21 @@ mod hierarchy;
 mod model;
 mod scene;
 pub mod storage;
+mod timeline;
 
-pub use animation::{Ease, Keyframe, Track, Tween};
+pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
 pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer};
 pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
-pub use editor::{Command, Engine, Property};
+pub use editor::{parse_commands, Command, EditResult, Engine, Property};
 pub use effects::{
     CurveLut, CurveObject, CurveTrack, EffectAction, EffectInstance, EffectParam, PluginDependency,
     SampledEffect,
 };
-pub use model::{Asset, Content, Layer, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS};
+pub use model::{
+    Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS,
+};
 pub use scene::{DrawLayer, Scene};
+pub use timeline::{TimelineKey, TimelineLayer, TimelineProperties, TimelineTrack};
 pub fn scene_prefix_delta(
     p: &Project,
     object: u64,

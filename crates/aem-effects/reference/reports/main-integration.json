@@ -1,0 +1,29 @@
+{
+  "recorded_at_utc": "2026-10-05T13:29:03.113152+00:00",
+  "branch": "codex/effects-ae2021",
+  "integrated_main": "87eea34eac6aabe887bf5f06aea4d64922af5dc8",
+  "rust": {
+    "command": "cargo test --workspace --offline -j 1",
+    "passed": 71,
+    "failed": 0,
+    "breakdown": {
+      "aem-core": 57,
+      "aem-effects": 6,
+      "aem-render": 8
+    }
+  },
+  "new_regressions": [
+    "clip-local effect keys through trim/move/split/undo/storage",
+    "negative local Curves keys and full signed interpolation span",
+    "shared wgpu/GLES plan layer-local clock"
+  ],
+  "android": {
+    "status": "revalidation pending"
+  },
+  "ae": {
+    "unchanged_static_pairs": 117,
+    "threshold_pass": 75,
+    "differences": 42,
+    "accepted_effects": 0
+  }
+}

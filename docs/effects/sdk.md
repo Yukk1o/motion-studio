@@ -45,7 +45,7 @@ fn main_fx(p: vec2<f32>) -> vec4<f32> {
 | size | 原图层逻辑宽高、当前 pass 实际像素宽高 |
 | region | 输出区域 left/top/逻辑宽高 |
 | input_region / source_region | 上一 pass / 当前效果输入区域 |
-| clock | 秒、帧、从0开始的 pass 索引、稳定种子 |
+| clock | 图层局部秒、局部帧（可为负）、从0开始的 pass 索引、稳定种子 |
 | mode | 边缘0/1/2/3、输入色彩0线性/1sRGB、输入Alpha0预乘/1直通、宿主原始资源标记 |
 | output_mode | 输出色彩、输出Alpha、效果混合量、预览采样比例 |
 | params | 按 manifest 顺序的四分量参数 |

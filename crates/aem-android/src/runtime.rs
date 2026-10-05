@@ -364,9 +364,10 @@ impl Session {
             .layers
             .iter()
             .map(|l| {
-                json!({"id":l.id,"position":l.transform.position.sample(f),
-            "rotation":l.transform.rotation.sample(f),"scale":l.transform.scale.sample(f),
-            "opacity":l.transform.opacity.sample(f).clamp(0.0,1.0)})
+                let local = l.local_frame(f);
+                json!({"id":l.id,"position":l.transform.position.sample(local),
+            "rotation":l.transform.rotation.sample(local),"scale":l.transform.scale.sample(local),
+            "opacity":l.transform.opacity.sample(local).clamp(0.0,1.0),"active":l.active(f,p.frames)})
             })
             .collect();
         let mut projected: Vec<_> = self
@@ -397,7 +398,7 @@ impl Session {
         for layer in p
             .layers
             .iter()
-            .filter(|l| matches!(l.content, aem_core::Content::Null) && l.visible)
+            .filter(|l| matches!(l.content, aem_core::Content::Null) && l.active(f, p.frames))
         {
             if let Some(position) = self.scene.node_position(layer.id) {
                 let point = self.scene.project_point(position);
@@ -408,9 +409,22 @@ impl Session {
                 }
             }
         }
+        let camera_properties: Vec<&str> = if !p.camera.created {
+            vec![]
+        } else if p.camera.mode == aem_core::CameraMode::Position {
+            vec!["position", "target"]
+        } else {
+            vec!["target"]
+        };
         json!({"project":p,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
+            "main_composition":"comp-main",
+            "capabilities":{"layer_clips":true,"separate_dimensions":{"supported":true,"activation":"explicit",
+                "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
+                "multiple_compositions":false,"video_import":false,"audio_import":false,"model_import":false,"prerender":false},
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
-            "sampledLayers":layers,"projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
+            "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),
+            "timeline_camera":{"position":p.camera.position.timeline(0),"target":p.camera.target.timeline(0)},
+            "projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
             "renderError":self.last_error,"effectErrors":self.graphics.as_ref().map(|g|&g.renderer.effect_diagnostics),
             "sampledEffects":self.scene.effects.iter().map(|e|json!({"layer":e.layer,"instance":e.instance,"values":e.param_ids.iter().enumerate().map(|(i,id)|(id.clone(),json!(e.values[i]))).collect::<serde_json::Map<String,Value>>() })).collect::<Vec<_>>(),"lastPresentedFrame":self.last_presented_frame,
             "lastPresentedRevision":self.last_presented_revision,"viewRevision":self.view_revision,
@@ -814,11 +828,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
     string_result(&mut env, || {
         let text = parsed?;
         with_session(id, |s| {
-            let commands: Vec<Command> = if text.trim_start().starts_with('[') {
-                serde_json::from_str(&text).map_err(|e| e.to_string())?
-            } else {
-                vec![serde_json::from_str(&text).map_err(|e| e.to_string())?]
-            };
+            let commands = aem_core::parse_commands(&text).map_err(|e| e.to_string())?;
             let resources = commands.iter().any(|c| {
                 matches!(
                     c,
@@ -833,7 +843,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
                 aem_core::storage::validate_assets(&s.root, check.project())
                     .map_err(|e| e.to_string())?;
             }
-            s.engine.apply_batch(commands).map_err(|e| e.to_string())?;
+            let results = s.engine.apply_batch(commands).map_err(|e| e.to_string())?;
             if resources {
                 if let Some(g) = &mut s.graphics {
                     if let Err(error) = g.renderer.synchronize_assets(s.engine.project(), &s.root) {
@@ -845,7 +855,14 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
                 }
             }
             s.sample()?;
-            Ok(s.snapshot())
+            let mut snapshot = s.snapshot();
+            if let Some(result) = results.last() {
+                snapshot["edit_result"] =
+                    serde_json::to_value(result).map_err(|e| e.to_string())?;
+                snapshot["edit_results"] =
+                    serde_json::to_value(&results).map_err(|e| e.to_string())?;
+            }
+            Ok(snapshot)
         })
     })
 }
@@ -873,7 +890,10 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_drag(
                 .iter()
                 .find(|l| l.id == object as u64)
                 .ok_or("drag layer does not exist")?;
-            let position = layer.transform.position.sample(s.frame);
+            if !layer.active(s.frame, s.engine.project().frames) {
+                return Err("drag layer is outside its clip".into());
+            }
+            let position = layer.transform.position.sample(layer.local_frame(s.frame));
             let world_position = s
                 .scene
                 .node_position(object as u64)
