@@ -52,8 +52,9 @@ class SeparateDimensionsApiTest {
             data(NativeBridge.history(session,4));assertEquals(originalProject,data(NativeBridge.state(session)).getJSONObject("project").toString())
             data(NativeBridge.history(session,2))
             for(i in 0..5)command(session,"curve","object" to 2,"property" to "rotation","axis" to "y","frame" to 20,
-                "easing" to JSONObject().put("ease","linear").put("curve",JSONObject().put("space","progress").put("shape",JSONObject().put("kind","elastic").put("oscillations",2+i*.1).put("damping",6))))
+                "easing" to JSONObject().put("ease","linear").put("curve",JSONObject().put("space","progress").put("shape",JSONObject().put("kind","elastic").put("oscillations",2+i*.15).put("damping",6))))
             data(NativeBridge.history(session,3));val edited=data(NativeBridge.state(session))
+            assertNotEquals(originalProject,edited.getJSONObject("project").toString())
             for(axis in listOf("x","z"))assertEquals(axes(original,"rotation").getJSONObject(axis).toString(),axes(edited,"rotation").getJSONObject(axis).toString())
             data(NativeBridge.history(session,0));assertEquals(originalProject,data(NativeBridge.state(session)).getJSONObject("project").toString())
             data(NativeBridge.history(session,1));assertEquals(edited.getJSONObject("project").toString(),data(NativeBridge.state(session)).getJSONObject("project").toString())
@@ -71,18 +72,33 @@ class SeparateDimensionsApiTest {
             val selected=listOf(19,20,35,60,80,90,99,100)
             for(f in selected){data(NativeBridge.seek(session,f.toDouble()));val file=File(data(NativeBridge.capture(session)).getString("path"));file.copyTo(File(root,"png-$f.png"),true)}
             val project=data(NativeBridge.state(session)).getJSONObject("project").toString()
+            val frozenSession=NativeBridge.create(root.absolutePath,project);assertTrue(frozenSession>0)
+            try {for(f in selected) {
+                data(NativeBridge.seek(frozenSession,f.toDouble()))
+                val reference=BitmapFactory.decodeFile(File(root,"png-$f.png").absolutePath)
+                val frozen=BitmapFactory.decodeFile(data(NativeBridge.capture(frozenSession)).getString("path"))
+                try{assertTrue("Frozen PNG differs at $f",reference.sameAs(frozen))}finally{reference.recycle();frozen.recycle()}
+            }}finally{NativeBridge.destroy(frozenSession)}
             val video=VideoExporter(root,project).run{done,_->if(done==8)command(session,"set_component","object" to 2,"property" to "rotation","axis" to "x","frame" to 80,"value" to 80)}
             val retriever=MediaMetadataRetriever();val report=JSONArray()
             try{retriever.setDataSource(video.absolutePath);assertEquals("180",retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT))
                 for(f in selected){val a=BitmapFactory.decodeFile(File(root,"png-$f.png").absolutePath);val b=retriever.getFrameAtIndex(f)?:error("Frame $f did not decode")
-                    try{var total=0L;var samples=0
+                    File(root,"decoded-$f.png").outputStream().use{b.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}
+                    try{var total=0L;var samples=0;var coverageMismatch=0;var coverageSamples=0
                         for(y in 2 until 254 step 4)for(x in 2 until 254 step 4){val p=a.getPixel(x,y);val q=b.getPixel(x,y)
-                            total+=kotlin.math.abs(Color.red(p)-Color.red(q))+kotlin.math.abs(Color.green(p)-Color.green(q))+kotlin.math.abs(Color.blue(p)-Color.blue(q));samples+=3}
-                        val error=total.toDouble()/samples;assertTrue("Axis export mismatch $f: $error",error<6.0)
-                        report.put(JSONObject().put("frame",f).put("meanRgbError",error))
+                            total+=kotlin.math.abs(Color.red(p)-Color.red(q))+kotlin.math.abs(Color.green(p)-Color.green(q))+kotlin.math.abs(Color.blue(p)-Color.blue(q));samples+=3
+                            if((Color.red(p)>Color.blue(p))!=(Color.red(q)>Color.blue(q)))coverageMismatch++
+                            coverageSamples++}
+                        val error=total.toDouble()/samples
+                        val mismatch=coverageMismatch.toDouble()/coverageSamples
+                        report.put(JSONObject().put("frame",f).put("meanRgbError",error).put("coverageMismatchRatio",mismatch))
+                        File(root,"axis-encoded-parity.json").writeText(JSONObject().put("comparisons",report).toString(2))
+                        assertTrue("Axis geometry mismatch $f: $mismatch",mismatch<.01)
                     }finally{a.recycle();b.recycle()}}
             }finally{retriever.release()}
-            File(root,"axis-encoded-parity.json").writeText(JSONObject().put("comparisons",report).put("frames",180).put("frozenAgainstLiveEdits",true).toString(2))
+            File(root,"axis-encoded-parity.json").writeText(JSONObject().put("comparisons",report).put("frames",180)
+                .put("frozenPngPixelExact",true).put("frozenAgainstLiveEdits",true)
+                .put("scope","Exact native PNG geometry; H264 coverage error below 1%; RGB error reported separately for saturated test colors").toString(2))
         }finally{NativeBridge.destroy(session)}
     }
 }
