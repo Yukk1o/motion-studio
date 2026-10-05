@@ -24,7 +24,14 @@ android {
     buildTypes {
         debug { isDebuggable = true }
         release { isMinifyEnabled = false }
+        create("benchmark") {
+            initWith(getByName("release"))
+            isDebuggable=false
+            signingConfig=signingConfigs.getByName("debug")
+            matchingFallbacks+=listOf("release")
+        }
     }
+    testBuildType=if(providers.gradleProperty("performanceTest").orNull=="true") "benchmark" else "debug"
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))

@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--app-apk", type=Path, default=ROOT / "android/app/build/outputs/apk/debug/app-debug.apk")
     parser.add_argument("--test-apk", type=Path, default=ROOT / "android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
-    parser.add_argument("--classes", default="com.motionstudio.editor.AcceptanceInstrumentedTest,com.motionstudio.editor.EditorGestureTest,com.motionstudio.editor.PropertyOverlayTest,com.motionstudio.editor.MotionInteractionTest,com.motionstudio.editor.CameraSceneAcceptanceTest,com.motionstudio.editor.ProjectReliabilityTest,com.motionstudio.editor.ReferenceFilmTest,com.motionstudio.editor.DeviceReadinessTest")
+    parser.add_argument("--classes", default="com.motionstudio.editor.AcceptanceInstrumentedTest,com.motionstudio.editor.EditorGestureTest,com.motionstudio.editor.PropertyOverlayTest,com.motionstudio.editor.MotionInteractionTest,com.motionstudio.editor.CameraSceneAcceptanceTest,com.motionstudio.editor.ProjectReliabilityTest,com.motionstudio.editor.ReferenceFilmTest,com.motionstudio.editor.DeviceReadinessTest,com.motionstudio.editor.PreviewPerformanceTest")
     args = parser.parse_args()
     shared = next(p for p in [ROOT, *ROOT.parents] if (p / ".tools/environment.json").exists())
     config = json.loads((shared / ".tools/environment.json").read_text(encoding="utf-8"))
@@ -57,7 +57,7 @@ def main():
                      "com.motionstudio.editor.test/androidx.test.runner.AndroidJUnitRunner", check=False)
         text = (result.stdout + result.stderr).decode("utf-8", errors="replace")
         (output / "instrumentation.txt").write_text(text, encoding="utf-8")
-        print(text, flush=True)
+        print(re.sub(r"INSTRUMENTATION_STATUS: perfChunk=[A-Za-z0-9+/=]+", "INSTRUMENTATION_STATUS: performance report retained in instrumentation.txt", text), flush=True)
         archive = output / "acceptance.tar"
         new_roots = sorted(n for n in acceptance_roots() - previous_roots if re.fullmatch(r"[A-Za-z0-9_-]+", n))
         if new_roots:

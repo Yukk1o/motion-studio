@@ -1,5 +1,8 @@
 use aem_core::{Command, Engine, Observer, Project, Scene};
-use aem_render::{CaptureTarget, Presenter, Renderer};
+use aem_render::{
+    FrameMeasurement, FrameRecorder, GpuTimer, Presenter, PreviewMode, PreviewPolicy, RenderTarget,
+    Renderer,
+};
 use jni::{
     objects::{JByteBuffer, JClass, JObject, JString},
     sys::{jboolean, jbyteArray, jdouble, jint, jlong, jstring},
@@ -20,6 +23,7 @@ use std::{
         Mutex, OnceLock,
     },
     thread::{self, ThreadId},
+    time::Instant,
 };
 
 type Result<T> = std::result::Result<T, String>;
@@ -48,10 +52,11 @@ impl HasDisplayHandle for AndroidWindow {
 struct Graphics {
     surface: wgpu::Surface<'static>,
     renderer: Renderer,
-    scratch: CaptureTarget,
+    scratch: RenderTarget,
     presenter: Presenter,
     config: wgpu::SurfaceConfiguration,
     _instance: wgpu::Instance,
+    timer: Option<GpuTimer>,
 }
 struct Session {
     engine: Engine,
@@ -70,6 +75,8 @@ struct Session {
     view_revision: u64,
     last_presented_view_revision: u64,
     surface_epoch: u64,
+    preview: PreviewPolicy,
+    recorder: Option<FrameRecorder>,
 }
 impl Session {
     fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
@@ -112,6 +119,8 @@ impl Session {
             view_revision: 0,
             last_presented_view_revision: 0,
             surface_epoch: 0,
+            preview: PreviewPolicy::default(),
+            recorder: None,
         })
     }
     fn check_thread(&self) -> Result<()> {
@@ -134,10 +143,11 @@ impl Session {
         let surface = instance
             .create_surface(AndroidWindow(window))
             .map_err(|e| e.to_string())?;
-        let mut renderer = pollster::block_on(Renderer::new(
+        let mut renderer = pollster::block_on(Renderer::new_profiled(
             &instance,
             Some(&surface),
             wgpu::TextureFormat::Rgba8UnormSrgb,
+            true,
         ))
         .map_err(|e| e.to_string())?;
         let caps = surface.get_capabilities(&renderer.adapter);
@@ -166,10 +176,19 @@ impl Session {
         renderer
             .synchronize_assets(self.engine.project(), &self.root)
             .map_err(|e| e.to_string())?;
+        let (render_width, render_height) = self
+            .preview
+            .tier()
+            .dimensions(self.engine.project().width, self.engine.project().height);
         let scratch = renderer
-            .capture_target(width, height)
+            .render_target(render_width, render_height)
             .map_err(|e| e.to_string())?;
         let presenter = Presenter::new(&renderer, &scratch.view, format);
+        let timer = if self.recorder.is_some() {
+            GpuTimer::new(&renderer.device, &renderer.queue)
+        } else {
+            None
+        };
         self.graphics = Some(Graphics {
             surface,
             renderer,
@@ -177,6 +196,7 @@ impl Session {
             presenter,
             config,
             _instance: instance,
+            timer,
         });
         self.last_error = None;
         self.surface_epoch += 1;
@@ -184,13 +204,34 @@ impl Session {
         Ok(())
     }
     fn render(&mut self, frame: f64) -> Result<bool> {
+        let began = Instant::now();
         self.frame = frame;
         self.sample()?;
+        let tier = self.preview.tier();
         let Some(g) = &mut self.graphics else {
             return Ok(false);
         };
         g.renderer.device.poll(wgpu::Maintain::Poll);
         g.renderer.check_health().map_err(|e| e.to_string())?;
+        let mut gpu_work_us = None;
+        if let Some(timer) = &mut g.timer {
+            for timing in timer.collect().into_iter().flatten() {
+                gpu_work_us = Some(timing.total_us);
+                if let Some(recorder) = &mut self.recorder {
+                    recorder.timing(timing);
+                }
+            }
+        }
+        let (rw, rh) = tier.dimensions(self.scene.width, self.scene.height);
+        if (g.scratch.width, g.scratch.height) != (rw, rh) {
+            let target = g
+                .renderer
+                .render_target(rw, rh)
+                .map_err(|e| e.to_string())?;
+            g.presenter = Presenter::new(&g.renderer, &target.view, g.config.format);
+            g.scratch = target;
+        }
+        let acquiring = Instant::now();
         let output = match g.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -200,24 +241,84 @@ impl Session {
             Err(wgpu::SurfaceError::Timeout) => return Ok(false),
             Err(error) => return Err(format!("surface rendering failed: {error}")),
         };
-        let stats = g
-            .renderer
-            .draw(
+        let acquire_us = acquiring.elapsed().as_micros() as u64;
+        let sequence = self.presented + 1;
+        let slot = g.timer.as_mut().and_then(|t| t.begin(sequence));
+        let mut encoder =
+            g.renderer
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Motion Studio composition and presentation"),
+                });
+        g.renderer
+            .encode(
                 &self.scene,
                 &g.scratch.view,
-                g.config.width,
-                g.config.height,
+                rw,
+                rh,
+                &mut encoder,
+                slot.map(|i| g.timer.as_ref().unwrap().writes(i, 0)),
             )
             .map_err(|e| e.to_string())?;
         let view = output.texture.create_view(&Default::default());
-        g.presenter.draw(&g.renderer, &view);
+        let scale = (g.config.width as f32 / self.scene.width as f32)
+            .min(g.config.height as f32 / self.scene.height as f32);
+        let vw = self.scene.width as f32 * scale;
+        let vh = self.scene.height as f32 * scale;
+        g.presenter.encode(
+            &mut encoder,
+            &view,
+            slot.map(|i| g.timer.as_ref().unwrap().writes(i, 1)),
+            Some([
+                (g.config.width as f32 - vw) / 2.0,
+                (g.config.height as f32 - vh) / 2.0,
+                vw,
+                vh,
+            ]),
+            self.scene.background,
+        );
+        if let Some(i) = slot {
+            g.timer.as_ref().unwrap().resolve(i, &mut encoder);
+        }
+        let submitting = Instant::now();
+        g.renderer.queue.submit(Some(encoder.finish()));
+        let submit_us = submitting.elapsed().as_micros() as u64;
+        if let Some(i) = slot {
+            g.timer.as_ref().unwrap().map(i);
+        }
         g.renderer.check_health().map_err(|e| e.to_string())?;
+        let presenting = Instant::now();
         output.present();
+        let present_call_us = presenting.elapsed().as_micros() as u64;
         self.presented += 1;
-        self.last_cpu_us = stats.cpu_prepare_us;
+        let render_wall_us = began.elapsed().as_micros() as u64;
+        self.last_cpu_us = render_wall_us
+            .saturating_sub(acquire_us)
+            .saturating_sub(present_call_us);
+        if let Some(recorder) = &mut self.recorder {
+            recorder.record(FrameMeasurement {
+                sequence,
+                frame,
+                elapsed_us: recorder.elapsed_us(),
+                cpu_prepare_us: self.last_cpu_us,
+                acquire_us,
+                submit_us,
+                present_call_us,
+                render_wall_us,
+                render_width: rw,
+                render_height: rh,
+                preview_fps: tier.fps(),
+                gpu: None,
+            });
+        }
         self.last_presented_frame = Some(frame);
         self.last_presented_revision = self.engine.revision();
         self.last_presented_view_revision = self.view_revision;
+        let previous_tier = self.preview.tier();
+        self.preview.observe(self.last_cpu_us, gpu_work_us);
+        if previous_tier != self.preview.tier() {
+            self.view_revision += 1;
+        }
         self.last_error = None;
         Ok(true)
     }
@@ -233,6 +334,13 @@ impl Session {
                 },
             )
             .map_err(|e| e.to_string())
+    }
+    fn preview_info(&self) -> Value {
+        let tier = self.preview.tier();
+        let (width, height) =
+            tier.dimensions(self.engine.project().width, self.engine.project().height);
+        json!({"mode":self.preview.mode.name(),"tier":tier.name(),"width":width,"height":height,"fps":tier.fps(),
+            "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY))})
     }
     fn snapshot(&self) -> Value {
         let p = self.engine.project();
@@ -281,7 +389,8 @@ impl Session {
             "lastPresentedViewRevision":self.last_presented_view_revision,"surfaceEpoch":self.surface_epoch,
             "diagnosticsEnabled":cfg!(feature="diagnostics"),
             "observationView":match self.observer.view {aem_core::ObservationView::Free=>"free",aem_core::ObservationView::Top=>"top",aem_core::ObservationView::Side=>"side"},
-            "graphics":self.graphics.as_ref().map(|g|json!({"width":g.config.width,"height":g.config.height,"adapter":g.renderer.adapter_info.name,
+            "preview":self.preview_info(),
+            "graphics":self.graphics.as_ref().map(|g|json!({"width":g.config.width,"height":g.config.height,"renderWidth":g.scratch.width,"renderHeight":g.scratch.height,"renderTargetBytes":g.scratch.texture_bytes(),"previewImageReadbackBytes":0,"adapter":g.renderer.adapter_info.name,
                 "backend":format!("{:?}",g.renderer.adapter_info.backend),"textureBytes":g.renderer.texture_bytes()}))})
     }
 }
@@ -649,6 +758,98 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_surface(
                 s.detach();
             }
             Ok(s.snapshot())
+        })
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_previewInfo(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+) -> jstring {
+    string_result(&mut env, || with_session(id, |s| Ok(s.preview_info())))
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_previewMode(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    mode: jint,
+    thermal: jint,
+) -> jstring {
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            let mode = PreviewMode::from_id(mode).ok_or("invalid preview mode")?;
+            let previous_tier = s.preview.tier();
+            if s.preview.mode != mode {
+                s.preview.set_mode(mode);
+            }
+            s.preview.set_thermal(thermal);
+            if previous_tier != s.preview.tier() {
+                s.view_revision += 1;
+            }
+            Ok(s.preview_info())
+        })
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_startProfiling(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+    limit: jint,
+) -> jstring {
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            if !(1..=65_536).contains(&limit) {
+                return Err("invalid frame recording limit".into());
+            }
+            let g = s.graphics.as_mut().ok_or("no preview surface")?;
+            g.renderer.device.poll(wgpu::Maintain::Wait);
+            g.timer = GpuTimer::new(&g.renderer.device, &g.renderer.queue);
+            s.recorder = Some(FrameRecorder::new(s.presented + 1, limit as usize));
+            Ok(s.preview_info())
+        })
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_stopProfiling(
+    mut env: JNIEnv,
+    _class: JClass,
+    id: jlong,
+) -> jstring {
+    string_result(&mut env, || {
+        with_session(id, |s| {
+            if let Some(g) = s.graphics.as_mut() {
+                g.renderer.device.poll(wgpu::Maintain::Wait);
+                if let Some(timer) = &mut g.timer {
+                    for t in timer.collect().into_iter().flatten() {
+                        if let Some(r) = &mut s.recorder {
+                            r.timing(t);
+                        }
+                    }
+                }
+            }
+            let r = s.recorder.as_ref().ok_or("frame recording is not active")?;
+            let metadata = json!({"preview":s.preview_info(),"projectWidth":s.engine.project().width,"projectHeight":s.engine.project().height,
+            "projectFps":s.engine.project().fps,"projectFrames":s.engine.project().frames,"layerCount":s.engine.project().layers.len(),"surfaceEpoch":s.surface_epoch,
+            "graphics":s.graphics.as_ref().map(|g|json!({"surfaceWidth":g.config.width,"surfaceHeight":g.config.height,"renderWidth":g.scratch.width,"renderHeight":g.scratch.height,
+                "adapter":g.renderer.adapter_info.name,"driver":g.renderer.adapter_info.driver,"driverInfo":g.renderer.adapter_info.driver_info,"backend":format!("{:?}",g.renderer.adapter_info.backend),
+                "assetTextureBytes":g.renderer.texture_bytes(),"renderTargetBytes":g.scratch.texture_bytes(),"previewImageReadbackBytes":0,
+                "timestampReadbackBytesPerSample":if g.timer.is_some(){32}else{0},"timingSkipped":g.timer.as_ref().map(|t|t.skipped),"timingErrors":g.timer.as_ref().map(|t|t.errors)}))});
+            let folder = s.root.join("exports");
+            std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+            let path = folder.join("preview-performance.json");
+            std::fs::write(
+                &path,
+                serde_json::to_vec(&r.report(metadata)).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+            s.recorder = None;
+            if let Some(g) = s.graphics.as_mut() {
+                g.timer = None;
+            }
+            Ok(json!({"file":path.to_string_lossy()}))
         })
     })
 }
