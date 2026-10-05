@@ -27,6 +27,12 @@ use std::{
 };
 #[path = "audio_runtime.rs"]
 mod audio_runtime;
+#[path = "video_decode.rs"]
+mod video_decode;
+#[path = "video_frames.rs"]
+mod video_frames;
+#[path = "video_runtime.rs"]
+mod video_runtime;
 
 type Result<T> = std::result::Result<T, String>;
 static NEXT: AtomicI64 = AtomicI64::new(1);
@@ -61,6 +67,8 @@ struct Graphics {
     timer: Option<GpuTimer>,
 }
 struct Session {
+    video_jobs: aem_media::VideoJobs,
+    video_frames: video_frames::VideoFrames,
     audio_jobs: aem_media::AudioJobs,
     audio_mixer: Option<(u64, aem_media::AudioMixer)>,
     audio_pcm: Vec<f32>,
@@ -87,6 +95,7 @@ struct Session {
 impl Session {
     fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
         let audio_jobs = aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?;
+        let video_jobs = aem_media::VideoJobs::new(root.clone())?;
         if let Some(g) = &mut self.graphics {
             g.renderer
                 .replace_assets(engine.project(), &root)
@@ -96,6 +105,8 @@ impl Session {
         self.observer = Observer::new(engine.project().width, engine.project().height);
         self.engine = engine;
         self.audio_jobs = audio_jobs;
+        self.video_jobs = video_jobs;
+        self.video_frames.clear();
         self.audio_mixer = None;
         self.root = root;
         self.frame = 0.0;
@@ -114,6 +125,8 @@ impl Session {
             .map_err(|e| e.to_string())?;
         let observer = Observer::new(project.width, project.height);
         Ok(Self {
+            video_jobs: aem_media::VideoJobs::new(root.clone())?,
+            video_frames: video_frames::VideoFrames::default(),
             audio_jobs: aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?,
             audio_mixer: None,
             audio_pcm: Vec::new(),
@@ -146,6 +159,7 @@ impl Session {
         }
     }
     fn detach(&mut self) {
+        self.video_frames.clear();
         if let Some(g) = self.graphics.take() {
             g.renderer.device.poll(wgpu::Maintain::Wait);
             drop(g);
@@ -226,6 +240,37 @@ impl Session {
         let Some(g) = &mut self.graphics else {
             return Ok(false);
         };
+        let Some(frames) = self.video_frames.prepare_scene(
+            self.engine.project(),
+            &self.root,
+            &self.scene,
+            frame,
+        )?
+        else {
+            return Ok(false);
+        };
+        for (object, image) in frames {
+            let source = self
+                .scene
+                .layers
+                .iter()
+                .find(|l| l.id == object)
+                .unwrap()
+                .video
+                .as_ref()
+                .unwrap()
+                .asset;
+            g.renderer
+                .upload_video_frame(
+                    object,
+                    source,
+                    image.pts,
+                    image.width,
+                    image.height,
+                    &image.rgba,
+                )
+                .map_err(|e| e.to_string())?;
+        }
         g.renderer.device.poll(wgpu::Maintain::Poll);
         g.renderer.check_health().map_err(|e| e.to_string())?;
         let mut gpu_work_us = None;
@@ -423,7 +468,10 @@ impl Session {
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
-                "multiple_compositions":false,"video_import":false,"audio_import":true,"model_import":false,"prerender":false,
+                "multiple_compositions":false,"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","max_pixels":2073600,"max_fps":120,
+                "max_duration_seconds":3600,"async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
+                "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":false},
                 "audio":{"supported_formats":["M4A/AAC-LC","MP3","WAV/PCM16"],"sample_rates":[44100,48000],"channels":[1,2],
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
                 "source_limit_bytes":aem_core::storage::MAX_MEDIA_ASSET,"source_duration_limit_seconds":3600,
@@ -1094,6 +1142,31 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
             let target = renderer
                 .capture_target(p.width, p.height)
                 .map_err(|e| e.to_string())?;
+            let frames = s
+                .video_frames
+                .prepare_scene(p, &s.root, &scene, s.frame)?
+                .ok_or("video capture pending; request frames and retry")?;
+            for (object, image) in frames {
+                let source = scene
+                    .layers
+                    .iter()
+                    .find(|l| l.id == object)
+                    .unwrap()
+                    .video
+                    .as_ref()
+                    .unwrap()
+                    .asset;
+                renderer
+                    .upload_video_frame(
+                        object,
+                        source,
+                        image.pts,
+                        image.width,
+                        image.height,
+                        &image.rgba,
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
             let (pixels, _) = renderer
                 .capture(&scene, &target)
                 .map_err(|e| e.to_string())?;
@@ -1135,7 +1208,10 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_newProject(
     string_result(&mut env, || {
         with_session(id, |s| {
             let project: Project = serde_json::from_str(&text?).map_err(|e| e.to_string())?;
-            if !project.assets.is_empty() {
+            if !project.assets.is_empty()
+                || !project.audio_assets.is_empty()
+                || !project.video_assets.is_empty()
+            {
                 return Err("new project must have no external assets".into());
             }
             let engine = Engine::new(project).map_err(|e| e.to_string())?;
@@ -1270,6 +1346,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleInto(
                 .sample(s.engine.project(), s.frame, None)
                 .map_err(|e| e.to_string())?;
             s.geometry.prepare(&s.scene).map_err(|e| e.to_string())?;
+            if s.scene.layers.iter().any(|l| l.video.is_some()) {
+                return Err("video export requires dynamic frame reads and GeometryBridge".into());
+            }
             if s.geometry.batches.iter().any(|b| b.vertices.len() != 6)
                 || s.geometry.vertices.len() > s.scene.layers.len() * 6
             {
@@ -1407,6 +1486,9 @@ pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_sampleGeometr
                         .position(|a| a.id == id)
                         .map_or(0.0, |i| i as f32 + 1.0)
                 });
+                if layer.video.is_some() {
+                    data[24] = -(layer.order as f32 + 1.0);
+                }
                 data[25] = batch.vertices.start as f32;
                 data[26] = (batch.vertices.end - batch.vertices.start) as f32;
                 data[27] = layer.order as f32;
@@ -1426,7 +1508,9 @@ pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_sampleGeometr
             s.frame = frame;
             Ok(
                 json!({"batches":s.geometry.batches.len(),"vertices":s.geometry.vertices.len(),
-                "parameterBytes":pb,"vertexBytes":vb,"batchStrideBytes":128,"vertexStrideBytes":20}),
+                "parameterBytes":pb,"vertexBytes":vb,"batchStrideBytes":128,"vertexStrideBytes":20,
+                "videoLayers":s.scene.layers.iter().filter_map(|l|l.video.as_ref().map(|v|json!({"object":l.id,"asset":v.asset,
+                    "texture_slot":-(l.order as i64+1),"source_time_us":v.source_time_us}))).collect::<Vec<_>>()}),
             )
         })
     })

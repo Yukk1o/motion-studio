@@ -68,6 +68,8 @@ pub struct TimelineLayer {
     pub three_d: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio: Option<TimelineAudio>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video: Option<TimelineVideo>,
     pub properties: TimelineProperties,
 }
 #[derive(Debug, Serialize)]
@@ -79,6 +81,16 @@ pub struct TimelineAudio {
     pub volume: f32,
     pub muted: bool,
     pub spatial_properties: bool,
+}
+#[derive(Debug, Serialize)]
+pub struct TimelineVideo {
+    pub asset: u64,
+    pub source_time_us: i64,
+    pub source_offset_us: u64,
+    pub duration_us: u64,
+    pub display_width: u32,
+    pub display_height: u32,
+    pub has_audio: bool,
 }
 impl Project {
     pub fn timeline_layers(&self, frame: f64) -> Vec<TimelineLayer> {
@@ -98,7 +110,7 @@ impl Project {
                         l.active(frame, self.frames)
                     },
                     three_d: l.three_d,
-                    audio: if let crate::Content::Audio { audio } = &l.content {
+                    audio: if let Some(audio) = self.layer_audio(l) {
                         Some(TimelineAudio {
                             asset: audio.asset,
                             source_offset_us: audio.source_offset_us,
@@ -113,7 +125,25 @@ impl Project {
                                 .map_or(0, |a| a.duration_us),
                             volume: audio.volume,
                             muted: audio.muted,
-                            spatial_properties: false,
+                            spatial_properties: matches!(l.content, crate::Content::Video { .. }),
+                        })
+                    } else {
+                        None
+                    },
+                    video: if let crate::Content::Video { video } = &l.content {
+                        let a = self
+                            .video_assets
+                            .iter()
+                            .find(|a| a.id == video.asset)
+                            .unwrap();
+                        Some(TimelineVideo {
+                            asset: a.id,
+                            source_time_us: video.source_time_us(l.local_frame(frame), self.fps),
+                            source_offset_us: video.source_offset_us,
+                            duration_us: a.duration_us,
+                            display_width: a.display_width,
+                            display_height: a.display_height,
+                            has_audio: a.audio_asset.is_some(),
                         })
                     } else {
                         None

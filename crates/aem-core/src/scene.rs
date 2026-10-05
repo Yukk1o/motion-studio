@@ -19,6 +19,7 @@ pub struct DrawLayer {
     pub color: [f32; 4],
     pub opacity: f32,
     pub asset: Option<u64>,
+    pub video: Option<crate::VideoSample>,
     pub depth: f32,
     pub order: usize,
     pub three_d: bool,
@@ -118,9 +119,27 @@ impl Scene {
                 continue;
             }
             let center = self.node_world[order].w_axis.truncate();
+            let video = if let Content::Video { video } = &layer.content {
+                let a = project
+                    .video_assets
+                    .iter()
+                    .find(|a| a.id == video.asset)
+                    .unwrap();
+                let time = video.source_time_us(layer.local_frame(frame), project.fps);
+                if time < a.video_start_us as i64 || time >= a.video_end_us as i64 {
+                    continue;
+                }
+                Some(crate::VideoSample {
+                    asset: a.id,
+                    source_time_us: time as u64,
+                })
+            } else {
+                None
+            };
             let (color, asset) = match &layer.content {
                 Content::Null | Content::Audio { .. } => unreachable!(),
                 Content::Solid { color } => (*color, None),
+                Content::Video { .. } => ([1.0; 4], None),
                 Content::Image { asset } => ([1.0; 4], Some(*asset)),
                 Content::Text {
                     color,
@@ -135,6 +154,7 @@ impl Scene {
                 color,
                 opacity,
                 asset,
+                video,
                 depth: (center - self.camera.eye).dot(forward),
                 order,
                 three_d: layer.three_d,

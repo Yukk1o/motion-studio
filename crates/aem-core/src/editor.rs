@@ -26,6 +26,9 @@ pub enum Command {
     RegisterAudioAsset {
         asset: crate::AudioAsset,
     },
+    RegisterVideoAsset {
+        asset: crate::VideoAsset,
+    },
     SetAudio {
         object: u64,
         #[serde(default)]
@@ -328,20 +331,31 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
     let mut result = None;
     match command {
         Command::RegisterAudioAsset { asset } => project.audio_assets.push(asset),
+        Command::RegisterVideoAsset { asset } => project.video_assets.push(asset),
         Command::SetAudio {
             object,
             volume,
             muted,
         } => {
             let layer = editable_clip(project, object)?;
-            let Content::Audio { audio } = &mut layer.content else {
-                return Err(Error::Invalid("object has no audio".into()));
-            };
-            if let Some(volume) = volume {
-                audio.volume = volume;
-            }
-            if let Some(muted) = muted {
-                audio.muted = muted;
+            match &mut layer.content {
+                Content::Audio { audio } => {
+                    if let Some(v) = volume {
+                        audio.volume = v;
+                    }
+                    if let Some(v) = muted {
+                        audio.muted = v;
+                    }
+                }
+                Content::Video { video } => {
+                    if let Some(v) = volume {
+                        video.volume = v;
+                    }
+                    if let Some(v) = muted {
+                        video.muted = v;
+                    }
+                }
+                _ => return Err(Error::Invalid("object has no audio controls".into())),
             }
         }
         Command::SetLayer3d { object, enabled } => {
