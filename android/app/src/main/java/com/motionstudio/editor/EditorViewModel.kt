@@ -405,7 +405,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val names=capability.optJSONArray(if(selected==0L)"camera_properties"else"layer_properties")?:return false
         return capability.optBoolean("supported")&&!isSeparated()&&(0 until names.length()).any{names.getString(it)==property}
     }
-    fun separateDimensions(){if(canSeparate()&&editable())edit(JSONObject().put("op","separate_dimensions").put("object",selected).put("property",property))}
+    fun separateDimensions(){if(canSeparate()&&editable()) {
+        if(property=="scale")scaleLinked=false
+        edit(JSONObject().put("op","separate_dimensions").put("object",selected).put("property",property))
+    }}
     fun setThreeD(enabled:Boolean){if(selected!=0L&&editable())edit(JSONObject().put("op","set_layer_3d").put("object",selected).put("enabled",enabled))}
     fun track():JSONObject?=propertyTrack()?.let{if(isSeparated())it.optJSONObject("axes")?.optJSONObject(axisName())else it}
     private fun channelCommand(op:String,objectId:Long=selected,key:String=property,axis:Int?=if(isSeparated(objectId,key))activeAxis()else null)=
