@@ -1,6 +1,7 @@
 //! Deterministic animation and project state, independent of UI and GPU APIs.
 mod animation;
 mod camera;
+mod curve;
 mod editor;
 mod hierarchy;
 mod model;
@@ -9,6 +10,7 @@ pub mod storage;
 
 pub use animation::{Ease, Keyframe, Track, Tween};
 pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer};
+pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
 pub use editor::{Command, Engine, Property};
 pub use model::{Asset, Content, Layer, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS};
 pub use scene::{DrawLayer, Scene};

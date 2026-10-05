@@ -1,4 +1,4 @@
-use crate::{ensure, Result};
+use crate::{ensure, Curve, Easing, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -60,6 +60,8 @@ pub struct Keyframe<T> {
     pub value: T,
     #[serde(default)]
     pub ease: Ease,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub curve: Option<Curve>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -91,7 +93,11 @@ impl<T: Tween> Track<T> {
         let a = &self.keys[upper - 1];
         let b = &self.keys[upper];
         let t = ((frame - f64::from(a.frame)) / f64::from(b.frame - a.frame)) as f32;
-        a.value.mix(b.value, a.ease.map(t))
+        let progress = a.curve.map_or_else(
+            || a.ease.map(t),
+            |curve| curve.sample(f64::from(t)).progress as f32,
+        );
+        a.value.mix(b.value, progress)
     }
     pub fn validate(&self, frame_count: u32) -> Result<()> {
         ensure(
@@ -103,6 +109,9 @@ impl<T: Tween> Track<T> {
         for key in &self.keys {
             ensure(key.frame < frame_count, "keyframe outside the composition")?;
             ensure(key.value.finite(), "keyframe contains a non-finite value")?;
+            if let Some(curve) = key.curve {
+                curve.validate()?;
+            }
             ensure(
                 previous.is_none_or(|p| p < key.frame),
                 "keyframes must be unique and sorted",
@@ -113,7 +122,12 @@ impl<T: Tween> Track<T> {
     }
     pub fn upsert(&mut self, frame: u32, value: T, ease: Ease) -> Result<()> {
         ensure(value.finite(), "non-finite property value")?;
-        let key = Keyframe { frame, value, ease };
+        let key = Keyframe {
+            frame,
+            value,
+            ease,
+            curve: None,
+        };
         match self.keys.binary_search_by_key(&frame, |k| k.frame) {
             Ok(index) => self.keys[index] = key,
             Err(index) => self.keys.insert(index, key),
@@ -126,12 +140,12 @@ impl<T: Tween> Track<T> {
             self.value = value;
             return Ok(());
         }
-        let ease = self
-            .keys
-            .iter()
-            .find(|k| k.frame == frame)
-            .map_or(Ease::Linear, |k| k.ease);
-        self.upsert(frame, value, ease)
+        if let Ok(index) = self.keys.binary_search_by_key(&frame, |k| k.frame) {
+            self.keys[index].value = value;
+            Ok(())
+        } else {
+            self.upsert(frame, value, Ease::Linear)
+        }
     }
     pub fn set_animated(&mut self, frame: u32, enabled: bool) -> Result<()> {
         let value = self.sample(f64::from(frame));
@@ -154,8 +168,10 @@ impl<T: Tween> Track<T> {
             .keys
             .binary_search_by_key(&from, |k| k.frame)
             .map_err(|_| crate::Error::Invalid("keyframe not found".into()))?;
-        let key = self.keys.remove(index);
-        self.upsert(to, key.value, key.ease)
+        let mut key = self.keys.remove(index);
+        key.frame = to;
+        self.insert_key(key);
+        Ok(())
     }
     pub fn delete_key(&mut self, frame: u32) -> Result<()> {
         let index = self
@@ -171,13 +187,15 @@ impl<T: Tween> Track<T> {
         Ok(())
     }
     pub fn copy_key(&mut self, from: u32, to: u32) -> Result<()> {
-        let key = self
+        let mut key = self
             .keys
             .iter()
             .find(|k| k.frame == from)
             .ok_or_else(|| crate::Error::Invalid("keyframe not found".into()))?
             .clone();
-        self.upsert(to, key.value, key.ease)
+        key.frame = to;
+        self.insert_key(key);
+        Ok(())
     }
     pub fn set_ease(&mut self, frame: u32, ease: Ease) -> Result<()> {
         let index = self
@@ -185,6 +203,27 @@ impl<T: Tween> Track<T> {
             .binary_search_by_key(&frame, |k| k.frame)
             .map_err(|_| crate::Error::Invalid("keyframe not found".into()))?;
         self.keys[index].ease = ease;
+        self.keys[index].curve = None;
+        Ok(())
+    }
+    fn insert_key(&mut self, key: Keyframe<T>) {
+        match self.keys.binary_search_by_key(&key.frame, |k| k.frame) {
+            Ok(index) => self.keys[index] = key,
+            Err(index) => self.keys.insert(index, key),
+        }
+    }
+    pub fn set_curve(&mut self, frame: u32, easing: Easing) -> Result<()> {
+        easing.validate()?;
+        let index = self
+            .keys
+            .binary_search_by_key(&frame, |k| k.frame)
+            .map_err(|_| crate::Error::Invalid("keyframe not found".into()))?;
+        ensure(
+            index + 1 < self.keys.len(),
+            "curve needs two adjacent keyframes",
+        )?;
+        self.keys[index].ease = easing.ease;
+        self.keys[index].curve = easing.curve;
         Ok(())
     }
 }

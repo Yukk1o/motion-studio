@@ -82,7 +82,7 @@ impl Scene {
             if !layer.visible {
                 continue;
             }
-            let opacity = layer.transform.opacity.sample(frame);
+            let opacity = layer.transform.opacity.sample(frame).clamp(0.0, 1.0);
             if opacity <= 0.0 {
                 continue;
             }
