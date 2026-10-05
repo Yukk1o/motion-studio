@@ -79,6 +79,9 @@ fn twenty_layer_animation_sampling_reuses_memory_at_sixty_hz() {
         project.layers.push(layer);
     }
     for (i, layer) in project.layers.iter_mut().enumerate() {
+        layer.transform.position.separate().unwrap();
+        layer.transform.rotation.separate().unwrap();
+        layer.transform.scale.separate().unwrap();
         layer.timeline = Some(aem_core::LayerTimeline {
             in_frame: 0,
             out_frame: 180,

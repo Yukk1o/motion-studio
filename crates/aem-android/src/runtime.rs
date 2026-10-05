@@ -397,9 +397,22 @@ impl Session {
                 }
             }
         }
+        let camera_properties: Vec<&str> = if !p.camera.created {
+            vec![]
+        } else if p.camera.mode == aem_core::CameraMode::Position {
+            vec!["position", "target"]
+        } else {
+            vec!["target"]
+        };
         json!({"project":p,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
+            "main_composition":"comp-main",
+            "capabilities":{"layer_clips":true,"separate_dimensions":{"supported":true,"activation":"explicit",
+                "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
+                "multiple_compositions":false,"video_import":false,"audio_import":false,"model_import":false,"prerender":false},
             "canRedo":self.engine.can_redo(),"observing":self.observing,"sampledCamera":camera,
-            "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),"projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
+            "sampledLayers":layers,"timeline_layers":p.timeline_layers(f),
+            "timeline_camera":{"position":p.camera.position.timeline(0),"target":p.camera.target.timeline(0)},
+            "projectedLayers":projected,"presented":self.presented,"cpuPrepareUs":self.last_cpu_us,
             "renderError":self.last_error,"lastPresentedFrame":self.last_presented_frame,
             "lastPresentedRevision":self.last_presented_revision,"viewRevision":self.view_revision,
             "lastPresentedViewRevision":self.last_presented_view_revision,"surfaceEpoch":self.surface_epoch,
@@ -574,11 +587,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
     string_result(&mut env, || {
         let text = parsed?;
         with_session(id, |s| {
-            let commands: Vec<Command> = if text.trim_start().starts_with('[') {
-                serde_json::from_str(&text).map_err(|e| e.to_string())?
-            } else {
-                vec![serde_json::from_str(&text).map_err(|e| e.to_string())?]
-            };
+            let commands = aem_core::parse_commands(&text).map_err(|e| e.to_string())?;
             let resources = commands.iter().any(|c| {
                 matches!(
                     c,

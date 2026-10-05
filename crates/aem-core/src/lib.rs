@@ -9,10 +9,10 @@ mod scene;
 pub mod storage;
 mod timeline;
 
-pub use animation::{Ease, Keyframe, Track, Tween};
+pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
 pub use camera::{to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer};
 pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
-pub use editor::{Command, EditResult, Engine, Property};
+pub use editor::{parse_commands, Command, EditResult, Engine, Property};
 pub use model::{
     Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS,
 };

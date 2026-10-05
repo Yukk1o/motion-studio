@@ -5,6 +5,7 @@ use aem_core::{
 fn copied_keys_preserve_values_and_easing_and_are_undoable() {
     let mut e = Engine::new(Project::demo()).unwrap();
     e.apply(Command::Animate {
+        axis: None,
         object: 2,
         property: Property::Position,
         frame: 0,
@@ -12,6 +13,7 @@ fn copied_keys_preserve_values_and_easing_and_are_undoable() {
     })
     .unwrap();
     e.apply(Command::Ease {
+        axis: None,
         object: 2,
         property: Property::Position,
         frame: 0,
@@ -20,6 +22,7 @@ fn copied_keys_preserve_values_and_easing_and_are_undoable() {
     .unwrap();
     let before = e.snapshot();
     e.apply(Command::CopyKey {
+        axis: None,
         object: 2,
         property: Property::Position,
         from: 0,

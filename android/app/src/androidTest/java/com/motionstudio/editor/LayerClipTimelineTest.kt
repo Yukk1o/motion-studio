@@ -20,7 +20,7 @@ class LayerClipTimelineTest {
     private fun track(value:Any)=JSONObject().put("value",value).put("keys",JSONArray())
     private fun vector(x:Number,y:Number,z:Number)=JSONArray(listOf(x,y,z))
     private fun root()=File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"acceptance/clips-"+UUID.randomUUID()).apply{mkdirs()}
-    private fun fixture():JSONObject {
+    internal fun fixture():JSONObject {
         val p=data(NativeBridge.projectTemplate(0)).put("width",256).put("height",256).put("version",2)
             .put("name","时间轴边界验收").put("background",JSONArray(listOf(0,0,1,1)))
         p.getJSONObject("camera").put("created",false).remove("parent")
