@@ -56,7 +56,7 @@ impl Tween for [f32; 3] {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Keyframe<T> {
-    pub frame: u32,
+    pub frame: i32,
     pub value: T,
     #[serde(default)]
     pub ease: Ease,
@@ -92,7 +92,7 @@ impl<T: Tween> Track<T> {
         }
         let a = &self.keys[upper - 1];
         let b = &self.keys[upper];
-        let t = ((frame - f64::from(a.frame)) / f64::from(b.frame - a.frame)) as f32;
+        let t = ((frame - f64::from(a.frame)) / (f64::from(b.frame) - f64::from(a.frame))) as f32;
         let progress = a.curve.map_or_else(
             || a.ease.map(t),
             |curve| curve.sample(f64::from(t)).progress as f32,
@@ -100,14 +100,27 @@ impl<T: Tween> Track<T> {
         a.value.mix(b.value, progress)
     }
     pub fn validate(&self, frame_count: u32) -> Result<()> {
+        self.validate_range(frame_count as usize, Some(frame_count))
+    }
+    /// Layer keys use signed local time and survive trimming or moving outside
+    /// the composition. Their count remains bounded independently of the clip.
+    pub fn validate_local(&self) -> Result<()> {
+        self.validate_range(crate::MAX_FRAMES as usize, None)
+    }
+    fn validate_range(&self, max_keys: usize, frame_count: Option<u32>) -> Result<()> {
         ensure(
             self.value.finite(),
             "track contains a non-finite static value",
         )?;
-        ensure(self.keys.len() <= frame_count as usize, "too many keys")?;
+        ensure(self.keys.len() <= max_keys, "too many keys")?;
         let mut previous = None;
         for key in &self.keys {
-            ensure(key.frame < frame_count, "keyframe outside the composition")?;
+            if let Some(count) = frame_count {
+                ensure(
+                    key.frame >= 0 && i64::from(key.frame) < i64::from(count),
+                    "keyframe outside the composition",
+                )?;
+            }
             ensure(key.value.finite(), "keyframe contains a non-finite value")?;
             if let Some(curve) = key.curve {
                 curve.validate()?;
@@ -120,7 +133,8 @@ impl<T: Tween> Track<T> {
         }
         Ok(())
     }
-    pub fn upsert(&mut self, frame: u32, value: T, ease: Ease) -> Result<()> {
+    pub fn upsert(&mut self, frame: impl TryInto<i32>, value: T, ease: Ease) -> Result<()> {
+        let frame = stored_frame(frame)?;
         ensure(value.finite(), "non-finite property value")?;
         let key = Keyframe {
             frame,
@@ -134,7 +148,8 @@ impl<T: Tween> Track<T> {
         }
         Ok(())
     }
-    pub fn set_at(&mut self, frame: u32, value: T) -> Result<()> {
+    pub fn set_at(&mut self, frame: impl TryInto<i32>, value: T) -> Result<()> {
+        let frame = stored_frame(frame)?;
         ensure(value.finite(), "non-finite property value")?;
         if self.keys.is_empty() {
             self.value = value;
@@ -147,7 +162,8 @@ impl<T: Tween> Track<T> {
             self.upsert(frame, value, Ease::Linear)
         }
     }
-    pub fn set_animated(&mut self, frame: u32, enabled: bool) -> Result<()> {
+    pub fn set_animated(&mut self, frame: impl TryInto<i32>, enabled: bool) -> Result<()> {
+        let frame = stored_frame(frame)?;
         let value = self.sample(f64::from(frame));
         if enabled && self.keys.is_empty() {
             self.upsert(frame, value, Ease::Linear)?;
@@ -157,7 +173,7 @@ impl<T: Tween> Track<T> {
         }
         Ok(())
     }
-    pub fn move_key(&mut self, from: u32, to: u32) -> Result<()> {
+    pub fn move_key(&mut self, from: i32, to: i32) -> Result<()> {
         if from == to {
             return ensure(
                 self.keys.iter().any(|k| k.frame == from),
@@ -173,7 +189,7 @@ impl<T: Tween> Track<T> {
         self.insert_key(key);
         Ok(())
     }
-    pub fn delete_key(&mut self, frame: u32) -> Result<()> {
+    pub fn delete_key(&mut self, frame: i32) -> Result<()> {
         let index = self
             .keys
             .binary_search_by_key(&frame, |k| k.frame)
@@ -186,7 +202,7 @@ impl<T: Tween> Track<T> {
         self.keys.remove(index);
         Ok(())
     }
-    pub fn copy_key(&mut self, from: u32, to: u32) -> Result<()> {
+    pub fn copy_key(&mut self, from: i32, to: i32) -> Result<()> {
         let mut key = self
             .keys
             .iter()
@@ -197,7 +213,7 @@ impl<T: Tween> Track<T> {
         self.insert_key(key);
         Ok(())
     }
-    pub fn set_ease(&mut self, frame: u32, ease: Ease) -> Result<()> {
+    pub fn set_ease(&mut self, frame: i32, ease: Ease) -> Result<()> {
         let index = self
             .keys
             .binary_search_by_key(&frame, |k| k.frame)
@@ -212,7 +228,7 @@ impl<T: Tween> Track<T> {
             Err(index) => self.keys.insert(index, key),
         }
     }
-    pub fn set_curve(&mut self, frame: u32, easing: Easing) -> Result<()> {
+    pub fn set_curve(&mut self, frame: i32, easing: Easing) -> Result<()> {
         easing.validate()?;
         let index = self
             .keys
@@ -226,4 +242,9 @@ impl<T: Tween> Track<T> {
         self.keys[index].curve = easing.curve;
         Ok(())
     }
+}
+fn stored_frame(frame: impl TryInto<i32>) -> Result<i32> {
+    frame
+        .try_into()
+        .map_err(|_| crate::Error::Invalid("local keyframe time overflow".into()))
 }
