@@ -22,18 +22,31 @@
 
 返回 `data.packages=[{"manifest":{...},"hash":"64位SHA-256","enabled":true}]` 和 `data.errors=["加载失败原因"]`。每个 manifest 包含插件身份、精确版本、效果数组；每个效果包含中英文名、类别、参数、pass、兼容状态和已知差异。版本可以并存。禁用版本仍显示在管理列表。
 
+效果一级分类使用 `manifest.effects[].category`，类型为必需的字符串。核心1.1.0按以下顺序显示，直接按该字段分组，不根据名称猜分类。自定义包允许其它分类名称，前端应保留并展示。
+
+| 一级分类 | 核心效果数量 | 内容 |
+|---|---:|---|
+| 调色 | 8 | 亮度/对比度、曝光、色相/饱和度、着色、三色调、色彩平衡、色阶、曲线 |
+| 模糊与锐化 | 6 | 高斯、方框、方向、径向模糊、锐化、反锐化遮罩 |
+| 扭曲 | 9 | 原有6项，加色差分离、镜面万花筒、极坐标万花筒 |
+| 光效 | 7 | 发光、边缘发光、光束、边缘光束、光条、星芒、漏光 |
+| 运动 | 2 | 镜头抖动、变换运动模糊 |
+| 风格化 | 4 | 颗粒、扫描线、胶片损伤、数字故障 |
+
+当前默认核心版本为1.1.0，预装1.0.0仍保留以解析既有工程。目录数组顺序不是推荐版本顺序，不能取 `packages[0]` 作为默认包。添加新实例时选择启用的最新兼容semver版本；解析已保存实例时始终匹配精确版本和hash。核心包文件名为 `core-effects.msfx`，显示名为“Motion Studio 核心效果”；内部插件ID仍为 `com.motionstudio.effects.ae2021`，用于保留工程身份。新增16项的参数与限制见 [core-library.md](core-library.md)。
+
 ```json
 {"op":"install","path":"App私有临时目录/incoming.msfx"}
 {"op":"enable","plugin":"example.motionstudio.gain","version":"0.1.0","hash":"完整hash","enabled":false}
 {"op":"uninstall","plugin":"example.motionstudio.gain","version":"0.1.0","hash":"完整hash"}
 ```
 
-用系统 `OpenDocument` 选择 `.msfx`，将 URI 流复制到 App 私有临时文件，累计读取最多 16 MiB；随后调用 install，并在 finally 删除临时文件。安装返回工程快照；再调用 catalogue 刷新列表。同版本同 hash 安装幂等；同版本不同 hash 拒绝。内置 AE 包可以禁用，不能卸载。工程不会随安装自动升级。
+用系统 `OpenDocument` 选择 `.msfx`，将 URI 流复制到 App 私有临时文件，累计读取最多 16 MiB；随后调用 install，并在 finally 删除临时文件。安装返回工程快照；再调用 catalogue 刷新列表。同版本同 hash 安装幂等；同版本不同 hash 拒绝。内置核心包可以禁用，不能卸载。工程不会随安装自动升级。
 
 新增实例由后端生成默认值和实例 ID：
 
 ```json
-{"op":"add","object":2,"plugin":"com.motionstudio.effects.ae2021","version":"1.0.0","hash":"目录返回的hash","effect":"tint"}
+{"op":"add","object":2,"plugin":"com.motionstudio.effects.ae2021","version":"1.1.0","hash":"目录返回的hash","effect":"tint"}
 ```
 
 返回完整 state 快照。一次增加效果形成一次撤销记录。仅图片、文字和纯色图层支持效果；摄像机、空对象和锁定图层不能增加。

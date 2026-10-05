@@ -188,7 +188,9 @@ pub struct Registry {
 impl Registry {
     pub fn new_with_builtins() -> Result<Self> {
         let mut r = Self::default();
-        r.insert(crate::builtin::package()?)?;
+        for package in crate::builtin::packages()? {
+            r.insert(package)?;
+        }
         Ok(r)
     }
     pub fn insert(&mut self, package: Arc<EffectPackage>) -> Result<()> {
@@ -213,22 +215,27 @@ impl Registry {
     pub fn load(directory: &Path) -> Result<Self> {
         let mut r = Self::new_with_builtins()?;
         // Persist each bundled version before an App upgrade replaces its bytes.
-        let builtin = crate::builtin::package()?;
+        let builtins = crate::builtin::packages()?;
         fs::create_dir_all(directory)?;
-        let bundled = directory.join(format!("{}.msfx", builtin.hash));
-        if !bundled.exists() {
-            let temp = directory.join(format!("{}.tmp", builtin.hash));
-            let mut file = File::create(&temp)?;
-            file.write_all(&builtin.bytes)?;
-            file.sync_all()?;
-            drop(file);
-            fs::rename(temp, &bundled)?;
+        for builtin in &builtins {
+            let bundled = directory.join(format!("{}.msfx", builtin.hash));
+            if !bundled.exists() {
+                let temp = directory.join(format!("{}.tmp", builtin.hash));
+                let mut file = File::create(&temp)?;
+                file.write_all(&builtin.bytes)?;
+                file.sync_all()?;
+                drop(file);
+                fs::rename(temp, &bundled)?;
+            }
         }
         if directory.exists() {
             for e in fs::read_dir(directory)? {
                 let e = e?;
                 if e.file_type()?.is_file() && e.path().extension().is_some_and(|v| v == "msfx") {
-                    let package = if e.path() == bundled {
+                    let cached = builtins
+                        .iter()
+                        .find(|p| e.file_name().to_string_lossy() == format!("{}.msfx", p.hash));
+                    let package = if let Some(builtin) = cached {
                         // Reuse the already validated embedded package on repeated session creation.
                         fs::read(e.path())
                             .and_then(|bytes| {
@@ -331,7 +338,7 @@ impl Registry {
     ) -> Result<()> {
         ensure(
             id != crate::builtin::PLUGIN_ID,
-            "the preinstalled AE library cannot be uninstalled",
+            "the preinstalled core library cannot be uninstalled",
         )?;
         let key = (id.into(), version.into(), hash.into());
         ensure(self.packages.contains_key(&key), "plugin does not exist")?;
