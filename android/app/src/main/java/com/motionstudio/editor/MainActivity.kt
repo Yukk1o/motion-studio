@@ -33,6 +33,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -262,7 +263,7 @@ open class MainActivity:ComponentActivity() {
 
 @Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
     var menu by remember{mutableStateOf(false)}
-    Box(modifier.background(Color(0xFF0B0D10))) {
+    Box(modifier.background(Color(0xFF0B0D10)).clipToBounds()) {
         AndroidView(factory={context->SurfaceView(context).also{view->
             view.holder.addCallback(object:SurfaceHolder.Callback {
                 override fun surfaceCreated(holder:SurfaceHolder) {}
@@ -285,15 +286,32 @@ open class MainActivity:ComponentActivity() {
                 val selectedCorners=previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).firstOrNull{it.first==vm.selected}?.second
                 val handleRadius=selectedCorners?.let{points->min(20.dp.toPx(),points.indices.minOf{(points[it]-points[(it+1)%points.size]).getDistance()}/3f)}?:0f
                 val resize=!vm.state.observing&&selectedCorners?.any{(it-down.position).getDistance()<=handleRadius}==true
-                val picked=if(!resize&&!vm.state.observing)previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).asReversed()
-                    .firstOrNull{insideQuad(down.position,it.second)}else null
-                if(vm.selected!=0L||!vm.hasCamera())picked?.let{vm.select(it.first,false)}
-                var total=Offset.Zero;var active=false
-                val at=floor(vm.frame).toInt();val objectId=vm.selected
+                var total=Offset.Zero;var active=false;var ended=false;var cancelled=false
+                var pendingZoom=1f;var pendingAngle=0f
+                val at=floor(vm.frame).toInt()
+                var picked:Long?=null;var resolved=resize||vm.state.observing
+                val cameraFocused=vm.selected==0L&&vm.hasCamera()
+                if(!resize&&!vm.state.observing)vm.pickLayer(down.position.x,down.position.y,size.width.toFloat(),size.height.toFloat()){candidate->
+                    resolved=true;picked=candidate
+                    if(!cancelled&&!active&&(ended||!cameraFocused))candidate?.let{vm.select(it,false)}
+                    // A short gesture may finish before the worker returns the
+                    // hit result. Apply its accumulated motion to that target.
+                    if(ended&&!cancelled&&!active&&!cameraFocused&&vm.editable()&&
+                        (total.getDistance()>viewConfiguration.touchSlop||abs(pendingZoom-1f)>.002f||abs(pendingAngle)>.1f)) {
+                        vm.beginGesture()
+                        if(total.getDistance()>.1f)vm.moveLayer(total.x,total.y,size.width,size.height)
+                        (vm.sampleValueFor(vm.selected,"scale") as? JSONArray)?.let{old->if(abs(pendingZoom-1f)>.002f)
+                            vm.setPropertyValue(vm.selected,"scale",at,JSONArray(old.toString()).put(0,(old.getDouble(0)*pendingZoom).coerceIn(-100000.0,100000.0)).put(1,(old.getDouble(1)*pendingZoom).coerceIn(-100000.0,100000.0)),false,listOf(0,1))}
+                        (vm.sampleValueFor(vm.selected,"rotation") as? JSONArray)?.let{old->if(abs(pendingAngle)>.1f)
+                            vm.setPropertyValue(vm.selected,"rotation",at,JSONArray(old.toString()).put(2,old.getDouble(2)+pendingAngle),false,listOf(2))}
+                        vm.endGesture();active=true
+                    }
+                }
+                var objectId=vm.selected
                 var scale=vm.sampleValueFor(objectId,"scale") as? JSONArray
-                val initialScale=scale?.let{JSONArray(it.toString())}
-                val anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
-                val startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
+                var initialScale=scale?.let{JSONArray(it.toString())}
+                var anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
+                var startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
                 var rotation=vm.sampleValueFor(objectId,"rotation") as? JSONArray
                 var azimuth=(vm.sampleValueFor(0,"azimuth") as? Number)?.toDouble()?:0.0
                 var elevation=(vm.sampleValueFor(0,"elevation") as? Number)?.toDouble()?:0.0
@@ -302,11 +320,22 @@ open class MainActivity:ComponentActivity() {
                 try {
                     do {
                         val event=awaitPointerEvent()
+                        if(event.changes.any{it.isConsumed})break
                         val pan=event.calculatePan();total+=pan
-                        val zoom=event.calculateZoom();val angle=event.calculateRotation()
+                        var zoom=event.calculateZoom();var angle=event.calculateRotation()
+                        if(!active){pendingZoom*=zoom;pendingAngle+=angle}
                         var startedNow=false
-                        if(!active&&(total.getDistance()>viewConfiguration.touchSlop||abs(zoom-1f)>.002f||abs(angle)>.1f)) {
-                            if(vm.editable()||observing){if(!observing)vm.beginGesture();active=true;startedNow=true}
+                        if(!active&&(resolved||cameraFocused)&&(total.getDistance()>viewConfiguration.touchSlop||abs(zoom-1f)>.002f||abs(angle)>.1f)) {
+                            if(vm.editable()||observing){
+                                objectId=vm.selected
+                                scale=vm.sampleValueFor(objectId,"scale") as? JSONArray
+                                rotation=vm.sampleValueFor(objectId,"rotation") as? JSONArray
+                                initialScale=scale?.let{JSONArray(it.toString())}
+                                anchor=previewAnchor(vm,objectId,size.width.toFloat(),size.height.toFloat())
+                                startRadius=anchor?.let{(down.position-it).getDistance()}?:0f
+                                if(!observing)vm.beginGesture();active=true;startedNow=true
+                                zoom=pendingZoom;angle=pendingAngle
+                            }
                         }
                         if(active) {
                             val movement=if(startedNow)total else pan
@@ -322,23 +351,24 @@ open class MainActivity:ComponentActivity() {
                                     val ratio=(event.changes.first().position-anchor).getDistance()/startRadius
                                     scale=JSONArray(initialScale.toString()).put(0,(initialScale.getDouble(0)*ratio).coerceIn(-100000.0,100000.0))
                                         .put(1,(initialScale.getDouble(1)*ratio).coerceIn(-100000.0,100000.0))
-                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false)
+                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false,listOf(0,1))
                                 } else if(movement.getDistance()>.1f)vm.moveLayer(movement.x,movement.y,size.width,size.height)
                                 if(!resize&&abs(zoom-1f)>.002f)scale?.let{old->
                                     scale=JSONArray(old.toString()).put(0,(old.getDouble(0)*zoom).coerceIn(-100000.0,100000.0))
                                         .put(1,(old.getDouble(1)*zoom).coerceIn(-100000.0,100000.0))
-                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false)
+                                    vm.setPropertyValue(objectId,"scale",at,scale!!,false,listOf(0,1))
                                 }
                                 if(!resize&&abs(angle)>.1f)rotation?.let{old->
                                     rotation=JSONArray(old.toString()).put(2,old.getDouble(2)+angle)
-                                    vm.setPropertyValue(objectId,"rotation",at,rotation!!,false)
+                                    vm.setPropertyValue(objectId,"rotation",at,rotation!!,false,listOf(2))
                                 }
                             }
                             event.changes.forEach{it.consume()}
                         }
-                    } while(event.changes.any{it.pressed})
-                } finally {if(active&&!observing)vm.endGesture()}
-                if(!active&&!observing)picked?.let{vm.select(it.first,false)}
+                        ended=event.changes.none{it.pressed}
+                    } while(!ended)
+                } finally {if(!ended)cancelled=true;if(active&&!observing){if(ended)vm.endGesture()else vm.cancelGesture()}}
+                if(!active&&!observing)picked?.let{vm.select(it,false)}
             }
         })
         Box(Modifier.padding(start=12.dp,top=4.dp)) {

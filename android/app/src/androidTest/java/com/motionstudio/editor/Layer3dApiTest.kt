@@ -14,12 +14,6 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.UUID
 
-// Test-owned declarations exercise the backend without changing the frontend bridge.
-object GeometryBridge {
-    init { System.loadLibrary("motion_engine") }
-    @JvmStatic external fun sampleGeometryInto(id:Long,frame:Double,parameters:ByteBuffer,vertices:ByteBuffer):String
-    @JvmStatic external fun hitCandidates(id:Long,x:Double,y:Double):String
-}
 @RunWith(AndroidJUnit4::class)
 class Layer3dApiTest {
     private fun data(raw:String):JSONObject {val r=JSONObject(raw);assertTrue(r.optString("error"),r.getBoolean("ok"));return r.getJSONObject("data")}
