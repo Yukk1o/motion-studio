@@ -4,6 +4,7 @@ mod camera;
 mod compositor;
 mod curve;
 mod editor;
+mod effects;
 mod hierarchy;
 mod model;
 mod scene;
@@ -17,6 +18,10 @@ pub use camera::{
 pub use compositor::{PlaneBatch, PlaneCompositor, PlaneVertex};
 pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
 pub use editor::{parse_commands, Command, EditResult, Engine, Property};
+pub use effects::{
+    CurveLut, CurveObject, CurveTrack, EffectAction, EffectInstance, EffectParam, PluginDependency,
+    SampledEffect,
+};
 pub use model::{
     Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS,
 };

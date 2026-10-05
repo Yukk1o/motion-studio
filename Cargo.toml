@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/aem-core", "crates/aem-render", "crates/aem-android"]
+members = ["crates/aem-effects", "crates/aem-core", "crates/aem-render", "crates/aem-android"]
 resolver = "2"
 
 [workspace.package]

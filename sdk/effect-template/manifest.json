@@ -1,0 +1,48 @@
+{
+  "format_version": 1,
+  "sdk_version": 1,
+  "id": "example.motionstudio.gain",
+  "version": "0.1.0",
+  "name": "自定义增益 / Custom Gain",
+  "author": "Your name",
+  "license": "MIT",
+  "effects": [
+    {
+      "id": "gain",
+      "name": "增益",
+      "english_name": "Custom Gain",
+      "category": "Custom",
+      "params": [
+        {
+          "id": "gain",
+          "name": "增益",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "倍",
+          "animatable": true
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/gain.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ]
+    }
+  ]
+}

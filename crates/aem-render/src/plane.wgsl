@@ -2,6 +2,7 @@ struct Draw {
     mvp: mat4x4<f32>,
     color: vec4<f32>,
     extent_opacity: vec4<f32>,
+    uv_scale: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> draw: Draw;
 @group(1) @binding(0) var image: texture_2d<f32>;

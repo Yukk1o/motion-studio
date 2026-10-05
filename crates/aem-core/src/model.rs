@@ -110,6 +110,8 @@ pub struct Layer {
     pub three_d: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<ParentLink>,
+    #[serde(default)]
+    pub effects: Vec<crate::EffectInstance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeline: Option<LayerTimeline>,
 }
@@ -125,6 +127,7 @@ impl Layer {
             locked: false,
             three_d: false,
             parent: None,
+            effects: Vec::new(),
             timeline: None,
         }
     }
@@ -191,6 +194,8 @@ pub struct Project {
     pub camera: Camera,
     /// Index zero is the back of the same-depth stack.
     pub layers: Vec<Layer>,
+    #[serde(default)]
+    pub plugin_dependencies: Vec<crate::PluginDependency>,
 }
 impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
@@ -206,6 +211,7 @@ impl Project {
             assets: Vec::new(),
             camera: Camera::new(width, height),
             layers: Vec::new(),
+            plugin_dependencies: Vec::new(),
         };
         project.camera.created = false;
         project.validate()?;
@@ -247,6 +253,14 @@ impl Project {
         ensure(
             matches!(self.version, 1 | 2 | 3),
             "unsupported project format",
+        )?;
+        ensure(
+            self.version == 2 || self.layers.iter().all(|l| l.effects.is_empty()),
+            "version 1 projects cannot contain effects",
+        )?;
+        ensure(
+            self.plugin_dependencies == crate::effects::dependencies(&self.layers),
+            "plugin dependency list does not match effect instances",
         )?;
         ensure(
             (1..=8192).contains(&self.width) && (1..=8192).contains(&self.height),
@@ -296,6 +310,19 @@ impl Project {
                 layer.transform.validate(self.frames)?;
             } else {
                 layer.transform.validate_local()?;
+            }
+            ensure(
+                layer.effects.len() <= aem_effects::MAX_EFFECTS_PER_LAYER,
+                "too many layer effects",
+            )?;
+            ensure(
+                !matches!(layer.content, Content::Null) || layer.effects.is_empty(),
+                "null layers cannot contain effects",
+            )?;
+            let mut effect_ids = HashSet::new();
+            for e in &layer.effects {
+                ensure(effect_ids.insert(e.id), "duplicate effect instance ID")?;
+                e.validate(self.frames)?;
             }
             match &layer.content {
                 Content::Null => {}
@@ -370,6 +397,9 @@ impl Project {
     pub fn estimated_bytes(&self) -> usize {
         // A bounded approximation for history, independent of image/GPU caches.
         serde_json::to_vec(self).map_or(usize::MAX, |v| v.len())
+    }
+    pub fn rebuild_plugin_dependencies(&mut self) {
+        self.plugin_dependencies = crate::effects::dependencies(&self.layers);
     }
 }
 fn validate_color(color: [f32; 4]) -> Result<()> {

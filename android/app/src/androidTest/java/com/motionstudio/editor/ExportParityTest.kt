@@ -130,7 +130,6 @@ class ExportParityTest {
             assertTrue(edited);assertNotEquals(original,data(NativeBridge.state(session)).getJSONObject("project").toString())
             val codecReport=JSONObject(File(file.parentFile,file.nameWithoutExtension+"-report.json").readText())
             assertTrue(codecReport.getBoolean("completed"));assertEquals(180,codecReport.getInt("encodedFrames"));assertEquals(0,codecReport.getJSONArray("cleanupErrors").length())
-            assertTrue("1080p30 export throughput below target: $codecReport",codecReport.getDouble("throughputFps")>=30.0)
             assertEquals(0,codecReport.getInt("applicationFrameReadbacks"));assertEquals(0,codecReport.getInt("applicationFrameUploads"))
             val extractor=MediaExtractor();var maxPtsError=0L
             try {
@@ -164,6 +163,8 @@ class ExportParityTest {
                 .put("maxTimestampErrorUs",maxPtsError).put("memorySamples",memory).put("frozenAgainstLiveEdits",true)
                 .put("drawableLayers",20).put("nullObjects",3).put("multilevelParents",true)
                 .put("scope","MuMu; memory includes test process and PNG/decoded bitmap checks, not phone performance acceptance").toString(2))
+            // Preserve pixel/timestamp evidence even when this emulator misses the throughput target.
+            assertTrue("1080p30 export throughput below target: $codecReport",codecReport.getDouble("throughputFps")>=30.0)
         }finally{NativeBridge.destroy(session)}
     }
 
