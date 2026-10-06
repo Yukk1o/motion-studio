@@ -17,7 +17,15 @@ struct Buffer {
     group: wgpu::BindGroup,
 }
 struct Binding {
-    key: (i32, i32, i32, u32, u64, Option<u64>),
+    key: (
+        i32,
+        i32,
+        i32,
+        u32,
+        u64,
+        Option<crate::renderer::TextureKey>,
+        usize,
+    ),
     group: wgpu::BindGroup,
 }
 struct Lut {
@@ -53,7 +61,7 @@ pub(crate) struct GpuState {
     sprite_buffer: wgpu::Buffer,
     bindings: Vec<Option<Binding>>,
 }
-fn texture(
+pub(crate) fn texture(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     sampler: &wgpu::Sampler,
@@ -550,7 +558,8 @@ impl GpuState {
         index: usize,
         frame: &EffectFramePlan,
         assets: &[u64],
-        video_object: Option<u64>,
+        source_key: Option<crate::renderer::TextureKey>,
+        external: Option<&wgpu::TextureView>,
         images: &HashMap<crate::renderer::TextureKey, GpuImage>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -562,14 +571,27 @@ impl GpuState {
             0,
             bytemuck::bytes_of(&p.uniform),
         );
-        let key = (p.input, p.source, p.lut, p.program, self.epoch, video_object);
+        let external_id = external.map_or(0, |v| v as *const _ as usize);
+        let key = (
+            p.input,
+            p.source,
+            p.lut,
+            p.program,
+            self.epoch,
+            source_key,
+            external_id,
+        );
         if self.bindings[index].as_ref().is_none_or(|v| v.key != key) {
             let view = |id: i32| -> &wgpu::TextureView {
                 if id < 0 {
+                    if let Some(view) = external {
+                        return view;
+                    }
                     // External pass inputs refer to the owning layer's source.
                     // Videos use a live instance texture rather than the white asset.
-                    let image = video_object.map(crate::renderer::TextureKey::Video)
-                        .unwrap_or_else(|| crate::renderer::TextureKey::Static(assets[(-id - 1) as usize]));
+                    let image = source_key.unwrap_or_else(|| {
+                        crate::renderer::TextureKey::Static(assets[(-id - 1) as usize])
+                    });
                     &images[&image].view
                 } else {
                     &self.pool[id as usize].as_ref().unwrap().view

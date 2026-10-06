@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.json.JSONObject
 
-@Composable internal fun HomeSettings(vm:EditorViewModel,layout:EditorLayoutState,onBack:()->Unit,onPackages:()->Unit,onAdjustLayout:()->Unit) {
+@Composable internal fun HomeSettings(vm:EditorViewModel,layout:EditorLayoutState,onBack:()->Unit,onPackages:()->Unit,onAdjustLayout:()->Unit,onReport:()->Unit) {
     SettingsPage("设置","返回主页","home-settings-page",onBack) {tablet->
         val plugins:@Composable ()->Unit={
             SettingsSection("插件") {
@@ -37,6 +37,10 @@ import org.json.JSONObject
         if(tablet)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(24.dp)) {
             Box(Modifier.weight(1f)){plugins()};Box(Modifier.weight(1f)){editorLayout()}
         }else Column(verticalArrangement=Arrangement.spacedBy(24.dp)){plugins();editorLayout()}
+        Spacer(Modifier.height(24.dp))
+        SettingsSection("问题诊断") {
+            SettingsRow("导出错误报告","设备信息、错误原因和近期操作；不包含项目与素材","settings-error-report",onClick=onReport)
+        }
     }
 }
 

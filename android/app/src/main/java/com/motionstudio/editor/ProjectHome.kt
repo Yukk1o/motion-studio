@@ -47,7 +47,7 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
     return frames.roundToInt()
 }
 
-@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String,Int)->Unit,onImport:()->Unit,onSettings:()->Unit) {
+@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String,Int)->Unit,onImport:()->Unit,onSettings:()->Unit,onReport:()->Unit) {
     var query by rememberSaveable{mutableStateOf("")}
     var creating by rememberSaveable{mutableStateOf(false)}
     val keyboard=LocalSoftwareKeyboardController.current
@@ -115,7 +115,7 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
         }
     }
     if(creating)NewProjectDialog(onDismiss={creating=false}){w,h,fps,name,frames->creating=false;onNew(w,h,fps,name,frames)}
-    vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
+    vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Column{Text(message);TextButton(onClick=onReport){Text("导出错误报告")}}},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
 }
 
 @Composable private fun ProjectAspectTile(project:ProjectSummary,active:Boolean) {

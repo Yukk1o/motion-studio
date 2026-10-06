@@ -46,20 +46,23 @@ struct GeometryVertex {
     uv: [f32; 2],
 }
 pub(crate) struct GpuImage {
-    _texture: wgpu::Texture,
+    pub(crate) _texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
-    bind_group: wgpu::BindGroup,
-    bytes: u64,
-    size: (u32, u32),
-    video_stamp: Option<(u64, u64)>,
+    pub(crate) bind_group: wgpu::BindGroup,
+    pub(crate) bytes: u64,
+    pub(crate) size: (u32, u32),
+    pub(crate) video_stamp: Option<(u64, u64)>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum TextureKey {
     Static(u64),
     Video(u64),
+    Vector(u64),
 }
 fn texture_key(layer: &aem_core::DrawLayer) -> TextureKey {
-    if layer.video.is_some() {
+    if layer.vector.is_some() {
+        TextureKey::Vector(layer.id)
+    } else if layer.video.is_some() {
         TextureKey::Video(layer.id)
     } else {
         TextureKey::Static(layer.asset.unwrap_or(0))
@@ -100,6 +103,7 @@ pub struct Renderer {
     pub target_format: wgpu::TextureFormat,
     gpu_failure: Arc<Mutex<Option<String>>>,
     effect_gpu: crate::effect_gpu::EffectGpu,
+    layer_gpu: crate::layer_gpu::LayerGpu,
     video_gpu: Option<crate::video_gpu::VideoGpu>,
     pub video_upload_bytes: u64,
     pub video_uploads: u64,
@@ -286,6 +290,8 @@ impl Renderer {
             alpha: wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING.alpha,
         });
         let effect_gpu = crate::effect_gpu::EffectGpu::new(&device, &queue, &image_layout)?;
+        let layer_gpu =
+            crate::layer_gpu::LayerGpu::new(&device, &uniform_layout, &image_layout, format);
         let mut renderer = Self {
             adapter,
             device,
@@ -307,6 +313,7 @@ impl Renderer {
             target_format: format,
             gpu_failure,
             effect_gpu,
+            layer_gpu,
             video_gpu: None,
             video_upload_bytes: 0,
             video_uploads: 0,
@@ -324,9 +331,14 @@ impl Renderer {
         Self::new(&instance, None, TARGET_FORMAT).await
     }
     pub fn texture_bytes(&self) -> u64 {
-        self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.bytes()
+        self.texture_bytes
+            + self.video_plane_bytes()
+            + self.effect_gpu.state.bytes()
+            + self.layer_gpu.bytes()
     }
-    fn video_plane_bytes(&self) -> u64 { self.video_gpu.as_ref().map_or(0, |v| v.bytes()) }
+    fn video_plane_bytes(&self) -> u64 {
+        self.video_gpu.as_ref().map_or(0, |v| v.bytes())
+    }
     pub fn set_effect_registry(&mut self, registry: aem_effects::Registry) {
         self.effect_gpu.set_registry(registry);
     }
@@ -343,7 +355,9 @@ impl Renderer {
             scene,
             self.texture_bytes + self.video_plane_bytes(),
         )?;
-        if self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes > TEXTURE_BUDGET {
+        if self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes
+            > TEXTURE_BUDGET
+        {
             return Err(RenderError::Invalid(
                 "images and plugin resources exceed 128 MiB".into(),
             ));
@@ -444,12 +458,14 @@ impl Renderer {
                 "video planes and images exceed 128 MiB".into(),
             ));
         }
-        if self
-            .images
-            .get(&key)
-            .is_none_or(|i| i.size != (width, height) || i._texture.format() != format
-                || !i._texture.usage().contains(wgpu::TextureUsages::RENDER_ATTACHMENT))
-        {
+        if self.images.get(&key).is_none_or(|i| {
+            i.size != (width, height)
+                || i._texture.format() != format
+                || !i
+                    ._texture
+                    .usage()
+                    .contains(wgpu::TextureUsages::RENDER_ATTACHMENT)
+        }) {
             // Write encoded RGB bytes to an UNORM attachment, then sample the
             // sRGB view in the same compositing space as existing RGBA uploads.
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -565,7 +581,10 @@ impl Renderer {
             ));
         }
         let previous = self.images.get(&id).map_or(0, |t| t.bytes);
-        if self.texture_bytes - previous + bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes
+        if self.texture_bytes - previous
+            + bytes
+            + self.video_plane_bytes()
+            + self.effect_gpu.state.resource_bytes
             > TEXTURE_BUDGET
         {
             return Err(RenderError::Invalid(
@@ -717,6 +736,10 @@ impl Renderer {
                     .layers
                     .iter()
                     .any(|l| l.id == *id && matches!(l.content, aem_core::Content::Video { .. })),
+                TextureKey::Vector(id) => !project
+                    .layers
+                    .iter()
+                    .any(|l| l.id == *id && matches!(l.content, aem_core::Content::Vector { .. })),
             })
             .collect();
         for id in remove {
@@ -724,7 +747,11 @@ impl Renderer {
                 self.effect_gpu.builder.alpha_images.remove(&asset);
             }
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
-            if let TextureKey::Video(object) = id { if let Some(video) = &mut self.video_gpu { video.remove(object); } }
+            if let TextureKey::Video(object) = id {
+                if let Some(video) = &mut self.video_gpu {
+                    video.remove(object);
+                }
+            }
             if let TextureKey::Static(asset) = id {
                 self.asset_order.retain(|v| *v != asset);
             }
@@ -733,7 +760,9 @@ impl Renderer {
         Ok(())
     }
     pub fn clear_assets(&mut self) {
-        if let Some(video) = &mut self.video_gpu { video.clear(); }
+        if let Some(video) = &mut self.video_gpu {
+            video.clear();
+        }
         self.effect_gpu.builder.alpha_images.clear();
         self.images.retain(|id, _| *id == TextureKey::Static(0));
         self.asset_order.retain(|id| *id == 0);
@@ -812,11 +841,36 @@ impl Renderer {
             ));
         }
         let started = Instant::now();
-        if scene.effects.iter().any(|e| e.enabled) {
+        if scene.effects.iter().any(|e| e.enabled)
+            || scene
+                .layers
+                .iter()
+                .any(|l| l.vector.is_some() || l.adjustment)
+        {
             return self.encode_effects(scene, view, width, height, encoder, timestamps);
         }
         self.effect_diagnostics.clear();
+        if self.layer_gpu.prepare_vectors(
+            &self.device,
+            encoder,
+            &self.image_layout,
+            &self.sampler,
+            scene,
+            &[],
+            &mut self.images,
+            &mut self.texture_bytes,
+            self.effect_gpu.state.resource_bytes,
+        )? {
+            self.effect_gpu.state.invalidate();
+        }
         self.effect_gpu.state.release_scratch();
+        self.layer_gpu.prepare_accumulators(
+            &self.device,
+            &self.image_layout,
+            &self.sampler,
+            self.target_format,
+            None,
+        );
         self.compositor
             .prepare(scene)
             .map_err(|e| RenderError::Invalid(e.to_string()))?;
@@ -957,6 +1011,47 @@ impl Renderer {
             }
         }
         let frame = &self.effect_gpu.builder.frame;
+        let vectors_changed = self.layer_gpu.prepare_vectors(
+            &self.device,
+            encoder,
+            &self.image_layout,
+            &self.sampler,
+            scene,
+            &frame.vectors,
+            &mut self.images,
+            &mut self.texture_bytes,
+            self.effect_gpu.state.resource_bytes,
+        )?;
+        let has_adjustment = frame
+            .draws
+            .iter()
+            .any(|d| d.words[31] == 2. && d.pass_start < d.pass_end);
+        let render_scale = (width as f32 / scene.width as f32)
+            .min(height as f32 / scene.height as f32)
+            .min(1.)
+            .max(0.001);
+        let composition_size = [
+            (scene.width as f32 * render_scale).ceil() as u32,
+            (scene.height as f32 * render_scale).ceil() as u32,
+        ];
+        let accumulators_changed = self.layer_gpu.prepare_accumulators(
+            &self.device,
+            &self.image_layout,
+            &self.sampler,
+            self.target_format,
+            has_adjustment.then_some(composition_size),
+        );
+        if vectors_changed || accumulators_changed {
+            self.effect_gpu.state.invalidate();
+            self.effect_gpu.state.prepare(
+                &self.device,
+                &self.queue,
+                &self.image_layout,
+                &self.effect_gpu.builder,
+                scene,
+                self.texture_bytes + self.video_plane_bytes(),
+            )?;
+        }
         self.geometry_upload.clear();
         self.geometry_upload
             .extend(frame.vertices.iter().map(|v| GeometryVertex {
@@ -977,7 +1072,7 @@ impl Renderer {
                 mvp: std::array::from_fn(|c| std::array::from_fn(|r| w[c * 4 + r])),
                 color: w[16..20].try_into().unwrap(),
                 extent_opacity: [w[20], w[21], w[22], 0.0],
-                uv_scale: [w[25], w[26], 0.0, 0.0],
+                uv_scale: [w[25], w[26], scene.width as f32, scene.height as f32],
             };
             self.upload[i * self.uniform_stride..i * self.uniform_stride + DRAW_SIZE as usize]
                 .copy_from_slice(bytemuck::bytes_of(&uniform));
@@ -1005,10 +1100,18 @@ impl Renderer {
             let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("effect composition clear"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
+                    view: if has_adjustment {
+                        &self.layer_gpu.accumulators[0].view
+                    } else {
+                        view
+                    },
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear),
+                        load: wgpu::LoadOp::Clear(if has_adjustment {
+                            wgpu::Color::TRANSPARENT
+                        } else {
+                            clear
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -1019,6 +1122,8 @@ impl Renderer {
         }
         let mut materialized = None;
         let mut executed_passes = 0;
+        let mut composition_draws = 0;
+        let mut accumulator = 0;
         for (batch_index, batch) in frame.batches.iter().enumerate() {
             let i = batch.layer;
             let draw = &frame.draws[i];
@@ -1030,7 +1135,10 @@ impl Renderer {
                     p,
                     frame,
                     &self.asset_order,
-                    scene.layers[i].video.as_ref().map(|_| scene.layers[i].id),
+                    (scene.layers[i].video.is_some() || scene.layers[i].vector.is_some())
+                        .then(|| texture_key(&scene.layers[i])),
+                    (scene.layers[i].adjustment && has_adjustment)
+                        .then(|| &self.layer_gpu.accumulators[accumulator].view),
                     &self.images,
                     &self.device,
                     &self.queue,
@@ -1039,7 +1147,49 @@ impl Renderer {
                 executed_passes += 1;
             }
             materialized = Some(i);
-            let writes = if batch_index + 1 == frame.batches.len() {
+            if scene.layers[i].adjustment {
+                if draw.pass_start == draw.pass_end || draw.words[22] <= 0. {
+                    continue;
+                }
+                let next = 1 - accumulator;
+                {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("adjust lower composite"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &self.layer_gpu.accumulators[next].view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
+                    pass.set_pipeline(&self.layer_gpu.adjustment);
+                    pass.set_bind_group(
+                        0,
+                        &self.uniform_group,
+                        &[(i * self.uniform_stride) as u32],
+                    );
+                    pass.set_bind_group(
+                        1,
+                        &self.layer_gpu.accumulators[accumulator].composite,
+                        &[],
+                    );
+                    pass.set_bind_group(
+                        2,
+                        &self.effect_gpu.state.pool[0].as_ref().unwrap().composite,
+                        &[],
+                    );
+                    pass.draw(0..3, 0..1);
+                }
+                composition_draws += 1;
+                accumulator = next;
+                continue;
+            }
+            let writes = if !has_adjustment && batch_index + 1 == frame.batches.len() {
                 timestamps
                     .as_ref()
                     .map(|t| wgpu::RenderPassTimestampWrites {
@@ -1053,7 +1203,11 @@ impl Renderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("effect composition layer"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view,
+                    view: if has_adjustment {
+                        &self.layer_gpu.accumulators[accumulator].view
+                    } else {
+                        view
+                    },
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -1064,13 +1218,24 @@ impl Renderer {
                 timestamp_writes: writes,
                 occlusion_query_set: None,
             });
-            let scale =
-                (width as f32 / scene.width as f32).min(height as f32 / scene.height as f32);
-            let vw = scene.width as f32 * scale;
-            let vh = scene.height as f32 * scale;
+            let (vw, vh) = if has_adjustment {
+                (composition_size[0] as f32, composition_size[1] as f32)
+            } else {
+                let scale =
+                    (width as f32 / scene.width as f32).min(height as f32 / scene.height as f32);
+                (scene.width as f32 * scale, scene.height as f32 * scale)
+            };
             pass.set_viewport(
-                (width as f32 - vw) / 2.0,
-                (height as f32 - vh) / 2.0,
+                if has_adjustment {
+                    0.
+                } else {
+                    (width as f32 - vw) / 2.0
+                },
+                if has_adjustment {
+                    0.
+                } else {
+                    (height as f32 - vh) / 2.0
+                },
                 vw,
                 vh,
                 0.0,
@@ -1090,11 +1255,54 @@ impl Renderer {
             };
             pass.set_bind_group(1, group, &[]);
             pass.draw(batch.vertices.clone(), 0..1);
+            composition_draws += 1;
+        }
+        if has_adjustment {
+            let writes = timestamps
+                .as_ref()
+                .map(|t| wgpu::RenderPassTimestampWrites {
+                    query_set: t.query_set,
+                    beginning_of_pass_write_index: None,
+                    end_of_pass_write_index: t.end_of_pass_write_index,
+                });
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("present adjusted composition"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: writes,
+                occlusion_query_set: None,
+            });
+            let scale =
+                (width as f32 / scene.width as f32).min(height as f32 / scene.height as f32);
+            let (vw, vh) = (scene.width as f32 * scale, scene.height as f32 * scale);
+            pass.set_viewport(
+                (width as f32 - vw) * 0.5,
+                (height as f32 - vh) * 0.5,
+                vw,
+                vh,
+                0.,
+                1.,
+            );
+            pass.set_pipeline(&self.layer_gpu.present);
+            pass.set_bind_group(0, &self.uniform_group, &[0]);
+            pass.set_bind_group(1, &self.layer_gpu.accumulators[accumulator].composite, &[]);
+            pass.draw(0..3, 0..1);
+            composition_draws += 1;
         }
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
-            draw_calls: (frame.batches.len() + executed_passes) as u32,
-            texture_bytes: self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.bytes(),
+            draw_calls: (composition_draws + executed_passes) as u32,
+            texture_bytes: self.texture_bytes
+                + self.video_plane_bytes()
+                + self.effect_gpu.state.bytes()
+                + self.layer_gpu.bytes(),
             parameter_upload_bytes: (bytes
                 + executed_passes * aem_effects::shader::UNIFORM_BYTES
                 + frame.vertices.len() * 20) as u64,
