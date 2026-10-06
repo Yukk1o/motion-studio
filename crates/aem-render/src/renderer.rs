@@ -73,6 +73,10 @@ pub struct RenderStats {
     pub texture_bytes: u64,
     pub parameter_upload_bytes: u64,
     pub parameter_resource_upload_bytes: u64,
+    pub instance_upload_bytes: u64,
+    pub particles_alive: u32,
+    pub particles_visible: u32,
+    pub particles_culled: u32,
 }
 
 pub struct Renderer {
@@ -81,6 +85,7 @@ pub struct Renderer {
     pub queue: wgpu::Queue,
     pub adapter_info: wgpu::AdapterInfo,
     pipeline: wgpu::RenderPipeline,
+    additive_pipeline: wgpu::RenderPipeline,
     image_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     uniform_buffer: wgpu::Buffer,
@@ -226,37 +231,48 @@ impl Renderer {
             bind_group_layouts: &[&uniform_layout, &image_layout],
             push_constant_ranges: &[],
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("AEM planar compositor"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vertex_main"),
-                compilation_options: Default::default(),
+        let create_pipeline = |blend| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("AEM planar compositor"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vertex_main"),
+                    compilation_options: Default::default(),
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<GeometryVertex>() as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x2],
                 }],
+                },
+                primitive: wgpu::PrimitiveState {
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: None,
+                multisample: Default::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fragment_main"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: Some(blend),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                multiview: None,
+                cache: None,
+            })
+        };
+        let pipeline = create_pipeline(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING);
+        let additive_pipeline = create_pipeline(wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::One,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
             },
-            primitive: wgpu::PrimitiveState {
-                cull_mode: None,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fragment_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview: None,
-            cache: None,
+            alpha: wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING.alpha,
         });
         let effect_gpu = crate::effect_gpu::EffectGpu::new(&device, &queue, &image_layout)?;
         let mut renderer = Self {
@@ -265,6 +281,7 @@ impl Renderer {
             queue,
             adapter_info,
             pipeline,
+            additive_pipeline,
             image_layout,
             sampler,
             uniform_buffer,
@@ -478,6 +495,10 @@ impl Renderer {
                 },
             ],
         });
+        self.effect_gpu
+            .builder
+            .set_alpha(id, width, height, rgba)
+            .map_err(RenderError::Invalid)?;
         self.images.insert(
             id,
             GpuImage {
@@ -533,6 +554,7 @@ impl Renderer {
             })
             .collect();
         for id in remove {
+            self.effect_gpu.builder.alpha_images.remove(&id);
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
             if let TextureKey::Static(asset) = id { self.asset_order.retain(|v| *v != asset); }
             self.effect_gpu.invalidate();
@@ -540,6 +562,7 @@ impl Renderer {
         Ok(())
     }
     pub fn clear_assets(&mut self) {
+        self.effect_gpu.builder.alpha_images.clear();
         self.images.retain(|id, _| *id == TextureKey::Static(0));
         self.asset_order.retain(|id| *id == 0);
         self.effect_gpu.invalidate();
@@ -552,6 +575,7 @@ impl Renderer {
     /// separate cache and keep the visible project's resources on failure.
     pub fn replace_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
         let mut previous = std::mem::take(&mut self.images);
+        let previous_alpha = std::mem::take(&mut self.effect_gpu.builder.alpha_images);
         let previous_bytes = self.texture_bytes;
         let previous_order = self.asset_order.clone();
         self.asset_order = vec![0];
@@ -571,6 +595,7 @@ impl Renderer {
                     .expect("solid texture exists"),
             );
             self.images = previous;
+            self.effect_gpu.builder.alpha_images = previous_alpha;
             self.texture_bytes = previous_bytes;
             self.asset_order = previous_order;
             self.effect_gpu.invalidate();
@@ -714,6 +739,10 @@ impl Renderer {
                 + self.geometry_upload.len() * std::mem::size_of::<GeometryVertex>())
                 as u64,
             parameter_resource_upload_bytes: 0,
+            instance_upload_bytes: 0,
+            particles_alive: 0,
+            particles_visible: 0,
+            particles_culled: 0,
         })
     }
     fn encode_effects(
@@ -862,7 +891,11 @@ impl Renderer {
                 0.0,
                 1.0,
             );
-            pass.set_pipeline(&self.pipeline);
+            pass.set_pipeline(if draw.words[23] > 0.5 {
+                &self.additive_pipeline
+            } else {
+                &self.pipeline
+            });
             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             pass.set_bind_group(0, &self.uniform_group, &[(i * self.uniform_stride) as u32]);
             let group = if draw.words[27] >= 0.0 {
@@ -880,6 +913,10 @@ impl Renderer {
             parameter_upload_bytes: (bytes
                 + executed_passes * aem_effects::shader::UNIFORM_BYTES + frame.vertices.len()*20)
                 as u64,
+            instance_upload_bytes: (frame.sprites.len() * 48) as u64,
+            particles_alive: frame.generator_stats.alive,
+            particles_visible: frame.generator_stats.visible,
+            particles_culled: frame.generator_stats.culled,
             parameter_resource_upload_bytes: std::mem::take(
                 &mut self.effect_gpu.state.parameter_resource_upload_bytes,
             ),

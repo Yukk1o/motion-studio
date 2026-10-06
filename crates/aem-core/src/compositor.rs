@@ -81,7 +81,15 @@ impl PlaneCompositor {
     }
     /// Effects can expand a plane's local bounds while retaining its projection.
     pub fn prepare_with_sizes(&mut self, scene: &Scene, sizes: &[[f32; 2]]) -> Result<()> {
+        self.prepare_with_sizes_and_overlays(scene, sizes, &[])
+    }
+    /// Screen-space generators form flat compositing boundaries; their sprites
+    /// already include camera and emitter transforms, so do not transform twice.
+    pub fn prepare_with_sizes_and_overlays(&mut self, scene: &Scene, sizes: &[[f32; 2]], overlays: &[bool]) -> Result<()> {
         ensure(sizes.is_empty() || sizes.len() == scene.layers.len(), "invalid compositor sizes")?;
+        ensure(overlays.is_empty() || overlays.len() == scene.layers.len(), "invalid compositor overlays")?;
+        let overlay = |index: usize| overlays.get(index).copied().unwrap_or(false);
+        let spatial = |index: usize| scene.layers[index].three_d && !overlay(index);
         ensure(
             scene.layers.len() <= MAX_LAYERS,
             "too many compositor layers",
@@ -94,19 +102,16 @@ impl PlaneCompositor {
         self.visits.clear();
         let mut start = 0;
         while start < scene.layers.len() {
-            if !scene.layers[start].three_d {
-                let p = self.quad(scene, start, sizes)?;
+            if !spatial(start) {
+                let p = self.quad(scene, start, sizes, overlay(start))?;
                 self.emit(p)?;
                 start += 1;
                 continue;
             }
-            let end = scene.layers[start..]
-                .iter()
-                .position(|l| !l.three_d)
-                .map_or(scene.layers.len(), |n| start + n);
+            let end = (start..scene.layers.len()).find(|&index| !spatial(index)).unwrap_or(scene.layers.len());
             let mut root = None;
             for layer in start..end {
-                let p = self.quad(scene, layer, sizes)?;
+                let p = self.quad(scene, layer, sizes, false)?;
                 if self.planes[layer].is_none() {
                     continue;
                 }
@@ -123,16 +128,17 @@ impl PlaneCompositor {
         }
         Ok(())
     }
-    fn quad(&mut self, scene: &Scene, layer: usize, sizes: &[[f32; 2]]) -> Result<Polygon> {
+    fn quad(&mut self, scene: &Scene, layer: usize, sizes: &[[f32; 2]], overlay: bool) -> Result<Polygon> {
         ensure(
             self.arena.len() + 4 <= MAX_ARENA,
             "intersection geometry budget exceeded",
         )?;
         let l = &scene.layers[layer];
         let size = sizes.get(layer).copied().unwrap_or(l.size);
+        let model = if overlay { glam::DMat4::IDENTITY } else { l.model.as_dmat4() };
         let start = self.arena.len();
         for [x, y] in [[-0.5, 0.5], [-0.5, -0.5], [0.5, -0.5], [0.5, 0.5]] {
-            let position = l.model.as_dmat4().transform_point3(DVec3::new(
+            let position = model.transform_point3(DVec3::new(
                 x * f64::from(size[0]),
                 y * f64::from(size[1]),
                 0.0,

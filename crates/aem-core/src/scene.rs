@@ -89,6 +89,7 @@ impl Scene {
                 sampled.local_frame = layer.local_frame(frame);
                 sampled.enabled = e.enabled;
                 sampled.seed = e.seed;
+                sampled.scene = e.scene.clone();
                 sampled.lut = None;
                 for (i, p) in e.params.values().enumerate() {
                     sampled.values[i] = p.sample(sampled.local_frame);

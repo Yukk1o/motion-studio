@@ -152,7 +152,7 @@ class EffectsRuntimeTest {
                 val gl=GlEffects(info,native,textures)
                 try {
                     gl.prepare(plan);gl.passes(plan,0,plan.getInt(12))
-                    val pass=plan.getInt(20)+(plan.getInt(12)-1)*32;val w=plan.getInt(pass+16);val h=plan.getInt(pass+20)
+                    val pass=plan.getInt(20)+(plan.getInt(12)-1)*40;val w=plan.getInt(pass+16);val h=plan.getInt(pass+20)
                     val raw=ByteBuffer.allocateDirect(w*h*4);GLES30.glReadPixels(0,0,w,h,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,raw);assertEquals(GLES30.GL_NO_ERROR,GLES30.glGetError())
                     val dx=(w-64)/2;val dy=(h-64)/2;var rgb=0.0;var alpha=0.0
                     for(y in 0 until 64)for(x in 0 until 64) {

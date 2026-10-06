@@ -228,9 +228,9 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         }
     }
     fun draw(buffer:ByteBuffer) {
-        check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==2){"不兼容的帧计划"}
+        check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==3){"不兼容的帧计划"}
         val total=buffer.getInt(28);val vertexOffset=buffer.getInt(60);val bytes=total-vertexOffset
-        check(total in 64..buffer.capacity()&&vertexOffset>=64&&bytes>=0&&bytes%20==0&&bytes<=65536*20){"几何计划范围失效"}
+        check(total in 80..buffer.capacity()&&vertexOffset>=80&&bytes>=0&&bytes%20==0&&bytes<=65536*20){"几何计划范围失效"}
         effects?.prepare(buffer)
         GLES30.glBindVertexArray(vertexArray);GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
         val vertices=buffer.duplicate().apply{position(vertexOffset);limit(total)}.slice()
@@ -259,6 +259,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,image)
             val first=buffer.getInt(batch+4);val size=buffer.getInt(batch+8)
             check(first>=0&&size>=0&&(first.toLong()+size)*20<=bytes){"几何顶点范围失效"}
+            GLES30.glBlendFuncSeparate(GLES30.GL_ONE,if(values.get(base+23)>0.5f)GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA,GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
             GLES30.glDrawArrays(GLES30.GL_TRIANGLES,first,size)
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0);GLES30.glDisable(GLES30.GL_BLEND)

@@ -274,6 +274,14 @@ impl Project {
             "version 1 projects cannot contain effects",
         )?;
         ensure(
+            self.version >= 4
+                || self
+                    .layers
+                    .iter()
+                    .all(|l| l.effects.iter().all(|e| e.scene.is_none())),
+            "scene generator projects require format 4",
+        )?;
+        ensure(
             self.plugin_dependencies == crate::effects::dependencies(&self.layers),
             "plugin dependency list does not match effect instances",
         )?;

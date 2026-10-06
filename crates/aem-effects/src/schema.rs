@@ -2,7 +2,7 @@ use crate::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const SDK_VERSION: u32 = 1;
+pub const SDK_VERSION: u32 = 2;
 pub const MAX_PARAMS: usize = 32;
 pub const MAX_PASSES: usize = 8;
 pub const MAX_EFFECTS_PER_LAYER: usize = 16;
@@ -193,6 +193,14 @@ pub struct EffectDefinition {
     pub known_differences: Vec<String>,
     #[serde(default)]
     pub required_capabilities: Vec<String>,
+    #[serde(default)]
+    pub renderer: crate::RendererKind,
+    #[serde(default)]
+    pub blend: crate::SpriteBlend,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor: Option<crate::EditorDefinition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene: Option<crate::SceneSettings>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -226,7 +234,7 @@ pub fn validate_path(path: &str) -> Result<()> {
 impl PluginManifest {
     pub fn validate(&self) -> Result<()> {
         ensure(
-            self.format_version == 1 && self.sdk_version == SDK_VERSION,
+            self.format_version == 1 && (1..=SDK_VERSION).contains(&self.sdk_version),
             "incompatible effect package/SDK version",
         )?;
         ensure(valid_id(&self.id), "invalid plugin ID")?;
@@ -262,6 +270,56 @@ impl PluginManifest {
                 e.resources.len() <= 4,
                 "at most four resource textures are supported",
             )?;
+            if let Some(editor) = &e.editor {
+                ensure(self.sdk_version >= 2, "plugin editors require SDK 2")?;
+                editor.validate()?;
+            }
+            if let Some(scene) = &e.scene {
+                scene.validate()?;
+            }
+            if e.renderer == crate::RendererKind::Image {
+                ensure(
+                    e.scene.is_none() && e.blend == crate::SpriteBlend::Alpha,
+                    "image effects cannot declare scene state or sprite blending",
+                )?;
+            }
+            if e.renderer != crate::RendererKind::Image {
+                ensure(self.sdk_version >= 2 && e.passes.len() == 1 && e.working_space == WorkingSpace::Linear && e.alpha_mode == AlphaMode::Premultiplied, "scene generators require SDK 2, one sprite shader and linear premultiplied output")?;
+                ensure(e.scene.is_some(), "scene generator settings missing")?;
+                let required: &[&str] = if e.renderer == crate::RendererKind::Particles {
+                    &[
+                        "rate",
+                        "lifetime",
+                        "speed",
+                        "spread",
+                        "gravity",
+                        "extent",
+                        "shape",
+                        "size",
+                        "end_size",
+                        "color",
+                        "end_color",
+                        "fade",
+                        "prewarm",
+                    ]
+                } else {
+                    &[
+                        "position",
+                        "intensity",
+                        "scale",
+                        "attenuation",
+                        "reference_distance",
+                        "occlusion_radius",
+                    ]
+                };
+                for id in required {
+                    ensure(
+                        e.params.iter().any(|p| p.id == *id),
+                        format!("generator parameter {id} missing"),
+                    )?;
+                }
+                crate::scene::validate_generator_contract(e.renderer, &e.params)?;
+            }
             let mut params = BTreeSet::new();
             let mut defaults = BTreeMap::new();
             for p in &e.params {
@@ -333,6 +391,10 @@ impl PluginManifest {
                         "param_lut",
                         "dynamic_bounds",
                         "color_profile",
+                        "scene_projection",
+                        "sprite_instances",
+                        "alpha_occlusion",
+                        "plugin_editor",
                     ]
                     .contains(&cap.as_str()),
                     format!("unsupported host capability: {cap}"),
