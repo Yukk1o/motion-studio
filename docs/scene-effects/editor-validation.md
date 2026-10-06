@@ -16,6 +16,10 @@
 
 Rust工作区108项通过，新增的两项检查分别验证原始场景包保留及当前合成帧到图层局部变换键的采样。Clippy通过，保留已有警告。生成器重复执行得到相同包hash。历史1.0.0的Android/视频验收仍在 [validation.md](validation.md)，不能把旧报告当作1.1.0页面验收。
 
+最终ARM64/x86_64原生库及debug/AndroidTest APK构建成功。默认release构建的两任务及单任务尝试均因本机LLVM内存分配失败中断，保留日志；最终验证仅在本地构建命令中将四个项目crate的release codegen-units分为8，使用单任务，仍保持优化级别3及既有链接设置。没有修改仓库发布配置或系统内存配置。最终构建日志为 `artifacts/plugin-editor-android-low-memory-build.log`，默认构建中断记录为 `plugin-editor-android-build.log`、`plugin-editor-android-final-build.log`；不能将最终结果表述为默认配置已在该受限环境通过。
+
+该最终APK在MuMu QA实例（Android 15、x86_64、独立验收App ID）运行 `SceneEffectsTest#editorAssetsScopedEditsCancelAndGpuPreview` 与 `#sixGeneratorsMatchGlesWithoutVideoEncoding`，2项通过，耗时1.874秒。六种生成器最大RGB MAE为0.190917/255，Alpha为0；测试报告的包hash与上述1.1.0一致。安装后的App/Test APK hash与本地构建一致，来源为代码提交 `98d127cc413418f2299c6d0adb3160e5c508a6a0`，后续提交只更新交付记录：App为 `ba260bbcb26a935812a90e1c12a6813ac14fd1f41b6f24b5a07c7ac343ca14de`，Test为 `05d14fbff259058715fc20a36c00a9b9d3e97c64bd8f4210a72a5736c5c6d5d1`。原始日志在 `artifacts/plugin-editor-android-tests.log`，设备JSON与来源在 `artifacts/plugin-editor-browser/android-gles-report.json`、`provenance.json`。此次没有重跑MP4、整组Android回归或物理设备性能测试；这两项也不包含Android WebView窗口挂载。
+
 浏览器测试用打包页面连接真实Rust PluginEditorSession和wgpu渲染器；预览是实际GPU输出，修改与撤销由真实Engine执行。11组检查通过，覆盖：
 
 1. 镜头元件、粒子发射与粒子外观在320、375、414、768、1024、1440px下无页面横向溢出，控件触控高度至少48px。
