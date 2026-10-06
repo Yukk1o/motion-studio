@@ -270,27 +270,6 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun PluginsPanel(vm:EditorViewModel,onInstall:()->Unit,onDismiss:()->Unit) {
-    var remove by remember{mutableStateOf<JSONObject?>(null)}
-    LaunchedEffect(Unit){vm.refreshCatalogue()}
-    ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),containerColor=Panel) {
-        Column(Modifier.fillMaxWidth().heightIn(max=560.dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("plugins-panel")) {
-            Row(verticalAlignment=Alignment.CenterVertically){Text("效果包",Modifier.weight(1f),fontSize=20.sp);TextButton(onClick=onInstall,modifier=Modifier.height(48.dp).testTag("plugin-install")){Text("安装 .msfx")};Tool(Icons.Default.Close,"关闭效果包",action=onDismiss)}
-            Text("工程使用固定版本。分享工程时，需要同时提供对应效果包。",color=Muted,fontSize=12.sp)
-            effectPackages(vm).forEach{pkg->val m=pkg.getJSONObject("manifest")
-                Row(Modifier.fillMaxWidth().heightIn(min=64.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)){Text(m.getString("name"),color=Ink,fontSize=15.sp);Text(m.getString("version"),color=Muted,fontSize=12.sp)}
-                    Switch(pkg.getBoolean("enabled"),{on->vm.pluginOperation(JSONObject().put("op","enable").put("plugin",m.getString("id")).put("version",m.getString("version")).put("hash",pkg.getString("hash")).put("enabled",on))})
-                    if(m.getString("id")!="com.motionstudio.effects.ae2021")TextButton(onClick={remove=pkg}){Text("卸载")}
-                }
-            }
-            vm.catalogue?.optJSONArray("errors")?.let{a->for(i in 0 until a.length())Text(a.getString(i),color=MaterialTheme.colorScheme.error,fontSize=12.sp)}
-        }
-    }
-    remove?.let{pkg->AlertDialog(onDismissRequest={remove=null},title={Text("卸载效果包")},text={Text("使用此固定版本的效果将显示缺失，工程中的参数仍保留。")},confirmButton={TextButton(onClick={val m=pkg.getJSONObject("manifest");vm.pluginOperation(JSONObject().put("op","uninstall").put("plugin",m.getString("id")).put("version",m.getString("version")).put("hash",pkg.getString("hash")));remove=null}){Text("卸载")}},dismissButton={TextButton(onClick={remove=null}){Text("取消")}})}
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable internal fun StudioSlider(value:Float,onValueChange:(Float)->Unit,modifier:Modifier=Modifier,valueRange:ClosedFloatingPointRange<Float> =0f..1f,enabled:Boolean=true,onValueChangeFinished:(()->Unit)?=null) {
     Slider(value=value,onValueChange=onValueChange,valueRange=valueRange,enabled=enabled,onValueChangeFinished=onValueChangeFinished,modifier=modifier.heightIn(min=48.dp),
         thumb={Box(Modifier.size(8.dp).background(if(enabled)Accent else Muted,CircleShape))},

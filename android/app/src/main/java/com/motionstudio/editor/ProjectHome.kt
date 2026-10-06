@@ -47,10 +47,9 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
     return frames.roundToInt()
 }
 
-@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String,Int)->Unit,onImport:()->Unit,onPackages:()->Unit) {
+@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String,Int)->Unit,onImport:()->Unit,onSettings:()->Unit) {
     var query by rememberSaveable{mutableStateOf("")}
     var creating by rememberSaveable{mutableStateOf(false)}
-    var more by remember{mutableStateOf(false)}
     val keyboard=LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit){vm.gestureInertia.stop();vm.pause();vm.refreshProjects()}
     Surface(color=Background,modifier=Modifier.fillMaxSize().testTag("project-home")) {
@@ -60,11 +59,8 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
             Column(Modifier.align(Alignment.TopCenter).widthIn(max=1120.dp).fillMaxWidth().fillMaxHeight().padding(horizontal=padding)) {
                 Row(Modifier.fillMaxWidth().heightIn(min=72.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text("Motion Studio",Modifier.weight(1f),fontSize=22.sp,color=Ink)
-                    Box {
-                        Tool(Icons.Default.MoreHoriz,"主页更多操作"){more=true}
-                        DropdownMenu(expanded=more,onDismissRequest={more=false}) {
-                            DropdownMenuItem(text={Text("效果包")},onClick={more=false;onPackages()},modifier=Modifier.testTag("home-effects-packages"))
-                        }
+                    IconButton(onClick=onSettings,modifier=Modifier.size(48.dp).testTag("home-settings")) {
+                        Icon(editorIcon(Icons.Default.Settings),"设置",Modifier.size(22.dp),tint=Ink)
                     }
                 }
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {

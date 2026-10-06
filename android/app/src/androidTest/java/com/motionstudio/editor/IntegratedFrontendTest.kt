@@ -125,8 +125,23 @@ class IntegratedFrontendTest {
             compose.onNodeWithTag("layout-resize-height").assertDoesNotExist()
             compose.onNodeWithTag("finish-layout").assertDoesNotExist()
         }
-        fun enterLayoutMode() {
+        fun openHomeSettings() {
+            if(compose.onAllNodesWithTag("home-settings-page").fetchSemanticsNodes().isNotEmpty())return
             compose.onNodeWithContentDescription("合成设置").performClick()
+            compose.onNodeWithTag("adjust-layout").assertDoesNotExist()
+            compose.onNodeWithTag("open-plugins").assertDoesNotExist()
+            compose.onNodeWithText("打开工程").performScrollTo().performClick()
+            compose.onNodeWithTag("home-settings").performClick()
+        }
+        fun resumeEditor() {
+            compose.onNodeWithTag("home-settings-page").assertIsDisplayed()
+            compose.onNodeWithContentDescription("返回主页").performClick()
+            compose.onNodeWithTag("home-project-grid").performScrollToNode(hasTestTag("home-project-${vm.root.name}"))
+            compose.onNodeWithTag("home-project-${vm.root.name}").performClick()
+            compose.onNodeWithTag("effects-panel").assertIsDisplayed()
+        }
+        fun enterLayoutMode() {
+            openHomeSettings()
             compose.onNodeWithTag("adjust-layout").performScrollTo().performClick()
             compose.onNodeWithTag("finish-layout").assertIsDisplayed()
         }
@@ -154,6 +169,7 @@ class IntegratedFrontendTest {
         assertTrue(vm.layoutPreferences.all.isNotEmpty())
         photo("$prefix-resized")
         compose.onNodeWithTag("finish-layout").performClick()
+        resumeEditor()
         assertGripsHidden();assertEquals(adjusted,extent(),2f);photo("$prefix-finished")
         if(recreate) {
             scenario.recreate()
@@ -169,12 +185,13 @@ class IntegratedFrontendTest {
         assertEquals(project,vm.state.project!!.toString())
         compose.onNodeWithTag("finish-layout").performClick()
         assertGripsHidden()
-        compose.onNodeWithContentDescription("合成设置").performClick()
         compose.onNodeWithTag("reset-layout").performScrollTo().performClick()
+        resumeEditor()
         compose.waitUntil(10000){kotlin.math.abs(extent()-original)<2}
         assertTrue(vm.layoutPreferences.all.isEmpty())
         enterLayoutMode();UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
         compose.waitUntil(10000){compose.onAllNodesWithTag("finish-layout").fetchSemanticsNodes().isEmpty()}
+        resumeEditor()
         assertGripsHidden();assertTimelineVisible();assertEquals(original,extent(),2f);assertEquals(property,vm.property)
         File(root,"$prefix-adjustment-report.json").writeText(JSONObject().put("sidePanel",side).put("originalExtentDp",original/density)
             .put("adjustedExtentDp",adjusted/density).put("cancelRestored",true).put("recreationChecked",recreate)

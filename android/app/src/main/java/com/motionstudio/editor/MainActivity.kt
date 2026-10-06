@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -115,11 +116,13 @@ open class MainActivity:ComponentActivity() {
     val context=LocalContext.current
     val scope=rememberCoroutineScope()
     var home by rememberSaveable{mutableStateOf(startAtHome)}
+    var homePage by rememberSaveable{mutableStateOf("projects")}
+    val homeState=rememberSaveableStateHolder()
     var addMenu by remember{mutableStateOf(false)}
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
     var creating by remember{mutableStateOf(false)}
-    var layoutEditing by remember{mutableStateOf(false)}
+    var layoutEditing by rememberSaveable{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
     var library by remember{mutableStateOf(false)}
     var videoImport by remember{mutableStateOf(false)}
@@ -142,10 +145,21 @@ open class MainActivity:ComponentActivity() {
     val videoSave=rememberLauncherForActivityResult(CreateOutputDocument("video/mp4")){uri->
         vm.completeOutputSelection(uri)
     }
+    fun finishLayout(){layoutEditing=false;homePage="settings";home=true}
     if(home) {
-        ProjectHome(vm,onOpen={project->if(project.directory!=vm.root.name||vm.state.project==null)vm.openProject(project.directory);home=false},
-            onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onPackages={vm.pluginsOpen=true})
-        if(vm.pluginsOpen)PluginsPanel(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onDismiss={vm.pluginsOpen=false})
+        fun backHomePage(){homePage=if(homePage=="plugins")"settings"else"projects"}
+        BackHandler(enabled=homePage!="projects",onBack=::backHomePage)
+        homeState.SaveableStateProvider(homePage) {
+            when(homePage) {
+                "settings"->HomeSettings(vm,editorLayout,onBack=::backHomePage,onPackages={homePage="plugins"},onAdjustLayout={
+                    vm.gestureInertia.stop();vm.pause();vm.finishLayerSelection();layoutEditing=true;home=false
+                })
+                "plugins"->PluginSettings(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onBack=::backHomePage)
+                else->ProjectHome(vm,onOpen={project->if(project.directory!=vm.root.name||vm.state.project==null)vm.openProject(project.directory);home=false},
+                    onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onSettings={homePage="settings"})
+            }
+        }
+        if(homePage!="projects")vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
         return
     }
     BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.closeWorkspace()}
@@ -181,10 +195,10 @@ open class MainActivity:ComponentActivity() {
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.layerSelectionMode)"退出多选" else if(vm.panelOpen)"收起属性" else "工程列表") {
-                        if(layoutEditing)layoutEditing=false else if(vm.layerSelectionMode)vm.finishLayerSelection() else if(vm.panelOpen)vm.closeWorkspace() else {vm.pause();home=true}
+                        if(layoutEditing)finishLayout() else if(vm.layerSelectionMode)vm.finishLayerSelection() else if(vm.panelOpen)vm.closeWorkspace() else {vm.pause();home=true}
                     }
                     Text(if(layoutEditing)"调整布局" else if(vm.layerSelectionMode)"选择图层"else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    if(layoutEditing)TextButton(onClick={layoutEditing=false},modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
+                    if(layoutEditing)TextButton(onClick=::finishLayout,modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
                     else {
                         Tool(Icons.Default.Tune,"合成设置"){settings=true}
                         Box {
@@ -306,7 +320,6 @@ open class MainActivity:ComponentActivity() {
         Text(phase);Spacer(Modifier.height(12.dp));LinearProgressIndicator(progress={task.optDouble("progress").toFloat().coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
     }},confirmButton={},dismissButton={TextButton(onClick=vm::cancelMediaImport){Text("取消导入")}})}
     vm.mediaNotice?.let{notice->AlertDialog(onDismissRequest=vm::clearMediaNotice,title={Text("导入完成")},text={Text(notice)},confirmButton={TextButton(onClick=vm::clearMediaNotice){Text("知道了")}})}
-    if(vm.pluginsOpen)PluginsPanel(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onDismiss={vm.pluginsOpen=false})
     if(vm.exporting)AlertDialog(onDismissRequest={},title={Text("导出视频")},
         text={Column{LinearProgressIndicator(progress={vm.exportProgress},modifier=Modifier.fillMaxWidth(),color=Accent)
             Spacer(Modifier.height(12.dp));Text((vm.exportProgress*100).toInt().toString()+"% · 本机编码")}},
@@ -317,9 +330,6 @@ open class MainActivity:ComponentActivity() {
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
             TextButton(onClick={settings=false;vm.pause();vm.finishLayerSelection();home=true}){Text("打开工程")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
-            TextButton(onClick={settings=false;vm.pluginsOpen=true},modifier=Modifier.testTag("open-plugins")){Text("效果包")}
-            TextButton(onClick={vm.pause();settings=false;layoutEditing=true},enabled=vm.state.project!=null,modifier=Modifier.testTag("adjust-layout")){Text("调整布局")}
-            TextButton(onClick={editorLayout.reset();layoutEditing=false;settings=false},modifier=Modifier.testTag("reset-layout")){Text("重置布局比例")}
             if(vm.state.project?.optJSONArray("audio_assets")?.length()?.let{it>0}==true||vm.state.project?.optJSONArray("video_assets")?.length()?.let{it>0}==true)TextButton(onClick={settings=false;vm.prepareMediaCaches(true)}){Text("重建媒体缓存")}
             Text("预览清晰度",fontSize=12.sp,color=Muted)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
@@ -352,7 +362,7 @@ open class MainActivity:ComponentActivity() {
             }}
         }},confirmButton={TextButton(onClick={library=false}){Text("关闭")}})
     // Panels suspend their Back handlers while adjusting layout.
-    BackHandler(enabled=layoutEditing){layoutEditing=false}
+    BackHandler(enabled=layoutEditing,onBack=::finishLayout)
 }
 
 @Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
