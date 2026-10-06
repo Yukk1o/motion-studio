@@ -20,7 +20,19 @@ fn convert_pixel(pos: vec4<f32>) -> vec4<f32> {
     }
     let yy = i32(textureLoad(y_plane, vec2<i32>(src), 0).x);
     let uv_pos = (src + params.range_phase.yz) / 2u;
-    let uv = vec2<i32>(textureLoad(uv_plane, vec2<i32>(uv_pos), 0).xy) - vec2<i32>(128);
+    var samples: vec2<u32>;
+    if params.range_phase.w == 2u {
+        let ux = uv_pos.x;
+        let vx = textureDimensions(uv_plane).x + ux;
+        let u_pair = textureLoad(uv_plane, vec2<i32>(i32(ux / 2u), i32(uv_pos.y)), 0).xy;
+        let v_pair = textureLoad(uv_plane, vec2<i32>(i32(vx / 2u), i32(uv_pos.y)), 0).xy;
+        samples = vec2<u32>(select(u_pair.x, u_pair.y, (ux & 1u) != 0u),
+                           select(v_pair.x, v_pair.y, (vx & 1u) != 0u));
+    } else {
+        samples = textureLoad(uv_plane, vec2<i32>(uv_pos), 0).xy;
+        if params.range_phase.w == 1u { samples = samples.yx; }
+    }
+    let uv = vec2<i32>(samples) - vec2<i32>(128);
     let u = uv.x; let v = uv.y;
     var rgb: vec3<i32>;
     if params.range_phase.x == 1u {

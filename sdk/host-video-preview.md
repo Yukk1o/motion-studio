@@ -4,7 +4,8 @@
 
 ## 后端已实现
 
-- 默认 SDR YUV420 解码结果保留为 Y + UV；CPU 只按 stride/pixelStride 打包，WGSL 在 GPU 上完成 BT.601/BT.709、full/limited range、crop 相位与 0/90/180/270 度旋转。保留原有整数转色和 clamp 规则。
+- 默认 SDR YUV420 解码结果保留为 Y + chroma；CPU 按 stride/pixelStride 打包，WGSL 在 GPU 上完成 BT.601/BT.709、full/limited range、crop 相位与 0/90/180/270 度旋转。保留原有整数转色和 clamp 规则。
+- 连续 U/V 平面按行复制；共享内存的 NV12/NV21 保留原来的 UV/VU 顺序，由 shader 读取对应通道，避免 CPU 逐像素交织或交换。其他 pixelStride 布局仍有精确打包路径。Android plane 的有效范围可能缺少另一平面的末尾字节，分别检查两个范围再补齐，不越界读取。
 - 视频输入纹理、参数 buffer 和转色 pipeline 复用；相同素材/PTS/尺寸跳过上传。紧密排列、偶数 crop 的 1080p YUV420 上传 3,110,400 字节，RGBA 原路径为 8,294,400 字节。这是载荷计算，不是帧率测量。
 - 每个活动视频流缓存当前源帧和最多两个后续源帧。decode-ready 自动推进预取，不需要另一次 render 请求。1080p 默认 YUV 帧受字节上限限制，通常缓存当前帧及下一帧。
 - 每流存储像素上限 8 MiB，每 reader 最多四流，因此源帧缓存上限 32 MiB。Codec/ImageReader、正在打包的帧、临时 JNI RGBA 和 GPU 纹理独立计量；32 MiB 不是整个应用内存上限。GPU 输入平面计入既有 128 MiB 图像/插件资源预算。
@@ -42,7 +43,7 @@ ImageReader 的 RGB 格式兼容回退仍使用 CPU 像素搬运/旋转。预览
 
 ## 验证入口
 
-- `cargo test --locked -p aem-render --test video_yuv --test video_instances`：矩阵/范围、四种旋转、奇数 crop、输入 stride、GPU/CPU 结果与纹理复用。
+- `cargo test --locked -p aem-render --test video_yuv --test video_instances`：矩阵/范围、四种旋转、奇数 crop、三种 chroma 布局、输入 stride、末尾 plane 范围、GPU/CPU 结果与纹理复用。
 - `cargo test --locked -p aem-android --lib`：VFR 区间、窗口失效及字节上限。
 - Android `VideoBackendApiTest`：真实 Codec 寻帧、冻结 reader、RGBA 输出；新增用例验证没有更多 render 请求时预取仍推进、下一张预取帧立即可呈现，以及逆向/跳转的 GPU 捕获一致性。
 - `tools/validate_video.py`：Android 实际帧与项目生成素材的 FFmpeg 对照。
