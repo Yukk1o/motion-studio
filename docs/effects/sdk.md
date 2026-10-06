@@ -1,4 +1,4 @@
-# motion-studio Effect SDK 1
+# motion-studio Effect SDK 3（保留 SDK 1/2）
 
 SDK 1图像效果契约保持支持。专用插件UI、实例化粒子和镜头生成器使用 [SDK 2扩展](../scene-effects/sdk.md)；当前JNI渲染计划为 [协议2](render-plan.md)，两者的版本号分别管理。
 
@@ -15,18 +15,35 @@ cargo run -p aem-effects --bin effect_tool -- builtin artifacts/core-effects.msf
 
 内置库直接嵌入版本控制中的library/core-effects.msfx固定字节，不在不同目标系统上重新压缩，保证桌面和Android解析同一SHA-256。修改内置manifest/源码后，先增加版本，再执行 `effect_tool pack crates/aem-effects/library crates/aem-effects/library/core-effects.msfx`，然后重新构建并运行对照。宿主检查嵌入包与manifest一致，陈旧的包会明确报错。
 
-当前核心版本1.1.0包含36项；已发布的1.0.0字节保留在 `library/legacy/core-effects-1.0.0.msfx` 并一同预装，既有工程继续解析原版本。`builtin` 命令导出当前版。内部插件ID保持兼容，包文件名与显示名称不再使用AE版本命名。生成新增16项源码和描述后再打包：
+当前核心版本 1.3.0 包含 59 项；1.0.0、1.1.0、1.2.0 原包保留并一同预装。生成器不读取本地参考图，最新版本重建方式：
 
 ```powershell
-py -X utf8 tools/generate_creative_library.py
+py -3.14 tools/generate_tiling_library.py
 cargo run -p aem-effects --bin effect_tool -- pack crates/aem-effects/library crates/aem-effects/library/core-effects.msfx
 ```
 
-生成器保留原有20项AE描述与源码，不读取本地reference资料。打包只收入manifest引用的文件，legacy目录不会嵌入新包。
+最新新增效果、参数范围与兼容限制见 [动态拼贴与图像工具](tiling-library.md)。打包只收入 manifest 引用的文件，legacy 目录不会嵌入新包。历史生成器保持各自版本。
+
+## SDK 3 输出矩形
+
+新增 `output_bounds={x,y,width,height}`，每个字段是一棵 BoundsExpr。可用 `input_size` 和 `input_origin`，component 只能为 0（x/width）或 1（y/height）；读取当前效果输入矩形，单位为未变换图层像素。原有 constant/parameter/add/multiply/max/abs/ceil 继续支持，深度上限 16，有限数值绝对值上限 32768。工作参数本身仍遵循各自 min/max。
+
+`output_bounds` 要求 SDK 3、图像效果，和非零 padding 互斥；结果尺寸必须至少 1 px，可扩展也可裁切，区域位置允许负值。声明 `rect_bounds` 能力。包校验采用单位输入检查结构及默认参数，运行时在实际输入矩形上检查尺寸/预算。合法参数超出设备资源能力会明确报错。
+
+```json
+{"output_bounds": {
+  "x": {"op":"input_origin","component":0},
+  "y": {"op":"input_origin","component":1},
+  "width": {"op":"multiply","a":{"op":"input_size","component":0},"b":{"op":"constant","value":2}},
+  "height": {"op":"input_size","component":1}
+}}
+```
+
+矩形效果的 main_fx 仍返回声明的工作色彩/Alpha；SDK 包装器在最后一个 pass 负责转换到宿主合成空间，可直接写合成槽位 0，减少外扩副本。中间 pass 保持工作空间。不得依赖输出纹理格式或自行重复转换。SDK 1/2 包和没有 output_bounds 的效果保持原执行路径，JNI 计划版本仍为 2、参数布局仍为 624 字节。
 
 ## Manifest
 
-必需字段：format_version=1、sdk_version=1、id、version、name、author、license、effects。每个效果必需 id/name/english_name/category/params/passes；其它字段有默认值。一个效果最多 32 个参数、8 个 pass、4 张 PNG、1 个 Curve 参数；一个图层最多 16 个效果。
+必需字段：format_version=1、sdk_version=1/2/3、id、version、name、author、license、effects。每个效果必需 id/name/english_name/category/params/passes；其它字段有默认值。一个效果最多 32 个参数、8 个 pass、4 张 PNG、1 个 Curve 参数；一个图层最多 16 个效果。
 
 参数字段：id/name/kind/default（固定四数）/min/max/step/units/animatable/implemented/options；kind 为 float、vec2、vec3、color、bool、enum、curve。可选 center_default 对 vec2 使用图层中心，relative_default=[x,y] 使用未变换尺寸的比例；relative_default 优先。宿主 UI 要使用 id，不能把中文名称当键。SDK 中 params 的槽位是 manifest.params 数组顺序，工程 JSON 对象的键排序与槽位无关。
 

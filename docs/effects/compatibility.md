@@ -30,3 +30,7 @@
 ## 核心1.2.0新增的16项
 
 参数身份、默认值及硬范围已由本机18.0.1x1采集；新增16项全部为近似实现，AE图像对照尚未完成，不计入已验收数量。列表、支持的参数子集和差异见 [common-library.md](common-library.md)，可复查参数记录见 [common-range-audit.json](common-range-audit.json)。
+
+## 核心 1.3.0 新增 7 项
+
+见 [动态拼贴与图像工具](tiling-library.md)。matchName、AE/Cycore 版本、有效范围及默认值已实际采集；24 个静态 AE 对照分别统计可见 RGB、全区域 Alpha、内部/边缘误差，数值报告见 [tiling-validation.json](tiling-validation.json)。全部仍为 approximate，已验收数量没有增加。源图/AE 工程/原始输出不放入 Git。

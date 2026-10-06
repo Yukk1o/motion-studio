@@ -1,0 +1,508 @@
+{
+  "ae_version": "18.0.1x1",
+  "profile": {
+    "bits_per_channel": 8,
+    "working_space": "sRGB IEC61966-2.1",
+    "linearized": false,
+    "pixel_aspect": 1,
+    "motion_blur": false
+  },
+  "parameters": [
+    {
+      "effect": "motion_tile",
+      "parameter": "center",
+      "ae": {
+        "name": "拼贴中心",
+        "matchName": "ADBE Tile-0001",
+        "valueType": 6415,
+        "defaultValue": [
+          128,
+          128
+        ],
+        "min": null,
+        "max": null,
+        "units": "像素",
+        "animatable": true
+      },
+      "host_min": -1000000.0,
+      "host_max": 1000000.0,
+      "note": "AE API 无硬边界；宿主有限值范围 ±1000000，不代表 AE 原生限制。"
+    },
+    {
+      "effect": "motion_tile",
+      "parameter": "tile_width",
+      "ae": {
+        "name": "拼贴宽度",
+        "matchName": "ADBE Tile-0002",
+        "valueType": 6417,
+        "defaultValue": 100,
+        "min": 0,
+        "max": 100,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 100,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "motion_tile",
+      "parameter": "tile_height",
+      "ae": {
+        "name": "拼贴高度",
+        "matchName": "ADBE Tile-0003",
+        "valueType": 6417,
+        "defaultValue": 100,
+        "min": 0,
+        "max": 100,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 100,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "motion_tile",
+      "parameter": "output_width",
+      "ae": {
+        "name": "输出宽度",
+        "matchName": "ADBE Tile-0004",
+        "valueType": 6417,
+        "defaultValue": 100,
+        "min": 0,
+        "max": 30000,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 30000,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "motion_tile",
+      "parameter": "output_height",
+      "ae": {
+        "name": "输出高度",
+        "matchName": "ADBE Tile-0005",
+        "valueType": 6417,
+        "defaultValue": 100,
+        "min": 0,
+        "max": 30000,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 30000,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "motion_tile",
+      "parameter": "mirror",
+      "ae": {
+        "name": "镜像边缘",
+        "matchName": "ADBE Tile-0006",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 1,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "motion_tile",
+      "parameter": "phase",
+      "ae": {
+        "name": "相位",
+        "matchName": "ADBE Tile-0007",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": null,
+        "max": null,
+        "units": "度",
+        "animatable": true
+      },
+      "host_min": -1000000.0,
+      "host_max": 1000000.0,
+      "note": "AE API 无硬边界；宿主有限值范围 ±1000000，不代表 AE 原生限制。"
+    },
+    {
+      "effect": "motion_tile",
+      "parameter": "horizontal_phase",
+      "ae": {
+        "name": "水平位移",
+        "matchName": "ADBE Tile-0008",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 1,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "optics_compensation",
+      "parameter": "fov",
+      "ae": {
+        "name": "视场 (FOV)",
+        "matchName": "ADBE Optics Compensation-0001",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": 0,
+        "max": 179.999984741211,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 179.999984741211,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "optics_compensation",
+      "parameter": "reverse",
+      "ae": {
+        "name": "反转镜头扭曲",
+        "matchName": "ADBE Optics Compensation-0002",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 1,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "optics_compensation",
+      "parameter": "orientation",
+      "ae": {
+        "name": "FOV 方向",
+        "matchName": "ADBE Optics Compensation-0003",
+        "valueType": 6417,
+        "defaultValue": 1,
+        "min": 1,
+        "max": 3,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 1,
+      "host_max": 3,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "optics_compensation",
+      "parameter": "center",
+      "ae": {
+        "name": "视图中心",
+        "matchName": "ADBE Optics Compensation-0004",
+        "valueType": 6415,
+        "defaultValue": [
+          128,
+          128
+        ],
+        "min": null,
+        "max": null,
+        "units": "像素",
+        "animatable": true
+      },
+      "host_min": -1000000.0,
+      "host_max": 1000000.0,
+      "note": "AE API 无硬边界；宿主有限值范围 ±1000000，不代表 AE 原生限制。"
+    },
+    {
+      "effect": "optics_compensation",
+      "parameter": "optimal_pixels",
+      "ae": {
+        "name": "最佳像素（反转无效）",
+        "matchName": "ADBE Optics Compensation-0005",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": 0,
+        "max": 1,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 1,
+      "note": "AE 原生有效范围。 首期仅允许默认值，界面禁用此控件。"
+    },
+    {
+      "effect": "optics_compensation",
+      "parameter": "resize",
+      "ae": {
+        "name": "调整大小",
+        "matchName": "ADBE Optics Compensation-0006",
+        "valueType": 6417,
+        "defaultValue": 1,
+        "min": 1,
+        "max": 4,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 1,
+      "host_max": 4,
+      "note": "AE 原生有效范围。 首期仅允许默认值，界面禁用此控件。"
+    },
+    {
+      "effect": "spherize",
+      "parameter": "radius",
+      "ae": {
+        "name": "半径",
+        "matchName": "ADBE Spherize-0001",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": 0,
+        "max": 2500,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 2500,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "spherize",
+      "parameter": "center",
+      "ae": {
+        "name": "球面中心",
+        "matchName": "ADBE Spherize-0002",
+        "valueType": 6415,
+        "defaultValue": [
+          128,
+          128
+        ],
+        "min": null,
+        "max": null,
+        "units": "像素",
+        "animatable": true
+      },
+      "host_min": -1000000.0,
+      "host_max": 1000000.0,
+      "note": "AE API 无硬边界；宿主有限值范围 ±1000000，不代表 AE 原生限制。"
+    },
+    {
+      "effect": "cc_lens",
+      "parameter": "center",
+      "ae": {
+        "name": "Center",
+        "matchName": "CC Lens-0001",
+        "valueType": 6415,
+        "defaultValue": [
+          128,
+          128
+        ],
+        "min": null,
+        "max": null,
+        "units": "像素",
+        "animatable": true
+      },
+      "host_min": -1000000.0,
+      "host_max": 1000000.0,
+      "note": "AE API 无硬边界；宿主有限值范围 ±1000000，不代表 AE 原生限制。"
+    },
+    {
+      "effect": "cc_lens",
+      "parameter": "size",
+      "ae": {
+        "name": "Size",
+        "matchName": "CC Lens-0002",
+        "valueType": 6417,
+        "defaultValue": 50,
+        "min": 0,
+        "max": 500,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 500,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "cc_lens",
+      "parameter": "convergence",
+      "ae": {
+        "name": "Convergence",
+        "matchName": "CC Lens-0003",
+        "valueType": 6417,
+        "defaultValue": 100,
+        "min": -200,
+        "max": 100,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": -200,
+      "host_max": 100,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "cc_radial_fast_blur",
+      "parameter": "center",
+      "ae": {
+        "name": "Center",
+        "matchName": "CC Radial Fast Blur-0001",
+        "valueType": 6415,
+        "defaultValue": [
+          128,
+          128
+        ],
+        "min": null,
+        "max": null,
+        "units": "像素",
+        "animatable": true
+      },
+      "host_min": -1000000.0,
+      "host_max": 1000000.0,
+      "note": "AE API 无硬边界；宿主有限值范围 ±1000000，不代表 AE 原生限制。"
+    },
+    {
+      "effect": "cc_radial_fast_blur",
+      "parameter": "amount",
+      "ae": {
+        "name": "Amount",
+        "matchName": "CC Radial Fast Blur-0002",
+        "valueType": 6417,
+        "defaultValue": 50,
+        "min": 0,
+        "max": 100,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 100,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "cc_radial_fast_blur",
+      "parameter": "zoom",
+      "ae": {
+        "name": "Zoom",
+        "matchName": "CC Radial Fast Blur-0003",
+        "valueType": 6417,
+        "defaultValue": 1,
+        "min": 1,
+        "max": 3,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 1,
+      "host_max": 3,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "simple_choker",
+      "parameter": "view",
+      "ae": {
+        "name": "视图",
+        "matchName": "ADBE Simple Choker-0001",
+        "valueType": 6417,
+        "defaultValue": 1,
+        "min": 1,
+        "max": 2,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 1,
+      "host_max": 2,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "simple_choker",
+      "parameter": "choke",
+      "ae": {
+        "name": "阻塞遮罩",
+        "matchName": "ADBE Simple Choker-0002",
+        "valueType": 6417,
+        "defaultValue": 0,
+        "min": -100,
+        "max": 100,
+        "units": "像素",
+        "animatable": true
+      },
+      "host_min": -100,
+      "host_max": 100,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "solid_composite",
+      "parameter": "source_opacity",
+      "ae": {
+        "name": "源不透明度",
+        "matchName": "ADBE Solid Composite-0001",
+        "valueType": 6417,
+        "defaultValue": 100,
+        "min": 0,
+        "max": 100,
+        "units": "百分比",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 100,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "solid_composite",
+      "parameter": "color",
+      "ae": {
+        "name": "颜色",
+        "matchName": "ADBE Solid Composite-0002",
+        "valueType": 6418,
+        "defaultValue": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "min": -3921568.62745098,
+        "max": 3921568.62745098,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 1,
+      "note": "8 bpc sRGB 宿主归一化 RGBA；AE API 的 HDR 数值范围见原始采集。"
+    },
+    {
+      "effect": "solid_composite",
+      "parameter": "opacity",
+      "ae": {
+        "name": "不透明度",
+        "matchName": "ADBE Solid Composite-0003",
+        "valueType": 6417,
+        "defaultValue": 100,
+        "min": 0,
+        "max": 100,
+        "units": "百分比",
+        "animatable": true
+      },
+      "host_min": 0,
+      "host_max": 100,
+      "note": "AE 原生有效范围。"
+    },
+    {
+      "effect": "solid_composite",
+      "parameter": "blend_mode",
+      "ae": {
+        "name": "混合模式",
+        "matchName": "ADBE Solid Composite-0004",
+        "valueType": 6417,
+        "defaultValue": 1,
+        "min": 1,
+        "max": 21,
+        "units": "",
+        "animatable": true
+      },
+      "host_min": 1,
+      "host_max": 21,
+      "note": "AE 原生有效范围。 首期仅允许默认值，界面禁用此控件。"
+    }
+  ]
+}

@@ -1,8 +1,7 @@
 //! The same frame plan drives wgpu and the MediaCodec/GLES adapter.
-use aem_core::{SampledEffect, Scene};
+use aem_core::Scene;
 use aem_effects::{
-    shader, AlphaMode, BoundsExpr, EdgeMode, EffectDefinition, EffectPackage, Registry,
-    WorkingSpace,
+    shader, AlphaMode, EdgeMode, EffectDefinition, EffectPackage, Registry, WorkingSpace,
 };
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
@@ -185,33 +184,6 @@ fn linear(v: f32) -> f32 {
     } else {
         ((v + 0.055) / 1.055).powf(2.4)
     }
-}
-fn bounds(expr: &BoundsExpr, fx: &SampledEffect, depth: u32) -> Result<f32, String> {
-    if depth > 16 {
-        return Err("bounds expression exceeds depth budget".into());
-    }
-    let v = match expr {
-        BoundsExpr::Constant { value } => *value,
-        BoundsExpr::Parameter { id, component } => {
-            let i = fx
-                .param_ids
-                .iter()
-                .position(|p| p == id)
-                .ok_or("unknown bounds parameter")?;
-            *fx.values[i]
-                .get(*component)
-                .ok_or("invalid bounds component")?
-        }
-        BoundsExpr::Add { a, b } => bounds(a, fx, depth + 1)? + bounds(b, fx, depth + 1)?,
-        BoundsExpr::Multiply { a, b } => bounds(a, fx, depth + 1)? * bounds(b, fx, depth + 1)?,
-        BoundsExpr::Max { a, b } => bounds(a, fx, depth + 1)?.max(bounds(b, fx, depth + 1)?),
-        BoundsExpr::Abs { value } => bounds(value, fx, depth + 1)?.abs(),
-        BoundsExpr::Ceil { value } => bounds(value, fx, depth + 1)?.ceil(),
-    };
-    if !v.is_finite() || v.abs() > 32768.0 {
-        return Err("invalid effect output bounds".into());
-    }
-    Ok(v)
 }
 impl PlanBuilder {
     fn check_scratch(sizes: &[[u32; 2]; 8], device_dimension: u32) -> Result<(), String> {
@@ -692,23 +664,42 @@ impl PlanBuilder {
                         additive = def.blend == aem_effects::SpriteBlend::Additive;
                         return Ok(());
                     }
-                    let pad = bounds(&def.padding, e, 0)?;
-                    if pad < 0.0 {
-                        return Err("negative output padding".into());
-                    }
-                    let next = [
-                        region[0] - pad,
-                        region[1] - pad,
-                        region[2] + 2.0 * pad,
-                        region[3] + 2.0 * pad,
-                    ];
+                    let lookup = |id: &str, component: usize| {
+                        let i = e.param_ids.iter().position(|p| p == id)?;
+                        e.values[i].get(component).copied()
+                    };
+                    let next = if let Some(rect) = &def.output_bounds {
+                        rect.evaluate_with(lookup, region)
+                            .map_err(|error| error.to_string())?
+                    } else {
+                        let pad = def
+                            .padding
+                            .evaluate_with(lookup, region)
+                            .map_err(|error| error.to_string())?;
+                        if pad < 0.0 {
+                            return Err("negative output padding".into());
+                        }
+                        [
+                            region[0] - pad,
+                            region[1] - pad,
+                            region[2] + 2.0 * pad,
+                            region[3] + 2.0 * pad,
+                        ]
+                    };
                     let work = if def.working_space == WorkingSpace::Srgb {
                         1
                     } else {
                         4
                     };
-                    // A single-pass effect needs source + output, not a third ping-pong target.
-                    let work_slots = if resolved.programs.len() == 1 { 3 } else { 7 };
+                    // SDK 3 rectangle shaders convert their final output directly into slot 0.
+                    // Preserve the published SDK 1/2 execution paths and quantization.
+                    let direct_output = def.output_bounds.is_some();
+                    let intermediate_passes = resolved.programs.len() - usize::from(direct_output);
+                    let work_slots = match intermediate_passes {
+                        0 => 1,
+                        1 => 3,
+                        _ => 7,
+                    };
                     let slots = self.frame.slots | 1 | (work_slots << work);
                     let w = ((next[2] * scale).ceil() as u32).max(self.frame.width);
                     let h = ((next[3] * scale).ceil() as u32).max(self.frame.height);
@@ -716,8 +707,8 @@ impl PlanBuilder {
                     reserve_scratch(
                         &mut sizes,
                         0,
-                        (next[2] * scale).ceil() as u32,
-                        (next[3] * scale).ceil() as u32,
+                        (next[2].max(region[2]) * scale).ceil() as u32,
+                        (next[3].max(region[3]) * scale).ceil() as u32,
                     );
                     reserve_scratch(
                         &mut sizes,
@@ -725,7 +716,7 @@ impl PlanBuilder {
                         (region[2] * scale).ceil() as u32,
                         (region[3] * scale).ceil() as u32,
                     );
-                    for i in 0..resolved.programs.len() {
+                    for i in 0..intermediate_passes {
                         reserve_scratch(
                             &mut sizes,
                             (work + 1 + i as u32 % 2) as usize,
@@ -829,8 +820,17 @@ impl PlanBuilder {
                     let mut input = work as i32;
                     let mut input_region = region;
                     for (i, program) in resolved.programs.iter().enumerate() {
-                        let output = work + 1 + (i as u32 % 2);
+                        let final_direct = direct_output && i + 1 == resolved.programs.len();
+                        let output = if final_direct {
+                            0
+                        } else {
+                            work + 1 + (i as u32 % 2)
+                        };
                         let mut u = uniform(next, input_region, source_region, i as f32);
+                        if final_direct {
+                            u.output_mode[0] = 0.;
+                            u.output_mode[1] = 0.;
+                        }
                         if i + 1 == resolved.programs.len() {
                             u.output_mode[2] = def
                                 .params
@@ -850,9 +850,11 @@ impl PlanBuilder {
                         input = output as i32;
                         input_region = next;
                     }
-                    let mut u = uniform(next, next, source_region, 0.0);
-                    u.output_mode = [0.0, 0.0, 1.0, scale];
-                    push(&mut self.frame, 1, input, input, 0, u, -1);
+                    if !direct_output {
+                        let mut u = uniform(next, next, source_region, 0.0);
+                        u.output_mode = [0.0, 0.0, 1.0, scale];
+                        push(&mut self.frame, 1, input, input, 0, u, -1);
+                    }
                     self.frame.width = w;
                     self.frame.height = h;
                     self.frame.slots = slots;

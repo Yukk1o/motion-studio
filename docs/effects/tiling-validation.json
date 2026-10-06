@@ -1,0 +1,1033 @@
+{
+  "ae_version": "18.0.1x1",
+  "package_version": "1.3.0",
+  "package_sha256": "a2655482198ebc3a1e75b569a8d5e14d8232c9ad2445c24fc9badfb6274aa454",
+  "profile": {
+    "bits_per_channel": 8,
+    "working_space": "sRGB IEC61966-2.1",
+    "linearized": false,
+    "pixel_aspect": 1,
+    "motion_blur": false
+  },
+  "rgb_and_alpha_threshold_255": 3,
+  "status": "approximate",
+  "verified_effects": 0,
+  "limitations": [
+    "24 static samples; no full AE animation/range/device acceptance.",
+    "RGB measured in visible pixels; empty RGB interior masks have zero samples, not evidence of fidelity.",
+    "Raw outputs, fixtures and AE projects are local ignored artifacts."
+  ],
+  "cases": [
+    {
+      "case": {
+        "id": "tile-default",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {}
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "e77d560e08a5c1c91253681b42db0b0f59badb25437027569623a726ec6150ed",
+      "application_sha256": "d96e5ec340649cd7efe410fc4881be612ebc051a0b099e512d3e6affb3aa328d",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 1024,
+          "alpha_pixels": 41984,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 3072,
+          "alpha_pixels": 23552,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-repeat",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "0ed5b7247fefc6e12a8804cde52ed1b0f6da597bfa428d679887d2abde85652e",
+      "application_sha256": "6ec6c94722ad7e03c8f7107ba0fb9a826a46c2bb5e401d15d79bc749b710d420",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-mirror",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 200,
+          "ADBE Tile-0006": 1
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "3dc826a117a15f77c374448799a3ec65ccdf758c143e2208ceb0531e28aaf5e9",
+      "application_sha256": "6b2aa737fc21cc7d52b3755ccf95be3115b4a5b7870c03a93008e80c1e58230a",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 32768,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 21504,
+          "alpha_pixels": 35840,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 11264,
+          "alpha_pixels": 29696,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-small",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0002": 50,
+          "ADBE Tile-0003": 50,
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "0e978c15cf72ebb01a16d111ed6eb8516f3e2927b171556aec2cc59d8ebf74f2",
+      "application_sha256": "be992c324cd3ca78ec13aeaf2cb69f5a73cc5e82324ab63bb6c8a5200b2a87ed",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.041666666666666664,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.041666666666666664,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.041666666666666664,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-phase",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400,
+          "ADBE Tile-0007": 90
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "54ba8c2f196311b3f582852ebb0f845541bbcacf273f6c08729668a7ff2f5cbf",
+      "application_sha256": "f44c486251423817f75fa558ff1a9c9d1aad03c99795079829c3adb4db7b5d30",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-horizontal-phase",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400,
+          "ADBE Tile-0007": 90,
+          "ADBE Tile-0008": 1
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "b92cc5d3c05697711869b8b20937f636fea479d8ecc9d87ac80c0b5b7b27af6c",
+      "application_sha256": "de60b272a600a0d7a260dce40b22933cdcef0d686a017d58c3a8abbd1e77b9cf",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-mirror-phase",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400,
+          "ADBE Tile-0006": 1,
+          "ADBE Tile-0007": 90
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "3ddde5d86e20c79cbf83fd9b7856245830f58555a775500ec9d6ad427c6b61a2",
+      "application_sha256": "66eae510cf1f90093d0888f1c9a1c80a4110b4d2c95ddca799b98b18d47ae474",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-center",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0001": [
+            40,
+            24
+          ],
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "c5254fc8d8effea3b7ea9c435fd686d76a64755cc4d17c476651d205b3bf72d8",
+      "application_sha256": "bc67249ad2893b086537e79216cd2f6b5b58ba80a76a7cdb974e060f0b6c596c",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-alpha",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0002": 50,
+          "ADBE Tile-0003": 50,
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400,
+          "ADBE Tile-0006": 1
+        }
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "7b4cad68491bc33f832f031c44e5effb01a987123c27a7a09118fe0a2c661179",
+      "application_sha256": "e79c68bbcf75ddee06c7c2326fa59698c27ba5feb3fbd3ff7d3348625af44217",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.6458333333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 36864,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0,
+          "alpha_mae_255": 0,
+          "rgb_pixels": 0,
+          "alpha_pixels": 0,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 0.6458333333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 36864,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "tile-crop",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0004": 50,
+          "ADBE Tile-0005": 200
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "6fe2f3dc77d099af8dbe89ac547727f7c070d62cb8d82211898f1bc9ca095524",
+      "application_sha256": "cc13e4f88ef269e6adf2cbb5e3fc89d0488fb21b4fad82576ccf938769faa41b",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 0,
+          "alpha_pixels": 39936,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 25600,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "tile-zero",
+        "effect": "motion_tile",
+        "matchName": "ADBE Tile",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Tile-0002": 0,
+          "ADBE Tile-0004": 400,
+          "ADBE Tile-0005": 400
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "0d70d5d850c7fa1dd54516bc25e4b176222462e854f810411982183376ca5718",
+      "application_sha256": "5021aae91559972c1068ea0d5a205fe4307e2c82e13a2ec69d1d72965e2839ef",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 65536,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 50176,
+          "alpha_pixels": 50176,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 15360,
+          "alpha_pixels": 15360,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "spherize",
+        "effect": "spherize",
+        "matchName": "ADBE Spherize",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Spherize-0001": 28
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "b4f92fd2638c4a98ad9f011cb63286b900d202f026fe258c9017070c7a16e8f7",
+      "application_sha256": "a839c796e23f36f007c922e3426814a8493e351b7dbcb026dc83cad4fe54acf7",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 10.112141927083334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 7.196940104166667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 1024,
+          "alpha_pixels": 41984,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 11.083875868055555,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 3072,
+          "alpha_pixels": 23552,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "spherize-off",
+        "effect": "spherize",
+        "matchName": "ADBE Spherize",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {}
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "a3dcede0dcb400e202788a0065d3a16448a0a57d25d308a0a12281654e38b262",
+      "application_sha256": "4376c45de0d19b6344f5544d51fdcae252109555af7240b992af4679507fe2db",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.5833333333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 2304,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 0,
+          "alpha_pixels": 43776,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.5833333333333334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 2304,
+          "alpha_pixels": 21760,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "optics",
+        "effect": "optics_compensation",
+        "matchName": "ADBE Optics Compensation",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Optics Compensation-0001": 90
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "cf36fe95b672512ee9813322820c4b3a1f7b7f8764bbae29ca74299d3d205fe8",
+      "application_sha256": "5dc5b2883fa3118bb9e2b84afd06b4335d57960d113e85d545b02c2c7024d8d0",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 12.250517598343686,
+          "alpha_mae_255": 0.26519775390625,
+          "rgb_pixels": 1932,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 32,
+          "alpha_pixels": 44180,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 12.456842105263158,
+          "alpha_mae_255": 0.8138228132609103,
+          "rgb_pixels": 1900,
+          "alpha_pixels": 21356,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "optics-reverse",
+        "effect": "optics_compensation",
+        "matchName": "ADBE Optics Compensation",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Optics Compensation-0001": 90,
+          "ADBE Optics Compensation-0002": 1
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "a1c21c683b04fc2443d104892afb6b8565934c0bbe5e84b97264183c37c3faef",
+      "application_sha256": "4947a5d82daecb6ca78eb29c269a5bc9ea8f95a0a58561982b49c67bb68467ea",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.032552083333333336,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.0390625,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 1024,
+          "alpha_pixels": 41984,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.030381944444444444,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 3072,
+          "alpha_pixels": 23552,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "lens",
+        "effect": "cc_lens",
+        "matchName": "CC Lens",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {}
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "ed59349a98f8ae82b1d5e3fbf6cc85226e1153a3a13711576987e18f3058908f",
+      "application_sha256": "623b0a284c6aef2d6b6842a7543a5f8ff04cecf6ac6fbd749633e1d74a0b316a",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 13.124643002855976,
+          "alpha_mae_255": 0.3455352783203125,
+          "rgb_pixels": 1634,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 0,
+          "alpha_pixels": 44574,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 13.124643002855976,
+          "alpha_mae_255": 1.080288140444614,
+          "rgb_pixels": 1634,
+          "alpha_pixels": 20962,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "lens-negative",
+        "effect": "cc_lens",
+        "matchName": "CC Lens",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "CC Lens-0002": 75,
+          "CC Lens-0003": -100
+        }
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "536f21d6840a814151726ff146598c8bffebf374f4fc2c1c2c6a9750455b964e",
+      "application_sha256": "7e40807ba0991cf79d70a2efd5f1e500ca1c80725301d07409b4b1a75072fbdd",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 13.142634854771785,
+          "alpha_mae_255": 0.2613525390625,
+          "rgb_pixels": 1928,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 60,
+          "alpha_pixels": 44340,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 13.564775160599572,
+          "alpha_mae_255": 0.8080769956595584,
+          "rgb_pixels": 1868,
+          "alpha_pixels": 21196,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "radial-fast",
+        "effect": "cc_radial_fast_blur",
+        "matchName": "CC Radial Fast Blur",
+        "input": "grid.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {}
+      },
+      "input_sha256": "1b23bbe4212c521ed37bbfc8d4069b559f43a96a8a99cc67b81086343fee86bd",
+      "ae_sha256": "85478b4a79501bf8e9a6be885c232ed697b9716868d487ee8d9d67e65d1cd521",
+      "application_sha256": "d5e3ba0f31c3901b779135b8aeb1ade2a60ad093662cc0f27a51f4d49161a144",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 9.547607421875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 11.074544270833334,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 1024,
+          "alpha_pixels": 41984,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 9.038628472222223,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 3072,
+          "alpha_pixels": 23552,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "radial-dark",
+        "effect": "cc_radial_fast_blur",
+        "matchName": "CC Radial Fast Blur",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "CC Radial Fast Blur-0002": 40,
+          "CC Radial Fast Blur-0003": 3
+        }
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "8611a71b97f13b57706f3769c8c5dfdde7bc5f60a91de70326b1bc49b00a0e76",
+      "application_sha256": "be6341ccf023b829a4cbb621fb4a4d30064af569f3ad5e66ca891e225bc43ee0",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 14.907262731481481,
+          "alpha_mae_255": 0.02435302734375,
+          "rgb_pixels": 2304,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 0,
+          "alpha_pixels": 43776,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 14.907262731481481,
+          "alpha_mae_255": 0.07334558823529412,
+          "rgb_pixels": 2304,
+          "alpha_pixels": 21760,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "choker",
+        "effect": "simple_choker",
+        "matchName": "ADBE Simple Choker",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Simple Choker-0002": 3
+        }
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "7ea09ff07d9f936c588810bfe5b07c144cd003dade450b4a2bd465a29e8cb09d",
+      "application_sha256": "e59a23b614c7756722eb944efc97297dc9a4b35c4c9dc3176acf25e0b2a06370",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 64.5137741046832,
+          "alpha_mae_255": 2.304443359375,
+          "rgb_pixels": 1936,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 0,
+          "alpha_pixels": 44336,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 64.5137741046832,
+          "alpha_mae_255": 7.123773584905661,
+          "rgb_pixels": 1936,
+          "alpha_pixels": 21200,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "choker-expand",
+        "effect": "simple_choker",
+        "matchName": "ADBE Simple Choker",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Simple Choker-0002": -3
+        }
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "c29a706787527b66142ab2e9c14d8ca523211b4050459889b40b1ff128920a88",
+      "application_sha256": "5725352519efd211914ec1c67e004b7f9f33d50265b2f795895c3c5b3913a7e9",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 17.681506090808416,
+          "alpha_mae_255": 2.906890869140625,
+          "rgb_pixels": 3010,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 0.11699779249448124,
+          "alpha_mae_255": 0.23095215891075258,
+          "rgb_pixels": 302,
+          "alpha_pixels": 42892,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 19.640324963072377,
+          "alpha_mae_255": 7.975622681505034,
+          "rgb_pixels": 2708,
+          "alpha_pixels": 22644,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "choker-matte",
+        "effect": "simple_choker",
+        "matchName": "ADBE Simple Choker",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Simple Choker-0001": 2,
+          "ADBE Simple Choker-0002": 3
+        }
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "85838313820df84d29cbf698301f8fcb1bb7382e13212575a9e968af620ba113",
+      "application_sha256": "206635e10c66319efc307290460bf477c8051205b0334c278b83da49fef8433e",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 26.14681440443213,
+          "alpha_mae_255": 6.536865234375,
+          "rgb_pixels": 5776,
+          "alpha_pixels": 65536,
+          "threshold_pass": false
+        },
+        "interior": {
+          "rgb_mae_255": 72.98347107438016,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 1936,
+          "alpha_pixels": 40448,
+          "threshold_pass": false
+        },
+        "edge": {
+          "rgb_mae_255": 2.533333333333333,
+          "alpha_mae_255": 17.075892857142858,
+          "rgb_pixels": 3840,
+          "alpha_pixels": 25088,
+          "threshold_pass": false
+        }
+      },
+      "case_threshold_pass": false
+    },
+    {
+      "case": {
+        "id": "solid",
+        "effect": "solid_composite",
+        "matchName": "ADBE Solid Composite",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {}
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "39ba1b9bd4d691f087310107b16d91c6d64c3b7416d56c0f0929ff989a7c06fa",
+      "application_sha256": "2d3d3c4098616431073b817a25ddbbc5d860a34f247b6e38aa12dbb02fcbea12",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.171875,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0.375,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 1024,
+          "alpha_pixels": 41984,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.10416666666666667,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 3072,
+          "alpha_pixels": 23552,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    },
+    {
+      "case": {
+        "id": "solid-alpha",
+        "effect": "solid_composite",
+        "matchName": "ADBE Solid Composite",
+        "input": "alpha.png",
+        "width": 256,
+        "height": 256,
+        "frame": 0,
+        "properties": {
+          "ADBE Solid Composite-0001": 70,
+          "ADBE Solid Composite-0002": [
+            0.2,
+            0.4,
+            0.8,
+            1
+          ],
+          "ADBE Solid Composite-0003": 40
+        }
+      },
+      "input_sha256": "d973fb3cae3d911b2b01fdd661c59e16cf658afde408601c726d3ad7afe219f1",
+      "ae_sha256": "f5f889378faa7b22b656526f18f0282376884ef1dd05dc066a84af81c9649535",
+      "application_sha256": "5f5b86f8145cf7c73fd52854854e8a056a64102c673ae72a8ab95d56b5283b27",
+      "metrics": {
+        "whole": {
+          "rgb_mae_255": 0.7063802083333334,
+          "alpha_mae_255": 0.017578125,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 65536,
+          "threshold_pass": true
+        },
+        "interior": {
+          "rgb_mae_255": 0,
+          "alpha_mae_255": 0.0,
+          "rgb_pixels": 0,
+          "alpha_pixels": 40960,
+          "threshold_pass": true
+        },
+        "edge": {
+          "rgb_mae_255": 0.7063802083333334,
+          "alpha_mae_255": 0.046875,
+          "rgb_pixels": 4096,
+          "alpha_pixels": 24576,
+          "threshold_pass": true
+        }
+      },
+      "case_threshold_pass": true
+    }
+  ]
+}

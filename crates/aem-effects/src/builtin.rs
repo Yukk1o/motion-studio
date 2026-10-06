@@ -36,9 +36,21 @@ pub fn packages() -> Result<Vec<Arc<EffectPackage>>> {
         })
         .clone()
         .map_err(Error::Invalid)?;
+    static COMMON: OnceLock<std::result::Result<Arc<EffectPackage>, String>> = OnceLock::new();
+    let common = COMMON
+        .get_or_init(|| {
+            EffectPackage::from_bytes(
+                include_bytes!("../library/legacy/core-effects-1.2.0.msfx").to_vec(),
+            )
+            .map(Arc::new)
+            .map_err(|e| e.to_string())
+        })
+        .clone()
+        .map_err(Error::Invalid)?;
     Ok(vec![
         previous,
         creative,
+        common,
         package()?,
         legacy_scene_package()?,
         scene_package()?,
