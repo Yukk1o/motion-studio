@@ -17,10 +17,12 @@ def floats(data):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--adb',required=True)
+    parser.add_argument('--adb-port',type=int,default=5037,help='Dedicated adb server port when other work shares the host')
     parser.add_argument('--serial',required=True)
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args()
-    adb=[args.adb,'-s',args.serial,'exec-out','run-as','com.motionstudio.editor']
+    assert 1<=args.adb_port<=65535
+    adb=[args.adb,'-P',str(args.adb_port),'-s',args.serial,'exec-out','run-as','com.motionstudio.editor']
     fixtures=Path(__file__).resolve().parents[1]/'crates/aem-media/tests/fixtures/formats'
     manifest=json.loads((fixtures/'manifest.json').read_text())
     args.output.mkdir(parents=True,exist_ok=True)
