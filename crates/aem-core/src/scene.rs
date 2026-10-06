@@ -16,10 +16,14 @@ pub struct DrawLayer {
     pub id: u64,
     pub model: Mat4,
     pub size: [f32; 2],
+    pub source_size: [f32; 2],
+    pub source_rect: [f32; 4],
     pub color: [f32; 4],
     pub opacity: f32,
     pub asset: Option<u64>,
     pub video: Option<crate::VideoSample>,
+    pub vector: Option<std::sync::Arc<crate::vector::SampledVector>>,
+    pub adjustment: bool,
     pub depth: f32,
     pub order: usize,
     pub three_d: bool,
@@ -42,6 +46,15 @@ pub struct Scene {
     node_ids: Vec<u64>,
     node_spatial: Vec<bool>,
     evaluated_project: Option<Project>,
+    vector_cache: std::collections::HashMap<
+        u64,
+        (
+            crate::vector::VectorContent,
+            [f32; 2],
+            Option<f64>,
+            std::sync::Arc<crate::vector::SampledVector>,
+        ),
+    >,
 }
 impl Scene {
     pub fn new(project: &Project) -> Self {
@@ -60,6 +73,7 @@ impl Scene {
             node_ids: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_spatial: Vec::with_capacity(crate::MAX_LAYERS + 1),
             evaluated_project: None,
+            vector_cache: Default::default(),
         }
     }
     pub fn sample(
@@ -134,6 +148,12 @@ impl Scene {
         self.height = project.height;
         self.background = project.background;
         self.layers.clear();
+        self.vector_cache.retain(|id, _| {
+            project
+                .layers
+                .iter()
+                .any(|l| l.id == *id && matches!(l.content, Content::Vector { .. }))
+        });
         let forward = (self.camera.target - self.camera.eye).normalize();
         let flat_projection = Mat4::orthographic_rh(
             -(project.width as f32) * 0.5,
@@ -180,6 +200,7 @@ impl Scene {
                 Content::Null | Content::Audio { .. } => unreachable!(),
                 Content::Solid { color } => (*color, None),
                 Content::Video { .. } => ([1.0; 4], None),
+                Content::Vector { .. } | Content::Adjustment => ([1.0; 4], None),
                 Content::Image { asset } => ([1.0; 4], Some(*asset)),
                 Content::Text {
                     color,
@@ -187,14 +208,73 @@ impl Scene {
                     ..
                 } => (*color, Some(*raster_asset)),
             };
+            let vector = if let Content::Vector { vector } = &layer.content {
+                let time = vector.animated().then_some(layer.local_frame(frame));
+                let dirty = self
+                    .vector_cache
+                    .get(&layer.id)
+                    .is_none_or(|(v, size, t, _)| v != vector || *size != layer.size || *t != time);
+                if dirty {
+                    self.vector_cache.insert(
+                        layer.id,
+                        (
+                            vector.clone(),
+                            layer.size,
+                            time,
+                            std::sync::Arc::new(
+                                vector
+                                    .sample(layer.local_frame(frame), layer.size)
+                                    .map_err(|e| {
+                                        crate::Error::Invalid(format!(
+                                            "layer {} vector: {e}",
+                                            layer.id
+                                        ))
+                                    })?,
+                            ),
+                        ),
+                    );
+                }
+                Some(self.vector_cache[&layer.id].3.clone())
+            } else {
+                None
+            };
+            let mut size = layer.size;
+            if let Some(v) = &vector {
+                let pad = v.stroke.map_or(0., |s| {
+                    s.1 * 0.5
+                        * if s.3 == crate::vector::LineJoin::Miter {
+                            s.4
+                        } else {
+                            1.
+                        }
+                });
+                for n in v.paths.iter().flat_map(|p| &p.nodes) {
+                    for axis in 0..2 {
+                        let extent = n[axis]
+                            .abs()
+                            .max((n[axis] + n[axis + 2]).abs())
+                            .max((n[axis] + n[axis + 4]).abs());
+                        size[axis] = size[axis].max(2. * (extent + pad + 1.));
+                    }
+                }
+            }
             self.layers.push(DrawLayer {
                 id: layer.id,
                 model: self.node_world[order] * geometry_offset(layer),
-                size: layer.size,
+                size,
+                source_size: layer.size,
+                source_rect: [
+                    (layer.size[0] - size[0]) * 0.5,
+                    (layer.size[1] - size[1]) * 0.5,
+                    size[0],
+                    size[1],
+                ],
                 color,
                 opacity,
                 asset,
                 video,
+                vector,
+                adjustment: matches!(layer.content, Content::Adjustment),
                 depth: (center - self.camera.eye).dot(forward),
                 order,
                 three_d: layer.three_d,

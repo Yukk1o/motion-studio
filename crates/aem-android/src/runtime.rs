@@ -689,6 +689,18 @@ impl Session {
                 }
             }
         }
+        let vector_layers: Vec<_> = self.scene.layers.iter().filter_map(|layer| {
+            let vector=layer.vector.as_ref()?;
+            let stored=p.layers.iter().find(|l|l.id==layer.id).and_then(|l|match &l.content {
+                aem_core::Content::Vector{vector}=>Some(&vector.source),_=>None,
+            });
+            let paths:Vec<_>=vector.paths.iter().enumerate().map(|(i,path)| {
+                let original_path=match stored {Some(aem_core::vector::VectorSource::Paths{paths})=>paths.get(i),_=>None};
+                let nodes:Vec<_>=path.nodes.iter().enumerate().map(|(j,geometry)|json!({"id":original_path.and_then(|p|p.nodes.get(j)).map_or(j as u64+1,|n|n.id),"geometry":geometry})).collect();
+                json!({"id":original_path.map_or(i as u64+1,|p|p.id),"closed":path.closed,"nodes":nodes})
+            }).collect();
+            Some(json!({"id":layer.id,"canvas_size":layer.source_size,"source_rect":layer.source_rect,"mvp":(layer.view_projection*layer.model).to_cols_array(),"paths":paths,"fill":vector.fill,"stroke":vector.stroke.map(|s|json!({"color":s.0,"width":s.1,"cap":s.2,"join":s.3,"miter_limit":s.4}))}))
+        }).collect();
         let camera_properties: Vec<&str> = if !p.camera.created {
             vec![]
         } else if p.camera.mode == aem_core::CameraMode::Position {
@@ -697,8 +709,8 @@ impl Session {
             vec!["target"]
         };
         json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
-            "main_composition":"comp-main",
-            "capabilities":{"scene_effects":{"sdk_version":2,"plugin_editor_protocol":1,"max_particles_per_effect":20000,"max_sprites_per_frame":65536,"occlusion":"source_alpha_planes","simulation":"analytic_local_space"},"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"layer_3d":{"supported":true,"default":false,"activation":"explicit","command":"set_layer_3d"},
+            "main_composition":"comp-main","vector_layers":vector_layers,
+            "capabilities":{"adjustment_layers":{"supported":true,"command":"add_adjustment","composite":"lower_layers","mask":"transformed_rectangle","background":"excluded","three_d":false},"vector_drawing":{"supported":true,"protocol":1,"command":"vector","coordinates":"centered_canvas_pixels_y_down","max_paths":aem_core::vector::MAX_PATHS,"max_nodes":aem_core::vector::MAX_NODES,"fill_rules":["non_zero","even_odd"],"stroke_caps":["butt","round","square"],"stroke_joins":["miter","round","bevel"],"shape_catalog":aem_core::vector::shape_catalog()},"scene_effects":{"sdk_version":2,"plugin_editor_protocol":1,"max_particles_per_effect":20000,"max_sprites_per_frame":65536,"occlusion":"source_alpha_planes","simulation":"analytic_local_space"},"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"layer_3d":{"supported":true,"default":false,"activation":"explicit","command":"set_layer_3d"},
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
@@ -848,6 +860,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                         .find(|l| l.id == object)
                         .ok_or("layer does not exist")?;
                     let upgrading = text("op")? == "upgrade";
+                    if matches!(layer.content,aem_core::Content::Adjustment) && def.renderer!=aem_effects::RendererKind::Image {return Err("adjustment layers support image effects only".into());}
                     let instance = if upgrading {
                         v["instance"].as_u64().ok_or("missing instance")?
                     } else {
@@ -868,7 +881,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                         &p.manifest.version,
                         &p.hash,
                         def,
-                        layer.size,
+                        if matches!(layer.content,aem_core::Content::Adjustment) {[s.engine.project().width as f32,s.engine.project().height as f32]}else{layer.size},
                     );
                     let mut cmds = Vec::new();
                     if upgrading {
@@ -941,7 +954,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
                 + p.layers.len() * 128
                 + passes * (40 + aem_effects::shader::UNIFORM_BYTES)
                 + count * 1024
-                + aem_effects::MAX_SPRITES * 48 + 8192 * 12 + 65536 * 20;
+                + aem_effects::MAX_SPRITES * 48 + 8192 * 12 + 65536 * 20 + aem_core::MAX_LAYERS*28 + 262144*24;
             Ok(
                 json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
             )
@@ -1856,13 +1869,14 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleInto(
                 .iter()
                 .any(|l| l.effects.iter().any(|e| e.enabled))
             {
-                return Err("effects require render plan SDK 1".into());
+                return Err("effects require the versioned render plan".into());
             }
 
             s.frame = f64::from(frame);
             s.scene
                 .sample(s.engine.project(), s.frame, None)
                 .map_err(|e| e.to_string())?;
+            if s.scene.layers.iter().any(|l|l.adjustment||l.vector.is_some()){return Err("vector and adjustment sources require render plan version 4".into());}
             s.geometry.prepare(&s.scene).map_err(|e| e.to_string())?;
             if s.scene.layers.iter().any(|l| l.video.is_some()) {
                 return Err("video export requires dynamic frame reads and GeometryBridge".into());
@@ -1962,6 +1976,7 @@ pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_sampleGeometr
             s.scene
                 .sample(s.engine.project(), frame, None)
                 .map_err(|e| e.to_string())?;
+            if s.scene.layers.iter().any(|l|l.adjustment||l.vector.is_some()){return Err("vector and adjustment sources require render plan version 4".into());}
             s.geometry.prepare(&s.scene).map_err(|e| e.to_string())?;
             let pb = s.geometry.batches.len() * 128;
             let vb = s.geometry.vertices.len() * 20;
