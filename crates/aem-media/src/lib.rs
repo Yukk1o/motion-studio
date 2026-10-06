@@ -1,12 +1,19 @@
 //! Owned asynchronous media import, video caches and bounded PCM mixing. No UI dependencies.
 mod avc;
 mod decode;
+mod formats;
+mod matroska;
+pub use matroska::{matroska_metadata, MatroskaMetadata, MatroskaTrack};
 mod jobs;
 mod mixer;
 mod mp4;
 mod video;
+mod video_metadata;
+pub use video_metadata::{hevc_metadata, vp9_metadata};
 pub use avc::{avc_metadata, AvcMetadata};
 pub use jobs::{AudioJobs, ImportOptions, Limits, TaskStatus};
+pub use decode::{decode_audio, DecodeAudio};
+pub use formats::{source_extension, VIDEO_MIMES, NATIVE_AUDIO_MIMES};
 pub use mixer::{read_waveform, AudioMixer, WaveBucket};
 pub use video::{
     load_video_index, save_index, video_cache_path, ProbeVideo, VideoImportOptions, VideoJobs,

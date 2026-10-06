@@ -7,12 +7,12 @@ pub struct AvcMetadata {
     pub color_standard: Option<u32>,
     pub color_range: Option<u32>,
 }
-struct Bits<'a> {
-    data: &'a [u8],
-    at: usize,
+pub(crate) struct Bits<'a> {
+    pub(crate) data: &'a [u8],
+    pub(crate) at: usize,
 }
 impl Bits<'_> {
-    fn read(&mut self, n: usize) -> Result<u32> {
+    pub(crate) fn read(&mut self, n: usize) -> Result<u32> {
         if n > 32 || self.at + n > self.data.len() * 8 {
             return Err("truncated SPS".into());
         }
@@ -23,10 +23,10 @@ impl Bits<'_> {
         }
         Ok(out)
     }
-    fn flag(&mut self) -> Result<bool> {
+    pub(crate) fn flag(&mut self) -> Result<bool> {
         Ok(self.read(1)? != 0)
     }
-    fn ue(&mut self) -> Result<u32> {
+    pub(crate) fn ue(&mut self) -> Result<u32> {
         let mut n = 0;
         while self.read(1)? == 0 {
             n += 1;
@@ -36,7 +36,7 @@ impl Bits<'_> {
         }
         Ok((1 << n) - 1 + self.read(n)?)
     }
-    fn se(&mut self) -> Result<i32> {
+    pub(crate) fn se(&mut self) -> Result<i32> {
         let v = self.ue()?;
         Ok(if v % 2 == 0 {
             -(v as i32 / 2)

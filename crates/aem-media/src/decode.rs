@@ -2,12 +2,12 @@ use crate::{mp4, Result};
 use aem_core::AudioAsset;
 use std::{
     fs::File,
-    io::{BufWriter, Read, Write},
+    io::{BufWriter, Read, Seek, SeekFrom, Write},
     path::Path,
 };
 use symphonia::core::{
     audio::SampleBuffer,
-    codecs::{DecoderOptions, CODEC_TYPE_AAC, CODEC_TYPE_MP3, CODEC_TYPE_PCM_S16LE},
+    codecs::{DecoderOptions, CODEC_TYPE_AAC, CODEC_TYPE_ALAC, CODEC_TYPE_FLAC, CODEC_TYPE_MP3},
     formats::FormatOptions,
     io::MediaSourceStream,
     probe::Hint,
@@ -15,12 +15,18 @@ use symphonia::core::{
 
 /// PCM cache is little-endian interleaved f32 at the native source rate.
 /// Decode only a packet at a time; the complete PCM lives on disk.
-pub(crate) fn decode(
+pub type DecodeAudio = std::sync::Arc<
+    dyn Fn(&Path, &Path, Option<u32>, u64, &mut dyn FnMut(f64) -> Result<()>) -> Result<AudioAsset>
+        + Send
+        + Sync,
+>;
+
+pub fn decode_audio(
     path: &Path,
     pcm: &Path,
     selected_track: Option<u32>,
     max_pcm_bytes: u64,
-    mut check: impl FnMut(f64) -> Result<()>,
+    check: &mut dyn FnMut(f64) -> Result<()>,
 ) -> Result<AudioAsset> {
     let mut signature = [0; 12];
     let mut source = File::open(path).map_err(|e| e.to_string())?;
@@ -29,6 +35,11 @@ pub(crate) fn decode(
         .map_err(|e| e.to_string())?;
     let bytes = source.metadata().map_err(|e| e.to_string())?.len();
     drop(source);
+    if signature[..4] == [0x1a, 0x45, 0xdf, 0xa3] {
+        return Err(
+            "Matroska audio requires the platform decoder to preserve its source clock".into(),
+        );
+    }
     let file = File::open(path).map_err(|e| e.to_string())?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
     let opts = FormatOptions {
@@ -47,10 +58,9 @@ pub(crate) fn decode(
         .iter()
         .find(|t| {
             selected_track.map_or(
-                matches!(
-                    t.codec_params.codec,
-                    CODEC_TYPE_AAC | CODEC_TYPE_MP3 | CODEC_TYPE_PCM_S16LE
-                ),
+                symphonia::default::get_codecs()
+                    .get_codec(t.codec_params.codec)
+                    .is_some(),
                 |id| t.id == id,
             )
         })
@@ -61,38 +71,55 @@ pub(crate) fn decode(
         .make(&params, &DecoderOptions { verify: true })
         .map_err(|e| e.to_string())?;
     // AAC's AudioSpecificConfig carries the layout even when MP4 headers do not.
-    let rate = if params.codec == CODEC_TYPE_AAC {
+    let rate = if matches!(params.codec, CODEC_TYPE_AAC | CODEC_TYPE_ALAC) {
         decoder.last_decoded().spec().rate
     } else {
         params.sample_rate.ok_or("missing audio sample rate")?
     };
-    let channels = if params.codec == CODEC_TYPE_AAC {
+    let channels = if matches!(params.codec, CODEC_TYPE_AAC | CODEC_TYPE_ALAC) {
         decoder.last_decoded().spec().channels.count() as u32
     } else {
         params.channels.ok_or("missing channel layout")?.count() as u32
     };
-    if !matches!(rate, 44_100 | 48_000) || !matches!(channels, 1 | 2) {
-        return Err("audio requires mono/stereo at 44.1/48 kHz".into());
+    if !(8_000..=192_000).contains(&rate) || !matches!(channels, 1 | 2) {
+        return Err("audio requires mono/stereo at 8–192 kHz".into());
     }
-    let mime = match params.codec {
-        CODEC_TYPE_AAC if &signature[4..8] == b"ftyp" => "audio/mp4",
-        CODEC_TYPE_MP3 => "audio/mpeg",
-        CODEC_TYPE_PCM_S16LE if &signature[..4] == b"RIFF" && &signature[8..] == b"WAVE" => {
-            "audio/wav"
-        }
-        _ => return Err("supported audio formats: M4A/AAC-LC, MP3, WAV/16-bit PCM".into()),
+    let mp4_container = &signature[4..8] == b"ftyp";
+    let mime = if mp4_container {
+        "audio/mp4"
+    } else if &signature[..4] == b"fLaC" {
+        "audio/flac"
+    } else if &signature[..4] == b"OggS" {
+        "audio/ogg"
+    } else if &signature[..4] == b"RIFF" && &signature[8..] == b"WAVE" {
+        "audio/wav"
+    } else if &signature[..4] == b"FORM" {
+        "audio/aiff"
+    } else if params.codec == CODEC_TYPE_FLAC {
+        "audio/flac"
+    } else if params.codec == CODEC_TYPE_MP3 {
+        "audio/mpeg"
+    } else {
+        return Err("unsupported audio container".into());
     };
-    let edit = if mime == "audio/mp4" {
+    let edit = if mp4_container {
         mp4::audio_edit(path, id, rate)?
     } else {
         mp4::Edit::default()
+    };
+    // Symphonia 0.5.5 includes AIFF's eight-byte SSND prefix in its
+    // estimated duration. COMM is the authoritative number of sample frames.
+    let expected_frames = if mime == "audio/aiff" {
+        Some(aiff_frames(path)?)
+    } else {
+        params.n_frames
     };
     let max_frames = max_pcm_bytes / (u64::from(channels) * 4);
     if edit.leading > max_frames
         || (if mime == "audio/mp4" {
             edit.frames.map(|n| n.saturating_add(edit.leading))
         } else {
-            params.n_frames
+            expected_frames
         })
         .is_some_and(|n| n > max_frames)
     {
@@ -118,11 +145,7 @@ pub(crate) fn decode(
     }
     total += edit.leading;
     loop {
-        check(
-            params
-                .n_frames
-                .map_or(0.0, |n| (decoded as f64 / n.max(1) as f64).min(1.0)),
-        )?;
+        check(expected_frames.map_or(0.0, |n| (decoded as f64 / n.max(1) as f64).min(1.0)))?;
         let packet = match format.next_packet() {
             Ok(p) => p,
             Err(symphonia::core::errors::Error::IoError(e))
@@ -143,6 +166,10 @@ pub(crate) fn decode(
         }
         if audio.frames() > 65_536 {
             return Err("audio packet exceeds decode memory budget".into());
+        }
+        // Vorbis's initial overlap packet legitimately emits zero samples.
+        if audio.frames() == 0 {
+            continue;
         }
         let mut buffer = SampleBuffer::<f32>::new(audio.frames() as u64, *audio.spec());
         buffer.copy_interleaved_ref(audio);
@@ -173,8 +200,14 @@ pub(crate) fn decode(
     if audible == 0 || edit.frames.is_some_and(|n| audible < n) {
         return Err("audio is empty or truncated".into());
     }
-    if mime != "audio/mp4" && params.n_frames.is_some_and(|n| audible != n) {
-        return Err("audio decoded length does not match source; file may be truncated".into());
+    // Lossless sources have exact declared sample counts; Ogg packet padding
+    // and Matroska duration estimates need not equal the decoded count.
+    if matches!(
+        mime,
+        "audio/wav" | "audio/flac" | "audio/aiff" | "audio/mpeg"
+    ) && expected_frames.is_some_and(|n| audible != n)
+    {
+        return Err(format!("audio decoded length {audible} does not match source {expected_frames:?}; file may be truncated"));
     }
     if decoder.finalize().verify_ok == Some(false) {
         return Err("audio decoder verification failed".into());
@@ -192,4 +225,30 @@ pub(crate) fn decode(
         sample_frames: total,
         duration_us: total * 1_000_000 / u64::from(rate),
     })
+}
+
+fn aiff_frames(path: &Path) -> Result<u64> {
+    let mut f = File::open(path).map_err(|e| e.to_string())?;
+    let size = f.metadata().map_err(|e| e.to_string())?.len();
+    f.seek(SeekFrom::Start(12)).map_err(|e| e.to_string())?;
+    for _ in 0..4096 {
+        let at = f.stream_position().map_err(|e| e.to_string())?;
+        if at + 8 > size {
+            break;
+        }
+        let mut h = [0u8; 8];
+        f.read_exact(&mut h).map_err(|e| e.to_string())?;
+        let len = u64::from(u32::from_be_bytes(h[4..].try_into().unwrap()));
+        if at + 8 + len > size {
+            return Err("truncated AIFF chunk".into());
+        }
+        if &h[..4] == b"COMM" && len >= 18 {
+            let mut data = [0u8; 6];
+            f.read_exact(&mut data).map_err(|e| e.to_string())?;
+            return Ok(u64::from(u32::from_be_bytes(data[2..].try_into().unwrap())));
+        }
+        f.seek(SeekFrom::Start(at + 8 + len + len % 2))
+            .map_err(|e| e.to_string())?;
+    }
+    Err("AIFF sample count missing or chunk budget exceeded".into())
 }
