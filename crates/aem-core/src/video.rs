@@ -1,6 +1,11 @@
 use crate::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
+pub const MAX_VIDEO_DIMENSION: u32 = 4096;
+pub const MAX_VIDEO_PIXELS: u64 = 4096 * 2160;
+pub const MAX_VIDEO_FPS: f64 = 240.0;
+pub const MAX_VIDEO_FRAMES: u32 = 1_000_000;
+
 /// All timestamps are on the source presentation timeline, including leading edits.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -43,10 +48,10 @@ impl VideoAsset {
         ensure(
             self.width > 0
                 && self.height > 0
-                && self.width <= 1920
-                && self.height <= 1920
-                && u64::from(self.width) * u64::from(self.height) <= 1920 * 1080,
-            "video exceeds 1080p pixel budget",
+                && self.width <= MAX_VIDEO_DIMENSION
+                && self.height <= MAX_VIDEO_DIMENSION
+                && u64::from(self.width) * u64::from(self.height) <= MAX_VIDEO_PIXELS,
+            "video exceeds 4K source pixel budget",
         )?;
         ensure(
             matches!(self.rotation, 0 | 90 | 180 | 270),
@@ -66,14 +71,14 @@ impl VideoAsset {
                 && self.video_end_us <= self.duration_us
                 && self.duration_us <= 3_600_000_000
                 && self.frame_count > 0
-                && self.frame_count <= 500_000,
+                && self.frame_count <= MAX_VIDEO_FRAMES,
             "invalid video presentation interval",
         )?;
         ensure(
             self.nominal_frame_rate.is_finite()
                 && self.nominal_frame_rate > 0.0
-                && self.nominal_frame_rate <= 120.0,
-            "video exceeds 120 fps",
+                && self.nominal_frame_rate <= MAX_VIDEO_FPS,
+            "video exceeds 240 fps source limit",
         )?;
         ensure(
             matches!(self.color_standard, 1 | 2 | 4) && matches!(self.color_range, 1 | 2),

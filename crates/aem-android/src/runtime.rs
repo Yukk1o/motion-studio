@@ -696,16 +696,27 @@ impl Session {
         } else {
             vec!["target"]
         };
+        let video_capabilities = json!({
+            "container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR",
+            "containers":["MP4","MOV","3GP","Matroska","WebM"],
+            "codecs":["H.264","H.265 Main","VP8","VP9 profile 0"],
+            "profile":"8-bit 4:2:0 SDR","device_query":"media_capabilities",
+            "max_pixels":aem_core::MAX_VIDEO_PIXELS,"max_dimension":aem_core::MAX_VIDEO_DIMENSION,
+            "max_fps":aem_core::MAX_VIDEO_FPS,"max_index_frames":aem_core::MAX_VIDEO_FRAMES,
+            "preserves_source_aspect_ratio":true,"arbitrary_aspect_ratio":true,"square_pixels_only":true,
+            "input_is_independent_of_composition":true,"max_duration_seconds":3600,
+            "async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
+            "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true
+        });
         json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "main_composition":"comp-main",
             "capabilities":{"scene_effects":{"sdk_version":2,"plugin_editor_protocol":1,"max_particles_per_effect":20000,"max_sprites_per_frame":65536,"occlusion":"source_alpha_planes","simulation":"analytic_local_space"},"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"layer_3d":{"supported":true,"default":false,"activation":"explicit","command":"set_layer_3d"},
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
+                "composition":{"fps_range":[1,aem_core::MAX_COMPOSITION_FPS],"fps_presets":[24,25,30,50,60,90,120,144,240],"fps_type":"integer"},
                 "multiple_compositions":false,"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
-                "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","containers":["MP4","MOV","3GP","Matroska","WebM"],"codecs":["H.264","H.265 Main","VP8","VP9 profile 0"],"profile":"8-bit 4:2:0 SDR","device_query":"media_capabilities","max_pixels":2073600,"max_fps":120,
-                "max_duration_seconds":3600,"async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
-                "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true},
+                "video":video_capabilities,
                 "audio":{"supported_formats":["M4A/AAC-LC/ALAC","MP3","FLAC","Ogg/Vorbis/Opus","ADTS/AAC","WAV/PCM8/16/24/32/float","AIFF"],"sample_rates":[8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000],"sample_rate_range":[8000,192000],"channels":[1,2],"device_query":"media_capabilities",
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
                 "source_limit_bytes":aem_core::storage::MAX_MEDIA_ASSET,"source_duration_limit_seconds":3600,
