@@ -70,5 +70,7 @@ fn full_resolution_composition_fits_the_surface_and_yields_real_pass_timings() {
     assert!(timer.begin(99).is_none());
     assert_eq!(timer.skipped, 1);
     assert_eq!(slots.len(), 4);
+    timer.cancel_unsubmitted(slots[0]);
+    assert_eq!(timer.begin(100), Some(slots[0]));
     assert!(r.gpu_error().is_none());
 }
