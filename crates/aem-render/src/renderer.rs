@@ -29,7 +29,7 @@ pub enum RenderError {
     #[error("GPU readback failed: {0}")]
     Readback(String),
 }
-type Result<T> = std::result::Result<T, RenderError>;
+pub(crate) type Result<T> = std::result::Result<T, RenderError>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -100,6 +100,10 @@ pub struct Renderer {
     pub target_format: wgpu::TextureFormat,
     gpu_failure: Arc<Mutex<Option<String>>>,
     effect_gpu: crate::effect_gpu::EffectGpu,
+    video_gpu: Option<crate::video_gpu::VideoGpu>,
+    pub video_upload_bytes: u64,
+    pub video_uploads: u64,
+    pub video_gpu_conversions: u64,
     asset_order: Vec<u64>,
     pub effect_diagnostics: Vec<String>,
 }
@@ -299,6 +303,10 @@ impl Renderer {
             target_format: format,
             gpu_failure,
             effect_gpu,
+            video_gpu: None,
+            video_upload_bytes: 0,
+            video_uploads: 0,
+            video_gpu_conversions: 0,
             asset_order: Vec::new(),
             effect_diagnostics: Vec::new(),
         };
@@ -312,8 +320,9 @@ impl Renderer {
         Self::new(&instance, None, TARGET_FORMAT).await
     }
     pub fn texture_bytes(&self) -> u64 {
-        self.texture_bytes + self.effect_gpu.state.bytes()
+        self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.bytes()
     }
+    fn video_plane_bytes(&self) -> u64 { self.video_gpu.as_ref().map_or(0, |v| v.bytes()) }
     pub fn set_effect_registry(&mut self, registry: aem_effects::Registry) {
         self.effect_gpu.set_registry(registry);
     }
@@ -328,9 +337,9 @@ impl Renderer {
             &self.image_layout,
             &self.effect_gpu.builder,
             scene,
-            self.texture_bytes,
+            self.texture_bytes + self.video_plane_bytes(),
         )?;
-        if self.texture_bytes + self.effect_gpu.state.resource_bytes > TEXTURE_BUDGET {
+        if self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes > TEXTURE_BUDGET {
             return Err(RenderError::Invalid(
                 "images and plugin resources exceed 128 MiB".into(),
             ));
@@ -377,11 +386,159 @@ impl Renderer {
             return Ok(());
         }
         self.upload_pixels(TextureKey::Video(object), width, height, rgba, false)?;
+        self.video_uploads += 1;
+        self.video_upload_bytes += rgba.len() as u64;
         self.images
             .get_mut(&TextureKey::Video(object))
             .unwrap()
             .video_stamp = Some((source, pts));
         Ok(())
+    }
+    pub fn upload_video_yuv(
+        &mut self,
+        object: u64,
+        source: u64,
+        pts: u64,
+        frame: &crate::Yuv420Frame,
+    ) -> Result<()> {
+        self.check_health()?;
+        frame.validate()?;
+        let (width, height) = frame.display_size();
+        if width > self.device.limits().max_texture_dimension_2d
+            || height > self.device.limits().max_texture_dimension_2d
+        {
+            return Err(RenderError::Invalid("video exceeds GPU dimensions".into()));
+        }
+        let key = TextureKey::Video(object);
+        if self
+            .images
+            .get(&key)
+            .is_some_and(|i| i.video_stamp == Some((source, pts)) && i.size == (width, height))
+        {
+            return Ok(());
+        }
+        let bytes = u64::from(width) * u64::from(height) * 4;
+        let previous = self.images.get(&key).map_or(0, |i| i.bytes);
+        let reinterpret = self
+            .adapter
+            .get_downlevel_capabilities()
+            .flags
+            .contains(wgpu::DownlevelFlags::VIEW_FORMATS);
+        let format = if reinterpret {
+            wgpu::TextureFormat::Rgba8Unorm
+        } else {
+            TARGET_FORMAT
+        };
+        let planes = self
+            .video_gpu
+            .as_ref()
+            .map_or(frame.bytes() as u64, |v| v.replacement_bytes(object, frame));
+        if self.texture_bytes - previous + bytes + planes + self.effect_gpu.state.resource_bytes
+            > TEXTURE_BUDGET
+        {
+            return Err(RenderError::Invalid(
+                "video planes and images exceed 128 MiB".into(),
+            ));
+        }
+        if self
+            .images
+            .get(&key)
+            .is_none_or(|i| i.size != (width, height) || i._texture.format() != format
+                || !i._texture.usage().contains(wgpu::TextureUsages::RENDER_ATTACHMENT))
+        {
+            // Write encoded RGB bytes to an UNORM attachment, then sample the
+            // sRGB view in the same compositing space as existing RGBA uploads.
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("GPU converted video"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                view_formats: if reinterpret { &[TARGET_FORMAT] } else { &[] },
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST,
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor {
+                format: Some(TARGET_FORMAT),
+                ..Default::default()
+            });
+            let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("converted video image"),
+                layout: &self.image_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                ],
+            });
+            self.images.insert(
+                key,
+                GpuImage {
+                    _texture: texture,
+                    view,
+                    bind_group,
+                    bytes,
+                    size: (width, height),
+                    video_stamp: None,
+                },
+            );
+            self.texture_bytes = self.texture_bytes - previous + bytes;
+            self.effect_gpu.invalidate();
+        }
+        let target = self.images[&key]
+            ._texture
+            .create_view(&wgpu::TextureViewDescriptor {
+                format: Some(format),
+                ..Default::default()
+            });
+        let converter = self
+            .video_gpu
+            .get_or_insert_with(|| crate::video_gpu::VideoGpu::new(&self.device, format));
+        converter.convert(&self.device, &self.queue, object, frame, &target);
+        self.images.get_mut(&key).unwrap().video_stamp = Some((source, pts));
+        self.video_uploads += 1;
+        self.video_upload_bytes += frame.bytes() as u64;
+        self.video_gpu_conversions += 1;
+        Ok(())
+    }
+    pub fn retain_video_instances(&mut self, scene: &Scene) {
+        let stale: Vec<_> = self
+            .images
+            .keys()
+            .filter_map(|key| match key {
+                TextureKey::Video(object)
+                    if !scene
+                        .layers
+                        .iter()
+                        .any(|l| l.id == *object && l.video.is_some()) =>
+                {
+                    Some(*object)
+                }
+                _ => None,
+            })
+            .collect();
+        for object in stale {
+            self.texture_bytes -= self
+                .images
+                .remove(&TextureKey::Video(object))
+                .unwrap()
+                .bytes;
+            if let Some(video) = &mut self.video_gpu {
+                video.remove(object);
+            }
+            self.effect_gpu.invalidate();
+        }
     }
     fn upload_pixels(
         &mut self,
@@ -404,7 +561,7 @@ impl Renderer {
             ));
         }
         let previous = self.images.get(&id).map_or(0, |t| t.bytes);
-        if self.texture_bytes - previous + bytes + self.effect_gpu.state.resource_bytes
+        if self.texture_bytes - previous + bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes
             > TEXTURE_BUDGET
         {
             return Err(RenderError::Invalid(
@@ -535,7 +692,7 @@ impl Renderer {
             if width != asset.width
                 || height != asset.height
                 || bytes > TEXTURE_BUDGET
-                || self.texture_bytes + bytes > TEXTURE_BUDGET
+                || self.texture_bytes + self.video_plane_bytes() + bytes > TEXTURE_BUDGET
             {
                 return Err(RenderError::Invalid(
                     "asset metadata mismatch or texture budget exceeded".into(),
@@ -563,6 +720,7 @@ impl Renderer {
                 self.effect_gpu.builder.alpha_images.remove(&asset);
             }
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
+            if let TextureKey::Video(object) = id { if let Some(video) = &mut self.video_gpu { video.remove(object); } }
             if let TextureKey::Static(asset) = id {
                 self.asset_order.retain(|v| *v != asset);
             }
@@ -571,6 +729,7 @@ impl Renderer {
         Ok(())
     }
     pub fn clear_assets(&mut self) {
+        if let Some(video) = &mut self.video_gpu { video.clear(); }
         self.effect_gpu.builder.alpha_images.clear();
         self.images.retain(|id, _| *id == TextureKey::Static(0));
         self.asset_order.retain(|id| *id == 0);
@@ -583,6 +742,7 @@ impl Renderer {
     /// New projects may reuse asset IDs from another directory. Load into a
     /// separate cache and keep the visible project's resources on failure.
     pub fn replace_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
+        let previous_video_gpu = self.video_gpu.take();
         let mut previous = std::mem::take(&mut self.images);
         let previous_alpha = std::mem::take(&mut self.effect_gpu.builder.alpha_images);
         let previous_bytes = self.texture_bytes;
@@ -604,6 +764,7 @@ impl Renderer {
                     .expect("solid texture exists"),
             );
             self.images = previous;
+            self.video_gpu = previous_video_gpu;
             self.effect_gpu.builder.alpha_images = previous_alpha;
             self.texture_bytes = previous_bytes;
             self.asset_order = previous_order;
@@ -743,7 +904,7 @@ impl Renderer {
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
             draw_calls: self.compositor.batches.len() as u32,
-            texture_bytes: self.texture_bytes,
+            texture_bytes: self.texture_bytes + self.video_plane_bytes(),
             parameter_upload_bytes: (upload_bytes
                 + self.geometry_upload.len() * std::mem::size_of::<GeometryVertex>())
                 as u64,
@@ -775,7 +936,7 @@ impl Renderer {
                 &self.image_layout,
                 &self.effect_gpu.builder,
                 scene,
-                self.texture_bytes,
+                self.texture_bytes + self.video_plane_bytes(),
             ) {
                 Ok(()) => break,
                 Err(error) => {
@@ -929,7 +1090,7 @@ impl Renderer {
         Ok(RenderStats {
             cpu_prepare_us: started.elapsed().as_micros() as u64,
             draw_calls: (frame.batches.len() + executed_passes) as u32,
-            texture_bytes: self.texture_bytes + self.effect_gpu.state.bytes(),
+            texture_bytes: self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.bytes(),
             parameter_upload_bytes: (bytes
                 + executed_passes * aem_effects::shader::UNIFORM_BYTES
                 + frame.vertices.len() * 20) as u64,

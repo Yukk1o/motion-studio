@@ -87,6 +87,10 @@ struct Session {
     owner: ThreadId,
     presented: u64,
     last_cpu_us: u64,
+    render_attempts: u64,
+    video_pending_attempts: u64,
+    video_prepare_us: u64,
+    video_upload_us: u64,
     last_error: Option<String>,
     last_presented_frame: Option<f64>,
     last_presented_revision: u64,
@@ -180,6 +184,10 @@ impl Session {
             owner: thread::current().id(),
             presented: 0,
             last_cpu_us: 0,
+            render_attempts: 0,
+            video_pending_attempts: 0,
+            video_prepare_us: 0,
+            video_upload_us: 0,
             last_error: initial_error,
             last_presented_frame: None,
             last_presented_revision: 0,
@@ -435,21 +443,28 @@ impl Session {
     }
     fn render(&mut self, frame: f64) -> Result<bool> {
         let began = Instant::now();
+        self.render_attempts += 1;
         self.frame = frame;
         self.sample()?;
         let tier = self.preview.tier();
         let Some(g) = &mut self.graphics else {
             return Ok(false);
         };
-        let Some(frames) = self.video_frames.prepare_scene(
+        g.renderer.retain_video_instances(&self.scene);
+        let preparing = Instant::now();
+        let frames = self.video_frames.prepare_scene(
             self.engine.project(),
             &self.root,
             &self.scene,
             frame,
-        )?
-        else {
+        )?;
+        self.video_prepare_us = preparing.elapsed().as_micros() as u64;
+        let Some(frames) = frames else {
+            self.video_pending_attempts += 1;
+            self.video_upload_us = 0;
             return Ok(false);
         };
+        let uploading = Instant::now();
         for (object, image) in frames {
             let source = self
                 .scene
@@ -461,17 +476,9 @@ impl Session {
                 .as_ref()
                 .unwrap()
                 .asset;
-            g.renderer
-                .upload_video_frame(
-                    object,
-                    source,
-                    image.pts,
-                    image.width,
-                    image.height,
-                    &image.rgba,
-                )
-                .map_err(|e| e.to_string())?;
+            image.upload(&mut g.renderer, object, source)?;
         }
+        self.video_upload_us = uploading.elapsed().as_micros() as u64;
         g.renderer.device.poll(wgpu::Maintain::Poll);
         g.renderer.check_health().map_err(|e| e.to_string())?;
         let mut gpu_work_us = None;
@@ -612,7 +619,21 @@ impl Session {
         let (width, height) =
             tier.dimensions(self.engine.project().width, self.engine.project().height);
         json!({"mode":self.preview.mode.name(),"tier":tier.name(),"width":width,"height":height,"fps":tier.fps(),
-            "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY))})
+            "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY)),
+            "video":self.video_info()})
+    }
+    fn video_info(&self) -> Value {
+        let mut info = self.video_frames.metrics();
+        info["renderAttempts"] = json!(self.render_attempts);
+        info["pendingAttempts"] = json!(self.video_pending_attempts);
+        info["lastPrepareUs"] = json!(self.video_prepare_us);
+        info["lastUploadUs"] = json!(self.video_upload_us);
+        if let Some(g) = &self.graphics {
+            info["uploadBytes"] = json!(g.renderer.video_upload_bytes);
+            info["uploads"] = json!(g.renderer.video_uploads);
+            info["gpuConversions"] = json!(g.renderer.video_gpu_conversions);
+        }
+        info
     }
     fn snapshot(&self) -> Value {
         let original = self.engine.project();
@@ -1640,8 +1661,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
                 .map_err(|e| e.to_string())?;
             let frames = s
                 .video_frames
-                .prepare_scene(p, &s.root, &scene, s.frame)?
+                .prepare_scene_exact(p, &s.root, &scene)?
                 .ok_or("video capture pending; request frames and retry")?;
+            renderer.retain_video_instances(&scene);
             for (object, image) in frames {
                 let source = scene
                     .layers
@@ -1652,16 +1674,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
                     .as_ref()
                     .unwrap()
                     .asset;
-                renderer
-                    .upload_video_frame(
-                        object,
-                        source,
-                        image.pts,
-                        image.width,
-                        image.height,
-                        &image.rgba,
-                    )
-                    .map_err(|e| e.to_string())?;
+                image.upload(renderer, object, source)?;
             }
             let (pixels, _) = renderer
                 .capture(&scene, &target)
