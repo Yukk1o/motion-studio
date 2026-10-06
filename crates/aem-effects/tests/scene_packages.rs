@@ -23,6 +23,7 @@ fn rebuild(package: &EffectPackage, manifest: serde_json::Value, omit: Option<&s
 #[test]
 fn sdk_two_generators_and_independent_editor_assets_compile_portably() {
     let package = builtin::scene_package().unwrap();
+    assert_eq!(package.manifest.version, "1.1.0");
     assert_eq!(package.manifest.sdk_version, 2);
     assert_eq!(package.manifest.effects.len(), 6);
     for e in &package.manifest.effects {
@@ -43,6 +44,48 @@ fn sdk_two_generators_and_independent_editor_assets_compile_portably() {
             .hash,
         "df9da73a4c18ee5c8d1c652d60bb5c45b01677371e461f65cafc3272746bbbf2"
     );
+}
+
+#[test]
+fn scene_editor_upgrade_preserves_published_package_and_render_contracts() {
+    let old = builtin::legacy_scene_package().unwrap();
+    let current = builtin::scene_package().unwrap();
+    assert_eq!(old.manifest.version, "1.0.0");
+    assert_eq!(
+        old.hash,
+        "ffd6d7ddbff861072da76dd7f84f072a7b01b187f8488e59e88e4bc468c20724"
+    );
+    let registry = aem_effects::Registry::new_with_builtins().unwrap();
+    assert!(registry
+        .resolve(&old.manifest.id, "1.0.0", &old.hash)
+        .is_ok());
+    assert!(registry
+        .resolve(&current.manifest.id, "1.1.0", &current.hash)
+        .is_ok());
+    for previous in &old.manifest.effects {
+        let mut normalized = previous.clone();
+        normalized.editor = current
+            .manifest
+            .effects
+            .iter()
+            .find(|e| e.id == previous.id)
+            .unwrap()
+            .editor
+            .clone();
+        assert_eq!(
+            &normalized,
+            current
+                .manifest
+                .effects
+                .iter()
+                .find(|e| e.id == previous.id)
+                .unwrap()
+        );
+        assert_eq!(
+            old.shaders[&(previous.id.clone(), 0)].wgsl,
+            current.shaders[&(previous.id.clone(), 0)].wgsl
+        );
+    }
 }
 #[test]
 fn invalid_editor_assets_sdk_versions_and_simulation_contracts_are_rejected() {

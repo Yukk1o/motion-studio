@@ -2,7 +2,7 @@
   "format_version": 1,
   "sdk_version": 2,
   "id": "com.motionstudio.effects.scene",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "Motion Studio Scene Effects",
   "author": "Motion Studio",
   "license": "MIT",
@@ -133,7 +133,8 @@
         "files": [
           "ui/editor.html",
           "ui/editor.js",
-          "ui/editor.css"
+          "ui/editor.css",
+          "ui/bridge.js"
         ]
       },
       "scene": {
@@ -532,7 +533,8 @@
         "files": [
           "ui/editor.html",
           "ui/editor.js",
-          "ui/editor.css"
+          "ui/editor.css",
+          "ui/bridge.js"
         ]
       },
       "scene": {
@@ -796,7 +798,8 @@
         "files": [
           "ui/editor.html",
           "ui/editor.js",
-          "ui/editor.css"
+          "ui/editor.css",
+          "ui/bridge.js"
         ]
       },
       "scene": {
@@ -1060,7 +1063,8 @@
         "files": [
           "ui/editor.html",
           "ui/editor.js",
-          "ui/editor.css"
+          "ui/editor.css",
+          "ui/bridge.js"
         ]
       },
       "scene": {
@@ -1324,7 +1328,8 @@
         "files": [
           "ui/editor.html",
           "ui/editor.js",
-          "ui/editor.css"
+          "ui/editor.css",
+          "ui/bridge.js"
         ]
       },
       "scene": {
@@ -1588,7 +1593,8 @@
         "files": [
           "ui/editor.html",
           "ui/editor.js",
-          "ui/editor.css"
+          "ui/editor.css",
+          "ui/bridge.js"
         ]
       },
       "scene": {
