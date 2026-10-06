@@ -8,6 +8,29 @@ pub struct VideoPlane<'a> {
     pub pixel_stride: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum ChromaLayout {
+    Uv = 0,
+    Vu = 1,
+    /// Each packed row contains all U samples, followed by all V samples.
+    PlanarRows = 2,
+}
+
+fn plane_row<'a>(p: &VideoPlane<'a>, x: usize, y: usize, width: usize) -> Result<&'a [u8]> {
+    let start = y
+        .checked_mul(p.row_stride)
+        .and_then(|v| x.checked_mul(p.pixel_stride).and_then(|x| v.checked_add(x)))
+        .ok_or_else(|| RenderError::Invalid("video plane offset overflow".into()))?;
+    let end = (width - 1)
+        .checked_mul(p.pixel_stride)
+        .and_then(|span| start.checked_add(span)?.checked_add(1))
+        .ok_or_else(|| RenderError::Invalid("video plane offset overflow".into()))?;
+    p.data
+        .get(start..end)
+        .ok_or_else(|| RenderError::Invalid("video plane too short".into()))
+}
+
 #[derive(Debug)]
 pub struct Yuv420Frame {
     pub width: u32,
@@ -18,7 +41,8 @@ pub struct Yuv420Frame {
     /// Preserve chroma phase for crops starting on an odd source pixel.
     pub phase: [u32; 2],
     pub y: Vec<u8>,
-    /// Interleaved U,V; no per-pixel RGB arithmetic in the decoder worker.
+    pub chroma_layout: ChromaLayout,
+    /// Packed chroma rows; native UV/VU or separate U/V rows need no shuffling.
     pub uv: Vec<u8>,
 }
 
@@ -32,6 +56,18 @@ impl Yuv420Frame {
         range: u32,
         planes: [VideoPlane<'_>; 3],
     ) -> Result<Self> {
+        let [yp, up, vp] = planes;
+        let adjacent =
+            up.pixel_stride == 2 && vp.pixel_stride == 2 && up.row_stride == vp.row_stride;
+        let native_uv = adjacent && up.data.as_ptr().wrapping_add(1) == vp.data.as_ptr();
+        let native_vu = adjacent && vp.data.as_ptr().wrapping_add(1) == up.data.as_ptr();
+        let chroma_layout = if up.pixel_stride == 1 && vp.pixel_stride == 1 {
+            ChromaLayout::PlanarRows
+        } else if native_vu {
+            ChromaLayout::Vu
+        } else {
+            ChromaLayout::Uv
+        };
         let mut frame = Self {
             width,
             height,
@@ -41,19 +77,9 @@ impl Yuv420Frame {
             phase: [crop[0] % 2, crop[1] % 2],
             y: Vec::new(),
             uv: Vec::new(),
+            chroma_layout,
         };
         frame.validate_metadata()?;
-        let [yp, up, vp] = planes;
-        let read = |p: &VideoPlane<'_>, x: usize, y: usize| -> Result<u8> {
-            let offset = y
-                .checked_mul(p.row_stride)
-                .and_then(|v| x.checked_mul(p.pixel_stride).and_then(|x| v.checked_add(x)))
-                .ok_or_else(|| RenderError::Invalid("video plane offset overflow".into()))?;
-            p.data
-                .get(offset)
-                .copied()
-                .ok_or_else(|| RenderError::Invalid("video plane too short".into()))
-        };
         let (cw, ch) = frame.chroma_size();
         for (p, x, width) in [
             (&yp, crop[0] as usize, width as usize),
@@ -75,34 +101,44 @@ impl Yuv420Frame {
         }
         frame.y.reserve(width as usize * height as usize);
         for row in 0..height as usize {
+            let y = (crop[1] as usize)
+                .checked_add(row)
+                .ok_or_else(|| RenderError::Invalid("video plane offset overflow".into()))?;
+            let pixels = plane_row(&yp, crop[0] as usize, y, width as usize)?;
             if yp.pixel_stride == 1 {
-                let start = (crop[1] as usize + row)
-                    .checked_mul(yp.row_stride)
-                    .and_then(|v| v.checked_add(crop[0] as usize))
-                    .ok_or_else(|| RenderError::Invalid("video plane offset overflow".into()))?;
-                let end = start
-                    .checked_add(width as usize)
-                    .ok_or_else(|| RenderError::Invalid("video plane offset overflow".into()))?;
-                frame.y.extend_from_slice(
-                    yp.data
-                        .get(start..end)
-                        .ok_or_else(|| RenderError::Invalid("video luma plane too short".into()))?,
-                );
+                frame.y.extend_from_slice(pixels);
             } else {
-                for col in 0..width as usize {
-                    frame
-                        .y
-                        .push(read(&yp, crop[0] as usize + col, crop[1] as usize + row)?);
-                }
+                frame
+                    .y
+                    .extend(pixels.iter().step_by(yp.pixel_stride).copied());
             }
         }
         frame.uv.reserve(cw as usize * ch as usize * 2);
         for row in 0..ch as usize {
-            for col in 0..cw as usize {
-                let x = crop[0] as usize / 2 + col;
-                let y = crop[1] as usize / 2 + row;
-                frame.uv.push(read(&up, x, y)?);
-                frame.uv.push(read(&vp, x, y)?);
+            let x = crop[0] as usize / 2;
+            let y = crop[1] as usize / 2 + row;
+            let u = plane_row(&up, x, y, cw as usize)?;
+            let v = plane_row(&vp, x, y, cw as usize)?;
+            if chroma_layout == ChromaLayout::PlanarRows {
+                frame.uv.extend_from_slice(u);
+                frame.uv.extend_from_slice(v);
+            } else if native_uv {
+                // Android plane spans can omit the last byte belonging to the
+                // other plane. Copy the valid span, then append that sample.
+                frame.uv.extend_from_slice(u);
+                frame.uv.push(*v.last().unwrap());
+            } else if native_vu {
+                frame.uv.extend_from_slice(v);
+                frame.uv.push(*u.last().unwrap());
+            } else {
+                for (u, v) in u
+                    .iter()
+                    .step_by(up.pixel_stride)
+                    .zip(v.iter().step_by(vp.pixel_stride))
+                {
+                    frame.uv.push(*u);
+                    frame.uv.push(*v);
+                }
             }
         }
         Ok(frame)
@@ -160,9 +196,17 @@ impl Yuv420Frame {
         for y in 0..self.height {
             for x in 0..self.width {
                 let yy = i32::from(self.y[(y * self.width + x) as usize]);
-                let uv = (((y + self.phase[1]) / 2) * cw + (x + self.phase[0]) / 2) as usize * 2;
-                let u = i32::from(self.uv[uv]) - 128;
-                let v = i32::from(self.uv[uv + 1]) - 128;
+                let cx = ((x + self.phase[0]) / 2) as usize;
+                let row = ((y + self.phase[1]) / 2 * cw * 2) as usize;
+                let (u, v) = match self.chroma_layout {
+                    ChromaLayout::Uv => (self.uv[row + cx * 2], self.uv[row + cx * 2 + 1]),
+                    ChromaLayout::Vu => (self.uv[row + cx * 2 + 1], self.uv[row + cx * 2]),
+                    ChromaLayout::PlanarRows => {
+                        (self.uv[row + cx], self.uv[row + cw as usize + cx])
+                    }
+                };
+                let u = i32::from(u) - 128;
+                let v = i32::from(v) - 128;
                 let (r, g, b) = match (self.range == 1, self.standard == 1) {
                     (true, true) => (
                         256 * yy + 403 * v,
