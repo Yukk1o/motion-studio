@@ -73,6 +73,11 @@ impl GpuTimer {
         self.skipped += 1;
         None
     }
+    /// Release a reservation when encoding failed and the command buffer was
+    /// discarded. Must never be called after submission or `map`.
+    pub fn cancel_unsubmitted(&mut self, slot: usize) {
+        self.slots[slot].state.store(0, Ordering::Release);
+    }
     pub fn writes(&self, slot: usize, pass: u32) -> wgpu::RenderPassTimestampWrites<'_> {
         let first = slot as u32 * QUERIES + pass * 2;
         wgpu::RenderPassTimestampWrites {

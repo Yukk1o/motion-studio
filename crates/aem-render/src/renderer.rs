@@ -805,6 +805,31 @@ impl Renderer {
         encoder: &mut wgpu::CommandEncoder,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) -> Result<RenderStats> {
+        self.encode_internal(scene, view, width, height, encoder, timestamps, false)
+    }
+    /// Interactive preview, with conservative 2D effect density. `encode`,
+    /// `draw`, and `capture` retain their formal-output behavior.
+    pub fn encode_preview(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<RenderStats> {
+        self.encode_internal(scene, view, width, height, encoder, timestamps, true)
+    }
+    fn encode_internal(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        preview: bool,
+    ) -> Result<RenderStats> {
         self.check_health()?;
         if width == 0 || height == 0 || scene.layers.len() > MAX_LAYERS {
             return Err(RenderError::Invalid(
@@ -813,7 +838,7 @@ impl Renderer {
         }
         let started = Instant::now();
         if scene.effects.iter().any(|e| e.enabled) {
-            return self.encode_effects(scene, view, width, height, encoder, timestamps);
+            return self.encode_effects(scene, view, width, height, encoder, timestamps, preview);
         }
         self.effect_diagnostics.clear();
         self.effect_gpu.state.release_scratch();
@@ -927,13 +952,16 @@ impl Renderer {
         height: u32,
         encoder: &mut wgpu::CommandEncoder,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        preview: bool,
     ) -> Result<RenderStats> {
         let started = Instant::now();
         loop {
-            self.effect_gpu
-                .builder
-                .build(scene, &self.asset_order, width, height, false)
-                .map_err(RenderError::Invalid)?;
+            if preview {
+                self.effect_gpu.builder.build_preview(scene, &self.asset_order, width, height)
+            } else {
+                self.effect_gpu.builder.build(scene, &self.asset_order, width, height, false)
+            }
+            .map_err(RenderError::Invalid)?;
             match self.effect_gpu.state.prepare(
                 &self.device,
                 &self.queue,
