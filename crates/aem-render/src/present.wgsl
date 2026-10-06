@@ -6,7 +6,7 @@ struct Out {
     @location(0) uv: vec2<f32>,
 };
 @vertex fn vertex_main(@builtin(vertex_index) index: u32) -> Out {
-    let p=vec2<f32>(f32((index<<1u)&2u),f32(index&2u))*2.0-vec2<f32>(1.0);
+    let p=vec2(f32((index<<1u)&2u)*2.0-1.0,f32(index&2u)*2.0-1.0);
     var out:Out;
     out.position=vec4(p,0.0,1.0);
     out.uv=vec2(p.x*0.5+0.5,0.5-p.y*0.5);

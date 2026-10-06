@@ -44,6 +44,8 @@ let time = fx.clock.x*fx.params[4].x;
 let shift = vec2(smooth_noise(time,13u),smooth_noise(time,37u))*fx.params[1].xy*fx.params[0].x;
 let angle = radians(smooth_noise(time,59u)*fx.params[2].x*fx.params[0].x);
 let zoom = 1.0+smooth_noise(time,71u)*fx.params[3].x*fx.params[0].x;
-return sample_input(fx.params[5].xy+turn(p-fx.params[5].xy-shift,-angle)/zoom);
+let q = fx.params[5].xy+turn(p-fx.params[5].xy-shift,-angle)/zoom;
+if any(q<fx.input_region.xy)||any(q>fx.input_region.xy+fx.input_region.zw) {return vec4(0.0);}
+return sample_input(q);
 
 }

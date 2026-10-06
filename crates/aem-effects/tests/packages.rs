@@ -32,8 +32,14 @@ fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
         .iter()
         .find(|p| p.manifest.version == "1.0.0")
         .unwrap();
-    let current = builtin::package().unwrap();
+    let latest = builtin::package().unwrap();
+    assert_eq!(latest.manifest.version, "1.4.0");
+    let current = packages.iter().find(|p| p.manifest.version == "1.3.0").unwrap();
     assert_eq!(current.manifest.version, "1.3.0");
+    assert_eq!(current.hash, "a2655482198ebc3a1e75b569a8d5e14d8232c9ad2445c24fc9badfb6274aa454");
+    for previous in &current.manifest.effects {
+        assert_eq!(latest.manifest.effects.iter().find(|d|d.id==previous.id).unwrap().params, previous.params);
+    }
     assert_eq!(old.manifest.effects.len(), 20);
     assert_eq!(
         old.hash, "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",

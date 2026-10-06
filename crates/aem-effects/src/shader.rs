@@ -31,8 +31,7 @@ struct EffectUniform {
 @group(2) @binding(7) var resource_sampler3: sampler;
 struct EffectVertex { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32> };
 @vertex fn sdk_vertex(@builtin(vertex_index) index: u32) -> EffectVertex {
-    let p = vec2<f32>(f32((index<<1u)&2u),f32(index&2u))*2.0-vec2<f32>(1.0);
-    var out: EffectVertex;
+    let p = vec2(f32((index << 1u) & 2u)*2.0-1.0,f32(index & 2u)*2.0-1.0); var out: EffectVertex;
     out.position = vec4(p,0.0,1.0); out.uv = vec2(p.x*0.5+0.5,0.5-p.y*0.5); return out;
 }
 fn edge_uv(uv: vec2<f32>) -> vec2<f32> {
@@ -155,11 +154,14 @@ pub fn compile_mode(
     sprite: bool,
     additive: bool,
 ) -> Result<CompiledShader> {
-    compile_internal(source, entry, sprite, additive, false)
+    compile_internal(source, entry, sprite, additive, false, false)
 }
 /// SDK 3 rectangles may write directly to the host's composition target.
 pub(crate) fn compile_rect_image(source: &str, entry: &str) -> Result<CompiledShader> {
-    compile_internal(source, entry, false, false, true)
+    compile_internal(source, entry, false, false, true, false)
+}
+pub(crate) fn compile_spatial_image(source: &str, entry: &str) -> Result<CompiledShader> {
+    compile_internal(source, entry, false, false, true, true)
 }
 fn compile_internal(
     source: &str,
@@ -167,6 +169,7 @@ fn compile_internal(
     sprite: bool,
     additive: bool,
     convert_output: bool,
+    finite_source: bool,
 ) -> Result<CompiledShader> {
     portable_source(source)?;
     ensure(
@@ -181,7 +184,10 @@ fn compile_internal(
         let header = format!("{}{}{}", &HEADER[..start], SPRITE_VERTEX, &HEADER[end..]);
         format!("{header}\n{source}\n@fragment fn sdk_fragment(input:SpriteVertex)->@location(0) vec4<f32>{{return {entry}(input.uv,input.color,input.style);}}\n")
     } else if convert_output {
-        format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;let c=mix(sample_source(p),{entry}(p),fx.output_mode.z);if all(fx.mode.yz==fx.output_mode.xy) {{return c;}} return convert_pixel(c,fx.mode.yz,fx.output_mode.xy);}}\n")
+        let original = if finite_source {
+            "select(sample_source(p),vec4(0.0),any(p<fx.source_region.xy)||any(p>fx.source_region.xy+fx.source_region.zw))"
+        } else { "sample_source(p)" };
+        format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;let c=mix({original},{entry}(p),fx.output_mode.z);if all(fx.mode.yz==fx.output_mode.xy) {{return c;}} return convert_pixel(c,fx.mode.yz,fx.output_mode.xy);}}\n")
     } else {
         format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;return mix(sample_source(p),{entry}(p),fx.output_mode.z);}}\n")
     };
@@ -272,9 +278,7 @@ struct SpriteVertex {
 };
 @vertex fn sdk_vertex(@builtin(vertex_index) index: u32,
     @location(0) rect: vec4<f32>, @location(1) color: vec4<f32>, @location(2) style: vec4<f32>) -> SpriteVertex {
-    let p=vec2<f32>(select(-0.5,0.5,index==2u || index==3u || index==5u),
-        select(-0.5,0.5,index==0u || index==2u || index==3u));
-    var out:SpriteVertex;
+    let p=vec2(select(-0.5,0.5,index==2u||index==3u||index==5u),select(-0.5,0.5,index==0u||index==2u||index==3u)); var out:SpriteVertex;
     out.position=vec4(rect.xy+p*rect.zw,0.0,1.0);
     out.uv=vec2(p.x+0.5,0.5-p.y); out.color=color; out.style=style; return out;
 }

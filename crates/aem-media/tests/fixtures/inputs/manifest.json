@@ -1,0 +1,1120 @@
+{
+  "uhd-60.mp4": {
+    "sha256": "6ec0f4a022a7eb25cb74817326e468afee9c00838ffbd7b9d91677ee80afe492",
+    "bytes": 2271803,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.050000"
+      },
+      {
+        "best_effort_timestamp_time": "0.066667"
+      },
+      {
+        "best_effort_timestamp_time": "0.083333"
+      },
+      {
+        "best_effort_timestamp_time": "0.100000"
+      },
+      {
+        "best_effort_timestamp_time": "0.116667"
+      },
+      {
+        "best_effort_timestamp_time": "0.133333"
+      },
+      {
+        "best_effort_timestamp_time": "0.150000"
+      },
+      {
+        "best_effort_timestamp_time": "0.166667"
+      },
+      {
+        "best_effort_timestamp_time": "0.183333"
+      },
+      {
+        "best_effort_timestamp_time": "0.200000"
+      },
+      {
+        "best_effort_timestamp_time": "0.216667"
+      },
+      {
+        "best_effort_timestamp_time": "0.233333"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 3840,
+        "height": 2160,
+        "level": 52,
+        "avg_frame_rate": "60/1",
+        "nb_frames": "15",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "dci-60.mp4": {
+    "sha256": "695515cc83e83112ce1a40302befeec474f31caefd53832ddc1b93a80ae2e803",
+    "bytes": 513261,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.016667",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.033333",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.050000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.066667",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.083333",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.100000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.116667",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.133333",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "hevc",
+        "profile": "Main",
+        "width": 4096,
+        "height": 2160,
+        "level": 153,
+        "avg_frame_rate": "60/1",
+        "nb_frames": "9",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx265"
+        }
+      }
+    ]
+  },
+  "dci-120.mp4": {
+    "sha256": "c04c1857e168fdce57a33bcc0235848999ddae7ba56ddf57e696c61d29604b3b",
+    "bytes": 1822433,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.008333"
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.025000"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.041667"
+      },
+      {
+        "best_effort_timestamp_time": "0.050000"
+      },
+      {
+        "best_effort_timestamp_time": "0.058333"
+      },
+      {
+        "best_effort_timestamp_time": "0.066667"
+      },
+      {
+        "best_effort_timestamp_time": "0.075000"
+      },
+      {
+        "best_effort_timestamp_time": "0.083333"
+      },
+      {
+        "best_effort_timestamp_time": "0.091667"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 4096,
+        "height": 2160,
+        "level": 60,
+        "avg_frame_rate": "120/1",
+        "nb_frames": "12",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "portrait-60.mp4": {
+    "sha256": "e5087f202308477d1d35ecce2db3c4261f5fa27adbe49df76b018f7c326c99ff",
+    "bytes": 1966814,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.050000"
+      },
+      {
+        "best_effort_timestamp_time": "0.066667"
+      },
+      {
+        "best_effort_timestamp_time": "0.083333"
+      },
+      {
+        "best_effort_timestamp_time": "0.100000"
+      },
+      {
+        "best_effort_timestamp_time": "0.116667"
+      },
+      {
+        "best_effort_timestamp_time": "0.133333"
+      },
+      {
+        "best_effort_timestamp_time": "0.150000"
+      },
+      {
+        "best_effort_timestamp_time": "0.166667"
+      },
+      {
+        "best_effort_timestamp_time": "0.183333"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 2160,
+        "height": 3840,
+        "level": 52,
+        "avg_frame_rate": "60/1",
+        "nb_frames": "12",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "hfr-240.mp4": {
+    "sha256": "a24ee1630c23f6525c4237f77068f3c36bc66c35bc35ae25946b6c2df8d3b5ec",
+    "bytes": 1977700,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.004167"
+      },
+      {
+        "best_effort_timestamp_time": "0.008333"
+      },
+      {
+        "best_effort_timestamp_time": "0.012500"
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.020833"
+      },
+      {
+        "best_effort_timestamp_time": "0.025000"
+      },
+      {
+        "best_effort_timestamp_time": "0.029167"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.037500"
+      },
+      {
+        "best_effort_timestamp_time": "0.041667"
+      },
+      {
+        "best_effort_timestamp_time": "0.045833"
+      },
+      {
+        "best_effort_timestamp_time": "0.050000"
+      },
+      {
+        "best_effort_timestamp_time": "0.054167"
+      },
+      {
+        "best_effort_timestamp_time": "0.058333"
+      },
+      {
+        "best_effort_timestamp_time": "0.062500"
+      },
+      {
+        "best_effort_timestamp_time": "0.066667"
+      },
+      {
+        "best_effort_timestamp_time": "0.070833"
+      },
+      {
+        "best_effort_timestamp_time": "0.075000"
+      },
+      {
+        "best_effort_timestamp_time": "0.079167"
+      },
+      {
+        "best_effort_timestamp_time": "0.083333"
+      },
+      {
+        "best_effort_timestamp_time": "0.087500"
+      },
+      {
+        "best_effort_timestamp_time": "0.091667"
+      },
+      {
+        "best_effort_timestamp_time": "0.095833"
+      },
+      {
+        "best_effort_timestamp_time": "0.100000"
+      },
+      {
+        "best_effort_timestamp_time": "0.104167"
+      },
+      {
+        "best_effort_timestamp_time": "0.108333"
+      },
+      {
+        "best_effort_timestamp_time": "0.112500"
+      },
+      {
+        "best_effort_timestamp_time": "0.116667"
+      },
+      {
+        "best_effort_timestamp_time": "0.120833"
+      },
+      {
+        "best_effort_timestamp_time": "0.125000"
+      },
+      {
+        "best_effort_timestamp_time": "0.129167"
+      },
+      {
+        "best_effort_timestamp_time": "0.133333"
+      },
+      {
+        "best_effort_timestamp_time": "0.137500"
+      },
+      {
+        "best_effort_timestamp_time": "0.141667"
+      },
+      {
+        "best_effort_timestamp_time": "0.145833"
+      },
+      {
+        "best_effort_timestamp_time": "0.150000"
+      },
+      {
+        "best_effort_timestamp_time": "0.154167"
+      },
+      {
+        "best_effort_timestamp_time": "0.158333"
+      },
+      {
+        "best_effort_timestamp_time": "0.162500"
+      },
+      {
+        "best_effort_timestamp_time": "0.166667"
+      },
+      {
+        "best_effort_timestamp_time": "0.170833"
+      },
+      {
+        "best_effort_timestamp_time": "0.175000"
+      },
+      {
+        "best_effort_timestamp_time": "0.179167"
+      },
+      {
+        "best_effort_timestamp_time": "0.183333"
+      },
+      {
+        "best_effort_timestamp_time": "0.187500"
+      },
+      {
+        "best_effort_timestamp_time": "0.191667"
+      },
+      {
+        "best_effort_timestamp_time": "0.195833"
+      },
+      {
+        "best_effort_timestamp_time": "0.200000"
+      },
+      {
+        "best_effort_timestamp_time": "0.204167"
+      },
+      {
+        "best_effort_timestamp_time": "0.208333"
+      },
+      {
+        "best_effort_timestamp_time": "0.212500"
+      },
+      {
+        "best_effort_timestamp_time": "0.216667"
+      },
+      {
+        "best_effort_timestamp_time": "0.220833"
+      },
+      {
+        "best_effort_timestamp_time": "0.225000"
+      },
+      {
+        "best_effort_timestamp_time": "0.229167"
+      },
+      {
+        "best_effort_timestamp_time": "0.233333"
+      },
+      {
+        "best_effort_timestamp_time": "0.237500"
+      },
+      {
+        "best_effort_timestamp_time": "0.241667"
+      },
+      {
+        "best_effort_timestamp_time": "0.245833"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 1920,
+        "height": 1080,
+        "level": 52,
+        "avg_frame_rate": "240/1",
+        "nb_frames": "60",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "fractional-59.94.mp4": {
+    "sha256": "aa8c81823267a013572212ecf39cedaf34e0ed01db7b0d8555297eeace2c6b2d",
+    "bytes": 49799,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.016683"
+      },
+      {
+        "best_effort_timestamp_time": "0.033367"
+      },
+      {
+        "best_effort_timestamp_time": "0.050050"
+      },
+      {
+        "best_effort_timestamp_time": "0.066733"
+      },
+      {
+        "best_effort_timestamp_time": "0.083417"
+      },
+      {
+        "best_effort_timestamp_time": "0.100100"
+      },
+      {
+        "best_effort_timestamp_time": "0.116783"
+      },
+      {
+        "best_effort_timestamp_time": "0.133467"
+      },
+      {
+        "best_effort_timestamp_time": "0.150150"
+      },
+      {
+        "best_effort_timestamp_time": "0.166833"
+      },
+      {
+        "best_effort_timestamp_time": "0.183517"
+      },
+      {
+        "best_effort_timestamp_time": "0.200200"
+      },
+      {
+        "best_effort_timestamp_time": "0.216883"
+      },
+      {
+        "best_effort_timestamp_time": "0.233567"
+      },
+      {
+        "best_effort_timestamp_time": "0.250250"
+      },
+      {
+        "best_effort_timestamp_time": "0.266933"
+      },
+      {
+        "best_effort_timestamp_time": "0.283617"
+      },
+      {
+        "best_effort_timestamp_time": "0.300300"
+      },
+      {
+        "best_effort_timestamp_time": "0.316983"
+      },
+      {
+        "best_effort_timestamp_time": "0.333667"
+      },
+      {
+        "best_effort_timestamp_time": "0.350350"
+      },
+      {
+        "best_effort_timestamp_time": "0.367033"
+      },
+      {
+        "best_effort_timestamp_time": "0.383717"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 384,
+        "height": 216,
+        "level": 22,
+        "avg_frame_rate": "60000/1001",
+        "nb_frames": "24",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "ultrawide-60.mp4": {
+    "sha256": "ba28df5feb02ba4b3d34d47c8ce871d99d51de004ec7cb069cf3b3d18ad7f7dd",
+    "bytes": 311957,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.050000"
+      },
+      {
+        "best_effort_timestamp_time": "0.066667"
+      },
+      {
+        "best_effort_timestamp_time": "0.083333"
+      },
+      {
+        "best_effort_timestamp_time": "0.100000"
+      },
+      {
+        "best_effort_timestamp_time": "0.116667"
+      },
+      {
+        "best_effort_timestamp_time": "0.133333"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 3840,
+        "height": 480,
+        "level": 42,
+        "avg_frame_rate": "60/1",
+        "nb_frames": "9",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "square-60.mp4": {
+    "sha256": "887ef7afa7d9c9258f44fc84a3e068ad5a4d59f6dc338c0dc1777673ffb9ab79",
+    "bytes": 987211,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.050000"
+      },
+      {
+        "best_effort_timestamp_time": "0.066667"
+      },
+      {
+        "best_effort_timestamp_time": "0.083333"
+      },
+      {
+        "best_effort_timestamp_time": "0.100000"
+      },
+      {
+        "best_effort_timestamp_time": "0.116667"
+      },
+      {
+        "best_effort_timestamp_time": "0.133333"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 2560,
+        "height": 2560,
+        "level": 52,
+        "avg_frame_rate": "60/1",
+        "nb_frames": "9",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "tall-60.mp4": {
+    "sha256": "4c09ccd90f476ced16f2b39691972566587682dbfc5cf6d8ef425eaff7ea03ec",
+    "bytes": 331447,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.050000"
+      },
+      {
+        "best_effort_timestamp_time": "0.066667"
+      },
+      {
+        "best_effort_timestamp_time": "0.083333"
+      },
+      {
+        "best_effort_timestamp_time": "0.100000"
+      },
+      {
+        "best_effort_timestamp_time": "0.116667"
+      },
+      {
+        "best_effort_timestamp_time": "0.133333"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 480,
+        "height": 3840,
+        "level": 42,
+        "avg_frame_rate": "60/1",
+        "nb_frames": "9",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "too-wide.mp4": {
+    "sha256": "299b1dc090b9765cd12d6716f87eb957f1f0b2153ffcdc71319019379e65b8d4",
+    "bytes": 22732,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 4160,
+        "height": 64,
+        "level": 42,
+        "avg_frame_rate": "30/1",
+        "nb_frames": "2",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  },
+  "too-fast.mp4": {
+    "sha256": "86211f684cdf95b6367f66a90f83da63759449606748577544bd8c554929e957",
+    "bytes": 8064,
+    "frames": [
+      {
+        "best_effort_timestamp_time": "0.000000",
+        "side_data_list": [
+          {
+            "side_data_type": "H.26[45] User Data Unregistered SEI message"
+          }
+        ]
+      },
+      {
+        "best_effort_timestamp_time": "0.003333"
+      },
+      {
+        "best_effort_timestamp_time": "0.006667"
+      },
+      {
+        "best_effort_timestamp_time": "0.010000"
+      },
+      {
+        "best_effort_timestamp_time": "0.013333"
+      },
+      {
+        "best_effort_timestamp_time": "0.016667"
+      },
+      {
+        "best_effort_timestamp_time": "0.020000"
+      },
+      {
+        "best_effort_timestamp_time": "0.023333"
+      },
+      {
+        "best_effort_timestamp_time": "0.026667"
+      },
+      {
+        "best_effort_timestamp_time": "0.030000"
+      },
+      {
+        "best_effort_timestamp_time": "0.033333"
+      },
+      {
+        "best_effort_timestamp_time": "0.036667"
+      },
+      {
+        "best_effort_timestamp_time": "0.040000"
+      },
+      {
+        "best_effort_timestamp_time": "0.043333"
+      },
+      {
+        "best_effort_timestamp_time": "0.046667"
+      }
+    ],
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "profile": "Constrained Baseline",
+        "width": 128,
+        "height": 72,
+        "level": 21,
+        "avg_frame_rate": "300/1",
+        "nb_frames": "15",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      }
+    ]
+  }
+}
