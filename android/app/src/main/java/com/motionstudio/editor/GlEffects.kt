@@ -5,21 +5,25 @@ import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** SDK 1 adapter. Shader sources and pass/parameter layouts come from Rust. */
+/** SDK 1–3 adapter. Shader sources and pass/parameter layouts come from Rust. */
 internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int>) {
-    private data class Shader(val id:Int,val samplers:List<Triple<Int,Int,Int>>,val resources:IntArray)
+    private data class Shader(val id:Int,val samplers:List<Triple<Int,Int,Int>>,val resources:IntArray,val sprite:Boolean,val additive:Boolean)
     private val shaders=ArrayList<Shader>()
     private val ownedTextures=ArrayList<Int>()
-    private val pool=IntArray(7)
+    private val pool=IntArray(8)
     private val luts=HashMap<Int,Pair<Int,ByteArray>>()
     private var poolWidth=0;private var poolHeight=0;private var poolMask=0
-    private var framebuffer=0;private var uniform=0
+    private var poolSizes=IntArray(16)
+    private var framebuffer=0;private var uniform=0;private var sprites=0;private var spriteVao=0
     init {
         try {
-            check(info.getInt("version")==2&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
+            check(info.getInt("version")==3&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
             val ids=IntArray(1);GL.glGenFramebuffers(1,ids,0);framebuffer=ids[0]
             GL.glGenBuffers(1,ids,0);uniform=ids[0];GL.glBindBuffer(GL.GL_UNIFORM_BUFFER,uniform)
             GL.glBufferData(GL.GL_UNIFORM_BUFFER,624,null,GL.GL_DYNAMIC_DRAW)
+            GL.glGenBuffers(1,ids,0);sprites=ids[0];GL.glBindBuffer(GL.GL_ARRAY_BUFFER,sprites)
+            GL.glBufferData(GL.GL_ARRAY_BUFFER,65536*48,null,GL.GL_DYNAMIC_DRAW)
+            GL.glGenVertexArrays(1,ids,0);spriteVao=ids[0]
             val white=texture(1,1,false,ByteBuffer.allocateDirect(4).put(byteArrayOf(-1,-1,-1,-1)).apply{flip()})
             ownedTextures.add(white)
             val identity=ByteBuffer.allocateDirect(1024).apply {for(i in 0..255)repeat(4){put(i.toByte())};flip()}
@@ -33,7 +37,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
                 }
                 val resources=IntArray(4){white}
                 // Register immediately so failed reflection/resource loading still releases the program.
-                val samplers=ArrayList<Triple<Int,Int,Int>>();shaders.add(Shader(id,samplers,resources))
+                val samplers=ArrayList<Triple<Int,Int,Int>>();shaders.add(Shader(id,samplers,resources,program.optBoolean("sprite"),program.optBoolean("additive")))
                 val blocks=glsl.getJSONObject("blocks")
                 for(name in blocks.keys()) {
                     val block=GL.glGetUniformBlockIndex(id,name)
@@ -67,13 +71,33 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer) {
-        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==2){"不兼容的帧计划"}
-        check(plan.getInt(28) in 64..plan.capacity()){"帧计划长度错误"}
+        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==3){"不兼容的帧计划"}
+        check(plan.getInt(28) in 80..plan.capacity()){"帧计划长度错误"}
+        val spriteOffset=plan.getInt(64);val spriteCount=plan.getInt(68)
+        check(plan.getInt(72)==48&&spriteCount in 0..65536&&spriteOffset>=80&&spriteOffset.toLong()+spriteCount.toLong()*48<=plan.getInt(28)){"粒子实例范围错误"}
+        if(spriteCount>0) {
+            val data=plan.duplicate().order(ByteOrder.nativeOrder()).apply{position(spriteOffset);limit(spriteOffset+spriteCount*48)}.slice()
+            GL.glBindBuffer(GL.GL_ARRAY_BUFFER,sprites);GL.glBufferSubData(GL.GL_ARRAY_BUFFER,0,spriteCount*48,data)
+        }
         val w=plan.getInt(32);val h=plan.getInt(36);val mask=plan.getInt(40)
-        check(mask and 127==mask&&w>=0&&h>=0&&w.toLong()*h*4*Integer.bitCount(mask)<=64L*1024*1024){"效果临时纹理超过 64 MiB"}
-        if(w!=poolWidth||h!=poolHeight||mask!=poolMask) {
-            GL.glDeleteTextures(7,pool,0);pool.fill(0);poolWidth=w;poolHeight=h;poolMask=mask
-            for(i in pool.indices)if(mask and (1 shl i)!=0)pool[i]=texture(w,h,i !in 1..3,null)
+        check(mask and 255==mask&&w>=0&&h>=0){"效果纹理描述错误"}
+        // Capacities are derived from the existing v2 pass table, identically to Rust.
+        val sizes=IntArray(16);val passBase=plan.getInt(20);val passCount=plan.getInt(12)
+        check(passCount>=0&&passBase>=64&&passBase.toLong()+passCount.toLong()*40<=plan.getInt(28)){"效果 pass 表错误"}
+        var actualMask=0
+        for(i in 0 until passCount) {
+            val p=passBase+i*40;val slot=plan.getInt(p+12);val pw=plan.getInt(p+16);val ph=plan.getInt(p+20)
+            check(slot in 0..7&&pw in 1..w&&ph in 1..h){"效果纹理尺寸错误"}
+            actualMask=actualMask or (1 shl slot)
+            sizes[slot*2]=maxOf(sizes[slot*2],pw);sizes[slot*2+1]=maxOf(sizes[slot*2+1],ph)
+        }
+        check(mask==actualMask){"效果纹理槽位不一致"}
+        val bytes=(0..7).sumOf{i->sizes[i*2].toLong()*sizes[i*2+1]*(if(i==7)8 else 4)}
+        check(bytes<=64L*1024*1024){"效果临时纹理需要 ${bytes/1048576.0} MiB，超过 64 MiB"}
+        if(w!=poolWidth||h!=poolHeight||mask!=poolMask||!sizes.contentEquals(poolSizes)) {
+            GL.glDeleteTextures(8,pool,0);pool.fill(0);poolWidth=w;poolHeight=h;poolMask=mask
+            poolSizes=sizes
+            for(i in pool.indices)if(mask and (1 shl i)!=0)pool[i]=texture(sizes[i*2],sizes[i*2+1],i !in 1..3&&i!=7,null,i==7)
         }
         val lutBase=plan.getInt(44);val count=plan.getInt(48)
         for(i in 0 until count) {
@@ -89,16 +113,17 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }
     }
     fun texture(slot:Int):Int {check(slot in pool.indices&&pool[slot]!=0){"效果纹理索引错误"};return pool[slot]}
-    fun passes(plan:ByteBuffer,start:Int,end:Int) {
+    fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null) {
         val count=plan.getInt(12);check(start>=0&&end in start..count){"效果 pass 范围错误"}
         val base=plan.getInt(20)
-        fun input(index:Int)=if(index<0){check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}else texture(index)
+        // Materialize the current decoded video texture into the layer's effect chain.
+        fun input(index:Int)=if(index<0){videoTexture?:run{check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}}else texture(index)
         for(i in start until end) {
-            val p=base+i*32;check(p>=64&&p+32<=plan.getInt(28)){"效果 pass 地址错误"}
+            val p=base+i*40;check(p>=64&&p+40<=plan.getInt(28)){"效果 pass 地址错误"}
             val shaderIndex=plan.getInt(p);check(shaderIndex in shaders.indices){"效果程序索引错误"}
             val shader=shaders[shaderIndex];val source=input(plan.getInt(p+8));val previous=input(plan.getInt(p+4))
-            val target=texture(plan.getInt(p+12));val w=plan.getInt(p+16);val h=plan.getInt(p+20)
-            check(w in 1..poolWidth&&h in 1..poolHeight&&target!=source&&target!=previous){"效果输出目标错误"}
+            val targetSlot=plan.getInt(p+12);val target=texture(targetSlot);val w=plan.getInt(p+16);val h=plan.getInt(p+20)
+            check(w in 1..poolSizes[targetSlot*2]&&h in 1..poolSizes[targetSlot*2+1]&&target!=source&&target!=previous){"效果输出目标错误"}
             val offset=plan.getInt(p+24);check(offset>=64&&offset+624<=plan.getInt(28)){"效果参数地址错误"}
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,framebuffer)
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,target,0)
@@ -117,25 +142,38 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
                 val image=if(group==1)when(slot){0->previous;1->source;else->lut}else shader.resources[slot]
                 GL.glActiveTexture(GL.GL_TEXTURE0+unit);GL.glBindTexture(GL.GL_TEXTURE_2D,image)
             }
-            GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
+            if(shader.sprite) {
+                val start=plan.getInt(p+32);val count=plan.getInt(p+36)
+                check(start>=0&&count>=0&&start.toLong()+count<=plan.getInt(68)){"粒子绘制范围错误"}
+                GL.glEnable(GL.GL_BLEND)
+                GL.glBlendFuncSeparate(GL.GL_ONE,if(shader.additive)GL.GL_ONE else GL.GL_ONE_MINUS_SRC_ALPHA,GL.GL_ONE,GL.GL_ONE_MINUS_SRC_ALPHA)
+                GL.glBindVertexArray(spriteVao);GL.glBindBuffer(GL.GL_ARRAY_BUFFER,sprites)
+                for(attribute in 0..2) {
+                    GL.glEnableVertexAttribArray(attribute);GL.glVertexAttribPointer(attribute,4,GL.GL_FLOAT,false,48,start*48+attribute*16)
+                    GL.glVertexAttribDivisor(attribute,1)
+                }
+                GL.glDrawArraysInstanced(GL.GL_TRIANGLES,0,6,count)
+                GL.glBindVertexArray(0);GL.glDisable(GL.GL_BLEND)
+            } else GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
             check(GL.glGetError()==GL.GL_NO_ERROR){"效果 pass $i 执行失败"}
         }
     }
     fun close() {
         shaders.forEach{GL.glDeleteProgram(it.id)};shaders.clear()
-        GL.glDeleteTextures(7,pool,0);pool.fill(0)
+        GL.glDeleteTextures(8,pool,0);pool.fill(0)
         luts.filterKeys{it>=0}.values.forEach{GL.glDeleteTextures(1,intArrayOf(it.first),0)};luts.clear()
         GL.glDeleteTextures(ownedTextures.size,ownedTextures.toIntArray(),0);ownedTextures.clear()
         GL.glDeleteBuffers(1,intArrayOf(uniform),0);GL.glDeleteFramebuffers(1,intArrayOf(framebuffer),0)
-        uniform=0;framebuffer=0
+        GL.glDeleteBuffers(1,intArrayOf(sprites),0);GL.glDeleteVertexArrays(1,intArrayOf(spriteVao),0)
+        sprites=0;spriteVao=0;uniform=0;framebuffer=0
     }
-    private fun texture(w:Int,h:Int,srgb:Boolean,data:ByteBuffer?):Int {
+    private fun texture(w:Int,h:Int,srgb:Boolean,data:ByteBuffer?,floating:Boolean=false):Int {
         val limit=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_TEXTURE_SIZE,limit,0)
         check(w in 1..limit[0]&&h in 1..limit[0]){"效果纹理超过设备能力"}
         val id=IntArray(1);GL.glGenTextures(1,id,0);GL.glBindTexture(GL.GL_TEXTURE_2D,id[0])
         GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_MIN_FILTER,GL.GL_LINEAR);GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_MAG_FILTER,GL.GL_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_WRAP_S,GL.GL_CLAMP_TO_EDGE);GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_WRAP_T,GL.GL_CLAMP_TO_EDGE)
-        GL.glTexImage2D(GL.GL_TEXTURE_2D,0,if(srgb)GL.GL_SRGB8_ALPHA8 else GL.GL_RGBA8,w,h,0,GL.GL_RGBA,GL.GL_UNSIGNED_BYTE,data)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D,0,if(floating)GL.GL_RGBA16F else if(srgb)GL.GL_SRGB8_ALPHA8 else GL.GL_RGBA8,w,h,0,GL.GL_RGBA,if(floating)GL.GL_HALF_FLOAT else GL.GL_UNSIGNED_BYTE,data)
         return id[0]
     }
     private fun link(vertex:String,fragment:String):Int {

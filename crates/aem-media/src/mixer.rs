@@ -2,10 +2,11 @@ use crate::{cache_path, Result, MAX_BLOCK_FRAMES, OUTPUT_RATE};
 use aem_core::{AudioAsset, Project};
 use serde::Serialize;
 use std::{
+    collections::HashMap,
     fs::File,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::Arc,
 };
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -17,6 +18,7 @@ pub struct WaveBucket {
 struct Source {
     id: u64,
     file: File,
+    weights: Arc<Vec<[f32; 64]>>,
 }
 /// Each instance owns a frozen project and independent file cursors. Preview
 /// seeking and edits cannot change an export mixer's samples or position.
@@ -32,6 +34,7 @@ impl AudioMixer {
         project.validate().map_err(|e| e.to_string())?;
         let root = root.canonicalize().map_err(|e| e.to_string())?;
         let mut sources = Vec::new();
+        let mut tables = HashMap::new();
         for a in &project.audio_assets {
             if !project.layers.iter().any(|l| {
                 project
@@ -55,7 +58,14 @@ impl AudioMixer {
                     a.id
                 ));
             }
-            sources.push(Source { id: a.id, file });
+            sources.push(Source {
+                id: a.id,
+                file,
+                weights: tables
+                    .entry(a.sample_rate)
+                    .or_insert_with(|| Arc::new(sinc_table(a.sample_rate)))
+                    .clone(),
+            });
         }
         Ok(Self {
             project,
@@ -106,10 +116,10 @@ impl AudioMixer {
                     * 1_000_000
                     + i128::from(audio.source_offset_us) * rate * i128::from(OUTPUT_RATE)
             };
-            let first = (position(begin).div_euclid(den) - 16)
+            let first = (position(begin).div_euclid(den) - 32)
                 .max(0)
                 .min(i128::from(asset.sample_frames)) as u64;
-            let last = (position(end - 1).div_euclid(den) + 18)
+            let last = (position(end - 1).div_euclid(den) + 34)
                 .max(0)
                 .min(i128::from(asset.sample_frames)) as u64;
             if last <= first {
@@ -149,13 +159,13 @@ impl AudioMixer {
                 let target = (sample - start_sample) as usize * 2;
                 for channel in 0..2 {
                     let channel = channel.min(ch - 1);
-                    let value = if fraction == 0 {
+                    let value = if fraction == 0 && asset.sample_rate <= OUTPUT_RATE as u32 {
                         self.samples[(n as u64 - first) as usize * ch + channel]
                     } else {
-                        let weights = &sinc_table()[(fraction * 1024 / den) as usize];
+                        let weights = &source.weights[(fraction * 1024 / den) as usize];
                         let mut value = 0.0;
                         for (tap, &weight) in weights.iter().enumerate() {
-                            let index = n + tap as i64 - 15;
+                            let index = n + tap as i64 - 31;
                             if index >= first as i64 && index < last as i64 {
                                 value += self.samples
                                     [(index as u64 - first) as usize * ch + channel]
@@ -208,9 +218,7 @@ pub fn read_waveform(
     if count > 4096 {
         return Err("waveform query exceeds 4096 buckets".into());
     }
-    let buckets = asset
-        .sample_frames
-        .div_ceil(u64::from(asset.sample_rate / 100));
+    let buckets = (asset.sample_frames * 100).div_ceil(u64::from(asset.sample_rate));
     if first_bucket > buckets {
         return Err("waveform range outside audio source".into());
     }
@@ -246,31 +254,37 @@ pub fn read_waveform(
         })
         .collect()
 }
-fn sinc_table() -> &'static [[f32; 32]] {
-    static TABLE: OnceLock<Vec<[f32; 32]>> = OnceLock::new();
-    TABLE.get_or_init(|| {
-        (0..1024)
-            .map(|phase| {
-                let fraction = phase as f64 / 1024.0;
-                let mut w = [0.0; 32];
-                let mut sum = 0.0;
-                for (tap, value) in w.iter_mut().enumerate() {
-                    let x = tap as f64 - 15.0 - fraction;
-                    let sinc = if x.abs() < 1e-12 {
-                        1.0
-                    } else {
-                        (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x)
-                    };
-                    *value = (sinc * (0.5 + 0.5 * (std::f64::consts::PI * x / 16.0).cos())) as f32;
-                    sum += *value;
+fn sinc_table(rate: u32) -> Vec<[f32; 64]> {
+    let cutoff = (OUTPUT_RATE as f64 / f64::from(rate)).min(1.0);
+    let radius = if rate > OUTPUT_RATE as u32 {
+        32.0
+    } else {
+        16.0
+    };
+    (0..1024)
+        .map(|phase| {
+            let fraction = phase as f64 / 1024.0;
+            let mut w = [0.0; 64];
+            let mut sum = 0.0;
+            for (tap, value) in w.iter_mut().enumerate() {
+                let x = tap as f64 - 31.0 - fraction;
+                if x.abs() >= radius {
+                    continue;
                 }
-                for value in &mut w {
-                    *value /= sum;
-                }
-                w
-            })
-            .collect()
-    })
+                let sinc = if x.abs() < 1e-12 {
+                    cutoff
+                } else {
+                    (std::f64::consts::PI * x * cutoff).sin() / (std::f64::consts::PI * x)
+                };
+                *value = (sinc * (0.5 + 0.5 * (std::f64::consts::PI * x / radius).cos())) as f32;
+                sum += *value;
+            }
+            for value in &mut w {
+                *value /= sum;
+            }
+            w
+        })
+        .collect()
 }
 
 pub(crate) fn build_waveform(
@@ -283,12 +297,16 @@ pub(crate) fn build_waveform(
         File::create(pcm.with_extension("wave")).map_err(|e| e.to_string())?,
     );
     use std::io::Write;
-    let bucket_samples = (asset.sample_rate / 100 * asset.channels) as usize;
+    let bucket_samples = (asset.sample_rate.div_ceil(100) * asset.channels) as usize;
     let mut bytes = vec![0; bucket_samples * 4];
     let mut remaining = asset.sample_frames * u64::from(asset.channels);
+    let mut bucket = 0u64;
     while remaining > 0 {
         check()?;
-        let count = remaining.min(bucket_samples as u64) as usize;
+        let from = bucket * u64::from(asset.sample_rate) / 100;
+        let to = (bucket + 1) * u64::from(asset.sample_rate) / 100;
+        let count = remaining.min((to - from) * u64::from(asset.channels)) as usize;
+        bucket += 1;
         source
             .read_exact(&mut bytes[..count * 4])
             .map_err(|e| e.to_string())?;

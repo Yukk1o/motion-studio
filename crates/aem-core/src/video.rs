@@ -1,7 +1,7 @@
 use crate::{ensure, Result};
 use serde::{Deserialize, Serialize};
 
-/// All timestamps are on the MP4 presentation timeline, including leading edits.
+/// All timestamps are on the source presentation timeline, including leading edits.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VideoAsset {
@@ -23,7 +23,7 @@ pub struct VideoAsset {
     pub nominal_frame_rate: f64,
     pub color_standard: u32,
     pub color_range: u32,
-    /// A separate asset ID referencing the same owned MP4; never a second copy.
+    /// A separate asset ID referencing the same owned source; never a second copy.
     pub audio_asset: Option<u64>,
 }
 impl VideoAsset {
@@ -33,7 +33,13 @@ impl VideoAsset {
             self.bytes > 0 && self.bytes <= crate::storage::MAX_MEDIA_ASSET,
             "invalid video source size",
         )?;
-        ensure(self.mime == "video/avc", "video requires MP4/H.264")?;
+        ensure(
+            matches!(
+                self.mime.as_str(),
+                "video/avc" | "video/hevc" | "video/x-vnd.on2.vp8" | "video/x-vnd.on2.vp9"
+            ),
+            "unsupported video codec",
+        )?;
         ensure(
             self.width > 0
                 && self.height > 0

@@ -2,7 +2,7 @@ use crate::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const SDK_VERSION: u32 = 1;
+pub const SDK_VERSION: u32 = 3;
 pub const MAX_PARAMS: usize = 32;
 pub const MAX_PASSES: usize = 8;
 pub const MAX_EFFECTS_PER_LAYER: usize = 16;
@@ -30,6 +30,14 @@ impl ParamKind {
     }
     pub fn discrete(self) -> bool {
         matches!(self, Self::Bool | Self::Enum)
+    }
+    /// Package, persisted tracks, and sampled render plans use the same value rules.
+    pub fn valid_value(self, value: &[f32; 4], min: f32, max: f32) -> bool {
+        value.iter().all(|v| v.is_finite())
+            && value[..self.dimensions()]
+                .iter()
+                .all(|v| *v >= min && *v <= max)
+            && (!self.discrete() || value[0].fract() == 0.0)
     }
 }
 
@@ -97,6 +105,13 @@ pub enum Compatibility {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum BoundsExpr {
+    /// Geometry of this effect's incoming image, in full-resolution layer pixels.
+    InputSize {
+        component: usize,
+    },
+    InputOrigin {
+        component: usize,
+    },
     Constant {
         value: f32,
     },
@@ -131,27 +146,95 @@ impl Default for BoundsExpr {
 }
 impl BoundsExpr {
     pub fn evaluate(&self, params: &BTreeMap<String, [f32; 4]>) -> Result<f32> {
-        self.eval(params, 0)
+        self.evaluate_with(
+            |id, component| params.get(id)?.get(component).copied(),
+            [0., 0., 1., 1.],
+        )
     }
-    fn eval(&self, p: &BTreeMap<String, [f32; 4]>, depth: usize) -> Result<f32> {
+    pub fn uses_geometry(&self) -> bool {
+        match self {
+            Self::InputSize { .. } | Self::InputOrigin { .. } => true,
+            Self::Add { a, b } | Self::Multiply { a, b } | Self::Max { a, b } => {
+                a.uses_geometry() || b.uses_geometry()
+            }
+            Self::Abs { value } | Self::Ceil { value } => value.uses_geometry(),
+            _ => false,
+        }
+    }
+    /// Shared by package validation and the wgpu/GLES execution-plan builder.
+    pub fn evaluate_with(
+        &self,
+        lookup: impl Fn(&str, usize) -> Option<f32>,
+        input: [f32; 4],
+    ) -> Result<f32> {
+        self.eval(&lookup, input, 0)
+    }
+    fn eval(
+        &self,
+        lookup: &impl Fn(&str, usize) -> Option<f32>,
+        input: [f32; 4],
+        depth: usize,
+    ) -> Result<f32> {
         ensure(depth <= 16, "bounds expression is too deep")?;
         let v = match self {
+            Self::InputSize { component } | Self::InputOrigin { component } => {
+                ensure(*component < 2, "invalid bounds geometry component")?;
+                input[*component
+                    + if matches!(self, Self::InputSize { .. }) {
+                        2
+                    } else {
+                        0
+                    }]
+            }
             Self::Constant { value } => *value,
-            Self::Parameter { id, component } => *p
-                .get(id)
-                .and_then(|v| v.get(*component))
+            Self::Parameter { id, component } => lookup(id, *component)
                 .ok_or_else(|| crate::Error::Invalid("unknown bounds parameter".into()))?,
-            Self::Add { a, b } => a.eval(p, depth + 1)? + b.eval(p, depth + 1)?,
-            Self::Multiply { a, b } => a.eval(p, depth + 1)? * b.eval(p, depth + 1)?,
-            Self::Max { a, b } => a.eval(p, depth + 1)?.max(b.eval(p, depth + 1)?),
-            Self::Abs { value } => value.eval(p, depth + 1)?.abs(),
-            Self::Ceil { value } => value.eval(p, depth + 1)?.ceil(),
+            Self::Add { a, b } => {
+                a.eval(lookup, input, depth + 1)? + b.eval(lookup, input, depth + 1)?
+            }
+            Self::Multiply { a, b } => {
+                a.eval(lookup, input, depth + 1)? * b.eval(lookup, input, depth + 1)?
+            }
+            Self::Max { a, b } => {
+                a.eval(lookup, input, depth + 1)?
+                    .max(b.eval(lookup, input, depth + 1)?)
+            }
+            Self::Abs { value } => value.eval(lookup, input, depth + 1)?.abs(),
+            Self::Ceil { value } => value.eval(lookup, input, depth + 1)?.ceil(),
         };
         ensure(
             v.is_finite() && v.abs() <= 32768.0,
             "bounds exceed supported numeric range",
         )?;
         Ok(v)
+    }
+}
+/// An absolute rectangle in layer space. It replaces symmetric padding when present.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutputBounds {
+    pub x: BoundsExpr,
+    pub y: BoundsExpr,
+    pub width: BoundsExpr,
+    pub height: BoundsExpr,
+}
+impl OutputBounds {
+    pub fn evaluate_with(
+        &self,
+        lookup: impl Fn(&str, usize) -> Option<f32>,
+        input: [f32; 4],
+    ) -> Result<[f32; 4]> {
+        let rect = [
+            self.x.evaluate_with(&lookup, input)?,
+            self.y.evaluate_with(&lookup, input)?,
+            self.width.evaluate_with(&lookup, input)?,
+            self.height.evaluate_with(&lookup, input)?,
+        ];
+        ensure(
+            rect[2] >= 1.0 && rect[3] >= 1.0,
+            "effect output dimensions must be at least one pixel",
+        )?;
+        Ok(rect)
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -173,6 +256,8 @@ pub struct EffectDefinition {
     pub resources: Vec<String>,
     #[serde(default)]
     pub padding: BoundsExpr,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_bounds: Option<OutputBounds>,
     #[serde(default)]
     pub edge_mode: EdgeMode,
     #[serde(default)]
@@ -193,6 +278,14 @@ pub struct EffectDefinition {
     pub known_differences: Vec<String>,
     #[serde(default)]
     pub required_capabilities: Vec<String>,
+    #[serde(default)]
+    pub renderer: crate::RendererKind,
+    #[serde(default)]
+    pub blend: crate::SpriteBlend,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor: Option<crate::EditorDefinition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene: Option<crate::SceneSettings>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -226,7 +319,7 @@ pub fn validate_path(path: &str) -> Result<()> {
 impl PluginManifest {
     pub fn validate(&self) -> Result<()> {
         ensure(
-            self.format_version == 1 && self.sdk_version == SDK_VERSION,
+            self.format_version == 1 && (1..=SDK_VERSION).contains(&self.sdk_version),
             "incompatible effect package/SDK version",
         )?;
         ensure(valid_id(&self.id), "invalid plugin ID")?;
@@ -262,6 +355,56 @@ impl PluginManifest {
                 e.resources.len() <= 4,
                 "at most four resource textures are supported",
             )?;
+            if let Some(editor) = &e.editor {
+                ensure(self.sdk_version >= 2, "plugin editors require SDK 2")?;
+                editor.validate()?;
+            }
+            if let Some(scene) = &e.scene {
+                scene.validate()?;
+            }
+            if e.renderer == crate::RendererKind::Image {
+                ensure(
+                    e.scene.is_none() && e.blend == crate::SpriteBlend::Alpha,
+                    "image effects cannot declare scene state or sprite blending",
+                )?;
+            }
+            if e.renderer != crate::RendererKind::Image {
+                ensure(self.sdk_version >= 2 && e.passes.len() == 1 && e.working_space == WorkingSpace::Linear && e.alpha_mode == AlphaMode::Premultiplied, "scene generators require SDK 2, one sprite shader and linear premultiplied output")?;
+                ensure(e.scene.is_some(), "scene generator settings missing")?;
+                let required: &[&str] = if e.renderer == crate::RendererKind::Particles {
+                    &[
+                        "rate",
+                        "lifetime",
+                        "speed",
+                        "spread",
+                        "gravity",
+                        "extent",
+                        "shape",
+                        "size",
+                        "end_size",
+                        "color",
+                        "end_color",
+                        "fade",
+                        "prewarm",
+                    ]
+                } else {
+                    &[
+                        "position",
+                        "intensity",
+                        "scale",
+                        "attenuation",
+                        "reference_distance",
+                        "occlusion_radius",
+                    ]
+                };
+                for id in required {
+                    ensure(
+                        e.params.iter().any(|p| p.id == *id),
+                        format!("generator parameter {id} missing"),
+                    )?;
+                }
+                crate::scene::validate_generator_contract(e.renderer, &e.params)?;
+            }
             let mut params = BTreeSet::new();
             let mut defaults = BTreeMap::new();
             for p in &e.params {
@@ -282,10 +425,25 @@ impl PluginManifest {
                     "non-finite parameter default",
                 )?;
                 ensure(
-                    p.default[..p.kind.dimensions()]
-                        .iter()
-                        .all(|v| *v >= p.min && *v <= p.max),
+                    p.kind.valid_value(&p.default, p.min, p.max),
                     "parameter default exceeds range",
+                )?;
+                ensure(
+                    p.kind != ParamKind::Bool || (p.min == 0.0 && p.max == 1.0),
+                    "boolean range must be 0..1",
+                )?;
+                ensure(
+                    p.kind != ParamKind::Enum
+                        || (p.min.fract() == 0.0
+                            && p.max.fract() == 0.0
+                            && p.max - p.min + 1.0 == p.options.len() as f32),
+                    "enum range must match its contiguous integer options",
+                )?;
+                ensure(
+                    self.sdk_version < 2
+                        || p.kind != ParamKind::Color
+                        || (p.min >= 0.0 && p.max <= 1.0),
+                    "SDK 2 colors require normalized 0..1 bounds",
                 )?;
                 ensure(
                     !matches!(p.kind, ParamKind::Enum)
@@ -306,6 +464,23 @@ impl PluginManifest {
                 e.padding.evaluate(&defaults)? >= 0.0,
                 "negative effect padding",
             )?;
+            if e.padding.uses_geometry() || e.output_bounds.is_some() {
+                ensure(self.sdk_version >= 3, "geometry bounds require SDK 3")?;
+            }
+            if let Some(rect) = &e.output_bounds {
+                ensure(
+                    e.renderer == crate::RendererKind::Image,
+                    "rectangle bounds require an image effect",
+                )?;
+                ensure(
+                    e.padding == BoundsExpr::default(),
+                    "output_bounds and padding are mutually exclusive",
+                )?;
+                rect.evaluate_with(
+                    |id, component| defaults.get(id)?.get(component).copied(),
+                    [0., 0., 1., 1.],
+                )?;
+            }
             if let Some(id) = &e.edge_param {
                 ensure(params.contains(id), "unknown edge mode parameter")?;
             }
@@ -332,7 +507,12 @@ impl PluginManifest {
                         "multipass",
                         "param_lut",
                         "dynamic_bounds",
+                        "rect_bounds",
                         "color_profile",
+                        "scene_projection",
+                        "sprite_instances",
+                        "alpha_occlusion",
+                        "plugin_editor",
                     ]
                     .contains(&cap.as_str()),
                     format!("unsupported host capability: {cap}"),

@@ -112,14 +112,18 @@ fn effect_outputs_preserve_crossing_plane_batches_in_both_stack_orders() {
     let mut scene = Scene::new(&p);
     let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
     let target = renderer.capture_target(256, 256).unwrap();
-    let mut builder = PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    let mut builder =
+        PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
     for _ in 0..2 {
         scene.sample(&p, 0.0, None).unwrap();
         let plan = builder.build(&scene, &[0, 0], 256, 256, true).unwrap();
         assert_eq!(plan.batches.len(), 3);
         let mut bytes = vec![0; plan.buffer_bytes(&scene)];
         plan.write(&scene, &mut bytes).unwrap();
-        assert_eq!(u32::from_ne_bytes(bytes[4..8].try_into().unwrap()), 2);
+        assert_eq!(
+            u32::from_ne_bytes(bytes[4..8].try_into().unwrap()),
+            aem_render::effect_plan::PLAN_VERSION
+        );
         assert_eq!(u32::from_ne_bytes(bytes[56..60].try_into().unwrap()), 3);
         let (pixels, _) = renderer.capture(&scene, &target).unwrap();
         let left = &pixels[(128 * 256 + 96) * 4..(128 * 256 + 96) * 4 + 4];
@@ -149,6 +153,81 @@ fn over_budget_effect_is_reported_and_preview_keeps_input() {
 }
 
 #[test]
+fn full_hd_polar_then_edge_glow_fits_and_every_capacity_matches_written_passes() {
+    let mut p = Project::new(1080, 1920, 30, 60).unwrap();
+    p.layers.push(Layer::solid(
+        1,
+        "rectangle",
+        [1080., 1920.],
+        [540., 960., 0.],
+        [1.; 4],
+    ));
+    // The screenshot uses core 1.1.0; the host fix must also apply to pinned packages.
+    let package = aem_effects::builtin::packages()
+        .unwrap()
+        .into_iter()
+        .find(|package| {
+            package.manifest.id == aem_effects::builtin::PLUGIN_ID
+                && package.manifest.version == "1.1.0"
+        })
+        .unwrap();
+    for (i, name) in ["polar_coordinates", "glow_edges"].iter().enumerate() {
+        let def = package
+            .manifest
+            .effects
+            .iter()
+            .find(|def| &def.id == name)
+            .unwrap();
+        p.layers[0].effects.push(EffectInstance::new(
+            i as u64 + 1,
+            &package.manifest.id,
+            &package.manifest.version,
+            &package.hash,
+            def,
+            [1080., 1920.],
+        ));
+    }
+    // A common 48 px glow fails under the old seven equally sized, 128-aligned targets.
+    p.layers[0].effects[1]
+        .params
+        .get_mut("radius")
+        .unwrap()
+        .track
+        .value[0] = 48.;
+    p.rebuild_plugin_dependencies();
+    let mut scene = Scene::new(&p);
+    scene.sample(&p, 0., None).unwrap();
+    let mut builder =
+        PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    let plan = builder.build(&scene, &[0], 1080, 1920, true).unwrap();
+    assert_eq!(plan.slots, 0b01110111); // no unused sRGB ping-pong slot 3
+    assert_eq!(plan.scratch_sizes[1], [1080, 1920]);
+    assert_eq!(plan.scratch_sizes[5], [1176, 2016]);
+    let mut derived = [[0; 2]; 8];
+    for pass in &plan.passes {
+        let size = &mut derived[pass.output as usize];
+        size[0] = size[0].max(pass.width);
+        size[1] = size[1].max(pass.height);
+    }
+    assert_eq!(
+        plan.scratch_sizes, derived,
+        "GLES derives capacities from this table"
+    );
+    let bytes = aem_render::effect_plan::scratch_capacity_bytes(&derived);
+    assert!(bytes < aem_effects::SCRATCH_BUDGET);
+    let old_bytes = aem_render::effect_plan::scratch_bytes(1280, 2048, 127);
+    assert!(old_bytes > aem_effects::SCRATCH_BUDGET);
+    assert!(bytes < old_bytes);
+
+    // A true device limit remains an error and must retain its cause and effect context.
+    builder.device_dimension = 1024;
+    let error = builder.build(&scene, &[0], 1080, 1920, true).unwrap_err();
+    assert!(
+        error.contains("device dimension limit is 1024") && error.contains("layer 1, effect 1")
+    );
+}
+
+#[test]
 fn shared_execution_plan_uses_layer_local_effect_clock() {
     let mut p = fixture();
     p.layers[0].timeline = Some(aem_core::LayerTimeline {
@@ -169,4 +248,29 @@ fn shared_execution_plan_uses_layer_local_effect_clock() {
         assert_eq!(pass.uniform.clock[0], 0.5);
         assert_eq!(pass.uniform.clock[1], 15.0);
     }
+}
+
+#[test]
+fn zero_opacity_avoids_all_scratch_but_keeps_dependency_checks() {
+    let mut p = fixture();
+    p.layers[0].size = [4096.; 2];
+    let mut effect = instance("glow_edges", 1);
+    effect.params.get_mut("effect_opacity").unwrap().track.value[0] = 0.;
+    p.layers[0].effects = vec![effect];
+    p.rebuild_plugin_dependencies();
+    let mut scene = Scene::new(&p);
+    scene.sample(&p, 0., None).unwrap();
+    let mut builder =
+        PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    let plan = builder.build(&scene, &[0], 64, 64, true).unwrap();
+    assert!(plan.passes.is_empty());
+    assert_eq!(plan.slots, 0);
+    assert_eq!(
+        aem_render::effect_plan::scratch_capacity_bytes(&plan.scratch_sizes),
+        0
+    );
+    p.layers[0].effects[0].hash = "a".repeat(64);
+    p.rebuild_plugin_dependencies();
+    scene.sample(&p, 0., None).unwrap();
+    assert!(builder.build(&scene, &[0], 64, 64, true).is_err());
 }

@@ -44,6 +44,8 @@ impl EffectPackage {
                 MAX_SHADER
             } else if name.starts_with("assets/") && name.ends_with(".png") {
                 MAX_PACKAGE
+            } else if name.starts_with("ui/") && crate::editor_mime(&name).is_some() {
+                MAX_SHADER
             } else {
                 return Err(Error::Invalid("unexpected package file".into()));
             };
@@ -77,6 +79,35 @@ impl EffectPackage {
         let mut decoded_resources = BTreeSet::new();
         let mut decoded_bytes = 0u64;
         for effect in &manifest.effects {
+            if let Some(editor) = &effect.editor {
+                for path in &editor.files {
+                    let data = files
+                        .get(path)
+                        .ok_or_else(|| Error::Invalid(format!("editor resource {path} missing")))?;
+                    if !path.ends_with(".png") {
+                        ensure(
+                            std::str::from_utf8(data).is_ok() && !data.contains(&0),
+                            "editor text must be UTF-8 without NUL",
+                        )?;
+                    } else if decoded_resources.insert(path.clone()) {
+                        let (w, h) = image::ImageReader::new(std::io::Cursor::new(data))
+                            .with_guessed_format()
+                            .map_err(Error::Io)?
+                            .into_dimensions()
+                            .map_err(|e| Error::Invalid(e.to_string()))?;
+                        decoded_bytes = decoded_bytes
+                            .checked_add(u64::from(w) * u64::from(h) * 4)
+                            .ok_or_else(|| Error::Invalid("editor PNG size overflow".into()))?;
+                        ensure(
+                            w > 0 && h > 0 && decoded_bytes <= 128 * 1024 * 1024,
+                            "editor PNG exceeds decoded resource budget",
+                        )?;
+                        image::load_from_memory_with_format(data, image::ImageFormat::Png)
+                            .map_err(|e| Error::Invalid(e.to_string()))?;
+                    }
+                    referenced.insert(path.clone());
+                }
+            }
             for (i, pass) in effect.passes.iter().enumerate() {
                 referenced.insert(pass.shader.clone());
                 let source =
@@ -84,8 +115,17 @@ impl EffectPackage {
                         Error::Invalid(format!("shader {} is missing", pass.shader))
                     })?)
                     .map_err(|_| Error::Invalid("shader must be UTF-8".into()))?;
-                let compiled = shader::compile(source, &pass.entry)
-                    .map_err(|e| Error::Invalid(format!("effect {}, pass {i}: {e}", effect.id)))?;
+                let compiled = if effect.output_bounds.is_some() {
+                    shader::compile_rect_image(source, &pass.entry)
+                } else {
+                    shader::compile_mode(
+                        source,
+                        &pass.entry,
+                        effect.renderer != crate::RendererKind::Image,
+                        effect.blend == crate::SpriteBlend::Additive,
+                    )
+                }
+                .map_err(|e| Error::Invalid(format!("effect {}, pass {i}: {e}", effect.id)))?;
                 shaders.insert((effect.id.clone(), i), compiled);
             }
             for name in &effect.resources {
@@ -143,6 +183,9 @@ pub fn package_directory(path: &Path) -> Result<Vec<u8>> {
     manifest.validate()?;
     let mut names = BTreeSet::from(["manifest.json".to_owned()]);
     for effect in &manifest.effects {
+        if let Some(editor) = &effect.editor {
+            names.extend(editor.files.iter().cloned());
+        }
         for pass in &effect.passes {
             names.insert(pass.shader.clone());
         }
@@ -337,7 +380,7 @@ impl Registry {
         hash: &str,
     ) -> Result<()> {
         ensure(
-            id != crate::builtin::PLUGIN_ID,
+            id != crate::builtin::PLUGIN_ID && id != "com.motionstudio.effects.scene",
             "the preinstalled core library cannot be uninstalled",
         )?;
         let key = (id.into(), version.into(), hash.into());

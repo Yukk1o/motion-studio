@@ -206,6 +206,8 @@ pub struct Project {
     pub layers: Vec<Layer>,
     #[serde(default)]
     pub plugin_dependencies: Vec<crate::PluginDependency>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub expressions: Vec<crate::PropertyExpression>,
 }
 impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
@@ -224,6 +226,7 @@ impl Project {
             camera: Camera::new(width, height),
             layers: Vec::new(),
             plugin_dependencies: Vec::new(),
+            expressions: Vec::new(),
         };
         project.camera.created = false;
         project.validate()?;
@@ -269,6 +272,14 @@ impl Project {
         ensure(
             self.version >= 2 || self.layers.iter().all(|l| l.effects.is_empty()),
             "version 1 projects cannot contain effects",
+        )?;
+        ensure(
+            self.version >= 4
+                || self
+                    .layers
+                    .iter()
+                    .all(|l| l.effects.iter().all(|e| e.scene.is_none())),
+            "scene generator projects require format 4",
         )?;
         ensure(
             self.plugin_dependencies == crate::effects::dependencies(&self.layers),
@@ -341,7 +352,6 @@ impl Project {
                 ensure(
                     audio.path == asset.path
                         && audio.bytes == asset.bytes
-                        && audio.mime == "audio/mp4"
                         && audio.duration_us <= asset.duration_us,
                     "video/audio source timeline mismatch",
                 )?;
@@ -476,6 +486,7 @@ impl Project {
             }
         }
         crate::hierarchy::validate(self)?;
+        crate::expressions::validate(self)?;
         Ok(())
     }
     pub fn frame_pts_us(&self, frame: u32) -> Result<i64> {

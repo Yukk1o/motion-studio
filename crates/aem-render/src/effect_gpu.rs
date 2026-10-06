@@ -17,7 +17,7 @@ struct Buffer {
     group: wgpu::BindGroup,
 }
 struct Binding {
-    key: (i32, i32, i32, u32, u64),
+    key: (i32, i32, i32, u32, u64, Option<u64>),
     group: wgpu::BindGroup,
 }
 struct Lut {
@@ -37,7 +37,7 @@ pub(crate) struct GpuState {
     white: FxTexture,
     identity: Lut,
     luts: Vec<Lut>,
-    pipelines: HashMap<(u32, bool), wgpu::RenderPipeline>,
+    pipelines: HashMap<(u32, u32), wgpu::RenderPipeline>,
     resources: HashMap<u32, wgpu::BindGroup>,
     resource_textures: HashMap<(String, String), FxTexture>,
     pub resource_bytes: u64,
@@ -47,8 +47,10 @@ pub(crate) struct GpuState {
     pool_width: u32,
     pool_height: u32,
     pool_slots: u32,
+    pool_sizes: [[u32; 2]; 8],
     epoch: u64,
     buffers: Vec<Buffer>,
+    sprite_buffer: wgpu::Buffer,
     bindings: Vec<Option<Binding>>,
 }
 fn texture(
@@ -214,12 +216,19 @@ impl EffectGpu {
                 resource_bytes: 0,
                 parameter_resource_upload_bytes: 0,
                 failed_program: None,
-                pool: (0..7).map(|_| None).collect(),
+                pool: (0..8).map(|_| None).collect(),
                 pool_width: 0,
                 pool_height: 0,
                 pool_slots: 0,
+                pool_sizes: [[0; 2]; 8],
                 epoch: 0,
                 buffers: Vec::new(),
+                sprite_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("bounded scene instances"),
+                    size: (aem_effects::MAX_SPRITES * 48) as u64,
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }),
                 bindings: Vec::new(),
             },
         })
@@ -247,16 +256,14 @@ impl GpuState {
             self.pool_width = 0;
             self.pool_height = 0;
             self.pool_slots = 0;
+            self.pool_sizes = [[0; 2]; 8];
             self.luts.clear();
             self.buffers.clear();
             self.invalidate();
         }
     }
     pub fn bytes(&self) -> u64 {
-        u64::from(self.pool_width)
-            * u64::from(self.pool_height)
-            * 4
-            * u64::from(self.pool_slots.count_ones())
+        crate::effect_plan::scratch_capacity_bytes(&self.pool_sizes)
             + self.resource_bytes
             + self.luts.len() as u64 * 1024
     }
@@ -284,18 +291,21 @@ impl GpuState {
         if self.pool_width != frame.width
             || self.pool_height != frame.height
             || self.pool_slots != frame.slots
+            || self.pool_sizes != frame.scratch_sizes
         {
             self.invalidate();
-            self.pool = (0..7)
+            self.pool = (0..8)
                 .map(|i| {
                     if frame.slots & (1 << i) != 0 {
                         Some(texture(
                             device,
                             composite,
                             &self.sampler,
-                            frame.width,
-                            frame.height,
-                            if (1..=3).contains(&i) {
+                            frame.scratch_sizes[i][0],
+                            frame.scratch_sizes[i][1],
+                            if i == 7 {
+                                wgpu::TextureFormat::Rgba16Float
+                            } else if (1..=3).contains(&i) {
                                 wgpu::TextureFormat::Rgba8Unorm
                             } else {
                                 wgpu::TextureFormat::Rgba8UnormSrgb
@@ -309,6 +319,7 @@ impl GpuState {
             self.pool_width = frame.width;
             self.pool_height = frame.height;
             self.pool_slots = frame.slots;
+            self.pool_sizes = frame.scratch_sizes;
         }
         self.luts.truncate(scene.curve_luts.len());
         for (index, lut) in scene.curve_luts.iter().enumerate() {
@@ -354,9 +365,19 @@ impl GpuState {
             self.buffers.push(Buffer { buffer, group });
         }
         self.bindings.resize_with(frame.passes.len(), || None);
+        if !frame.sprites.is_empty() {
+            queue.write_buffer(&self.sprite_buffer, 0, bytemuck::cast_slice(&frame.sprites));
+        }
         for p in &frame.passes {
             let gamma = (1..=3).contains(&p.output);
-            let key = (p.program, gamma);
+            let target_kind = if p.output == 7 {
+                7
+            } else if gamma {
+                1
+            } else {
+                0
+            };
+            let key = (p.program, target_kind);
             if !self.pipelines.contains_key(&key) {
                 device.push_error_scope(wgpu::ErrorFilter::Validation);
                 let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -378,6 +399,15 @@ impl GpuState {
                     ],
                     push_constant_ranges: &[],
                 });
+                let sprite = builder.programs[p.program as usize].shader.sprite;
+                let additive = builder.programs[p.program as usize].shader.additive;
+                const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
+                    wgpu::vertex_attr_array![0=>Float32x4,1=>Float32x4,2=>Float32x4];
+                let vertex_layout = wgpu::VertexBufferLayout {
+                    array_stride: 48,
+                    step_mode: wgpu::VertexStepMode::Instance,
+                    attributes: &ATTRIBUTES,
+                };
                 let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("effect fullscreen pass"),
                     layout: Some(&layout),
@@ -385,7 +415,11 @@ impl GpuState {
                         module: &module,
                         entry_point: Some("sdk_vertex"),
                         compilation_options: Default::default(),
-                        buffers: &[],
+                        buffers: if sprite {
+                            std::slice::from_ref(&vertex_layout)
+                        } else {
+                            &[]
+                        },
                     },
                     primitive: Default::default(),
                     depth_stencil: None,
@@ -395,12 +429,29 @@ impl GpuState {
                         entry_point: Some("sdk_fragment"),
                         compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: if gamma {
+                            format: if p.output == 7 {
+                                wgpu::TextureFormat::Rgba16Float
+                            } else if gamma {
                                 wgpu::TextureFormat::Rgba8Unorm
                             } else {
                                 wgpu::TextureFormat::Rgba8UnormSrgb
                             },
-                            blend: None,
+                            blend: if sprite {
+                                Some(if additive {
+                                    wgpu::BlendState {
+                                        color: wgpu::BlendComponent {
+                                            src_factor: wgpu::BlendFactor::One,
+                                            dst_factor: wgpu::BlendFactor::One,
+                                            operation: wgpu::BlendOperation::Add,
+                                        },
+                                        alpha: wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING.alpha,
+                                    }
+                                } else {
+                                    wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING
+                                })
+                            } else {
+                                None
+                            },
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
                     }),
@@ -499,6 +550,7 @@ impl GpuState {
         index: usize,
         frame: &EffectFramePlan,
         assets: &[u64],
+        video_object: Option<u64>,
         images: &HashMap<crate::renderer::TextureKey, GpuImage>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -510,11 +562,15 @@ impl GpuState {
             0,
             bytemuck::bytes_of(&p.uniform),
         );
-        let key = (p.input, p.source, p.lut, p.program, self.epoch);
+        let key = (p.input, p.source, p.lut, p.program, self.epoch, video_object);
         if self.bindings[index].as_ref().is_none_or(|v| v.key != key) {
             let view = |id: i32| -> &wgpu::TextureView {
                 if id < 0 {
-                    &images[&crate::renderer::TextureKey::Static(assets[(-id - 1) as usize])].view
+                    // External pass inputs refer to the owning layer's source.
+                    // Videos use a live instance texture rather than the white asset.
+                    let image = video_object.map(crate::renderer::TextureKey::Video)
+                        .unwrap_or_else(|| crate::renderer::TextureKey::Static(assets[(-id - 1) as usize]));
+                    &images[&image].view
                 } else {
                     &self.pool[id as usize].as_ref().unwrap().view
                 }
@@ -575,11 +631,27 @@ impl GpuState {
             occlusion_query_set: None,
         });
         pass.set_viewport(0.0, 0.0, p.width as f32, p.height as f32, 0.0, 1.0);
-        pass.set_pipeline(&self.pipelines[&(p.program, (1..=3).contains(&p.output))]);
+        pass.set_pipeline(
+            &self.pipelines[&(
+                p.program,
+                if p.output == 7 {
+                    7
+                } else if (1..=3).contains(&p.output) {
+                    1
+                } else {
+                    0
+                },
+            )],
+        );
         pass.set_bind_group(0, &self.buffers[index].group, &[]);
         pass.set_bind_group(1, &self.bindings[index].as_ref().unwrap().group, &[]);
         pass.set_bind_group(2, &self.resources[&p.program], &[]);
-        pass.draw(0..3, 0..1);
+        if p.sprite {
+            pass.set_vertex_buffer(0, self.sprite_buffer.slice(..));
+            pass.draw(0..6, p.sprite_start..p.sprite_start + p.sprite_count);
+        } else {
+            pass.draw(0..3, 0..1);
+        }
         Ok(())
     }
 }

@@ -96,6 +96,8 @@ pub struct GlslShader {
 pub struct CompiledShader {
     pub wgsl: String,
     pub glsl: GlslShader,
+    pub sprite: bool,
+    pub additive: bool,
 }
 
 fn portable_source(source: &str) -> Result<()> {
@@ -145,6 +147,27 @@ fn portable_source(source: &str) -> Result<()> {
 }
 
 pub fn compile(source: &str, entry: &str) -> Result<CompiledShader> {
+    compile_mode(source, entry, false, false)
+}
+pub fn compile_mode(
+    source: &str,
+    entry: &str,
+    sprite: bool,
+    additive: bool,
+) -> Result<CompiledShader> {
+    compile_internal(source, entry, sprite, additive, false)
+}
+/// SDK 3 rectangles may write directly to the host's composition target.
+pub(crate) fn compile_rect_image(source: &str, entry: &str) -> Result<CompiledShader> {
+    compile_internal(source, entry, false, false, true)
+}
+fn compile_internal(
+    source: &str,
+    entry: &str,
+    sprite: bool,
+    additive: bool,
+    convert_output: bool,
+) -> Result<CompiledShader> {
     portable_source(source)?;
     ensure(
         regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -152,7 +175,16 @@ pub fn compile(source: &str, entry: &str) -> Result<CompiledShader> {
             .is_match(entry),
         "invalid shader entry name",
     )?;
-    let wgsl=format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;return mix(sample_source(p),{entry}(p),fx.output_mode.z);}}\n");
+    let wgsl = if sprite {
+        let start = HEADER.find("struct EffectVertex").unwrap();
+        let end = HEADER.find("fn edge_uv").unwrap();
+        let header = format!("{}{}{}", &HEADER[..start], SPRITE_VERTEX, &HEADER[end..]);
+        format!("{header}\n{source}\n@fragment fn sdk_fragment(input:SpriteVertex)->@location(0) vec4<f32>{{return {entry}(input.uv,input.color,input.style);}}\n")
+    } else if convert_output {
+        format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;let c=mix(sample_source(p),{entry}(p),fx.output_mode.z);if all(fx.mode.yz==fx.output_mode.xy) {{return c;}} return convert_pixel(c,fx.mode.yz,fx.output_mode.xy);}}\n")
+    } else {
+        format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;return mix(sample_source(p),{entry}(p),fx.output_mode.z);}}\n")
+    };
     let module =
         naga::front::wgsl::parse_str(&wgsl).map_err(|e| Error::Invalid(e.emit_to_string(&wgsl)))?;
     ensure(
@@ -223,5 +255,26 @@ pub fn compile(source: &str, entry: &str) -> Result<CompiledShader> {
             result.fragment = output;
         }
     }
-    Ok(CompiledShader { wgsl, glsl: result })
+    Ok(CompiledShader {
+        wgsl,
+        glsl: result,
+        sprite,
+        additive,
+    })
 }
+
+/// Screen-space rectangles projected by the host; 48 bytes per instance.
+pub const SPRITE_VERTEX: &str = r#"
+struct SpriteVertex {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>, @location(1) color: vec4<f32>,
+    @location(2) @interpolate(flat) style: vec4<f32>,
+};
+@vertex fn sdk_vertex(@builtin(vertex_index) index: u32,
+    @location(0) rect: vec4<f32>, @location(1) color: vec4<f32>, @location(2) style: vec4<f32>) -> SpriteVertex {
+    let points = array<vec2<f32>,6>(vec2(-0.5,0.5),vec2(-0.5,-0.5),vec2(0.5,0.5),vec2(0.5,0.5),vec2(-0.5,-0.5),vec2(0.5,-0.5));
+    let p=points[index]; var out:SpriteVertex;
+    out.position=vec4(rect.xy+p*rect.zw,0.0,1.0);
+    out.uv=vec2(p.x+0.5,0.5-p.y); out.color=color; out.style=style; return out;
+}
+"#;

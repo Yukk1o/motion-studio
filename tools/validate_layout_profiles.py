@@ -27,13 +27,14 @@ def main():
     parser.add_argument("--serial", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--profiles", nargs="+", choices=PROFILES, default=list(PROFILES))
-    parser.add_argument("--suite", choices=["editor", "rotation", "layers", "integrated"], default="editor")
+    parser.add_argument("--suite", choices=["editor", "rotation", "layers", "integrated", "workspaces"], default="editor")
     args = parser.parse_args()
     test_class, project_prefix = {
         "editor": ("DeviceReadinessTest#a10LayoutProfileKeepsControlsTouchableAndNumericInputPrecise", "device"),
         "rotation": ("RotationControlsTest#rotationControlsRemainUsableWithNarrowWindowsAndLargeFonts", "rotation"),
         "layers": ("FrontendLayerControlsTest#axisControlsRemainUsableWithNarrowWindowsAndLargeFonts", "layer-ui"),
         "integrated": ("IntegratedFrontendTest#effectsAndAddMediaControlsFitTheRealWindow", "integrated-ui"),
+        "workspaces": ("ExpressionAndPluginUiTest#workspacesKeepPreviewAndTimelineUsableAtActualDisplayAndFontSizes", "expression-plugin"),
     }[args.suite]
     shared = next(p for p in [ROOT, *ROOT.parents] if (p / ".tools/environment.json").exists())
     config = json.loads((shared / ".tools/environment.json").read_text(encoding="utf-8"))

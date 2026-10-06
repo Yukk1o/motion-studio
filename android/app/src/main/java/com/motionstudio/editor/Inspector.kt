@@ -74,7 +74,7 @@ import kotlin.math.*
             Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
             DropdownMenu(more,{more=false}) {
                 if(vm.selected!=0L) {
-                    if(vm.contentKind() in listOf("solid","image","text"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
+                    if(vm.contentKind() in listOf("solid","image","text","video"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
                     if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.openProperty("audio")})
                     DropdownMenuItem(text={Text("透明度")},onClick={more=false;vm.openProperty("opacity")})
                     DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
@@ -124,7 +124,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
     }
 }
 
-@Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier,onCurveMode:(Boolean)->Unit={}) {
+@Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier,backEnabled:Boolean=true,onCurveMode:(Boolean)->Unit={}) {
     if(vm.contentKind()=="audio"||vm.property=="audio") {AudioProperties(vm,modifier);return}
     var rename by remember{mutableStateOf(false)}
     var anchor by remember{mutableStateOf(false)}
@@ -133,7 +133,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
     var curves by remember(vm.selected,vm.property){mutableStateOf(false)}
     LaunchedEffect(curves){onCurveMode(curves)}
     DisposableEffect(Unit){onDispose{onCurveMode(false)}}
-    BackHandler(enabled=curves){curves=false}
+    BackHandler(enabled=backEnabled&&curves){curves=false}
     val camera=vm.selected==0L
     val threeD=vm.threeD()
     LaunchedEffect(vm.selected,vm.property,threeD){if(vm.activeAxis() !in vm.visibleAxes())vm.chooseAxis(vm.visibleAxes().first())}
@@ -162,6 +162,9 @@ private class ValueDrag(private val vm:EditorViewModel) {
             Box {
                 Tool(Icons.Default.MoreVert,"图层操作"){more=true}
                 DropdownMenu(more,{more=false}) {
+                    vm.expressionTargetForCurrent(if(vm.isSeparated())vm.activeAxis()else null)?.let{target->
+                        DropdownMenuItem(text={Text("表达式")},modifier=Modifier.testTag("open-property-expression"),onClick={more=false;vm.openExpression(target)})
+                    }
                     if(vm.canSeparate())DropdownMenuItem(text={Text("分离 XYZ")},modifier=Modifier.testTag("separate-dimensions"),enabled=vm.editable(),onClick={more=false;vm.separateDimensions()})
                     DropdownMenuItem(text={Text("父级")},enabled=vm.editable(),onClick={more=false;parenting=true})
                     if(camera) {
@@ -169,7 +172,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         DropdownMenuItem(text={Text("删除摄影机")},onClick={more=false;vm.deleteLayer()})
                     }
                     else {
-                        if(vm.contentKind() in listOf("solid","image","text"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
+                        if(vm.contentKind() in listOf("solid","image","text","video"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
                         if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.property="audio"})
                         DropdownMenuItem(text={Text("锚点")},enabled=vm.editable(),onClick={more=false;anchor=true})
                         DropdownMenuItem(text={Text("摄影机对准此图层")},onClick={more=false;vm.focusCameraOnSelection()})

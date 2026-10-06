@@ -23,15 +23,15 @@ import kotlin.math.pow
 class EffectsRuntimeTest {
     private fun data(raw:String):JSONObject=JSONObject(raw).let{assertTrue(it.optString("error"),it.optBoolean("ok"));it.getJSONObject("data")}
     private fun root()=File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"effects-test/"+UUID.randomUUID()+"/project").apply{mkdirs()}
-    private fun corePackage(session:Long):JSONObject {
+    private fun corePackage(session:Long,version:String="1.1.0"):JSONObject {
         val packages=data(NativeBridge.plugin(session,"{\"op\":\"catalogue\"}")).getJSONArray("packages")
         return (0 until packages.length()).map{packages.getJSONObject(it)}.first {
             val manifest=it.getJSONObject("manifest")
-            manifest.getString("id")=="com.motionstudio.effects.ae2021"&&manifest.getString("version")=="1.1.0"
+            manifest.getString("id")=="com.motionstudio.effects.ae2021"&&manifest.getString("version")==version
         }
     }
-    private fun add(session:Long,effect:String):JSONObject {
-        val pkg=corePackage(session)
+    private fun add(session:Long,effect:String,version:String="1.1.0"):JSONObject {
+        val pkg=corePackage(session,version)
         val m=pkg.getJSONObject("manifest")
         return data(NativeBridge.plugin(session,JSONObject().put("op","add").put("object",2).put("plugin",m.getString("id")).put("version",m.getString("version")).put("hash",pkg.getString("hash")).put("effect",effect).toString()))
     }
@@ -104,7 +104,40 @@ class EffectsRuntimeTest {
         }finally{NativeBridge.destroy(native)}
     }
 
-    @Test fun allThirtySixEffectsCompileOnDeviceAndUnencodedGlesMatchesWgpu() {
+    @Test fun legacyFullHdPolarAndEdgeGlowUseExactCapacitiesAndExport() {
+        val root=root();val p=data(NativeBridge.projectTemplate(0)).put("width",1080).put("height",1920).put("frames",2)
+        p.getJSONObject("camera").put("created",false)
+        val layer=p.getJSONArray("layers").getJSONObject(1).put("size",JSONArray(listOf(1080,1920)))
+        layer.getJSONObject("transform").getJSONObject("position").put("value",JSONArray(listOf(540,960,0)))
+        p.put("layers",JSONArray().put(layer))
+        val native=NativeBridge.create(root.absolutePath,p.toString());assertTrue(NativeBridge.creationError(),native>0)
+        try {
+            add(native,"polar_coordinates");val added=add(native,"glow_edges")
+            val effect=added.getJSONObject("project").getJSONArray("layers").getJSONObject(0).getJSONArray("effects").getJSONObject(1).getLong("id")
+            data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set")
+                .put("effect",effect).put("param","radius").put("frame",0).put("value",JSONArray(listOf(48,0,0,0)))).toString()))
+            val info=data(NativeBridge.renderPlanInfo(native));val plan=ByteBuffer.allocateDirect(info.getInt("bufferBytes")).order(ByteOrder.nativeOrder())
+            assertTrue(NativeBridge.sampleRenderPlanInto(native,0,plan)>0)
+            val sizes=IntArray(16);val base=plan.getInt(20)
+            for(i in 0 until plan.getInt(12)) {
+                val offset=base+i*40;val slot=plan.getInt(offset+12)
+                sizes[slot*2]=maxOf(sizes[slot*2],plan.getInt(offset+16))
+                sizes[slot*2+1]=maxOf(sizes[slot*2+1],plan.getInt(offset+20))
+            }
+            val bytes=(0..7).sumOf{i->sizes[i*2].toLong()*sizes[i*2+1]*4}
+            assertEquals(119,plan.getInt(40));assertTrue(bytes<64L*1024*1024)
+            val capture=data(NativeBridge.capture(native));assertTrue(File(capture.getString("path")).length()>64)
+            val frozen=data(NativeBridge.state(native)).getJSONObject("project").toString()
+            val started=android.os.SystemClock.elapsedRealtime()
+            val file=VideoExporter(root,frozen).run{_,_->}
+            assertTrue(file.length()>64)
+            File(root,"full-hd-scratch-report.json").writeText(JSONObject().put("scratchBytes",bytes)
+                .put("oldScratchBytes",1280L*2048*4*7).put("width",1080).put("height",1920)
+                .put("exportMillis",android.os.SystemClock.elapsedRealtime()-started).toString(2))
+        } finally {NativeBridge.destroy(native)}
+    }
+
+    @Test fun allFiftyNineEffectsCompileOnDeviceAndUnencodedGlesMatchesWgpu() {
         val root=root();val p=data(NativeBridge.projectTemplate(0)).put("width",64).put("height",64).put("frames",12).put("background",JSONArray(listOf(0,0,0,0)))
         p.getJSONObject("camera").put("created",false)
         val layer=p.getJSONArray("layers").getJSONObject(1);layer.put("size",JSONArray(listOf(64,64)))
@@ -130,12 +163,19 @@ class EffectsRuntimeTest {
                 GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D,0,GLES30.GL_SRGB8_ALPHA8,w,h,0,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,ByteBuffer.allocateDirect(bytes.size).put(bytes).apply{flip()});textures.add(id[0]);return id[0]
             }
             texture(1,1,byteArrayOf(-1,-1,-1,-1));texture(64,64,NativeBridge.assetPixels(native,1)!!)
-            val pkg=corePackage(native);val effects=pkg.getJSONObject("manifest").getJSONArray("effects")
+            val pkg=corePackage(native,"1.3.0");val effects=pkg.getJSONObject("manifest").getJSONArray("effects")
             fun linear(v:Double)=if(v<=.04045)v/12.92 else ((v+.055)/1.055).pow(2.4)
             fun encode(v:Double)=if(v<=.0031308)v*12.92 else 1.055*v.pow(1/2.4)-.055
             for(index in 0 until effects.length()) {
-                val name=effects.getJSONObject(index).getString("id");val added=add(native,name)
+                val name=effects.getJSONObject(index).getString("id");val added=add(native,name,"1.3.0")
                 val instance=added.getJSONObject("project").getJSONArray("layers").getJSONObject(0).getJSONArray("effects").getJSONObject(0).getLong("id")
+                fun setParam(id:String,value:Double) {
+                    data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set").put("effect",instance).put("param",id).put("frame",0).put("value",JSONArray(listOf(value,0,0,0)))).toString()))
+                }
+                if(name=="motion_tile") {setParam("tile_width",50.0);setParam("output_width",200.0);setParam("phase",90.0);setParam("mirror",1.0)}
+                if(name=="optics_compensation")setParam("fov",90.0)
+                if(name=="spherize")setParam("radius",24.0)
+                if(name=="simple_choker")setParam("choke",-3.0)
                 if(name=="gaussian_blur")data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set").put("effect",instance).put("param","p0001").put("frame",0).put("value",JSONArray(listOf(8,0,0,0)))).toString()))
                 if(name=="curves") {
                     val channels=JSONArray().put(JSONArray("[[0,0],[0.5,0.7],[1,1]]"))
@@ -146,13 +186,13 @@ class EffectsRuntimeTest {
                 val frame=if(timed)7 else 0
                 val info=data(NativeBridge.renderPlanInfo(native));val plan=ByteBuffer.allocateDirect(info.getInt("bufferBytes")).order(ByteOrder.nativeOrder());assertTrue(NativeBridge.sampleRenderPlanInto(native,0,plan)>0)
                 assertTrue(NativeBridge.sampleRenderPlanInto(native,frame,plan)>0)
-                val capture=data(NativeBridge.capture(native));val reference=BitmapFactory.decodeFile(capture.getString("path"))
+                val capture=data(NativeBridge.capture(native));val reference=BitmapFactory.decodeFile(capture.getString("path"),BitmapFactory.Options().apply{inPremultiplied=false;inScaled=false})
                 // wgpu's EGL backend may change the thread's current context while capturing.
                 assertTrue(EGL14.eglMakeCurrent(display,surface,surface,context))
                 val gl=GlEffects(info,native,textures)
                 try {
                     gl.prepare(plan);gl.passes(plan,0,plan.getInt(12))
-                    val pass=plan.getInt(20)+(plan.getInt(12)-1)*32;val w=plan.getInt(pass+16);val h=plan.getInt(pass+20)
+                    val pass=plan.getInt(20)+(plan.getInt(12)-1)*40;val w=plan.getInt(pass+16);val h=plan.getInt(pass+20)
                     val raw=ByteBuffer.allocateDirect(w*h*4);GLES30.glReadPixels(0,0,w,h,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,raw);assertEquals(GLES30.GL_NO_ERROR,GLES30.glGetError())
                     val dx=(w-64)/2;val dy=(h-64)/2;var rgb=0.0;var alpha=0.0
                     for(y in 0 until 64)for(x in 0 until 64) {
@@ -166,9 +206,50 @@ class EffectsRuntimeTest {
                 }finally{gl.close();reference.recycle()}
                 data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","remove").put("effect",instance)).toString()))
             }
-            assertEquals(36,reports.length())
+            assertEquals(59,reports.length())
         }finally {
             GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0);EGL14.eglMakeCurrent(display,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT);EGL14.eglDestroySurface(display,surface);EGL14.eglDestroyContext(display,context);EGL14.eglTerminate(display);NativeBridge.destroy(native)
         }
+    }
+
+    @Test fun rectangleEffectsAndAnimatedTileBoundsMatchEncodedFrames() {
+        val reports=JSONArray()
+        for(effect in listOf("motion_tile","optics_compensation","spherize","cc_lens","cc_radial_fast_blur","simple_choker","solid_composite")) {
+            val root=root();val p=data(NativeBridge.projectTemplate(0)).put("width",128).put("height",128).put("frames",12).put("background",JSONArray(listOf(0,0,0,1)))
+            p.getJSONObject("camera").put("created",false)
+            val layer=p.getJSONArray("layers").getJSONObject(1).put("size",JSONArray(listOf(32,32))).put("content",JSONObject().put("kind","image").put("asset",1))
+            layer.getJSONObject("transform").getJSONObject("position").put("value",JSONArray(listOf(64,64,0)))
+            p.put("layers",JSONArray().put(layer)).put("assets",JSONArray().put(JSONObject().put("id",1).put("path","assets/input.png").put("width",32).put("height",32)))
+            File(root,"assets").mkdirs()
+            val image=android.graphics.Bitmap.createBitmap(32,32,android.graphics.Bitmap.Config.ARGB_8888)
+            val pixels=IntArray(1024){i->val x=i%32;val y=i/32;Color.argb(if(x<3||y<3||x>28||y>28)80 else 255,x*8,y*8,if((x/4+y/4)%2==0)220 else 30)}
+            image.setPixels(pixels,0,32,0,0,32,32);File(root,"assets/input.png").outputStream().use{image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};image.recycle()
+            val native=NativeBridge.create(root.absolutePath,p.toString());assertTrue(NativeBridge.creationError(),native>0)
+            try {
+                add(native,effect,"1.3.0")
+                fun set(param:String,value:Double,frame:Int=0)=data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set").put("effect",1).put("param",param).put("frame",frame).put("value",JSONArray(listOf(value,0,0,0)))).toString()))
+                when(effect) {
+                    "motion_tile"->{set("output_width",200.0);set("output_height",200.0);set("mirror",1.0)
+                        data(NativeBridge.command(native,"{\"op\":\"effect\",\"object\":2,\"action\":{\"kind\":\"animate\",\"effect\":1,\"param\":\"output_width\",\"frame\":0,\"enabled\":true}}"));set("output_width",300.0,11)}
+                    "optics_compensation"->set("fov",50.0)
+                    "spherize"->set("radius",25.0)
+                    "cc_lens"->set("size",40.0)
+                    "cc_radial_fast_blur"->set("amount",30.0)
+                    "simple_choker"->set("choke",3.0)
+                    "solid_composite"->set("opacity",50.0)
+                }
+                data(NativeBridge.seek(native,7.0))
+                val reference=BitmapFactory.decodeFile(data(NativeBridge.capture(native)).getString("path"))
+                val frozen=data(NativeBridge.state(native)).getJSONObject("project").toString()
+                val file=VideoExporter(root,frozen).run{_,_->}
+                val retriever=MediaMetadataRetriever();val decoded=try{retriever.setDataSource(file.absolutePath);assertEquals("12",retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT));retriever.getFrameAtIndex(7)!!}finally{retriever.release()}
+                var rgb=0L
+                for(y in 0 until 128)for(x in 0 until 128) {val a=reference.getPixel(x,y);val b=decoded.getPixel(x,y);rgb+=abs(Color.red(a)-Color.red(b))+abs(Color.green(a)-Color.green(b))+abs(Color.blue(a)-Color.blue(b))}
+                val report=JSONObject().put("effect",effect).put("rgbMae",rgb.toDouble()/(128*128*3)).put("frame",7).put("frames",12).put("animatedBounds",effect=="motion_tile")
+                reports.put(report);File(root,"rectangle-mp4-report.json").writeText(report.toString(2));assertTrue(report.toString(),report.getDouble("rgbMae")<8)
+                reference.recycle();decoded.recycle()
+            }finally{NativeBridge.destroy(native)}
+        }
+        File(root(),"rectangle-mp4-summary.json").writeText(reports.toString(2));assertEquals(7,reports.length())
     }
 }

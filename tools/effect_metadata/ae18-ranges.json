@@ -1,0 +1,2246 @@
+{
+  "version": "18.0.1x1",
+  "profile": {
+    "bits_per_channel": 8,
+    "working_space": "sRGB IEC61966-2.1",
+    "linearized": false,
+    "pixel_aspect": 1,
+    "motion_blur": false
+  },
+  "effects": [
+    {
+      "id": "brightness_contrast",
+      "matchName": "ADBE Brightness & Contrast 2",
+      "params": [
+        {
+          "name": "亮度",
+          "matchName": "ADBE Brightness & Contrast 2-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -150,
+          "max": 150,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "对比度",
+          "matchName": "ADBE Brightness & Contrast 2-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "使用旧版（支持 HDR）",
+          "matchName": "ADBE Brightness & Contrast 2-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "exposure",
+      "matchName": "ADBE Exposure2",
+      "params": [
+        {
+          "name": "通道:",
+          "matchName": "ADBE Exposure2-0001",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "曝光度",
+          "matchName": "ADBE Exposure2-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "偏移",
+          "matchName": "ADBE Exposure2-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "灰度系数校正",
+          "matchName": "ADBE Exposure2-0005",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "红色曝光度",
+          "matchName": "ADBE Exposure2-0008",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "红色偏移",
+          "matchName": "ADBE Exposure2-0009",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "红色灰度系数校正",
+          "matchName": "ADBE Exposure2-0010",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色曝光度",
+          "matchName": "ADBE Exposure2-0013",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色偏移",
+          "matchName": "ADBE Exposure2-0014",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色灰度系数校正",
+          "matchName": "ADBE Exposure2-0015",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色曝光度",
+          "matchName": "ADBE Exposure2-0018",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色偏移",
+          "matchName": "ADBE Exposure2-0019",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -2,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色灰度系数校正",
+          "matchName": "ADBE Exposure2-0020",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0.10000000149012,
+          "max": 10,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "不使用线性光转换",
+          "matchName": "ADBE Exposure2-0022",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "hue_saturation",
+      "matchName": "ADBE HUE SATURATION",
+      "params": [
+        {
+          "name": "通道控制",
+          "matchName": "ADBE HUE SATURATION-0002",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 7,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "主色相",
+          "matchName": "ADBE HUE SATURATION-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": false
+        },
+        {
+          "name": "主饱和度",
+          "matchName": "ADBE HUE SATURATION-0005",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": false
+        },
+        {
+          "name": "主亮度",
+          "matchName": "ADBE HUE SATURATION-0006",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": false
+        },
+        {
+          "name": "彩色化",
+          "matchName": "ADBE HUE SATURATION-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "着色色相",
+          "matchName": "ADBE HUE SATURATION-0008",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "着色饱和度",
+          "matchName": "ADBE HUE SATURATION-0009",
+          "valueType": 6417,
+          "defaultValue": 25,
+          "min": 0,
+          "max": 100,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "着色亮度",
+          "matchName": "ADBE HUE SATURATION-0010",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "tint",
+      "matchName": "ADBE Tint",
+      "params": [
+        {
+          "name": "将黑色映射到",
+          "matchName": "ADBE Tint-0001",
+          "valueType": 6418,
+          "defaultValue": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "将白色映射到",
+          "matchName": "ADBE Tint-0002",
+          "valueType": 6418,
+          "defaultValue": [
+            1,
+            1,
+            1,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "着色数量",
+          "matchName": "ADBE Tint-0003",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "tritone",
+      "matchName": "ADBE Tritone",
+      "params": [
+        {
+          "name": "高光",
+          "matchName": "ADBE Tritone-0001",
+          "valueType": 6418,
+          "defaultValue": [
+            1,
+            1,
+            1,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "中间调",
+          "matchName": "ADBE Tritone-0002",
+          "valueType": 6418,
+          "defaultValue": [
+            0.49803921568627,
+            0.3921568627451,
+            0.27450980392157,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "阴影",
+          "matchName": "ADBE Tritone-0003",
+          "valueType": 6418,
+          "defaultValue": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Tritone-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "color_balance",
+      "matchName": "ADBE Color Balance 2",
+      "params": [
+        {
+          "name": "阴影红色平衡",
+          "matchName": "ADBE Color Balance 2-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "阴影绿色平衡",
+          "matchName": "ADBE Color Balance 2-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "阴影蓝色平衡",
+          "matchName": "ADBE Color Balance 2-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "中间调红色平衡",
+          "matchName": "ADBE Color Balance 2-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "中间调绿色平衡",
+          "matchName": "ADBE Color Balance 2-0005",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "中间调蓝色平衡",
+          "matchName": "ADBE Color Balance 2-0006",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "高光红色平衡",
+          "matchName": "ADBE Color Balance 2-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "高光绿色平衡",
+          "matchName": "ADBE Color Balance 2-0008",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "高光蓝色平衡",
+          "matchName": "ADBE Color Balance 2-0009",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "保持发光度",
+          "matchName": "ADBE Color Balance 2-0010",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "levels",
+      "matchName": "ADBE Easy Levels2",
+      "params": [
+        {
+          "name": "通道:",
+          "matchName": "ADBE Easy Levels2-0001",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 5,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "输入黑色",
+          "matchName": "ADBE Easy Levels2-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -10000,
+          "max": 10000,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "输入白色",
+          "matchName": "ADBE Easy Levels2-0004",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": -10000,
+          "max": 10000,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "灰度系数",
+          "matchName": "ADBE Easy Levels2-0005",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0,
+          "max": 5,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "输出黑色",
+          "matchName": "ADBE Easy Levels2-0006",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -10000,
+          "max": 10000,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "输出白色",
+          "matchName": "ADBE Easy Levels2-0007",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": -10000,
+          "max": 10000,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "剪切以输出黑色",
+          "matchName": "ADBE Easy Levels2-0008",
+          "valueType": 6417,
+          "defaultValue": 3,
+          "min": 1,
+          "max": 3,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "剪切以输出白色",
+          "matchName": "ADBE Easy Levels2-0009",
+          "valueType": 6417,
+          "defaultValue": 3,
+          "min": 1,
+          "max": 3,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "curves",
+      "matchName": "ADBE CurvesCustom",
+      "params": [
+        {
+          "name": "通道:",
+          "matchName": "ADBE CurvesCustom-0002",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 5,
+          "units": "",
+          "animatable": false
+        }
+      ]
+    },
+    {
+      "id": "gaussian_blur",
+      "matchName": "ADBE Gaussian Blur 2",
+      "params": [
+        {
+          "name": "模糊度",
+          "matchName": "ADBE Gaussian Blur 2-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 30000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "模糊方向",
+          "matchName": "ADBE Gaussian Blur 2-0002",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 3,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "重复边缘像素",
+          "matchName": "ADBE Gaussian Blur 2-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "fast_box_blur",
+      "matchName": "ADBE Box Blur2",
+      "params": [
+        {
+          "name": "模糊半径",
+          "matchName": "ADBE Box Blur2-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 30000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "迭代",
+          "matchName": "ADBE Box Blur2-0002",
+          "valueType": 6417,
+          "defaultValue": 3,
+          "min": 1,
+          "max": 50,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "模糊方向",
+          "matchName": "ADBE Box Blur2-0003",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 3,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "重复边缘像素",
+          "matchName": "ADBE Box Blur2-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "directional_blur",
+      "matchName": "ADBE Motion Blur",
+      "params": [
+        {
+          "name": "方向",
+          "matchName": "ADBE Motion Blur-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "模糊长度",
+          "matchName": "ADBE Motion Blur-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1000,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "radial_blur",
+      "matchName": "ADBE Radial Blur",
+      "params": [
+        {
+          "name": "数量",
+          "matchName": "ADBE Radial Blur-0001",
+          "valueType": 6417,
+          "defaultValue": 10,
+          "min": 0,
+          "max": 1000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "中心",
+          "matchName": "ADBE Radial Blur-0002",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "类型",
+          "matchName": "ADBE Radial Blur-0003",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "消除锯齿（最佳品质）",
+          "matchName": "ADBE Radial Blur-0004",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "随机植入",
+          "matchName": "ADBE Radial Blur-0006",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 10000,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "sharpen",
+      "matchName": "ADBE Sharpen",
+      "params": [
+        {
+          "name": "锐化量",
+          "matchName": "ADBE Sharpen-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 4000,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "unsharp_mask",
+      "matchName": "ADBE Unsharp Mask2",
+      "params": [
+        {
+          "name": "数量",
+          "matchName": "ADBE Unsharp Mask2-0001",
+          "valueType": 6417,
+          "defaultValue": 50,
+          "min": 0,
+          "max": 500,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "半径",
+          "matchName": "ADBE Unsharp Mask2-0002",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0.10000610351562,
+          "max": 500,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "阈值",
+          "matchName": "ADBE Unsharp Mask2-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "mirror",
+      "matchName": "ADBE Mirror",
+      "params": [
+        {
+          "name": "反射中心",
+          "matchName": "ADBE Mirror-0001",
+          "valueType": 6415,
+          "defaultValue": [
+            256,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "反射角度",
+          "matchName": "ADBE Mirror-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "offset",
+      "matchName": "ADBE Offset",
+      "params": [
+        {
+          "name": "将中心转换为",
+          "matchName": "ADBE Offset-0001",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Offset-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "bulge",
+      "matchName": "ADBE Bulge",
+      "params": [
+        {
+          "name": "水平半径",
+          "matchName": "ADBE Bulge-0001",
+          "valueType": 6417,
+          "defaultValue": 50,
+          "min": 0,
+          "max": 8000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "垂直半径",
+          "matchName": "ADBE Bulge-0002",
+          "valueType": 6417,
+          "defaultValue": 50,
+          "min": 0,
+          "max": 8000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "凸出中心",
+          "matchName": "ADBE Bulge-0003",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "凸出高度",
+          "matchName": "ADBE Bulge-0004",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": -4,
+          "max": 4,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "锥形半径",
+          "matchName": "ADBE Bulge-0005",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 8000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "消除锯齿（仅最佳品质）",
+          "matchName": "ADBE Bulge-0006",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "固定",
+          "matchName": "ADBE Bulge-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "twirl",
+      "matchName": "ADBE Twirl",
+      "params": [
+        {
+          "name": "角度",
+          "matchName": "ADBE Twirl-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "旋转扭曲半径",
+          "matchName": "ADBE Twirl-0002",
+          "valueType": 6417,
+          "defaultValue": 30,
+          "min": 0,
+          "max": 100,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "旋转扭曲中心",
+          "matchName": "ADBE Twirl-0003",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "wave_warp",
+      "matchName": "ADBE Wave Warp",
+      "params": [
+        {
+          "name": "波浪类型",
+          "matchName": "ADBE Wave Warp-0001",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 9,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "波形高度",
+          "matchName": "ADBE Wave Warp-0002",
+          "valueType": 6417,
+          "defaultValue": 10,
+          "min": -32000,
+          "max": 32000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "波形宽度",
+          "matchName": "ADBE Wave Warp-0003",
+          "valueType": 6417,
+          "defaultValue": 40,
+          "min": 1,
+          "max": 32000,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "方向",
+          "matchName": "ADBE Wave Warp-0004",
+          "valueType": 6417,
+          "defaultValue": 90,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "波形速度",
+          "matchName": "ADBE Wave Warp-0005",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": -100,
+          "max": 100,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "固定",
+          "matchName": "ADBE Wave Warp-0006",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 11,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "相位",
+          "matchName": "ADBE Wave Warp-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "消除锯齿（最佳品质）",
+          "matchName": "ADBE Wave Warp-0008",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 3,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "polar_coordinates",
+      "matchName": "ADBE Polar Coordinates",
+      "params": [
+        {
+          "name": "插值",
+          "matchName": "ADBE Polar Coordinates-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "转换类型",
+          "matchName": "ADBE Polar Coordinates-0002",
+          "valueType": 6417,
+          "defaultValue": 2,
+          "min": 1,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "invert",
+      "matchName": "ADBE Invert",
+      "params": [
+        {
+          "name": "通道",
+          "matchName": "ADBE Invert-0001",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 16,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Invert-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "black_white",
+      "matchName": "ADBE Black&White",
+      "params": [
+        {
+          "name": "红色",
+          "matchName": "ADBE Black&White-0001",
+          "valueType": 6417,
+          "defaultValue": 40,
+          "min": -200,
+          "max": 300,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "黄色",
+          "matchName": "ADBE Black&White-0002",
+          "valueType": 6417,
+          "defaultValue": 60,
+          "min": -200,
+          "max": 300,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色",
+          "matchName": "ADBE Black&White-0003",
+          "valueType": 6417,
+          "defaultValue": 40,
+          "min": -200,
+          "max": 300,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "青色",
+          "matchName": "ADBE Black&White-0004",
+          "valueType": 6417,
+          "defaultValue": 60,
+          "min": -200,
+          "max": 300,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色",
+          "matchName": "ADBE Black&White-0005",
+          "valueType": 6417,
+          "defaultValue": 20,
+          "min": -200,
+          "max": 300,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "洋红",
+          "matchName": "ADBE Black&White-0006",
+          "valueType": 6417,
+          "defaultValue": 80,
+          "min": -200,
+          "max": 300,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "淡色:",
+          "matchName": "ADBE Black&White-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "色调颜色",
+          "matchName": "ADBE Black&White-0008",
+          "valueType": 6418,
+          "defaultValue": [
+            0.88235294117647,
+            0.82745098039216,
+            0.70196078431373,
+            1
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "channel_mixer",
+      "matchName": "ADBE CHANNEL MIXER",
+      "params": [
+        {
+          "name": "红色 - 红色",
+          "matchName": "ADBE CHANNEL MIXER-0001",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "红色 - 绿色",
+          "matchName": "ADBE CHANNEL MIXER-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "红色 - 蓝色",
+          "matchName": "ADBE CHANNEL MIXER-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "红色 - 恒量",
+          "matchName": "ADBE CHANNEL MIXER-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色 - 红色",
+          "matchName": "ADBE CHANNEL MIXER-0005",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色 - 绿色",
+          "matchName": "ADBE CHANNEL MIXER-0006",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色 - 蓝色",
+          "matchName": "ADBE CHANNEL MIXER-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "绿色 - 恒量",
+          "matchName": "ADBE CHANNEL MIXER-0008",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色 - 红色",
+          "matchName": "ADBE CHANNEL MIXER-0009",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色 - 绿色",
+          "matchName": "ADBE CHANNEL MIXER-0010",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色 - 蓝色",
+          "matchName": "ADBE CHANNEL MIXER-0011",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "蓝色 - 恒量",
+          "matchName": "ADBE CHANNEL MIXER-0012",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -200,
+          "max": 200,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "单色",
+          "matchName": "ADBE CHANNEL MIXER-0013",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "posterize",
+      "matchName": "ADBE Posterize",
+      "params": [
+        {
+          "name": "级别",
+          "matchName": "ADBE Posterize-0001",
+          "valueType": 6417,
+          "defaultValue": 7,
+          "min": 2,
+          "max": 255,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "threshold",
+      "matchName": "ADBE Threshold2",
+      "params": [
+        {
+          "name": "级别",
+          "matchName": "ADBE Threshold2-0001",
+          "valueType": 6417,
+          "defaultValue": 0.5,
+          "min": -30000,
+          "max": 30000,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "find_edges",
+      "matchName": "ADBE Find Edges",
+      "params": [
+        {
+          "name": "反转",
+          "matchName": "ADBE Find Edges-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Find Edges-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "emboss",
+      "matchName": "ADBE Emboss",
+      "params": [
+        {
+          "name": "方向",
+          "matchName": "ADBE Emboss-0001",
+          "valueType": 6417,
+          "defaultValue": 45,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "起伏",
+          "matchName": "ADBE Emboss-0002",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0,
+          "max": 1000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "对比度",
+          "matchName": "ADBE Emboss-0003",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 0,
+          "max": 32767,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Emboss-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "color_emboss",
+      "matchName": "ADBE Color Emboss",
+      "params": [
+        {
+          "name": "方向",
+          "matchName": "ADBE Color Emboss-0001",
+          "valueType": 6417,
+          "defaultValue": 45,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "起伏",
+          "matchName": "ADBE Color Emboss-0002",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0,
+          "max": 1000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "对比度",
+          "matchName": "ADBE Color Emboss-0003",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 0,
+          "max": 32767,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Color Emboss-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "mosaic",
+      "matchName": "ADBE Mosaic",
+      "params": [
+        {
+          "name": "水平块",
+          "matchName": "ADBE Mosaic-0001",
+          "valueType": 6417,
+          "defaultValue": 10,
+          "min": 1,
+          "max": 4000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "垂直块",
+          "matchName": "ADBE Mosaic-0002",
+          "valueType": 6417,
+          "defaultValue": 10,
+          "min": 1,
+          "max": 4000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "锐化颜色",
+          "matchName": "ADBE Mosaic-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "turbulent_displace",
+      "matchName": "ADBE Turbulent Displace",
+      "params": [
+        {
+          "name": "置换",
+          "matchName": "ADBE Turbulent Displace-0001",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 11,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "数量",
+          "matchName": "ADBE Turbulent Displace-0002",
+          "valueType": 6417,
+          "defaultValue": 50,
+          "min": -10000,
+          "max": 10000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "大小",
+          "matchName": "ADBE Turbulent Displace-0003",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 2,
+          "max": 1000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "偏移（湍流）",
+          "matchName": "ADBE Turbulent Displace-0004",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "复杂度",
+          "matchName": "ADBE Turbulent Displace-0005",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 10,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "演化",
+          "matchName": "ADBE Turbulent Displace-0006",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "循环演化",
+          "matchName": "ADBE Turbulent Displace-0008",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "循环（旋转次数）",
+          "matchName": "ADBE Turbulent Displace-0009",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 88,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "随机植入",
+          "matchName": "ADBE Turbulent Displace-0010",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "固定",
+          "matchName": "ADBE Turbulent Displace-0012",
+          "valueType": 6417,
+          "defaultValue": 3,
+          "min": 1,
+          "max": 17,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "调整图层大小",
+          "matchName": "ADBE Turbulent Displace-0013",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "消除锯齿（最佳品质）",
+          "matchName": "ADBE Turbulent Displace-0014",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "gradient_ramp",
+      "matchName": "ADBE Ramp",
+      "params": [
+        {
+          "name": "渐变起点",
+          "matchName": "ADBE Ramp-0001",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            0
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "起始颜色",
+          "matchName": "ADBE Ramp-0002",
+          "valueType": 6418,
+          "defaultValue": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "渐变终点",
+          "matchName": "ADBE Ramp-0003",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            256
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "结束颜色",
+          "matchName": "ADBE Ramp-0004",
+          "valueType": 6418,
+          "defaultValue": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "渐变形状",
+          "matchName": "ADBE Ramp-0005",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 2,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "渐变散射",
+          "matchName": "ADBE Ramp-0006",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 512,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "与原始图像混合",
+          "matchName": "ADBE Ramp-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "fill",
+      "matchName": "ADBE Fill",
+      "params": [
+        {
+          "name": "填充蒙版",
+          "matchName": "ADBE Fill-0001",
+          "valueType": 6422,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "所有蒙版",
+          "matchName": "ADBE Fill-0007",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": false
+        },
+        {
+          "name": "颜色",
+          "matchName": "ADBE Fill-0002",
+          "valueType": 6418,
+          "defaultValue": [
+            1,
+            0,
+            0,
+            1
+          ],
+          "min": -3921568.62745098,
+          "max": 3921568.62745098,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "反转",
+          "matchName": "ADBE Fill-0006",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "水平羽化",
+          "matchName": "ADBE Fill-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 999,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "垂直羽化",
+          "matchName": "ADBE Fill-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 999,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "不透明度",
+          "matchName": "ADBE Fill-0005",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0,
+          "max": 1,
+          "units": "百分比",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "linear_wipe",
+      "matchName": "ADBE Linear Wipe",
+      "params": [
+        {
+          "name": "过渡完成",
+          "matchName": "ADBE Linear Wipe-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "擦除角度",
+          "matchName": "ADBE Linear Wipe-0002",
+          "valueType": 6417,
+          "defaultValue": 90,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "羽化",
+          "matchName": "ADBE Linear Wipe-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 32000,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "radial_wipe",
+      "matchName": "ADBE Radial Wipe",
+      "params": [
+        {
+          "name": "过渡完成",
+          "matchName": "ADBE Radial Wipe-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "起始角度",
+          "matchName": "ADBE Radial Wipe-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "擦除中心",
+          "matchName": "ADBE Radial Wipe-0003",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "擦除",
+          "matchName": "ADBE Radial Wipe-0004",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 3,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "羽化",
+          "matchName": "ADBE Radial Wipe-0005",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 32000,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "venetian_blinds",
+      "matchName": "ADBE Venetian Blinds",
+      "params": [
+        {
+          "name": "过渡完成",
+          "matchName": "ADBE Venetian Blinds-0001",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "方向",
+          "matchName": "ADBE Venetian Blinds-0002",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "宽度",
+          "matchName": "ADBE Venetian Blinds-0003",
+          "valueType": 6417,
+          "defaultValue": 20,
+          "min": 1,
+          "max": 32000,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "羽化",
+          "matchName": "ADBE Venetian Blinds-0004",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 32000,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    },
+    {
+      "id": "fractal_noise",
+      "matchName": "ADBE Fractal Noise",
+      "params": [
+        {
+          "name": "分形类型",
+          "matchName": "ADBE Fractal Noise-0001",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 20,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "杂色类型",
+          "matchName": "ADBE Fractal Noise-0002",
+          "valueType": 6417,
+          "defaultValue": 3,
+          "min": 1,
+          "max": 4,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "反转",
+          "matchName": "ADBE Fractal Noise-0003",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "对比度",
+          "matchName": "ADBE Fractal Noise-0004",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 0,
+          "max": 10000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "亮度",
+          "matchName": "ADBE Fractal Noise-0005",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": -10000,
+          "max": 10000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "溢出",
+          "matchName": "ADBE Fractal Noise-0006",
+          "valueType": 6417,
+          "defaultValue": 4,
+          "min": 1,
+          "max": 4,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "旋转",
+          "matchName": "ADBE Fractal Noise-0008",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "统一缩放",
+          "matchName": "ADBE Fractal Noise-0009",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "缩放",
+          "matchName": "ADBE Fractal Noise-0010",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 1,
+          "max": 10000,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "缩放宽度",
+          "matchName": "ADBE Fractal Noise-0011",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 1,
+          "max": 10000,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "缩放高度",
+          "matchName": "ADBE Fractal Noise-0012",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 1,
+          "max": 10000,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "偏移（湍流）",
+          "matchName": "ADBE Fractal Noise-0013",
+          "valueType": 6415,
+          "defaultValue": [
+            128,
+            128
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "透视位移",
+          "matchName": "ADBE Fractal Noise-0031",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "复杂度",
+          "matchName": "ADBE Fractal Noise-0015",
+          "valueType": 6417,
+          "defaultValue": 6,
+          "min": 1,
+          "max": 20,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "子影响 (%)",
+          "matchName": "ADBE Fractal Noise-0017",
+          "valueType": 6417,
+          "defaultValue": 70,
+          "min": 1.525878906e-05,
+          "max": 10000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "子缩放",
+          "matchName": "ADBE Fractal Noise-0018",
+          "valueType": 6417,
+          "defaultValue": 56,
+          "min": 10,
+          "max": 10000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "子旋转",
+          "matchName": "ADBE Fractal Noise-0019",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "子位移",
+          "matchName": "ADBE Fractal Noise-0020",
+          "valueType": 6415,
+          "defaultValue": [
+            0,
+            0
+          ],
+          "min": null,
+          "max": null,
+          "units": "像素",
+          "animatable": true
+        },
+        {
+          "name": "中心辅助比例",
+          "matchName": "ADBE Fractal Noise-0021",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "演化",
+          "matchName": "ADBE Fractal Noise-0023",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": null,
+          "max": null,
+          "units": "度",
+          "animatable": true
+        },
+        {
+          "name": "循环演化",
+          "matchName": "ADBE Fractal Noise-0025",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 1,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "循环（旋转次数）",
+          "matchName": "ADBE Fractal Noise-0026",
+          "valueType": 6417,
+          "defaultValue": 1,
+          "min": 1,
+          "max": 88,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "随机植入",
+          "matchName": "ADBE Fractal Noise-0027",
+          "valueType": 6417,
+          "defaultValue": 0,
+          "min": 0,
+          "max": 100000,
+          "units": "",
+          "animatable": true
+        },
+        {
+          "name": "不透明度",
+          "matchName": "ADBE Fractal Noise-0029",
+          "valueType": 6417,
+          "defaultValue": 100,
+          "min": 0,
+          "max": 100,
+          "units": "百分比",
+          "animatable": true
+        },
+        {
+          "name": "混合模式",
+          "matchName": "ADBE Fractal Noise-0030",
+          "valueType": 6417,
+          "defaultValue": 2,
+          "min": 1,
+          "max": 21,
+          "units": "",
+          "animatable": true
+        }
+      ]
+    }
+  ]
+}
