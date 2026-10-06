@@ -1,0 +1,206 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: '2'
+  RUST_BACKTRACE: '1'
+
+jobs:
+  checks:
+    name: Rust and GPU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      WGPU_BACKEND: vulkan
+      XDG_RUNTIME_DIR: /tmp/motion-runtime
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install headless Vulkan and native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          rustup toolchain install 1.97.1 --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: host-tests
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Validate tools and vector icons
+        run: |
+          python -m compileall -q tools
+          python tools/generate_editor_icons.py --check
+          python -m unittest discover -s tools -p 'test_ci_*.py' -v
+          test -z "$(git ls-files docs)"
+      - name: Run Rust and software Vulkan tests
+        run: cargo test --workspace --locked --features aem-android/diagnostics -- --test-threads=1
+
+  android:
+    name: Android build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Install pinned native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-18-dev
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup target add aarch64-linux-android x86_64-linux-android
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: android-native
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build and test Android acceptance variant
+        run: python tools/build_android.py --target-dir target --codegen-units 8 --effects-acceptance --task testDebugUnitTest assembleDebug assembleDebugAndroidTest lintDebug
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-acceptance
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Restore signing configuration for trusted push builds
+        if: github.event_name == 'push'
+        env:
+          PREVIEW_KEYSTORE_BASE64: ${{ secrets.PREVIEW_KEYSTORE_BASE64 }}
+          PREVIEW_KEYSTORE_PASSWORD: ${{ secrets.PREVIEW_KEYSTORE_PASSWORD }}
+          PREVIEW_KEY_ALIAS: ${{ secrets.PREVIEW_KEY_ALIAS }}
+          PREVIEW_KEY_PASSWORD: ${{ secrets.PREVIEW_KEY_PASSWORD }}
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: python tools/ci_release.py prepare
+      - name: Build signed preview without diagnostic injection
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python tools/build_android.py --target-dir target --codegen-units 8 --task assemblePreview
+      - name: Build signed version release without diagnostic injection
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: python tools/build_android.py --target-dir target --codegen-units 8 --task assembleRelease
+      - name: Verify APK and prepare release assets
+        if: github.event_name == 'push'
+        run: python tools/ci_release.py package
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          name: release-assets
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          key = Path(os.environ["RUNNER_TEMP"]) / "motion-signing" / "keystore.p12"
+          key.unlink(missing_ok=True)
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: android-build-reports
+          path: |
+            android/app/build/reports/
+            android/app/build/test-results/
+          retention-days: 7
+
+  ui:
+    name: Android interaction
+    needs: android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: android-acceptance
+          path: android/app/build/outputs/apk/
+      - name: Enable KVM for the isolated emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: Nexus 6
+          ram-size: 2048M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim
+          script: python tools/ci_android_ui.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: android-ui-reports
+          path: artifacts/android-ui/
+          if-no-files-found: warn
+          retention-days: 7
+
+  publish:
+    name: Publish release
+    if: github.event_name == 'push'
+    needs: [checks, android, ui]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: release-assets
+          path: artifacts/release/
+      - name: Publish verified APK and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/ci_release.py publish
