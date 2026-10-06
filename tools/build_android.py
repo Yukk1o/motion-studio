@@ -66,7 +66,7 @@ def main():
         features=["--features","diagnostics"] if diagnostics else []
         overrides=[]
         if args.codegen_units:
-            for package in ("aem-core","aem-effects","aem-render","aem-android"):
+            for package in ("aem-core","aem-effects","aem-render","aem-media","aem-android"):
                 overrides.extend(["--config",f'profile.release.package.{package}.codegen-units={args.codegen_units}'])
         subprocess.run(["cargo","build","--locked","-p","aem-android","--target",target,"--release",*features,*overrides],cwd=ROOT,env=build_env,check=True)
         destination=ROOT/"android/app/src/main/jniLibs"/abi

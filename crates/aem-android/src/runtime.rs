@@ -862,7 +862,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                     } else {
                         layer.effects.len()
                     };
-                    let effect = aem_core::EffectInstance::new(
+                    let mut effect = aem_core::EffectInstance::new(
                         instance,
                         &p.manifest.id,
                         &p.manifest.version,
@@ -870,6 +870,24 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                         def,
                         layer.size,
                     );
+                    let preserve = v.get("preserve_parameters")
+                        .map(|v|v.as_bool().ok_or("preserve_parameters must be a boolean"))
+                        .transpose()?.unwrap_or(false);
+                    if upgrading && preserve {
+                        let old = &layer.effects[index];
+                        let old_package = registry.resolve(&old.plugin,&old.version,&old.hash)
+                            .map_err(|e|e.to_string())?;
+                        let old_def = old_package.manifest.effects.iter().find(|d|d.id==old.effect)
+                            .ok_or("old effect definition is missing")?;
+                        if old.plugin != p.manifest.id || old.effect != def.id
+                            || old_def.params != def.params || old_def.renderer != def.renderer {
+                            return Err("effect parameter contract differs; preserving parameters requires an explicit migration".into());
+                        }
+                        effect.params = old.params.clone();
+                        effect.seed = old.seed;
+                        effect.enabled = old.enabled;
+                        effect.scene = old.scene.clone();
+                    }
                     let mut cmds = Vec::new();
                     if upgrading {
                         cmds.push(Command::Effect {
