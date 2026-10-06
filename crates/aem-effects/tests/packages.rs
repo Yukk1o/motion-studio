@@ -4,7 +4,7 @@ use std::{io::Write, sync::Arc};
 #[test]
 fn entire_library_compiles_to_wgsl_and_es300() {
     let package = builtin::package().unwrap();
-    assert_eq!(package.manifest.effects.len(), 52);
+    assert_eq!(package.manifest.effects.len(), 59);
     for e in &package.manifest.effects {
         if !e.reference_match_name.is_empty() {
             assert_eq!(e.reference_version, "18.0.1");
@@ -33,7 +33,7 @@ fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
         .find(|p| p.manifest.version == "1.0.0")
         .unwrap();
     let current = builtin::package().unwrap();
-    assert_eq!(current.manifest.version, "1.2.0");
+    assert_eq!(current.manifest.version, "1.3.0");
     assert_eq!(old.manifest.effects.len(), 20);
     assert_eq!(
         old.hash, "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
@@ -49,6 +49,32 @@ fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
         "df9da73a4c18ee5c8d1c652d60bb5c45b01677371e461f65cafc3272746bbbf2"
     );
     assert_eq!(published.manifest.effects.len(), 36);
+    let common = packages
+        .iter()
+        .find(|p| p.manifest.id == builtin::PLUGIN_ID && p.manifest.version == "1.2.0")
+        .unwrap();
+    assert_eq!(
+        common.hash,
+        "14ef270c1199166fdc12e0d0ad43f7789256086fd24aaa76721e7bd31565adf6"
+    );
+    assert_eq!(common.manifest.effects.len(), 52);
+    for definition in &common.manifest.effects {
+        assert_eq!(
+            current
+                .manifest
+                .effects
+                .iter()
+                .find(|e| e.id == definition.id)
+                .unwrap(),
+            definition
+        );
+        for index in 0..definition.passes.len() {
+            assert_eq!(
+                common.files[&definition.passes[index].shader],
+                current.files[&definition.passes[index].shader]
+            );
+        }
+    }
     for definition in &published.manifest.effects {
         let mut normalized = definition.clone();
         for p in &mut normalized.params {
@@ -202,7 +228,7 @@ fn installation_is_idempotent_and_snapshots_hold_resources() {
     let snapshot = r.resolve(&a.id, &a.version, &a.hash).unwrap();
     r.enable(&store, &a.id, &a.version, &a.hash, false).unwrap();
     assert!(r.resolve(&a.id, &a.version, &a.hash).is_err());
-    assert_eq!(snapshot.manifest.effects.len(), 52);
+    assert_eq!(snapshot.manifest.effects.len(), 59);
     assert!(!r.install(&store, &input).unwrap().enabled);
     r.enable(&store, &a.id, &a.version, &a.hash, true).unwrap();
     let loaded = Registry::load(&store).unwrap();

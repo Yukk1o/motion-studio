@@ -155,6 +155,19 @@ pub fn compile_mode(
     sprite: bool,
     additive: bool,
 ) -> Result<CompiledShader> {
+    compile_internal(source, entry, sprite, additive, false)
+}
+/// SDK 3 rectangles may write directly to the host's composition target.
+pub(crate) fn compile_rect_image(source: &str, entry: &str) -> Result<CompiledShader> {
+    compile_internal(source, entry, false, false, true)
+}
+fn compile_internal(
+    source: &str,
+    entry: &str,
+    sprite: bool,
+    additive: bool,
+    convert_output: bool,
+) -> Result<CompiledShader> {
     portable_source(source)?;
     ensure(
         regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -167,6 +180,8 @@ pub fn compile_mode(
         let end = HEADER.find("fn edge_uv").unwrap();
         let header = format!("{}{}{}", &HEADER[..start], SPRITE_VERTEX, &HEADER[end..]);
         format!("{header}\n{source}\n@fragment fn sdk_fragment(input:SpriteVertex)->@location(0) vec4<f32>{{return {entry}(input.uv,input.color,input.style);}}\n")
+    } else if convert_output {
+        format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;let c=mix(sample_source(p),{entry}(p),fx.output_mode.z);if all(fx.mode.yz==fx.output_mode.xy) {{return c;}} return convert_pixel(c,fx.mode.yz,fx.output_mode.xy);}}\n")
     } else {
         format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;return mix(sample_source(p),{entry}(p),fx.output_mode.z);}}\n")
     };

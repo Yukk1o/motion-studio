@@ -115,12 +115,16 @@ impl EffectPackage {
                         Error::Invalid(format!("shader {} is missing", pass.shader))
                     })?)
                     .map_err(|_| Error::Invalid("shader must be UTF-8".into()))?;
-                let compiled = shader::compile_mode(
-                    source,
-                    &pass.entry,
-                    effect.renderer != crate::RendererKind::Image,
-                    effect.blend == crate::SpriteBlend::Additive,
-                )
+                let compiled = if effect.output_bounds.is_some() {
+                    shader::compile_rect_image(source, &pass.entry)
+                } else {
+                    shader::compile_mode(
+                        source,
+                        &pass.entry,
+                        effect.renderer != crate::RendererKind::Image,
+                        effect.blend == crate::SpriteBlend::Additive,
+                    )
+                }
                 .map_err(|e| Error::Invalid(format!("effect {}, pass {i}: {e}", effect.id)))?;
                 shaders.insert((effect.id.clone(), i), compiled);
             }

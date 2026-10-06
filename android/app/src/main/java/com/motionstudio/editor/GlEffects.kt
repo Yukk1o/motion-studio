@@ -5,7 +5,7 @@ import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** SDK 1/2 adapter. Shader sources and pass/parameter layouts come from Rust. */
+/** SDK 1–3 adapter. Shader sources and pass/parameter layouts come from Rust. */
 internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int>) {
     private data class Shader(val id:Int,val samplers:List<Triple<Int,Int,Int>>,val resources:IntArray,val sprite:Boolean,val additive:Boolean)
     private val shaders=ArrayList<Shader>()
