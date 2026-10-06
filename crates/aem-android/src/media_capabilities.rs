@@ -1,12 +1,100 @@
 //! Device decoder inventory is a capability hint, never a substitute for probing.
 use aem_media::Result;
 use jni::{
-    objects::{JObjectArray, JString, JValue},
+    objects::{JObject, JObjectArray, JString, JValue},
     JNIEnv,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-pub fn query(env: &mut JNIEnv) -> Result<Value> {
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VideoQuery {
+    pub mime: String,
+    pub width: u32,
+    pub height: u32,
+    pub frame_rate: f64,
+}
+impl VideoQuery {
+    fn validate(&self) -> Result<()> {
+        if !self.mime.starts_with("video/")
+            || !self.mime.is_ascii()
+            || self.mime.len() > 128
+            || !(1..=16384).contains(&self.width)
+            || !(1..=16384).contains(&self.height)
+            || !self.frame_rate.is_finite()
+            || !(0.0..=1000.0).contains(&self.frame_rate)
+            || self.frame_rate == 0.0
+        {
+            return Err(
+                "video_query requires MIME, dimensions 1..16384 and frame_rate >0..1000".into(),
+            );
+        }
+        Ok(())
+    }
+    fn backend_eligible(&self) -> bool {
+        aem_media::VIDEO_MIMES.contains(&self.mime.as_str())
+            && self.width <= aem_core::MAX_VIDEO_DIMENSION
+            && self.height <= aem_core::MAX_VIDEO_DIMENSION
+            && u64::from(self.width) * u64::from(self.height) <= aem_core::MAX_VIDEO_PIXELS
+            && self.frame_rate <= aem_core::MAX_VIDEO_FPS
+    }
+}
+
+fn range(
+    env: &mut JNIEnv,
+    caps: &JObject,
+    method: &str,
+    args: &[JValue],
+) -> jni::errors::Result<Value> {
+    let signature = if args.is_empty() {
+        "()Landroid/util/Range;"
+    } else {
+        "(II)Landroid/util/Range;"
+    };
+    let range = env.call_method(caps, method, signature, args)?.l()?;
+    let mut values = Vec::new();
+    for bound in ["getLower", "getUpper"] {
+        let number = env
+            .call_method(&range, bound, "()Ljava/lang/Comparable;", &[])?
+            .l()?;
+        values.push(env.call_method(&number, "doubleValue", "()D", &[])?.d()?);
+    }
+    Ok(json!(values))
+}
+
+fn video_capabilities(
+    env: &mut JNIEnv,
+    caps: &JObject,
+    target: Option<&VideoQuery>,
+) -> jni::errors::Result<Value> {
+    env.with_local_frame(32, |env| {
+        let video = env.call_method(caps, "getVideoCapabilities", "()Landroid/media/MediaCodecInfo$VideoCapabilities;", &[])?.l()?;
+        let mut value = json!({
+            "width_range":range(env,&video,"getSupportedWidths",&[])?,
+            "height_range":range(env,&video,"getSupportedHeights",&[])?,
+            "frame_rate_range":range(env,&video,"getSupportedFrameRates",&[])?,
+            "width_alignment":env.call_method(&video,"getWidthAlignment","()I",&[])?.i()?,
+            "height_alignment":env.call_method(&video,"getHeightAlignment","()I",&[])?.i()?,
+            "ranges_are_independent":true,
+            "real_time_guaranteed":false
+        });
+        if let Some(target) = target {
+            let dimensions = [JValue::Int(target.width as i32), JValue::Int(target.height as i32)];
+            let size = env.call_method(&video,"isSizeSupported","(II)Z",&dimensions)?.z()?;
+            let size_rate = env.call_method(&video,"areSizeAndRateSupported","(IID)Z",&[
+                dimensions[0],dimensions[1],JValue::Double(target.frame_rate)])?.z()?;
+            let rates = if size {range(env,&video,"getSupportedFrameRatesFor",&dimensions)?} else {Value::Null};
+            value["query"] = json!({"size_supported":size,"size_and_rate_supported":size_rate,"frame_rates_for_size":rates});
+        }
+        Ok(value)
+    })
+}
+
+pub fn query(env: &mut JNIEnv, target: Option<VideoQuery>) -> Result<Value> {
+    if let Some(t) = &target {
+        t.validate()?;
+    }
     let result = (|| -> jni::errors::Result<Value> {
         let list = env.new_object("android/media/MediaCodecList", "(I)V", &[JValue::Int(1)])?;
         let infos = JObjectArray::from(
@@ -25,6 +113,7 @@ pub fn query(env: &mut JNIEnv) -> Result<Value> {
             ));
         }
         let mut decoders = Vec::new();
+        let mut matches = Vec::new();
         for i in 0..count {
             let decoder=env.with_local_frame(96,|env|->jni::errors::Result<Option<Value>>{
                 let info=env.get_object_array_element(&infos,i)?;
@@ -40,6 +129,11 @@ pub fn query(env: &mut JNIEnv) -> Result<Value> {
                     let mime_text:String=env.get_string(&mime)?.into();
                     if !(mime_text.starts_with("audio/")||mime_text.starts_with("video/")){continue;}
                     let caps=env.call_method(&info,"getCapabilitiesForType","(Ljava/lang/String;)Landroid/media/MediaCodecInfo$CodecCapabilities;",&[JValue::Object(&mime)])?.l()?;
+                    let target_for_type=target.as_ref().filter(|t| t.mime==mime_text);
+                    let video=if mime_text.starts_with("video/") {video_capabilities(env,&caps,target_for_type)?}else{Value::Null};
+                    if target_for_type.is_some() {
+                        matches.push(json!({"name":name,"hardware_accelerated":hardware,"software_only":software,"capabilities":video["query"]}));
+                    }
                     let profiles=JObjectArray::from(env.get_field(&caps,"profileLevels","[Landroid/media/MediaCodecInfo$CodecProfileLevel;")?.l()?);
                     let mut levels=Vec::new();
                     for k in 0..env.get_array_length(&profiles)?.min(64) {
@@ -48,7 +142,7 @@ pub fn query(env: &mut JNIEnv) -> Result<Value> {
                         env.delete_local_ref(p)?;
                     }
                     let backend_enabled=aem_media::VIDEO_MIMES.contains(&mime_text.as_str())||aem_media::NATIVE_AUDIO_MIMES.contains(&mime_text.as_str());
-                    supported.push(json!({"mime":mime_text,"backend_enabled":backend_enabled,"profile_levels":levels,"profiles_truncated":env.get_array_length(&profiles)?>64}));
+                    supported.push(json!({"mime":mime_text,"backend_enabled":backend_enabled,"profile_levels":levels,"profiles_truncated":env.get_array_length(&profiles)?>64,"video_capabilities":video}));
                     env.delete_local_ref(profiles)?;env.delete_local_ref(caps)?;env.delete_local_ref(mime)?;
                 }
                 Ok(Some(json!({"name":name,"hardware_accelerated":hardware,"software_only":software,"types":supported})))
@@ -60,7 +154,11 @@ pub fn query(env: &mut JNIEnv) -> Result<Value> {
         Ok(json!({"schema_version":1,"decoders":decoders,
             "video":{"containers":["MP4","MOV","3GP","Matroska","WebM"],"mime_types":aem_media::VIDEO_MIMES,
                 "profiles":{"video/avc":["Baseline","Main","High"],"video/hevc":["Main"],"video/x-vnd.on2.vp8":["8-bit"],"video/x-vnd.on2.vp9":["0"]},
-                "max_pixels":2073600,"max_dimension":1920,"max_fps":120,"hdr":false,"bit_depth":8},
+                "max_pixels":aem_core::MAX_VIDEO_PIXELS,"max_dimension":aem_core::MAX_VIDEO_DIMENSION,"max_fps":aem_core::MAX_VIDEO_FPS,"max_index_frames":aem_core::MAX_VIDEO_FRAMES,"hdr":false,"bit_depth":8,
+                "preserves_source_timestamps":true,"preserves_source_aspect_ratio":true,"arbitrary_aspect_ratio":true,"square_pixels_only":true,"input_is_independent_of_composition":true,"max_stream_cache_bytes":crate::video_cache::MAX_CACHE_BYTES},
+            "composition":{"fps_range":[1,aem_core::MAX_COMPOSITION_FPS],"fps_presets":[24,25,30,50,60,90,120,144,240],"fps_type":"integer","default_fps":30,"max_dimension":8192},
+            "video_query":target,
+            "query_result":target.as_ref().map(|t|json!({"backend_eligible":t.backend_eligible(),"decoders":matches,"real_time_guaranteed":false})),
             "audio":{"portable_formats":["M4A/AAC-LC","M4A/ALAC","MP3","FLAC","Ogg/Vorbis","WAV/PCM8/16/24/32","WAV/float32/64","AIFF/PCM"],
                 "platform_formats":["Opus","ADTS/AAC","HE-AAC","AMR-NB","AMR-WB"],"native_mime_types":aem_media::NATIVE_AUDIO_MIMES,
                 "min_sample_rate":8000,"max_sample_rate":192000,"channels":[1,2],"output_rate":48000,"output_channels":2},

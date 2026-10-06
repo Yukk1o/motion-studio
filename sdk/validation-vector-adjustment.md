@@ -1,4 +1,21 @@
-# 矢量与调整图层验收记录（2026-10-06）
+# 矢量与调整图层验收记录
+
+## 2026-10-07：同步主分支后的补充验证
+
+基线为 `main@55830ed`，包含空间效果边界（#29）、视频输入和导入顺序修复。
+完整 Rust 工作区回归 **172 项通过，0 项失败，1 项既有大文件测试忽略**。
+命令增加 `--features aem-android/diagnostics`，Windows GPU 使用 DX12。
+日志在本地 `artifacts/pr24-host-validation.log`，不提交 Git。
+
+补充 GPU 回归覆盖：两个调整层的顺序、旋转且带父级的作用区域、相交 3D 图层、
+半透明 Alpha 保留、矢量几何及填充/描边动画随机寻帧、重复帧资源复用和删除后的释放。
+发现并修复了矢量外扩源矩形叠加效果后重复应用原点的问题：调整后的效果偏移以
+已外扩源矩形为基准，图层原锚点不变。回归用例在修复前 Alpha MAE 为 8.9675，
+修复后满足不超过 0.1 的断言。
+
+以下 2026-10-06 记录保留当时的结果；补充 Android 验证结果另列。
+
+## 2026-10-06 初始验证
 
 本分支不自动合并。前端界面由前端开发接入，接口见 `host-vector-adjustment.md`。
 
@@ -33,7 +50,9 @@ Android 对照覆盖圆环、爱心、半透明填充与 Tint 调整层，采集
 
 ## 后续专项验收
 
-真实 ARM 手机仍需记录预览、导出耗时与内存；再扩展多调整层、旋转 / 父级范围、摄影机与相交 3D 平面、矢量几何 / 样式动画随机寻帧、资源释放、预算超限和取消导出。未编码输出及 Alpha 对照另行采集。
+真实 ARM 手机仍需记录预览、导出耗时、发热与内存。上述新增宿主用例已覆盖多调整层、
+旋转 / 父级作用区、相交 3D 平面、矢量动画随机寻帧及资源释放；全部设备的资源预算与性能
+不能由软件模拟器结果推断。
 
 ```powershell
 $env:CARGO_TARGET_DIR='E:/Dev/aem/target/video-host'
@@ -44,4 +63,4 @@ py -3.14 -X utf8 tools/build_android.py --abis arm64-v8a,x86_64 --rust-only --co
 adb -s emulator-5554 shell am instrument -w -e class com.motionstudio.editor.VectorAdjustmentTest com.motionstudio.editor.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-PR 保留草稿状态供审核，前端可根据接口文档开始接入；真机专项结果须继续补入本记录。
+前端可根据接口文档开始接入；真机专项结果须继续补入本记录。

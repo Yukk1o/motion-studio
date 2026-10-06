@@ -135,15 +135,11 @@ impl Renderer {
             .await
             .ok_or(RenderError::Adapter)?;
         let adapter_info = adapter.get_info();
-        let supported_limits = adapter.limits();
-        // GLES 3.0 has no compute shaders. The renderer uses graphics passes only,
-        // so requesting downlevel compute/storage limits rejects a usable adapter.
-        let limits = if supported_limits.max_compute_workgroups_per_dimension == 0 {
+        let supported = adapter.limits();
+        let base = if supported.max_compute_workgroups_per_dimension == 0 {
             wgpu::Limits::downlevel_webgl2_defaults()
-        } else {
-            wgpu::Limits::downlevel_defaults()
-        }
-        .using_resolution(supported_limits);
+        } else { wgpu::Limits::downlevel_defaults() };
+        let limits = base.using_resolution(supported);
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {

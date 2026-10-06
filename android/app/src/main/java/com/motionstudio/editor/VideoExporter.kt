@@ -180,7 +180,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
     }
 }
 
-private class EglMovieRenderer(surface:Surface,private val width:Int,private val height:Int,project:JSONObject,native:Long,planInfo:JSONObject) {
+internal class EglMovieRenderer(surface:Surface?,private val width:Int,private val height:Int,project:JSONObject,native:Long,planInfo:JSONObject) {
     private val display=EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
     private var context:EGLContext=EGL14.EGL_NO_CONTEXT
     private var window:EGLSurface=EGL14.EGL_NO_SURFACE
@@ -205,12 +205,13 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         try {
         val version=IntArray(2);check(EGL14.eglInitialize(display,version,0,version,1)){"EGL 初始化失败"}
         val attributes=intArrayOf(EGL14.EGL_RED_SIZE,8,EGL14.EGL_GREEN_SIZE,8,EGL14.EGL_BLUE_SIZE,8,EGL14.EGL_ALPHA_SIZE,8,
-            EGL14.EGL_RENDERABLE_TYPE,0x0040,EGL14.EGL_SURFACE_TYPE,EGL14.EGL_WINDOW_BIT,0x3142,1,EGL14.EGL_NONE)
+            EGL14.EGL_RENDERABLE_TYPE,0x0040,EGL14.EGL_SURFACE_TYPE,if(surface==null)EGL14.EGL_PBUFFER_BIT else EGL14.EGL_WINDOW_BIT,0x3142,1,EGL14.EGL_NONE)
         val configs=arrayOfNulls<EGLConfig>(1);val count=IntArray(1)
         check(EGL14.eglChooseConfig(display,attributes,0,configs,0,1,count,0)&&count[0]>0){"没有可编码的 EGL 配置"}
         context=EGL14.eglCreateContext(display,configs[0],EGL14.EGL_NO_CONTEXT,intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION,3,EGL14.EGL_NONE),0)
         check(context!=EGL14.EGL_NO_CONTEXT){"EGL 上下文创建失败"}
-        window=EGL14.eglCreateWindowSurface(display,configs[0],surface,intArrayOf(EGL14.EGL_NONE),0)
+        window=if(surface==null)EGL14.eglCreatePbufferSurface(display,configs[0],intArrayOf(EGL14.EGL_WIDTH,width,EGL14.EGL_HEIGHT,height,EGL14.EGL_NONE),0)
+            else EGL14.eglCreateWindowSurface(display,configs[0],surface,intArrayOf(EGL14.EGL_NONE),0)
         check(window!=EGL14.EGL_NO_SURFACE&&EGL14.eglMakeCurrent(display,window,window,context)){"编码 Surface 创建失败"}
         plane=program(PLANE_VERTEX,PLANE_FRAGMENT);presentProgram=program(PRESENT_VERTEX,PRESENT_FRAGMENT)
         val names=IntArray(1)
@@ -319,6 +320,17 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         GLES30.glUniform1i(presentImageLocation,0);GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,3)
         check(GLES30.glGetError()==GLES30.GL_NO_ERROR){"GPU 导出通道错误"}
     }
+    /** Optional diagnostic readback of the unencoded composition, bottom row first.
+     * RGB is sRGB-encoded premultiplied linear color; alpha is coverage. */
+    fun readPixelsInto(pixels:ByteBuffer) {
+        check(pixels.isDirect&&pixels.capacity()>=width*height*4){"诊断像素缓冲区不足"}
+        pixels.clear()
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer)
+        GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER,GLES30.GL_COLOR_ATTACHMENT0,GLES30.GL_TEXTURE_2D,frameTexture,0)
+        GLES30.glReadPixels(0,0,width,height,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,pixels)
+        check(GLES30.glGetError()==GLES30.GL_NO_ERROR){"诊断像素读取失败"}
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0)
+    }
     fun present(nanos:Long) {
         check(EGLExt.eglPresentationTimeANDROID(display,window,nanos)){"帧时间戳提交失败"}
         check(EGL14.eglSwapBuffers(display,window)){"编码 Surface 提交失败"}
@@ -371,7 +383,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         void main(){vec4 s=texture(image,uv);float a=color.a*extent.z;result=vec4(s.rgb*color.rgb*a,s.a*a);}"""
         private const val PRESENT_VERTEX="""#version 300 es
         out vec2 uv;
-        void main(){vec2 v=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2))*2.-1.;gl_Position=vec4(v,0.,1.);uv=v*.5+.5;}"""
+        void main(){vec2 v=vec2(float((gl_VertexID<<1)&2)*2.-1.,float(gl_VertexID&2)*2.-1.);gl_Position=vec4(v,0.,1.);uv=v*.5+.5;}"""
         private const val PRESENT_FRAGMENT="""#version 300 es
         precision highp float;uniform sampler2D image;in vec2 uv;out vec4 result;
         vec3 encode(vec3 v){return mix(1.055*pow(max(v,vec3(0.)),vec3(1./2.4))-.055,12.92*v,lessThanEqual(v,vec3(.0031308)));}

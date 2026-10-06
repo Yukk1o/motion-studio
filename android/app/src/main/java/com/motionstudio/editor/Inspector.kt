@@ -40,48 +40,52 @@ import java.util.Locale
 import kotlin.math.*
 
 @Composable internal fun EditorFooter(vm:EditorViewModel) {
-    if(vm.contentKind()=="audio") {
-        Row(Modifier.fillMaxWidth().heightIn(min=52.dp).background(Panel).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(objectName(vm,vm.selected),Modifier.weight(1f),color=Ink,maxLines=1,overflow=TextOverflow.Ellipsis)
-            TextButton(onClick={vm.openProperty("audio")},modifier=Modifier.height(48.dp)){Text("声音")}
-            TextButton(onClick=vm::duplicate,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("复制")}
-            TextButton(onClick=vm::deleteLayer,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("删除")}
-        }
-        return
-    }
-    var more by remember{mutableStateOf(false)}
-    Row(Modifier.fillMaxWidth().height(52.dp).background(Panel).padding(horizontal=8.dp)
-        .then(if(vm.panelOpen)Modifier.clearAndSetSemantics{}else Modifier),verticalAlignment=Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(if(vm.selected==0L&&!vm.hasCamera())"选择或新增图层"else"当前图层",color=Muted,fontSize=10.sp,lineHeight=14.sp)
-            Text(if(vm.selected==0L&&!vm.hasCamera())"开始编辑"else objectName(vm,vm.selected),color=Ink,fontSize=13.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-        }
-        listOf("position" to "移动","rotation" to "旋转","scale" to "缩放").forEach{(key,label)->
-            if(vm.selected!=0L||(vm.hasCamera()&&key=="position"))TextButton(onClick={vm.openProperty(key)},modifier=Modifier.height(48.dp)) {
-                Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                    Icon(editorIcon(when(key){"position"->Icons.Default.OpenWith;"rotation"->Icons.AutoMirrored.Filled.RotateRight;else->Icons.Default.OpenInFull}),null,Modifier.size(18.dp),tint=Accent)
-                    Text(label,color=Ink,fontSize=11.sp,lineHeight=16.sp)
+    if(vm.layerSelectionMode){LayerSelectionBar(vm);return}
+    var more by remember(vm.root,vm.selected){mutableStateOf(false)}
+    val kind=vm.contentKind()
+    val hasTarget=vm.selected!=0L||vm.hasCamera()
+    BoxWithConstraints(Modifier.fillMaxWidth().height(52.dp).background(Panel)
+        .then(if(vm.panelOpen)Modifier.clearAndSetSemantics{}else Modifier).testTag("editor-footer")) {
+        val nameWidth=(maxWidth*.24f).coerceIn(64.dp,100.dp)
+        Row(Modifier.fillMaxSize().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+            Text(if(hasTarget)objectName(vm,vm.selected)else"选择图层",
+                modifier=if(hasTarget)Modifier.width(nameWidth).padding(end=8.dp)else Modifier.weight(1f),
+                color=Muted,fontSize=13.sp,lineHeight=20.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+            if(hasTarget)key(vm.root,vm.selected) {
+                Row(Modifier.weight(1f).fillMaxHeight().horizontalScroll(rememberScrollState()).testTag("layer-categories"),
+                    verticalAlignment=Alignment.CenterVertically) {
+                    if(kind=="audio")LayerCategory("声音","footer-audio"){vm.openProperty("audio")}
+                    else {
+                        LayerCategory("变换","footer-transform") {
+                            vm.openProperty(if(vm.property in listOf("position","rotation","scale","opacity"))vm.property else "position")
+                        }
+                        if(kind in listOf("solid","image","text","video"))LayerCategory("效果","open-effects",vm::openEffects)
+                        if(vm.audioClip()!=null)LayerCategory("原声","footer-audio"){vm.openProperty("audio")}
+                        if(vm.selected==0L) {
+                            LayerCategory("镜头","footer-lens"){vm.openProperty("fov")}
+                            LayerCategory("目标点","footer-target"){vm.openProperty("target")}
+                        }
+                    }
+                }
+            }
+            Box {
+                Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
+                DropdownMenu(more,{more=false}) {
+                    DropdownMenuItem(text={Text("多选图层")},modifier=Modifier.testTag("start-layer-selection"),enabled=vm.state.project?.optJSONArray("layers")?.length()?.let{it>0}==true,onClick={more=false;vm.startLayerSelection()})
+                    if(vm.selected!=0L) {
+                        DropdownMenuItem(text={Text("创建副本")},enabled=vm.editable(),onClick={more=false;vm.duplicate()})
+                        DropdownMenuItem(text={Text("删除图层")},enabled=vm.editable(),onClick={more=false;vm.deleteLayer()})
+                    }
                 }
             }
         }
-        if(vm.selected==0L&&vm.hasCamera())TextButton(onClick={vm.openProperty("fov")},modifier=Modifier.height(48.dp)) {
-            Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                Icon(editorIcon(Icons.Default.Videocam),null,Modifier.size(18.dp),tint=Accent)
-                Text("镜头",color=Ink,fontSize=11.sp,lineHeight=16.sp)
-            }
-        }
-        Box {
-            Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
-            DropdownMenu(more,{more=false}) {
-                if(vm.selected!=0L) {
-                    if(vm.contentKind() in listOf("solid","image","text","video"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
-                    if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.openProperty("audio")})
-                    DropdownMenuItem(text={Text("透明度")},onClick={more=false;vm.openProperty("opacity")})
-                    DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
-                    DropdownMenuItem(text={Text("删除图层")},onClick={more=false;vm.deleteLayer()})
-                } else if(vm.hasCamera())DropdownMenuItem(text={Text("目标点")},onClick={more=false;vm.openProperty("target")})
-            }
-        }
+    }
+}
+
+@Composable private fun LayerCategory(label:String,tag:String,onClick:()->Unit) {
+    TextButton(onClick=onClick,contentPadding=PaddingValues(horizontal=12.dp,vertical=0.dp),
+        modifier=Modifier.widthIn(min=64.dp).height(48.dp).testTag(tag)) {
+        Text(label,color=Ink,fontSize=14.sp,lineHeight=20.sp,maxLines=1)
     }
 }
 
@@ -177,7 +181,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         DropdownMenuItem(text={Text("锚点")},enabled=vm.editable(),onClick={more=false;anchor=true})
                         DropdownMenuItem(text={Text("摄影机对准此图层")},onClick={more=false;vm.focusCameraOnSelection()})
                         DropdownMenuItem(text={Text("重命名")},onClick={more=false;rename=true})
-                        DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
+                        DropdownMenuItem(text={Text("创建副本")},onClick={more=false;vm.duplicate()})
                         DropdownMenuItem(text={Text("上移图层")},onClick={more=false;vm.reorder(1)})
                         DropdownMenuItem(text={Text("下移图层")},onClick={more=false;vm.reorder(-1)})
                         DropdownMenuItem(text={Text("锁定 / 解锁")},onClick={more=false;vm.layer(vm.selected)?.let{vm.flags(vm.selected,it.getBoolean("visible"),!it.getBoolean("locked"))}})

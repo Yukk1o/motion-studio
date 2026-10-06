@@ -31,6 +31,7 @@ internal class EditorLayoutState(private val preferences:SharedPreferences) {
         return (ratios[key]?.times(extent)?:default).coerceIn(min.coerceAtMost(upper),upper)
     }
     fun custom(key:String)=key in ratios
+    val customized:Boolean get()=ratios.isNotEmpty()
     fun set(key:String,value:Float){if(value.isFinite())ratios[key]=value.coerceIn(.05f,.85f)}
     fun begin(){before=ratios.toMap()}
     fun commit(){before=null;val editor=preferences.edit().clear();ratios.forEach{(k,v)->editor.putFloat(k,v)};editor.apply()}

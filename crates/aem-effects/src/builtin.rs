@@ -47,10 +47,16 @@ pub fn packages() -> Result<Vec<Arc<EffectPackage>>> {
         })
         .clone()
         .map_err(Error::Invalid)?;
+    static TILING: OnceLock<std::result::Result<Arc<EffectPackage>, String>> = OnceLock::new();
+    let tiling = TILING.get_or_init(|| {
+        EffectPackage::from_bytes(include_bytes!("../library/legacy/core-effects-1.3.0.msfx").to_vec())
+            .map(Arc::new).map_err(|e| e.to_string())
+    }).clone().map_err(Error::Invalid)?;
     Ok(vec![
         previous,
         creative,
         common,
+        tiling,
         package()?,
         legacy_scene_package()?,
         scene_package()?,
