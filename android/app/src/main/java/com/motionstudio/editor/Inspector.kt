@@ -124,7 +124,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
     }
 }
 
-@Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier,onCurveMode:(Boolean)->Unit={}) {
+@Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier,backEnabled:Boolean=true,onCurveMode:(Boolean)->Unit={}) {
     if(vm.contentKind()=="audio"||vm.property=="audio") {AudioProperties(vm,modifier);return}
     var rename by remember{mutableStateOf(false)}
     var anchor by remember{mutableStateOf(false)}
@@ -133,7 +133,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
     var curves by remember(vm.selected,vm.property){mutableStateOf(false)}
     LaunchedEffect(curves){onCurveMode(curves)}
     DisposableEffect(Unit){onDispose{onCurveMode(false)}}
-    BackHandler(enabled=curves){curves=false}
+    BackHandler(enabled=backEnabled&&curves){curves=false}
     val camera=vm.selected==0L
     val threeD=vm.threeD()
     LaunchedEffect(vm.selected,vm.property,threeD){if(vm.activeAxis() !in vm.visibleAxes())vm.chooseAxis(vm.visibleAxes().first())}

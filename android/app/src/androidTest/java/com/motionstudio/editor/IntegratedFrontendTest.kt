@@ -119,6 +119,72 @@ class IntegratedFrontendTest {
         val y=9*context.resources.displayMetrics.density
         compose.onNodeWithTag("timeline").performTouchInput{longClick(androidx.compose.ui.geometry.Offset(centerX+offset,y))}
     }
+    private fun verifyLayoutAdjustment(recreate:Boolean=false,prefix:String="layout-profile") {
+        fun assertGripsHidden() {
+            compose.onNodeWithTag("layout-resize-side").assertDoesNotExist()
+            compose.onNodeWithTag("layout-resize-height").assertDoesNotExist()
+            compose.onNodeWithTag("finish-layout").assertDoesNotExist()
+        }
+        fun enterLayoutMode() {
+            compose.onNodeWithContentDescription("合成设置").performClick()
+            compose.onNodeWithTag("adjust-layout").performScrollTo().performClick()
+            compose.onNodeWithTag("finish-layout").assertIsDisplayed()
+        }
+        assertGripsHidden();photo("$prefix-before-resize")
+        enterLayoutMode();photo("$prefix-editing")
+        val side=compose.onAllNodesWithTag("layout-resize-side").fetchSemanticsNodes().isNotEmpty()
+        val tag=if(side)"layout-resize-side"else"layout-resize-height"
+        val density=context.resources.displayMetrics.density
+        fun extent():Float=compose.onNodeWithTag("effects-panel").fetchSemanticsNode().boundsInRoot.let{if(side)it.width else it.height}
+        fun drag(amount:Float,cancelled:Boolean=false) {
+            compose.onNodeWithTag(tag).performTouchInput {
+                down(center);moveBy(if(side)androidx.compose.ui.geometry.Offset(amount,0f)else androidx.compose.ui.geometry.Offset(0f,amount),200)
+                if(cancelled)cancel()else up()
+            }
+        }
+        val original=extent();val project=vm.state.project!!.toString();val property=vm.property
+        val target=compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        assertTrue("small resize target",target.width/density>=47.5f&&target.height/density>=47.5f)
+        drag(-48*density,true)
+        compose.waitUntil(10000){kotlin.math.abs(extent()-original)<2}
+        drag(64*density)
+        compose.waitUntil(10000){original-extent()>16*density}
+        val adjusted=extent()
+        assertTimelineVisible();assertEquals(project,vm.state.project!!.toString())
+        assertTrue(vm.layoutPreferences.all.isNotEmpty())
+        photo("$prefix-resized")
+        compose.onNodeWithTag("finish-layout").performClick()
+        assertGripsHidden();assertEquals(adjusted,extent(),2f);photo("$prefix-finished")
+        if(recreate) {
+            scenario.recreate()
+            scenario.onActivity{activity=it;vm=ViewModelProvider(it)[EditorViewModel::class.java]}
+            compose.waitUntil(15000){compose.onAllNodesWithTag("effects-panel").fetchSemanticsNodes().isNotEmpty()}
+            assertGripsHidden();assertEquals(adjusted,extent(),2f);photo("$prefix-reopened")
+        }
+        enterLayoutMode()
+        drag(-400*density)
+        assertTimelineVisible();photo("$prefix-expanded")
+        drag(400*density)
+        assertTimelineVisible()
+        assertEquals(project,vm.state.project!!.toString())
+        compose.onNodeWithTag("finish-layout").performClick()
+        assertGripsHidden()
+        compose.onNodeWithContentDescription("合成设置").performClick()
+        compose.onNodeWithTag("reset-layout").performScrollTo().performClick()
+        compose.waitUntil(10000){kotlin.math.abs(extent()-original)<2}
+        assertTrue(vm.layoutPreferences.all.isEmpty())
+        enterLayoutMode();UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack()
+        compose.waitUntil(10000){compose.onAllNodesWithTag("finish-layout").fetchSemanticsNodes().isEmpty()}
+        assertGripsHidden();assertTimelineVisible();assertEquals(original,extent(),2f);assertEquals(property,vm.property)
+        File(root,"$prefix-adjustment-report.json").writeText(JSONObject().put("sidePanel",side).put("originalExtentDp",original/density)
+            .put("adjustedExtentDp",adjusted/density).put("cancelRestored",true).put("recreationChecked",recreate)
+            .put("projectUnchanged",true).put("resetRestored",true).put("gripsOnlyInLayoutMode",true)
+            .put("finishPreserved",true).put("backExitsLayoutMode",true).toString(2))
+    }
+    @Test fun layoutRatioDraggingCancelsPersistsAcrossRecreationAndResets() {
+        solid();effects();addEffect("brightness_contrast");enterEffect()
+        verifyLayoutAdjustment(true,"layout-custom")
+    }
     private fun multipleLayers() {
         solid()
         scenario.onActivity {
@@ -560,6 +626,7 @@ class IntegratedFrontendTest {
         assertTimelineVisible()
         compose.onNodeWithTag("effect-wheel-p0001-0").performScrollTo().assertIsDisplayed()
         assertWheelPainted("effect-wheel-p0001-0")
+        verifyLayoutAdjustment()
         compose.onNodeWithTag("effect-select-p0001").performScrollTo().performClick()
         compose.onNodeWithTag("effect-animate-p0001").performClick()
         compose.waitUntil(10000){vm.keys().size==1&&vm.state.saved}

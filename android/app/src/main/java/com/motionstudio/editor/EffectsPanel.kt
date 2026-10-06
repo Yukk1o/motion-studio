@@ -54,7 +54,7 @@ internal fun availableEffects(vm:EditorViewModel):List<Pair<JSONObject,JSONObjec
 }
 private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?.optString("name")?:e.getString("effect")
 
-@Composable internal fun EffectsPanel(vm:EditorViewModel,modifier:Modifier,onCurveMode:(Boolean)->Unit,onDismiss:()->Unit) {
+@Composable internal fun EffectsPanel(vm:EditorViewModel,modifier:Modifier,backEnabled:Boolean=true,onCurveMode:(Boolean)->Unit,onDismiss:()->Unit) {
     val objectId=vm.selected
     val instances=vm.layer(objectId)?.optJSONArray("effects").objects()
     var add by remember(objectId){mutableStateOf(false)}
@@ -77,7 +77,7 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
         if(curveMode)curveMode=false
         else {instanceId=null;add=false;vm.property="position"}
     }
-    BackHandler(enabled=current!=null||add){back()}
+    BackHandler(enabled=backEnabled&&(current!=null||add)){back()}
     LaunchedEffect(instances.map{it.getLong("id")}){if(instanceId!=null&&current==null)instanceId=null}
     LaunchedEffect(instanceId,ordered){if(current!=null&&target?.second !in ordered&&ordered.isNotEmpty())vm.chooseEffectParam(current.getLong("id"),ordered.first())}
     LaunchedEffect(curveMode){onCurveMode(curveMode)}

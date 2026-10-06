@@ -46,6 +46,8 @@ private fun activeProjectDirectory(app:Application):File {
 }
 
 class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null,initialProjectJson:String="") : AndroidViewModel(app) {
+    internal val layoutPreferences=app.getSharedPreferences("motion-studio-layout"+
+        (if(projectDirectory==null)""else"-"+projectDirectory.canonicalPath.hashCode()),0)
     var state by mutableStateOf(StudioState()); private set
     var frame by mutableDoubleStateOf(0.0); private set
     var playing by mutableStateOf(false); private set
