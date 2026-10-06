@@ -46,7 +46,7 @@ android {
         create("preview") {
             initWith(getByName("release"))
             isDebuggable=false
-            signingConfig=signingConfigs.getByName(if(automationKey!=null)"automation"else"debug")
+            signingConfig=signingConfigs.getByName(if (automationKey!=null) "automation" else "debug")
             versionNameSuffix="-preview."+(providers.environmentVariable("MOTION_VERSION_CODE").orNull ?: "1")
             matchingFallbacks+=listOf("release")
         }
