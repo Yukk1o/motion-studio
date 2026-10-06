@@ -28,6 +28,12 @@
 这与 SwiftShader 曾记录的[多采样清除问题](https://swiftshader.googlesource.com/SwiftShader.git/+/53e83aa8ecebea4913051dcdfd6923a3dd6fcccb%5E%21/)症状一致；
 本次启用回退以运行时探测为准，不依据厂商名称推断。
 
+扩大 Android CI 用例后发现另一个窗口问题：同一 wgpu Instance 同时建立 Vulkan 和
+GLES Surface，Vulkan 不可用时仍占用 Android BufferQueue，GLES 配置返回
+`Invalid surface`（日志为 `already connected` / `EGL_BAD_ALLOC`）。与 #28 相同，
+窗口初始化现在依次尝试独立 Vulkan/GLES Instance，先释放失败候选再创建下一后端，
+确保同一原生窗口只保留一个图形后端的连接；错误同时保留各候选失败原因。
+
 ARM64/x86_64 原生构建、Android APK/test APK、10 项单元测试和 `lintDebug` 通过（0 错误、5 项告警）；软件 Vulkan
 宿主回归经 GitHub CI 验证。新增 Android 专项进入 CI 选择器。Android CI 固定禁用
 模拟器 Vulkan 和硬解仿真，与本地软件 GLES 验收条件一致；不代表 Vulkan 或 ARM 真机验收。
