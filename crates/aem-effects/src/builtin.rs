@@ -25,7 +25,7 @@ pub fn packages() -> Result<Vec<Arc<EffectPackage>>> {
         })
         .clone()
         .map_err(Error::Invalid)?;
-    Ok(vec![previous, package()?])
+    Ok(vec![previous, package()?, scene_package()?])
 }
 fn build() -> Result<EffectPackage> {
     // Every host installs the exact published package bytes, independent of the
@@ -36,4 +36,19 @@ fn build() -> Result<EffectPackage> {
         return Err(Error::Invalid("bundled package is stale; run effect_tool pack crates/aem-effects/library crates/aem-effects/library/core-effects.msfx".into()));
     }
     Ok(package)
+}
+
+/// SDK 2 generators use a distinct stable identity; SDK 1 package bytes stay pinned.
+pub fn scene_package() -> Result<Arc<EffectPackage>> {
+    static PACKAGE: OnceLock<std::result::Result<Arc<EffectPackage>, String>> = OnceLock::new();
+    PACKAGE
+        .get_or_init(|| {
+            EffectPackage::from_bytes(
+                include_bytes!("../scene-library/scene-effects.msfx").to_vec(),
+            )
+            .map(Arc::new)
+            .map_err(|e| e.to_string())
+        })
+        .clone()
+        .map_err(Error::Invalid)
 }

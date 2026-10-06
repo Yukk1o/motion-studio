@@ -2,6 +2,8 @@
 
 生产界面已接入效果系统。图层操作中的“效果”打开内嵌属性面板；参数和缓动曲线在同一编辑区域内切换，保留画面预览。添加列表支持分类与搜索，效果链支持排序、复制、删除和启停，合成设置提供效果包安装和版本管理入口。
 
+SDK 2 的粒子、镜头光效和插件专用编辑器接入见 [窗口协议](../scene-effects/frontend-integration.md)。JNI帧计划已升级为版本2，pass为40字节；使用 [当前渲染计划](render-plan.md) 的版本和字段，SDK 1图像效果继续支持。
+
 ## 接口与线程
 
 `NativeBridge` 的工程会话必须在创建它的同一个 worker 线程调用。导入读文件、编译、安装和 PNG 捕获也放在 worker；不要在主线程调用。所有 String 接口返回 JSON：
@@ -63,7 +65,7 @@
 
 ## 工程与显示状态
 
-当前工程格式为 version 5（读取时迁移旧格式），`layers[].effects` 是有序数组，`plugin_dependencies` 是精确依赖的去重列表。不要让前端自行拼装/更新依赖清单；通过 effect 命令修改。
+只包含图像效果的工程使用 version 2，表达式引入version 3，场景效果引入version 4。`layers[].effects` 是有序数组，`plugin_dependencies` 是精确依赖的去重列表。不要让前端自行拼装/更新版本或依赖清单；通过 effect 命令修改。
 
 实例包含 `id/plugin/effect/version/hash/enabled/seed/params`。实例 ID 在一个图层内稳定且唯一。复制图层后可以出现相同的实例 ID，因此 UI 的 key、选中状态和错误定位必须使用 `(layerId, instanceId)`。
 

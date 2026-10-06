@@ -2,6 +2,8 @@
 
 本分支提供 `.msfx`（Motion Studio Effects）插件包、工程与命令模型、wgpu/JNI/GLES执行链、36项核心效果、SDK和回归工具。核心库包含原有20项AE近似效果及16项参考Sapphire视觉行为的独立实现。效果编辑界面由前端开发接入，当前没有新增面板或ViewModel。原有内部 `aem-*` crate 名与工程扩展名保持兼容。
 
+另有 [SDK 2 场景效果与插件专用编辑器](../scene-effects/README.md)，预装6项镜头/粒子生成器。当前JNI渲染计划为版本2；旧SDK 1包与已有精确哈希继续保留。
+
 | 接收者 | 先读 | 内容 |
 |---|---|---|
 | 前端开发 | [frontend-integration.md](frontend-integration.md) | 安装、目录、增删排序、参数、关键帧、手势撤销、错误与导出接口 |

@@ -400,6 +400,13 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             };
             let frames = project.frames;
             crate::effects::apply(project.layer_mut(object)?, action, frames)?;
+            if project
+                .layers
+                .iter()
+                .any(|l| l.effects.iter().any(|e| e.scene.is_some()))
+            {
+                project.version = 4;
+            }
             if let Some(from) = copy {
                 let to = project.layer_mut(object)?.effects.last().unwrap().id;
                 let copies: Vec<_> = project

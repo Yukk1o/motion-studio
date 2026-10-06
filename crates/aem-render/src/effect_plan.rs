@@ -8,9 +8,16 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 2;
+pub const PLAN_VERSION: u32 = 3;
+pub const HEADER_BYTES: usize = 80;
 pub const DRAW_WORDS: usize = 32;
-pub const PASS_WORDS: usize = 8;
+pub const PASS_WORDS: usize = 10;
+pub fn scratch_bytes(width: u32, height: u32, slots: u32) -> u64 {
+    u64::from(width)
+        * u64::from(height)
+        * 4
+        * u64::from(slots.count_ones() + u32::from(slots & 128 != 0))
+}
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct EffectUniform {
@@ -40,6 +47,9 @@ pub struct EffectPass {
     pub height: u32,
     pub lut: i32,
     pub uniform: EffectUniform,
+    pub sprite: bool,
+    pub sprite_start: u32,
+    pub sprite_count: u32,
 }
 #[derive(Clone, Copy, Debug)]
 pub struct PlannedDraw {
@@ -48,7 +58,7 @@ pub struct PlannedDraw {
     pub pass_start: usize,
     pub pass_end: usize,
 }
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct EffectFramePlan {
     pub draws: Vec<PlannedDraw>,
     pub passes: Vec<EffectPass>,
@@ -58,25 +68,29 @@ pub struct EffectFramePlan {
     pub diagnostics: Vec<String>,
     pub vertices: Vec<aem_core::PlaneVertex>,
     pub batches: Vec<aem_core::PlaneBatch>,
+    pub sprites: Vec<crate::scene_generator::Sprite>,
+    pub generator_stats: crate::scene_generator::GeneratorStats,
 }
 impl EffectFramePlan {
     pub fn buffer_bytes(&self, scene: &Scene) -> usize {
-        64 + self.draws.len() * 128
-            + self.passes.len() * 32
+        HEADER_BYTES + self.draws.len() * 128
+            + self.passes.len() * 40
             + self.passes.len() * shader::UNIFORM_BYTES
             + scene.curve_luts.len() * 1024
             + self.batches.len() * 12 + self.vertices.len() * 20
+            + self.sprites.len() * 48
     }
     pub fn write(&self, scene: &Scene, out: &mut [u8]) -> Result<usize, String> {
         let size = self.buffer_bytes(scene);
         if out.len() < size {
             return Err(format!("render plan buffer requires {size} bytes"));
         }
-        let draw_offset = 64;
+        let draw_offset = HEADER_BYTES;
         let pass_offset = draw_offset + self.draws.len() * 128;
-        let uniform_offset = pass_offset + self.passes.len() * 32;
+        let uniform_offset = pass_offset + self.passes.len() * 40;
         let lut_offset = uniform_offset + self.passes.len() * shader::UNIFORM_BYTES;
-        let batch_offset = lut_offset + scene.curve_luts.len() * 1024;
+        let sprite_offset = lut_offset + scene.curve_luts.len() * 1024;
+        let batch_offset = sprite_offset + self.sprites.len() * 48;
         let vertex_offset = batch_offset + self.batches.len() * 12;
         let header = [
             PLAN_MAGIC,
@@ -95,8 +109,12 @@ impl EffectFramePlan {
             batch_offset as u32,
             self.batches.len() as u32,
             vertex_offset as u32,
+            sprite_offset as u32,
+            self.sprites.len() as u32,
+            48,
+            0,
         ];
-        out[..64].copy_from_slice(bytemuck::cast_slice(&header));
+        out[..HEADER_BYTES].copy_from_slice(bytemuck::cast_slice(&header));
         for (i, d) in self.draws.iter().enumerate() {
             out[draw_offset + i * 128..draw_offset + (i + 1) * 128]
                 .copy_from_slice(bytemuck::cast_slice(&d.words));
@@ -115,8 +133,10 @@ impl EffectFramePlan {
                 } else {
                     (lut_offset + p.lut as usize * 1024) as u32
                 },
+                p.sprite_start,
+                p.sprite_count,
             ];
-            out[pass_offset + i * 32..pass_offset + (i + 1) * 32]
+            out[pass_offset + i * 40..pass_offset + (i + 1) * 40]
                 .copy_from_slice(bytemuck::cast_slice(&data));
             out[uniform_offset + i * shader::UNIFORM_BYTES
                 ..uniform_offset + (i + 1) * shader::UNIFORM_BYTES]
@@ -130,6 +150,7 @@ impl EffectFramePlan {
                 }
             }
         }
+        out[sprite_offset..batch_offset].copy_from_slice(bytemuck::cast_slice(&self.sprites));
         for (i, batch) in self.batches.iter().enumerate() {
             let data = [batch.layer as u32, batch.vertices.start, batch.vertices.end - batch.vertices.start];
             out[batch_offset+i*12..batch_offset+(i+1)*12].copy_from_slice(bytemuck::cast_slice(&data));
@@ -157,6 +178,9 @@ pub struct PlanBuilder {
     pub frame: EffectFramePlan,
     geometry: aem_core::PlaneCompositor,
     sizes: Vec<[f32; 2]>,
+    overlays: Vec<bool>,
+    pub generator_scratch: crate::scene_generator::GeneratorScratch,
+    pub alpha_images: std::collections::HashMap<u64, crate::scene_generator::AlphaImage>,
 }
 fn utility(code: &str) -> Result<Arc<shader::CompiledShader>, String> {
     shader::compile(code, "main_fx")
@@ -198,9 +222,71 @@ fn bounds(expr: &BoundsExpr, fx: &SampledEffect, depth: u32) -> Result<f32, Stri
     Ok(v)
 }
 impl PlanBuilder {
+    pub fn set_alpha(
+        &mut self,
+        id: u64,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) -> Result<(), String> {
+        let size = u64::from(width) * u64::from(height);
+        let previous = self
+            .alpha_images
+            .get(&id)
+            .map_or(0, |a| a.pixels.len() as u64);
+        let total = self
+            .alpha_images
+            .values()
+            .map(|a| a.pixels.len() as u64)
+            .sum::<u64>();
+        if width == 0
+            || height == 0
+            || rgba.len() as u64 != size * 4
+            || total - previous + size > 32 * 1024 * 1024
+        {
+            return Err("occlusion alpha cache exceeds 32 MiB or has invalid dimensions".into());
+        }
+        self.alpha_images.insert(
+            id,
+            crate::scene_generator::AlphaImage {
+                width,
+                height,
+                pixels: rgba.chunks_exact(4).map(|p| p[3]).collect(),
+            },
+        );
+        Ok(())
+    }
+    pub fn synchronize_alpha(
+        &mut self,
+        project: &aem_core::Project,
+        root: &std::path::Path,
+    ) -> Result<(), String> {
+        if !project.layers.iter().any(|l| {
+            l.effects
+                .iter()
+                .any(|e| e.enabled && e.scene.as_ref().is_some_and(|s| s.occlusion))
+        }) {
+            self.alpha_images.clear();
+            return Ok(());
+        }
+        for asset in &project.assets {
+            if !self.alpha_images.contains_key(&asset.id) {
+                let image = image::open(root.join(&asset.path))
+                    .map_err(|e| e.to_string())?
+                    .into_rgba8();
+                if image.width() != asset.width || image.height() != asset.height {
+                    return Err("occlusion asset metadata mismatch".into());
+                }
+                self.set_alpha(asset.id, asset.width, asset.height, image.as_raw())?;
+            }
+        }
+        self.alpha_images
+            .retain(|id, _| project.assets.iter().any(|a| a.id == *id));
+        Ok(())
+    }
     pub fn preflight_project(&self, project: &aem_core::Project) -> Result<(), String> {
         for layer in &project.layers {
-            for e in layer.effects.iter().filter(|e| e.enabled) {
+            for (chain_index, e) in layer.effects.iter().filter(|e| e.enabled).enumerate() {
                 let location = format!("layer {}, effect {} ({})", layer.id, e.id, e.effect);
                 let package = self
                     .registry
@@ -212,6 +298,21 @@ impl PlanBuilder {
                     .iter()
                     .find(|d| d.id == e.effect)
                     .ok_or_else(|| format!("{location}: effect definition missing"))?;
+                if definition.renderer != aem_effects::RendererKind::Image && chain_index != 0 {
+                    return Err(format!(
+                        "{location}: scene generator must be first enabled effect"
+                    ));
+                }
+                if (definition.renderer != aem_effects::RendererKind::Image) != e.scene.is_some() {
+                    return Err(format!(
+                        "{location}: saved scene contract differs from plugin"
+                    ));
+                }
+                if let Some(source) = e.scene.as_ref().and_then(|s| s.source_layer) {
+                    if !project.layers.iter().any(|l| l.id == source) {
+                        return Err(format!("{location}: source layer {source} missing"));
+                    }
+                }
                 if definition.compatibility == aem_effects::Compatibility::Unsupported {
                     return Err(format!("{location}: effect is unsupported"));
                 }
@@ -272,6 +373,9 @@ impl PlanBuilder {
             frame: EffectFramePlan::default(),
             geometry: aem_core::PlaneCompositor::new(),
             sizes: Vec::with_capacity(aem_core::MAX_LAYERS),
+            overlays: Vec::with_capacity(aem_core::MAX_LAYERS),
+            alpha_images: Default::default(),
+            generator_scratch: Default::default(),
         })
     }
     pub fn set_registry(&mut self, registry: Registry) {
@@ -310,6 +414,9 @@ impl PlanBuilder {
                     .find(|d| d.id == e.effect)
                     .cloned()
                     .ok_or("effect definition is missing")?;
+                if (definition.renderer != aem_effects::RendererKind::Image) != e.scene.is_some() {
+                    return Err("saved scene contract differs from plugin".into());
+                }
                 if definition.compatibility == aem_effects::Compatibility::Unsupported {
                     return Err("effect is declared unsupported".into());
                 }
@@ -373,7 +480,13 @@ impl PlanBuilder {
         strict: bool,
     ) -> Result<&EffectFramePlan, String> {
         self.synchronize(scene)?;
+        self.frame.sprites.clear();
+        self.frame.generator_stats = Default::default();
+        self.frame.width = 0;
+        self.frame.height = 0;
+        self.frame.slots = 0;
         self.frame.draws.clear();
+        self.overlays.clear();
         self.frame.passes.clear();
         self.frame.diagnostics.clear();
         if !scene.effects.iter().any(|e| e.enabled) {
@@ -383,10 +496,34 @@ impl PlanBuilder {
         }
         // Dependencies on hidden/transparent layers are still required by formal output.
         if strict {
+            let mut preceding = std::collections::BTreeSet::new();
             for (index, e) in scene.effects.iter().enumerate().filter(|(_, e)| e.enabled) {
                 let resolved = self.resolved[index].as_ref().unwrap();
+                if resolved.definition.renderer != aem_effects::RendererKind::Image
+                    && preceding.contains(&e.layer)
+                {
+                    return Err(format!(
+                        "layer {}, effect {}: scene generator must be first enabled effect",
+                        e.layer, e.instance
+                    ));
+                }
+                preceding.insert(e.layer);
                 if let Some(err) = &resolved.error {
                     return Err(format!("layer {}, effect {}: {err}", e.layer, e.instance));
+                }
+                if resolved.definition.renderer != aem_effects::RendererKind::Image {
+                    crate::scene_generator::validate_settings(e, resolved.definition.renderer)
+                        .map_err(|error| {
+                            format!("layer {}, effect {}: {error}", e.layer, e.instance)
+                        })?;
+                    if let Some(source) = e.scene.as_ref().and_then(|s| s.source_layer) {
+                        if scene.world_matrix(source).is_none() {
+                            return Err(format!(
+                                "layer {}, effect {}: source layer {source} missing",
+                                e.layer, e.instance
+                            ));
+                        }
+                    }
                 }
                 for id in &resolved.programs {
                     if let Some(error) = self.program_errors.get(id) {
@@ -420,6 +557,8 @@ impl PlanBuilder {
             let pass_start = self.frame.passes.len();
             let mut region = [0.0, 0.0, layer.size[0], layer.size[1]];
             let mut materialized = false;
+            let mut overlay = false;
+            let mut additive = false;
             for (index, e) in scene
                 .effects
                 .iter()
@@ -451,6 +590,93 @@ impl PlanBuilder {
                         }
                         params[i] = v;
                     }
+                    if def.renderer != aem_effects::RendererKind::Image {
+                        if materialized {
+                            return Err(
+                                "a scene generator must be the first enabled effect on its layer"
+                                    .into(),
+                            );
+                        }
+                        let w = (((scene.width as f32 * scale).ceil() as u32).div_ceil(128) * 128)
+                            .max(self.frame.width);
+                        let h = (((scene.height as f32 * scale).ceil() as u32).div_ceil(128) * 128)
+                            .max(self.frame.height);
+                        let slots = self.frame.slots | 129;
+                        if w > self.device_dimension
+                            || h > self.device_dimension
+                            || scratch_bytes(w, h, slots) > aem_effects::SCRATCH_BUDGET
+                        {
+                            return Err("scene generator target exceeds texture budget or device dimensions".into());
+                        }
+                        let start = self.frame.sprites.len();
+                        let stats = crate::scene_generator::generate(
+                            scene,
+                            layer,
+                            e,
+                            def.renderer,
+                            &self.alpha_images,
+                            &mut self.frame.sprites,
+                            &mut self.generator_scratch,
+                        )?;
+                        self.frame.generator_stats.alive += stats.alive;
+                        self.frame.generator_stats.visible += stats.visible;
+                        self.frame.generator_stats.culled += stats.culled;
+                        region = [0., 0., scene.width as f32, scene.height as f32];
+                        self.frame.passes.push(EffectPass {
+                            program: resolved.programs[0],
+                            input: -(asset as i32) - 1,
+                            source: -(asset as i32) - 1,
+                            output: 7,
+                            width: (region[2] * scale).ceil() as u32,
+                            height: (region[3] * scale).ceil() as u32,
+                            lut: e.lut.map_or(-1, |index| index as i32),
+                            uniform: EffectUniform {
+                                size: [
+                                    region[2],
+                                    region[3],
+                                    (region[2] * scale).ceil(),
+                                    (region[3] * scale).ceil(),
+                                ],
+                                region,
+                                input_region: region,
+                                source_region: region,
+                                clock: [
+                                    (e.local_frame / scene.fps as f64) as f32,
+                                    e.local_frame as f32,
+                                    0.,
+                                    e.seed as f32,
+                                ],
+                                mode: [0.; 4],
+                                output_mode: [0., 0., 1., scale],
+                                params,
+                            },
+                            sprite: true,
+                            sprite_start: start as u32,
+                            sprite_count: (self.frame.sprites.len() - start) as u32,
+                        });
+                        let mut conversion = self.frame.passes.last().unwrap().uniform;
+                        conversion.output_mode = [0., 0., 1., scale];
+                        self.frame.passes.push(EffectPass {
+                            program: 1,
+                            input: 7,
+                            source: 7,
+                            output: 0,
+                            width: (region[2] * scale).ceil() as u32,
+                            height: (region[3] * scale).ceil() as u32,
+                            lut: -1,
+                            uniform: conversion,
+                            sprite: false,
+                            sprite_start: 0,
+                            sprite_count: 0,
+                        });
+                        self.frame.width = w;
+                        self.frame.height = h;
+                        self.frame.slots = slots;
+                        materialized = true;
+                        overlay = true;
+                        additive = def.blend == aem_effects::SpriteBlend::Additive;
+                        return Ok(());
+                    }
                     let pad = bounds(&def.padding, e, 0)?;
                     if pad < 0.0 {
                         return Err("negative output padding".into());
@@ -473,8 +699,7 @@ impl PlanBuilder {
                         .max(self.frame.height);
                     if w > self.device_dimension
                         || h > self.device_dimension
-                        || u64::from(w) * u64::from(h) * 4 * u64::from(slots.count_ones())
-                            > aem_effects::SCRATCH_BUDGET
+                        || scratch_bytes(w, h, slots) > aem_effects::SCRATCH_BUDGET
                     {
                         return Err(
                             "effect scratch textures exceed 64 MiB or device dimensions".into()
@@ -544,6 +769,9 @@ impl PlanBuilder {
                             height: u.size[3] as u32,
                             lut,
                             uniform: u,
+                            sprite: false,
+                            sprite_start: 0,
+                            sprite_count: 0,
                         });
                     };
                     if !materialized {
@@ -615,7 +843,16 @@ impl PlanBuilder {
                 }
             }
             let mut words = [0.0; 32];
-            let mvp = layer.view_projection;
+            self.overlays.push(overlay);
+            let mvp = if overlay {
+                glam::Mat4::from_scale(glam::Vec3::new(
+                    2. / scene.width as f32,
+                    2. / scene.height as f32,
+                    1.,
+                ))
+            } else {
+                layer.view_projection
+            };
             words[..16].copy_from_slice(&mvp.to_cols_array());
             words[16..20].copy_from_slice(&if materialized {
                 [1.0; 4]
@@ -630,6 +867,7 @@ impl PlanBuilder {
             words[20] = region[2];
             words[21] = region[3];
             words[22] = layer.opacity;
+            words[23] = if additive { 1. } else { 0. };
             words[24] = if layer.video.is_some() { -(layer.order as f32 + 1.0) } else { asset as f32 };
             words[25] = 1.0;
             words[26] = 1.0;
@@ -653,7 +891,7 @@ impl PlanBuilder {
         }
         self.sizes.clear();
         self.sizes.extend(self.frame.draws.iter().map(|d| [d.words[20],d.words[21]]));
-        self.geometry.prepare_with_sizes(scene, &self.sizes).map_err(|e|e.to_string())?;
+        self.geometry.prepare_with_sizes_and_overlays(scene, &self.sizes, &self.overlays).map_err(|e|e.to_string())?;
         self.frame.vertices.clone_from(&self.geometry.vertices);
         self.frame.batches.clone_from(&self.geometry.batches);
         Ok(&self.frame)

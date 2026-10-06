@@ -1,5 +1,7 @@
 # motion-studio Effect SDK 1
 
+SDK 1图像效果契约保持支持。专用插件UI、实例化粒子和镜头生成器使用 [SDK 2扩展](../scene-effects/sdk.md)；当前JNI渲染计划为 [协议2](render-plan.md)，两者的版本号分别管理。
+
 `.msfx` 是 ZIP，包含根目录 manifest.json、manifest 引用的 UTF-8 WGSL 和可选 PNG。一个包可声明多个效果。模板见 `sdk/effect-template`；描述类型的唯一实现来源是 `crates/aem-effects/src/schema.rs`。
 
 ```powershell

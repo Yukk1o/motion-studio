@@ -1,5 +1,7 @@
 # 工程v2与插件版本
 
+本文描述图像效果的v2迁移。当前可读取工程v1～v4：表达式使用v3，含 `EffectInstance.scene` 的场景效果使用v4；添加表达式不降低已有v4工程。场景字段和前端接入见 [场景效果说明](../scene-effects/README.md)。
+
 新建工程写入 `version:2`。读取v1工程时缺失的 `layers[].effects` 默认空数组，插件依赖默认空；迁移不会生成效果实例或修改原有动画、素材、摄影机。导入ZIP和JNI创建工程都执行迁移。v1声明了效果的异常数据会拒绝，未知未来版本也拒绝。
 
 v2实例保存 `id/plugin/effect/version/hash/enabled/seed/params`，参数保存自己的类型、范围、可动画性与关键帧。`plugin_dependencies` 从全部实例生成去重排序的精确依赖，包括禁用实例；执行和导出只要求启用实例可用。读工程不自动安装插件，也不删除缺失插件的参数。

@@ -31,3 +31,5 @@ reference/
 /docs/*
 !/docs/effects/
 !/docs/expressions/
+
+!/docs/scene-effects/
