@@ -49,20 +49,46 @@ class VectorAdjustmentParityTest {
             layers.getJSONObject(3).getJSONArray("effects").getJSONObject(0).getJSONObject("params").getJSONObject("p0001")
                 .getJSONObject("track").put("value", JSONArray(listOf(4, 0, 0, 0)))
             data(NativeBridge.replace(native, project.toString()))
-            for ((frame, angle) in listOf(0 to 0, 23 to 100)) data(NativeBridge.command(native, JSONObject().put("op", "vector").put("object", 1)
-                .put("action", JSONObject().put("action", "set_parameter").put("parameter", "angle").put("frame", frame).put("value", angle).put("animated", true)).toString()))
-            for (frame in listOf(0, 7, 23, 7)) {
+            for ((frame, ratio) in listOf(0 to .25, 23 to .75)) data(NativeBridge.command(native, JSONObject().put("op", "vector").put("object", 1)
+                .put("action", JSONObject().put("action", "set_parameter").put("parameter", "inner_ratio").put("frame", frame).put("value", ratio).put("animated", true)).toString()))
+            data class Sample(val frame: Int, val label: String, val png: android.graphics.Bitmap, val plan: ByteBuffer)
+            val samples = ArrayList<Sample>()
+            fun sample(frame: Int, label: String) {
                 data(NativeBridge.seek(native, frame.toDouble()))
-                val png = BitmapFactory.decodeFile(data(NativeBridge.capture(native)).getString("path"), BitmapFactory.Options().apply { inPremultiplied = false; inScaled = false })
+                val path = data(NativeBridge.capture(native)).getString("path")
+                File(path).copyTo(File(root, "$label.png"), overwrite = true)
+                val png = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPremultiplied = false; inScaled = false })
                 val info = data(NativeBridge.renderPlanInfo(native)); val plan = ByteBuffer.allocateDirect(info.getInt("bufferBytes")).order(ByteOrder.LITTLE_ENDIAN)
                 assertTrue(NativeBridge.sampleRenderPlanInto(native, frame, plan) > 0)
-                val gpu = EglMovieRenderer(null, 192, 192, data(NativeBridge.state(native)).getJSONObject("project"), native, info)
-                try {
-                    gpu.draw(plan); val pixels = ByteBuffer.allocateDirect(192 * 192 * 4); gpu.readPixelsInto(pixels)
-                    reports.put(glesParity(png, pixels).put("frame", frame))
-                    File(root, "unencoded-report.json").writeText(reports.toString(2))
-                } finally { gpu.close(); png.recycle() }
+                samples.add(Sample(frame, label, png, plan))
             }
+            try {
+                for (frame in listOf(0, 7, 23, 7)) {
+                    sample(frame, "frame-$frame-${samples.size}")
+                }
+                assertFalse("Geometry animation had no visible effect", samples[0].png.sameAs(samples[2].png))
+                assertTrue("Random native seek changed the same frame", samples[1].png.sameAs(samples[3].png))
+                val complete = data(NativeBridge.state(native)).getJSONObject("project").toString()
+                for (mode in listOf("vectors_only", "vector_tint", "one_adjustment", "blur_adjustment", "all")) {
+                    val p = JSONObject(complete); val ls = p.getJSONArray("layers")
+                    ls.getJSONObject(0).getJSONArray("effects").getJSONObject(0).put("enabled", mode != "vectors_only")
+                    ls.getJSONObject(2).put("visible", mode in listOf("one_adjustment", "all"))
+                    ls.getJSONObject(3).put("visible", mode in listOf("blur_adjustment", "all"))
+                    data(NativeBridge.replace(native, p.toString()))
+                    sample(0, mode)
+                }
+                val gpu = EglMovieRenderer(null, 192, 192, data(NativeBridge.state(native)).getJSONObject("project"), native, data(NativeBridge.renderPlanInfo(native)))
+                try {
+                    for (sample in samples) {
+                        gpu.draw(sample.plan); val pixels = ByteBuffer.allocateDirect(192 * 192 * 4); gpu.readPixelsInto(pixels)
+                        val raw = ByteArray(pixels.capacity()); pixels.duplicate().apply { clear() }.get(raw)
+                        File(root, "${sample.label}.rgba").writeBytes(raw)
+                        reports.put(glesParity(sample.png, pixels).put("frame", sample.frame).put("label", sample.label))
+                        File(root, "unencoded-report.json").writeText(reports.toString(2))
+                    }
+                    assertEquals("The synthetic capability probe must run once", 4L, gpu.graphicsCapabilityReadbackBytes)
+                } finally { gpu.close() }
+            } finally { samples.forEach { it.png.recycle() } }
         } finally { NativeBridge.destroy(native) }
     }
 

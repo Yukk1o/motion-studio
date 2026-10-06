@@ -2,6 +2,11 @@
 
 工程格式 **6**；GPU 帧计划 **4**。本次交付包含核心模型、编辑命令、wgpu 预览和 GLES 导出适配。通用的添加菜单、钢笔工具、控制点、样式面板和参数面板由前端实现。
 
+GLES 首次使用矢量时自动检查 MSAA 清除行为；检测到异常时以缓存三角形清除全部
+采样点，避免几何动画复用纹理时留下旧 Alpha。导出报告中的
+`graphicsCapabilityReadbackBytes` 为 0（无矢量）或 4（一次性独立测试像素），
+与真实动画帧的 `applicationFrameReadbacks` 分开统计。
+
 ## 能力与形状目录
 
 读取 `NativeBridge.state(session)` 的 `data.capabilities`：
