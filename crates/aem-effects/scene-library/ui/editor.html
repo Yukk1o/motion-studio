@@ -2,7 +2,25 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Motion Studio 场景效果编辑器</title><link rel="stylesheet" href="editor.css"></head>
-<body><main><header><h1 id="title">场景效果编辑器</h1><button id="refresh">刷新预览</button></header>
-<p id="status" role="status">等待宿主连接</p><div class="workspace"><section><canvas id="preview" width="320" height="320" aria-label="宿主渲染预览"></canvas>
-<p>预览由宿主渲染；粒子位置、摄影机与导出共用同一执行计划。</p></section>
-<section><div id="params"></div><div id="scene"></div></section></div></main><script src="editor.js"></script></body></html>
+<body>
+<main class="studio">
+  <header class="topbar"><div class="identity"><span class="mark" aria-hidden="true">m.</span><div><p class="eyebrow">MOTION STUDIO</p><h1 id="title">粒子与镜头光效</h1></div></div><span id="connection" class="connection">等待连接</span></header>
+  <div class="workspace">
+    <section class="preview-panel" aria-label="效果预览">
+      <div class="section-heading"><h2>合成预览</h2><button id="refresh" class="quiet" type="button" disabled>刷新</button></div>
+      <div id="preview-stage" class="preview-stage"><canvas id="preview" width="640" height="360" aria-label="当前合成的实际渲染预览"></canvas><p id="preview-empty">连接效果后显示预览</p><span id="preview-state" class="preview-state" hidden></span></div>
+      <div class="preview-toolbar"><label class="check"><input id="auto-preview" type="checkbox" checked>自动预览</label><span id="frame" class="mono">—</span></div>
+      <div class="metrics" aria-label="粒子统计"><div><span>存活</span><strong id="alive">—</strong></div><div><span>可见</span><strong id="visible">—</strong></div><div><span>画面外</span><strong id="culled">—</strong></div></div>
+      <div id="preset-panel" class="preset-panel" hidden><div class="section-heading"><h2>快速起点</h2><span class="caption">可继续调整</span></div><div id="presets" class="presets"></div></div>
+      <p id="context-hint" class="context-hint">预览跟随宿主的当前帧与摄影机。</p>
+    </section>
+    <section class="inspector" aria-label="效果设置">
+      <div class="inspector-heading"><div><p id="effect-subtitle" class="eyebrow">EFFECT EDITOR</p><h2 id="inspector-title">效果设置</h2></div><button id="reset" class="quiet" type="button" disabled>恢复默认</button></div>
+      <nav id="tabs" class="tabs" aria-label="参数分组"></nav>
+      <div id="controls" class="controls" role="tabpanel" aria-label="当前分组参数"><p class="empty">等待宿主打开一个效果实例。</p></div>
+    </section>
+  </div>
+  <footer class="footer"><p id="status" role="status" aria-live="polite">等待宿主连接</p><button id="cancel-gesture" class="quiet" type="button" hidden>取消本次拖动</button></footer>
+</main>
+<script type="module" src="editor.js"></script>
+</body></html>

@@ -29,7 +29,7 @@ def main():
 }'''
     (DEST / "shaders/sprite.wgsl").write_text(shader, encoding="utf-8", newline="\n")
     editor = dict(id="com.motionstudio.scene-editor", protocol=1, title="场景效果编辑器",
-                  entry="ui/editor.html", files=["ui/editor.html","ui/editor.js","ui/editor.css"])
+                  entry="ui/editor.html", files=["ui/editor.html","ui/editor.js","ui/editor.css","ui/bridge.js"])
     def effect(id, name, english, renderer, params, scene, blend="alpha"):
         return dict(id=id,name=name,english_name=english,category="粒子" if renderer=="particles" else "镜头光效",
                     renderer=renderer,blend=blend,params=params,passes=[dict(shader="shaders/sprite.wgsl",entry="main_sprite")],
@@ -69,7 +69,7 @@ def main():
                 parameter("fade","淡入淡出比例","float",.15,0,.5),
                 parameter("prewarm","预热","bool",1,0,1,animate=False)]
         effects.append(effect(id,name,english,"particles",params,dict(occlusion=False,elements=[]),blend))
-    manifest=dict(format_version=1,sdk_version=2,id="com.motionstudio.effects.scene",version="1.0.0",name="Motion Studio Scene Effects",author="Motion Studio",license="MIT",effects=effects)
+    manifest=dict(format_version=1,sdk_version=2,id="com.motionstudio.effects.scene",version="1.1.0",name="Motion Studio Scene Effects",author="Motion Studio",license="MIT",effects=effects)
     (DEST / "manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8",newline="\n")
     names=["manifest.json","shaders/sprite.wgsl",*editor["files"]]
     # Match Git's LF checkout so Windows and other hosts produce the same hash.

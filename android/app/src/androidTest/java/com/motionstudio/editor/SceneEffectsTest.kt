@@ -33,7 +33,10 @@ class SceneEffectsTest {
     }
     private fun pkg(native:Long):JSONObject {
         val packages=data(NativeBridge.plugin(native,"{\"op\":\"catalogue\"}")).getJSONArray("packages")
-        return (0 until packages.length()).map{packages.getJSONObject(it)}.first{it.getJSONObject("manifest").getString("id")=="com.motionstudio.effects.scene"}
+        return (0 until packages.length()).map{packages.getJSONObject(it)}.first{
+            it.getJSONObject("manifest").getString("id")=="com.motionstudio.effects.scene" &&
+            it.getJSONObject("manifest").getString("version")=="1.1.0"
+        }
     }
     private fun add(native:Long,id:String):JSONObject {
         val p=pkg(native);val m=p.getJSONObject("manifest")
