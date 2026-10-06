@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--effects-acceptance",action="store_true",help="Use an isolated debug application ID for effects tests")
     parser.add_argument("--task",nargs="+",default=["assembleDebug"])
     parser.add_argument("--target-dir",type=Path,help="Override the native output directory")
+    parser.add_argument("--codegen-units",type=int,choices=range(1,257),help="Override project-crate release codegen units for memory-constrained local builds")
     args=parser.parse_args()
     benchmark=any("Benchmark" in task for task in args.task)
     diagnostics=args.diagnostics or any(task.endswith("AndroidTest") and "Benchmark" not in task for task in args.task)
@@ -63,7 +64,11 @@ def main():
         build_env["BINDGEN_EXTRA_CLANG_ARGS"]=f'--target={clang_target} --sysroot="{sysroot}"'
         print(f"Building native runtime for {abi}",flush=True)
         features=["--features","diagnostics"] if diagnostics else []
-        subprocess.run(["cargo","build","--locked","-p","aem-android","--target",target,"--release",*features],cwd=ROOT,env=build_env,check=True)
+        overrides=[]
+        if args.codegen_units:
+            for package in ("aem-core","aem-effects","aem-render","aem-android"):
+                overrides.extend(["--config",f'profile.release.package.{package}.codegen-units={args.codegen_units}'])
+        subprocess.run(["cargo","build","--locked","-p","aem-android","--target",target,"--release",*features,*overrides],cwd=ROOT,env=build_env,check=True)
         destination=ROOT/"android/app/src/main/jniLibs"/abi
         destination.mkdir(parents=True,exist_ok=True)
         shutil.copy2(target_dir/target/"release/libaem_android.so",destination/"libmotion_engine.so")

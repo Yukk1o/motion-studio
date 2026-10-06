@@ -162,6 +162,9 @@ private class ValueDrag(private val vm:EditorViewModel) {
             Box {
                 Tool(Icons.Default.MoreVert,"图层操作"){more=true}
                 DropdownMenu(more,{more=false}) {
+                    vm.expressionTargetForCurrent(if(vm.isSeparated())vm.activeAxis()else null)?.let{target->
+                        DropdownMenuItem(text={Text("表达式")},modifier=Modifier.testTag("open-property-expression"),onClick={more=false;vm.openExpression(target)})
+                    }
                     if(vm.canSeparate())DropdownMenuItem(text={Text("分离 XYZ")},modifier=Modifier.testTag("separate-dimensions"),enabled=vm.editable(),onClick={more=false;vm.separateDimensions()})
                     DropdownMenuItem(text={Text("父级")},enabled=vm.editable(),onClick={more=false;parenting=true})
                     if(camera) {

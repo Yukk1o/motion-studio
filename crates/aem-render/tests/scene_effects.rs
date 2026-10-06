@@ -76,6 +76,7 @@ fn particles_cull_bounds_keep_offscreen_state_and_are_seek_order_independent() {
 #[test]
 fn partial_sprite_edges_remain_visible_and_camera_moves_project_real_3d() {
     let mut p = project("starfield");
+    p.layers[0].three_d = true;
     let e = &mut p.layers[0].effects[0];
     e.params.get_mut("extent").unwrap().track.value = [0.; 4];
     e.params.get_mut("fade").unwrap().track.value = [0.; 4];
@@ -99,8 +100,10 @@ fn partial_sprite_edges_remain_visible_and_camera_moves_project_real_3d() {
 #[test]
 fn lens_follows_null_pivot_and_alpha_occlusion_obeys_depth_and_transparency() {
     let mut p = project("lens_flare");
+    p.layers[0].three_d = true;
     let mut light = Layer::solid(2, "光源", [1., 1.], [40., 64., 100.], [0.; 4]);
     light.content = aem_core::Content::Null;
+    light.three_d = true;
     p.layers.push(light);
     p.layers[0].effects[0].scene.as_mut().unwrap().source_layer = Some(2);
     let (_, unoccluded) = plan(&p, 0.);
@@ -113,6 +116,7 @@ fn lens_follows_null_pivot_and_alpha_occlusion_obeys_depth_and_transparency() {
         [64., 64., 0.],
         [1.; 4],
     ));
+    p.layers[2].three_d = true;
     let (_, hidden) = plan(&p, 0.);
     assert!(hidden.frame.sprites.is_empty());
     p.layers[2].transform.opacity.value = 0.5;
@@ -137,9 +141,10 @@ fn particle_budget_failure_is_explicit_and_binary_plan_has_bounded_instances() {
         u32::from_ne_bytes(bytes[4..8].try_into().unwrap()),
         PLAN_VERSION
     );
-    let offset = u32::from_ne_bytes(bytes[52..56].try_into().unwrap()) as usize;
+    let offset = u32::from_ne_bytes(bytes[64..68].try_into().unwrap()) as usize;
+    let end = offset + builder.frame.sprites.len()*std::mem::size_of::<aem_render::scene_generator::Sprite>();
     assert_eq!(
-        &bytes[offset..],
+        &bytes[offset..end],
         bytemuck::cast_slice::<_, u8>(&builder.frame.sprites)
     );
     assert!(builder
@@ -162,6 +167,22 @@ fn particle_budget_failure_is_explicit_and_binary_plan_has_bounded_instances() {
     let fallback = builder.build(&scene, &[0], 128, 128, false).unwrap();
     assert_eq!(fallback.diagnostics.len(), 1);
     assert!(fallback.passes.is_empty());
+}
+#[test]
+fn two_dimensional_generators_ignore_camera_motion_and_spatial_depth() {
+    for id in ["starfield", "lens_flare"] {
+        let mut p = project(id);
+        p.camera.created = true;
+        if id == "starfield" {
+            p.layers[0].effects[0].params.get_mut("extent").unwrap().track.value=[80.,80.,0.,0.];
+        }
+        let (_, before)=plan(&p,30.);
+        assert!(!before.frame.sprites.is_empty());
+        p.camera.position.value[0]+=100.;p.camera.target.value[0]+=100.;
+        p.layers[0].transform.position.value[2]=200.;
+        let (_, after)=plan(&p,30.);
+        assert_eq!(before.frame.sprites,after.frame.sprites);
+    }
 }
 #[test]
 fn all_generators_render_on_gpu_and_following_image_effects_execute() {
