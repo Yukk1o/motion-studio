@@ -133,7 +133,7 @@ open class MainActivity:ComponentActivity() {
     val videoSave=rememberLauncherForActivityResult(CreateOutputDocument("video/mp4")){uri->
         vm.completeOutputSelection(uri)
     }
-    BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.panelOpen=false;vm.effectsOpen=false}
+    BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.closeWorkspace()}
     Surface(color=Background,modifier=Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).onGloballyPositioned{editorOrigin=it.positionInRoot()}) {
             val wide=maxWidth>maxHeight
@@ -142,7 +142,7 @@ open class MainActivity:ComponentActivity() {
             val split=wide&&availableWidth>=552.dp
             val sideWidth=if(split)editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.48f).coerceIn(248.dp,320.dp).value,248f,(availableWidth-304.dp).value).dp else 0.dp
-            val effectEditing=vm.panelOpen&&vm.effectsOpen&&vm.selected!=0L
+            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
             val effectWidth=if(split)sideWidth else editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.5f).coerceAtMost(320.dp).value,200f,(availableWidth-256.dp).value).dp
             val dragDensity=LocalDensity.current.density
@@ -153,7 +153,7 @@ open class MainActivity:ComponentActivity() {
             val effectHeight=editorLayout.value("portrait.effects",availableHeight.value,
                 (availableHeight*(if(curveExpanded).52f else .44f)).coerceAtMost(360.dp).coerceAtMost(maxEffectHeight).value,
                 144f,maxEffectHeight.value).dp
-            fun closeEffects(){vm.effectsOpen=false;vm.property="position";vm.panelOpen=false}
+            fun closeEffects(){vm.closeWorkspace();vm.property="position"}
             val defaultTimelineHeight=if(wide)(availableHeight*.3f).coerceAtMost(132.dp)else (availableHeight*.38f).coerceAtMost(300.dp)
             val timelineHeight=editorLayout.value(if(wide)"landscape.timeline"else"portrait.timeline",availableHeight.value,
                 defaultTimelineHeight.value,120f,(availableHeight-244.dp).value).dp
@@ -161,7 +161,7 @@ open class MainActivity:ComponentActivity() {
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.panelOpen)"收起属性" else "工程列表") {
-                        if(layoutEditing)layoutEditing=false else if(vm.panelOpen)vm.panelOpen=false else {vm.refreshProjects();library=true}
+                        if(layoutEditing)layoutEditing=false else if(vm.panelOpen)vm.closeWorkspace() else {vm.refreshProjects();library=true}
                     }
                     Text(if(layoutEditing)"调整布局" else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                     if(layoutEditing)TextButton(onClick={layoutEditing=false},modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
@@ -186,7 +186,10 @@ open class MainActivity:ComponentActivity() {
                         Transport(vm)
                     }
                     Column(Modifier.width(if(effectEditing)effectWidth else sideWidth).fillMaxHeight()) {
-                        if(effectEditing)EffectsPanel(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                        if(effectEditing) {
+                            if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing)
+                            else EffectsPanel(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                        }
                         else {
                             Timeline(vm,Modifier.weight(1f).fillMaxWidth())
                             EditorFooter(vm)
@@ -196,7 +199,10 @@ open class MainActivity:ComponentActivity() {
                     Preview(vm,Modifier.weight(1f).fillMaxWidth().then(previewModifier))
                     Transport(vm)
                     Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)focusedTimelineHeight else timelineHeight),focused=effectEditing)
-                    if(effectEditing)EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                    if(effectEditing) {
+                        if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing)
+                        else EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                    }
                     else EditorFooter(vm)
                 }
                 if(wide&&effectEditing)Timeline(vm,Modifier.fillMaxWidth().height(focusedTimelineHeight),focused=true)
@@ -266,15 +272,15 @@ open class MainActivity:ComponentActivity() {
             "camera"->vm.addCamera()
         }
     })
-    vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,
+    vm.state.error?.takeUnless{it.startsWith("expression ")}?.let{message->AlertDialog(onDismissRequest=vm::clearError,
         title={Text("操作未完成")},text={Text(message)},
         confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}},
         dismissButton={if(vm.pendingOutput!=null&&vm.outputPhase.startsWith("failed"))TextButton(onClick={vm.clearError()
             when(vm.pendingOutputKind){"video"->videoSave.launch("MotionStudio.mp4");"project"->projectSave.launch("MotionStudio.motion");else->pngSave.launch("motion-frame.png")}
         }){Text("重新选择位置")}else if(vm.state.project!=null)TextButton(onClick=vm::retryPreview){Text("重试预览")}})}
     if(textDialog)InputDialog("添加文字","Motion Studio",onDismiss={textDialog=false}){vm.addText(it);textDialog=false}
-    if(videoImport)AlertDialog(onDismissRequest={videoImport=false},title={Text("导入视频")},text={Column{Text("支持 MP4 / H.264，最多 1080p。",color=Muted)
-        Row(verticalAlignment=Alignment.CenterVertically){Checkbox(keepSound,{keepSound=it});Text("保留原声")}}},confirmButton={TextButton(onClick={videoImport=false;videoPicker.launch(arrayOf("video/mp4","application/octet-stream"))}){Text("选择视频")}},dismissButton={TextButton(onClick={videoImport=false}){Text("取消")}})
+    if(videoImport)AlertDialog(onDismissRequest={videoImport=false},title={Text("导入视频")},text={Column{Text("支持 MP4、MOV、MKV、WebM、3GP 等容器，最多 1080p、8 位 SDR。编码支持取决于设备，导入时会检查。",color=Muted)
+        Row(verticalAlignment=Alignment.CenterVertically){Checkbox(keepSound,{keepSound=it});Text("保留原声")}}},confirmButton={TextButton(onClick={videoImport=false;videoPicker.launch(arrayOf("video/*","application/octet-stream"))}){Text("选择视频")}},dismissButton={TextButton(onClick={videoImport=false}){Text("取消")}})
     vm.importTask?.let{task->AlertDialog(onDismissRequest={},title={Text("导入媒体")},text={Column {
         val phase=when(task.optString("phase")){"opening"->"打开文件";"copying"->"保存素材";"probing"->"检查画面";"decoding","decoding_audio"->"解码声音";"waveform"->"生成波形";"awaiting_commit"->"保存片段";else->"准备素材"}
         Text(phase);Spacer(Modifier.height(12.dp));LinearProgressIndicator(progress={task.optDouble("progress").toFloat().coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
@@ -355,6 +361,10 @@ open class MainActivity:ComponentActivity() {
             drawRect(Color(0xFF778291),Offset(left+stroke/2,top+stroke/2),
                 Size((width-stroke).coerceAtLeast(0f),(height-stroke).coerceAtLeast(0f)),
                 style=androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        }
+        vm.state.sample?.optString("renderError")?.takeIf{it.startsWith("expression ")}?.let{message->
+            Text(message,Modifier.align(Alignment.BottomStart).padding(8.dp).background(Panel).padding(8.dp).testTag("expression-render-error"),
+                color=MaterialTheme.colorScheme.error,fontSize=12.sp,maxLines=3,overflow=TextOverflow.Ellipsis)
         }
         Canvas(Modifier.fillMaxSize()) {
             if(!vm.playing&&vm.selected!=0L) {

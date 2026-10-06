@@ -193,7 +193,7 @@ fn generate_inner(
         let forward = (scene.camera.target - scene.camera.eye).normalize();
         let right = forward.cross(Vec3::Y).try_normalize().unwrap_or(Vec3::X);
         // Camera roll is encoded in the VP matrix; recover the actual view-plane basis.
-        let vp = scene.camera.view_projection;
+        let vp = layer.view_projection;
         let row0 = Vec3::new(vp.x_axis.x, vp.y_axis.x, vp.z_axis.x).normalize_or_zero();
         let row1 = Vec3::new(vp.x_axis.y, vp.y_axis.y, vp.z_axis.y).normalize_or_zero();
         let right = if row0.length_squared() > 0. {
@@ -307,7 +307,12 @@ fn generate_inner(
         } else {
             aem_core::to_world(position[..3].try_into().unwrap(), scene.width, scene.height)
         };
-        let clip = scene.camera.view_projection * world.extend(1.);
+        let source_spatial = settings.source_layer.map_or(layer.three_d, |id| scene.node_is_spatial(id).unwrap_or(false));
+        let vp = if source_spatial { scene.camera.view_projection } else {
+            glam::Mat4::orthographic_rh(-(scene.width as f32)*0.5, scene.width as f32*0.5,
+                -(scene.height as f32)*0.5, scene.height as f32*0.5, -1., 1.)
+        };
+        let clip = vp * world.extend(1.);
         if !clip.is_finite() {
             return Err("lens source exceeds numeric range".into());
         }
@@ -328,6 +333,7 @@ fn generate_inner(
                 world,
                 param(e, "occlusion_radius")?[0],
                 alpha,
+                vp,
             )?;
         }
         let scale = param(e, "scale")?[0] / 100.;
@@ -376,8 +382,8 @@ fn visibility(
     light: Vec3,
     radius: f32,
     alpha: &HashMap<u64, AlphaImage>,
+    vp: glam::Mat4,
 ) -> Result<f32, String> {
-    let vp = scene.camera.view_projection;
     let right = Vec3::new(vp.x_axis.x, vp.y_axis.x, vp.z_axis.x).normalize_or_zero();
     let up = Vec3::new(vp.x_axis.y, vp.y_axis.y, vp.z_axis.y).normalize_or_zero();
     let clip = vp * light.extend(1.);
@@ -396,6 +402,9 @@ fn visibility(
         (0.7, 0.7),
     ] {
         let end = light + (right * x + up * y) * world_radius;
+        let end_clip = vp * end.extend(1.);
+        let near = vp.inverse() * glam::Vec4::new(end_clip.x/end_clip.w, end_clip.y/end_clip.w, 0., 1.);
+        let ray_origin = near.truncate()/near.w;
         let mut transmission = 1.;
         for layer in &scene.layers {
             if layer.id == owner
@@ -410,7 +419,7 @@ fn visibility(
                 continue;
             }
             let inv = layer.model.inverse();
-            let origin = inv.transform_point3(scene.camera.eye);
+            let origin = inv.transform_point3(ray_origin);
             let target = inv.transform_point3(end);
             let delta = target - origin;
             if delta.z.abs() < 1e-6 {

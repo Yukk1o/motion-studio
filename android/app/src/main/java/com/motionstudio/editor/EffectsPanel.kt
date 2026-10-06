@@ -74,7 +74,8 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
         JSONObject().put("id",param).put("name",param).put("kind",saved.getString("kind")).put("min",saved.getDouble("min")).put("max",saved.getDouble("max"))
     }
     fun back() {
-        if(curveMode)curveMode=false
+        if(vm.pluginEditor.session!=null||vm.pluginEditor.loading)vm.pluginEditor.close()
+        else if(curveMode)curveMode=false
         else {instanceId=null;add=false;vm.property="position"}
     }
     BackHandler(enabled=backEnabled&&(current!=null||add)){back()}
@@ -86,11 +87,13 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
         Column(Modifier.fillMaxSize().padding(horizontal=8.dp).testTag("effects-panel")) {
             Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
                 if(current!=null||add)Tool(Icons.Default.ArrowBack,if(curveMode)"返回效果参数"else"返回效果列表",action=::back)
-                Text(when{add->"添加效果";curveMode->"参数缓动";current!=null->effectLabel(vm,current);else->"效果 · "+objectName(vm,objectId)},Modifier.weight(1f),color=Ink,fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                Text(when{vm.pluginEditor.session!=null->"专用编辑器";add->"添加效果";curveMode->"参数缓动";current!=null->effectLabel(vm,current);else->"效果 · "+objectName(vm,objectId)},Modifier.weight(1f),color=Ink,fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                 if(current==null&&!add)TextButton(onClick={add=true},enabled=vm.editable(),modifier=Modifier.height(48.dp).testTag("effects-add")){Text("添加")}
                 if(current!=null)Box {
                     Tool(Icons.Default.MoreHoriz,"效果详情与版本"){details=true}
                     DropdownMenu(details,{details=false}) {
+                        if(definition?.optJSONObject("editor")!=null)DropdownMenuItem(text={Text("专用编辑器")},modifier=Modifier.testTag("open-plugin-editor"),onClick={details=false;vm.openPluginEditor(current.getLong("id"))})
+                        vm.expressionTargetForCurrent()?.let{target->DropdownMenuItem(text={Text("当前参数表达式")},modifier=Modifier.testTag("open-effect-expression"),onClick={details=false;vm.openExpression(target)})}
                         DropdownMenuItem(text={Text("效果说明 · "+current.getString("version"))},onClick={details=false;information=true})
                         effectPackages(vm).filter{it.optBoolean("enabled")&&it.getJSONObject("manifest").getString("id")==current.getString("plugin")}.forEach{pkg->
                             val version=pkg.getJSONObject("manifest").getString("version")
@@ -101,7 +104,11 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                 }
                 Tool(Icons.Default.Close,"关闭效果",action=onDismiss)
             }
-            if(add)EffectCatalogue(vm,Modifier.weight(1f),onChoose={pkg,e->
+            if(vm.pluginEditor.session!=null) {
+                val session=vm.pluginEditor.session!!
+                key(session.token){PluginEditorView(vm.pluginEditor,session,Modifier.weight(1f).fillMaxWidth().testTag("plugin-editor-webview"))}
+            }else if(vm.pluginEditor.loading)Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center){CircularProgressIndicator(color=Accent)}
+            else if(add)EffectCatalogue(vm,Modifier.weight(1f),onChoose={pkg,e->
                 val m=pkg.getJSONObject("manifest")
                 vm.pluginOperation(JSONObject().put("op","add").put("object",objectId).put("plugin",m.getString("id")).put("version",m.getString("version"))
                     .put("hash",pkg.getString("hash")).put("effect",e.getString("id")),true);add=false
@@ -135,6 +142,8 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
             }else if(curveMode) {
                 CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())
             }else {
+                vm.pluginEditor.error?.let{Text(it,color=MaterialTheme.colorScheme.error,fontSize=12.sp)}
+                if(definition?.optJSONObject("editor")!=null)TextButton(onClick={vm.openPluginEditor(current.getLong("id"))},modifier=Modifier.height(48.dp).testTag("plugin-editor-open")){Text("打开专用编辑器")}
                 target?.second?.takeIf{it in ordered}?.let{param->EffectControls(vm,descriptor(param),params!!.getJSONObject(param)){curveMode=true}}
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).testTag("effect-parameters")) {
                     ordered.forEach{paramId->

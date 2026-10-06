@@ -257,16 +257,15 @@ impl Scene {
     }
     pub fn project_node(&self, id: u64) -> Option<[f32; 3]> {
         let point = self.node_position(id)?;
-        let spatial = self
-            .node_ids
-            .iter()
-            .position(|v| *v == id)
-            .map_or(false, |i| self.node_spatial[i]);
+        let spatial = self.node_is_spatial(id)?;
         Some(if spatial {
             self.project_point(point)
         } else {
             [point[0], point[1], 0.5]
         })
+    }
+    pub fn node_is_spatial(&self, id: u64) -> Option<bool> {
+        self.node_ids.iter().position(|v| *v == id).map(|i| self.node_spatial[i])
     }
     /// Bounds picking ordered at this exact pixel, rather than by layer centre.
     /// Texture alpha is deliberately not read back; transparent bounds remain selectable.

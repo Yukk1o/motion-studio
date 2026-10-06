@@ -495,10 +495,9 @@ impl Renderer {
                 },
             ],
         });
-        self.effect_gpu
-            .builder
-            .set_alpha(id, width, height, rgba)
-            .map_err(RenderError::Invalid)?;
+        if let TextureKey::Static(asset) = id {
+            self.effect_gpu.builder.set_alpha(asset, width, height, rgba).map_err(RenderError::Invalid)?;
+        }
         self.images.insert(
             id,
             GpuImage {
@@ -554,7 +553,7 @@ impl Renderer {
             })
             .collect();
         for id in remove {
-            self.effect_gpu.builder.alpha_images.remove(&id);
+            if let TextureKey::Static(asset) = id { self.effect_gpu.builder.alpha_images.remove(&asset); }
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
             if let TextureKey::Static(asset) = id { self.asset_order.retain(|v| *v != asset); }
             self.effect_gpu.invalidate();
