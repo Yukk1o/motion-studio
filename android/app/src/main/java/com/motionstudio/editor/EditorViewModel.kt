@@ -46,7 +46,11 @@ private fun activeProjectDirectory(app:Application):File {
 }
 
 class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null,initialProjectJson:String="") : AndroidViewModel(app) {
+    internal val layoutPreferences=app.getSharedPreferences("motion-studio-layout"+
+        (if(projectDirectory==null)""else"-"+projectDirectory.canonicalPath.hashCode()),0)
     var state by mutableStateOf(StudioState()); private set
+    var expressionTarget by mutableStateOf<JSONObject?>(null); private set
+    private var shownRenderError:String?=null
     var frame by mutableDoubleStateOf(0.0); private set
     var playing by mutableStateOf(false); private set
     var selected by mutableLongStateOf(0L)
@@ -61,6 +65,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private var pendingMedia:String?=null
     private var preparedRoot:File?=null
     private val mediaGeneration=AtomicLong()
+    private val projectGeneration=AtomicLong()
     private val playGeneration=AtomicLong()
     private val audioPlayer=AudioPlayback {message->main.post{pause();fail(message)}}
     var timelineScale by mutableFloatStateOf(1.5f)
@@ -87,8 +92,17 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private val workerThread = HandlerThread("motion-render").apply { start() }
     private val worker = Handler(workerThread.looper)
     private val main = Handler(app.mainLooper)
+    private class GestureUpdates {
+        val pending=LinkedHashMap<String,String>()
+        var queued=false
+        fun take():List<String> = synchronized(this){pending.values.toList().also{pending.clear()}}
+    }
+    private var gestureUpdates:GestureUpdates?=null
     private var id = 0L
     private val closed = AtomicBoolean(false)
+    internal val pluginEditor=PluginEditorHost(worker,main,{id},{closed.get()}) {save->
+        publish(if(save)NativeBridge.save(id)else NativeBridge.state(id),if(save)true else null)
+    }
     private val queued = AtomicBoolean(false)
     private val surfaceReady = AtomicBoolean(false)
     private val surfaceRequest=AtomicLong()
@@ -102,6 +116,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private var startFrame = 0.0
     private var nextPreviewNanos=0L
     private var lastPreviewInfoNanos=0L
+    // Owned by the render worker. Let an asynchronous video request finish
+    // before advancing its target; changing it every tick cancels decoding.
+    private var pendingPlaybackFrame:Double?=null
+    private var pendingPlaybackGeneration=-1L
     private val thermalMonitor=app.getSystemService(PowerManager::class.java)
     private var thermalStatus=thermalMonitor.currentThermalStatus
     private val thermalListener=PowerManager.OnThermalStatusChangedListener {status->thermalStatus=status;applyPreviewMode()}
@@ -117,15 +135,28 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             if (due && foreground.get() && dirty.get() && surfaceReady.get() && queued.compareAndSet(false,true)) {
                 dirty.set(false)
                 val target=frame
+                val playback=playing
+                val playbackGeneration=playGeneration.get()
                 nextPreviewNanos=time+1_000_000_000L/(previewInfo?.optInt("fps",60)?:60)
                 val refreshPreview=time-lastPreviewInfoNanos>=1_000_000_000L
                 if(refreshPreview)lastPreviewInfoNanos=time
                 worker.post {
                     try {
-                        if(id!=0L && foreground.get() && surfaceReady.get() && !NativeBridge.render(id,target)) {
-                        val envelope=JSONObject(NativeBridge.state(id))
-                        val error=envelope.optJSONObject("data")?.optString("renderError","")?.takeIf{it!="null"&&it.isNotBlank()}
-                        if(error!=null){surfaceReady.set(false);main.post{lastGpuFailure=error};fail("预览暂不可用，请重试预览。工程数据已保留。")}else dirty.set(true)
+                        if(playback&&playbackGeneration!=playGeneration.get()) {
+                            pendingPlaybackFrame=null;dirty.set(true);return@post
+                        }
+                        if(!playback||pendingPlaybackGeneration!=playbackGeneration)pendingPlaybackFrame=null
+                        if(id!=0L && foreground.get() && surfaceReady.get()) {
+                            val renderTarget=if(playback)pendingPlaybackFrame?:target else target
+                            val rendered=NativeBridge.render(id,renderTarget)
+                            pendingPlaybackGeneration=playbackGeneration
+                            pendingPlaybackFrame=if(playback&&!rendered)renderTarget else null
+                            if(!rendered) {
+                                val envelope=JSONObject(NativeBridge.state(id))
+                                val error=envelope.optJSONObject("data")?.optString("renderError","")?.takeIf{it!="null"&&it.isNotBlank()}
+                                if(error?.startsWith("expression ")==true)publish(envelope.toString(),repaint=false)
+                                else if(error!=null){surfaceReady.set(false);main.post{lastGpuFailure=error};fail("预览暂不可用，请重试预览。工程数据已保留。")}else dirty.set(true)
+                            }
                         }
                         if(refreshPreview&&id!=0L)updatePreviewInfo(NativeBridge.previewInfo(id))
                     }
@@ -207,22 +238,31 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private fun publish(raw:String,saved:Boolean?=null,repaint:Boolean=true,surfaceGeneration:Long?=null) {
         try {
             val r=JSONObject(raw)
-            if(!r.optBoolean("ok")) {fail(r.optString("error","操作失败"),surfaceGeneration);return}
+            if(!r.optBoolean("ok")) {
+                val error=r.optString("error","操作失败")
+                if(error.startsWith("expression ")&&id!=0L)publish(NativeBridge.state(id),saved,repaint=false,surfaceGeneration=surfaceGeneration)
+                else fail(error,surfaceGeneration)
+                return
+            }
             val d=r.getJSONObject("data")
+            if(pluginEditor.session!=null)pluginEditor.refresh()
             main.post {
                 if(!closed.get()&&(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())) {
                     val selectedExisted=selected!=0L&&layer(selected)!=null
                     val savedState=saved?:if(state.sample!=null&&state.sample!!.optLong("revision")!=d.optLong("revision"))false else state.saved
+                    val renderError=if(d.isNull("renderError"))null else d.optString("renderError")
+                    val nextError=renderError?:state.error.takeUnless{it==shownRenderError}
+                    shownRenderError=renderError
                     state=StudioState(d.getJSONObject("project"),d,d.optBoolean("canUndo"),
                         d.optBoolean("canRedo"),d.optBoolean("observing"),
-                        if(d.isNull("renderError"))state.error else d.optString("renderError"),false,savedState)
+                        nextError,false,savedState)
                     d.optJSONObject("edit_result")?.takeIf{it.optString("op")=="split_layer_clip"}?.let {
                         if(selected==it.optLong("left_object"))selected=it.getLong("right_object")
                     }
-                    if(selectedExisted&&selected!=0L&&layer(selected)==null){selected=0L;panelOpen=false}
+                    if(selectedExisted&&selected!=0L&&layer(selected)==null){selected=0L;panelOpen=false;expressionTarget=null;pluginEditor.close()}
                     if(d.has("root")) {
                         val nextRoot=File(d.getString("root"))
-                        if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false;effectsOpen=false}
+                        if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false;effectsOpen=false;expressionTarget=null}
                         root=nextRoot
                         if(persistProjectSelection)getApplication<Application>().getSharedPreferences("motion-studio",0)
                             .edit().putString("activeProject",root.name).apply()
@@ -235,7 +275,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }
         } catch(e:Throwable){fail(e.message?:"状态读取失败")}
     }
-    private fun invoke(save:Boolean=false,repaint:Boolean=true,operation:()->String) {
+    private fun invoke(save:Boolean=false,repaint:Boolean=true,onComplete:(()->Unit)?=null,operation:()->String) {
         if(closed.get())return
         worker.post {
             if(id==0L||closed.get())return@post
@@ -249,7 +289,34 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 }
                 else publish(result,repaint=repaint)
             } catch(e:Throwable){fail(e.message?:"操作失败")}
+            finally {if(onComplete!=null)main.post{if(!closed.get())onComplete()}}
         }
+    }
+    /** Only absolute assignments can replace earlier updates in one gesture. */
+    private fun gestureKey(command:JSONObject):String? {
+        val op=command.optString("op")
+        if(op=="effect") {
+            val action=command.getJSONObject("action")
+            if(action.optString("kind") !in listOf("set","curve","set_curve_object"))return null
+            return "effect:${command.getLong("object")}:${action.getLong("effect")}:${action.getString("param")}:${action.optInt("frame")}:${action.getString("kind")}"
+        }
+        if(op !in listOf("set_vector","set_scalar","set_component","set_audio"))return null
+        return "$op:${command.getLong("object")}:${command.optString("property")}:${command.optString("axis")}:${command.optInt("frame")}:${command.has("volume")}:${command.has("muted")}"
+    }
+    private fun queueGesture(commands:List<JSONObject>):Boolean {
+        val updates=gestureUpdates?:return false
+        val keys=commands.map{gestureKey(it)?:return false}
+        val schedule=synchronized(updates) {
+            commands.forEachIndexed{i,command->updates.pending[keys[i]]=command.toString()}
+            if(updates.queued)false else {updates.queued=true;true}
+        }
+        if(schedule)worker.post {
+            val pending=synchronized(updates){updates.queued=false;updates.take()}
+            if(pending.isNotEmpty()&&id!=0L&&!closed.get())try {
+                publish(NativeBridge.command(id,JSONArray(pending.map{JSONObject(it)}).toString()))
+            }catch(e:Throwable){fail(e.message?:"参数更新失败")}
+        }
+        return true
     }
     fun attach(surface:Surface,width:Int,height:Int) {
         currentSurface=surface;surfaceWidth=width;surfaceHeight=height
@@ -322,7 +389,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun openProject(directory:String) {
-        pause();cancelMediaImport();state=state.copy(busy=true,error=null)
+        projectGeneration.incrementAndGet()
+        closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true,error=null)
         worker.post {
             try {
                 if(id==0L) {
@@ -340,6 +408,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun togglePlay() {
+        if(pluginEditor.gesture)return
         if(playing)pause() else if(state.project!=null) {
             val p=state.project!!
             val hasSound=p.optJSONArray("layers").objects().any{audioClip(it.getLong("id"))!=null}
@@ -356,6 +425,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun seek(value:Double) {
+        if(pluginEditor.gesture)return
         if(!value.isFinite()){fail("帧位置无效");return}
         pause();val p=state.project?:return
         frame=value.coerceIn(0.0,p.getInt("frames")-1.0)
@@ -365,13 +435,15 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun select(objectId:Long,openEditor:Boolean=true) {
         pause()
         if(selected!=objectId) {
+            pluginEditor.close()
+            expressionTarget=null
             effectsOpen=false
             selected=objectId
             property=if(objectId==0L&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else "position"
         }
         if(openEditor)panelOpen=true
     }
-    fun openProperty(key:String) {effectsOpen=false;
+    fun openProperty(key:String) {pluginEditor.close();expressionTarget=null;effectsOpen=false;
         pause()
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
@@ -379,14 +451,32 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun hasCamera()=state.project?.optJSONObject("camera")?.optBoolean("created",true)==true
     fun editable():Boolean=if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false
     fun edit(command:JSONObject,save:Boolean=true) {
-        pause();val routed=routeEffectCommand(command);invoke(save){NativeBridge.command(id,routed.toString())}
+        if(pluginEditor.gesture)return
+        if(command.optString("op") in listOf("remove","flags","camera_mode","set_layer_3d"))pluginEditor.close()
+        pause();val routed=routeEffectCommand(command)
+        if(!save&&queueGesture(listOf(routed)))return
+        invoke(save){NativeBridge.command(id,routed.toString())}
     }
-    fun editBatch(commands:JSONArray,save:Boolean=true) {pause();val routed=JSONArray(commands.objects().map(::routeEffectCommand));invoke(save){NativeBridge.command(id,routed.toString())}}
-    fun undo() {pause();invoke(true){NativeBridge.history(id,0)}}
-    fun redo() {pause();invoke(true){NativeBridge.history(id,1)}}
-    fun beginGesture() {pause();invoke{NativeBridge.history(id,2)}}
-    fun endGesture() {invoke(true){NativeBridge.history(id,3)}}
-    fun cancelGesture() {invoke{NativeBridge.history(id,4)}}
+    fun editBatch(commands:JSONArray,save:Boolean=true) {
+        if(pluginEditor.gesture)return
+        pause();val routed=commands.objects().map(::routeEffectCommand)
+        if(!save&&queueGesture(routed))return
+        invoke(save){NativeBridge.command(id,JSONArray(routed).toString())}
+    }
+    fun undo() {if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,0)}}
+    fun redo() {if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,1)}}
+    fun beginGesture() {pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{NativeBridge.history(id,2)}}
+    fun endGesture(onComplete:()->Unit={}) {
+        val pending=gestureUpdates?.take().orEmpty();gestureUpdates=null
+        invoke(true,onComplete=onComplete) {
+            if(pending.isNotEmpty()) {
+                val result=NativeBridge.command(id,JSONArray(pending.map{JSONObject(it)}).toString())
+                if(!JSONObject(result).optBoolean("ok")){NativeBridge.history(id,4);return@invoke result}
+            }
+            NativeBridge.history(id,3)
+        }
+    }
+    fun cancelGesture() {gestureUpdates?.take();gestureUpdates=null;invoke{NativeBridge.history(id,4)}}
     fun moveLayer(dx:Float,dy:Float,width:Int,height:Int) {
         val objectId=selected
         if(objectId==0L)return
@@ -683,7 +773,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun newProject(width:Int,height:Int,fps:Int=30) {
-        pause();cancelMediaImport();state=state.copy(busy=true,error=null)
+        projectGeneration.incrementAndGet()
+        closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true,error=null)
         val target=JSONArray(listOf(width/2f,height/2f,0))
         val distance=height/(2*tan(Math.toRadians(22.5)))
         val camera=JSONObject().put("created",false).put("mode","position").put("position",channel(JSONArray(listOf(width/2f,height/2f,-distance))))
@@ -708,7 +799,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun importProject(uri:Uri) {
-        pause();cancelMediaImport();state=state.copy(busy=true)
+        projectGeneration.incrementAndGet()
+        closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true)
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val file=File(root.parentFile,"incoming-"+UUID.randomUUID()+".motion")
@@ -795,14 +887,53 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun refreshCatalogue(){worker.post{try{readCatalogue()}catch(e:Throwable){fail(e.message?:"效果目录读取失败")}}}
     fun pluginOperation(request:JSONObject,save:Boolean=false) {
-        pause();worker.post {try {
+        pluginEditor.close();pause();worker.post {try {
             val raw=NativeBridge.plugin(id,request.toString())
             nativeData(raw)
             if(save)publish(NativeBridge.save(id),true)else publish(raw)
             readCatalogue()
         }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
     }
-    fun openEffects(){pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun closeWorkspace(){expressionTarget=null;pluginEditor.close();effectsOpen=false;panelOpen=false}
+    fun openEffects(){pluginEditor.close();expressionTarget=null;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun openPluginEditor(instance:Long){pause();expressionTarget=null;pluginEditor.open(selected,instance)}
+    fun expressionTargetForCurrent(axis:Int?=null):JSONObject? {
+        if(state.sample?.optJSONObject("capabilities")?.optJSONObject("property_expressions")?.optBoolean("supported")!=true)return null
+        val effect=effectTarget(property)
+        if(effect!=null) {
+            val param=effectParam(selected,effect.first,effect.second)?:return null
+            if(!param.optBoolean("implemented",true)||!param.optBoolean("animatable",true)||param.optString("kind") !in listOf("float","vec2","vec3","color"))return null
+            return JSONObject().put("kind","effect").put("object",selected).put("effect",effect.first).put("param",effect.second)
+        }
+        if(property !in listOf("position","rotation","scale","opacity","target","fov","roll","radius","azimuth","elevation"))return null
+        return JSONObject().put("kind","property").put("object",selected).put("property",property).apply{
+            axis?.takeIf{sampleValue() is JSONArray&&it in 0..2}?.let{put("axis",listOf("x","y","z")[it])}
+        }
+    }
+    fun expressionFor(target:JSONObject):JSONObject?=state.project?.optJSONArray("expressions").objects().firstOrNull{expression->
+        val saved=expression.getJSONObject("target")
+        listOf("kind","object","property","axis","effect","param").all{saved.optString(it,"")==target.optString(it,"")}
+    }
+    fun openExpression(target:JSONObject) {pluginEditor.close();pause();expressionTarget=JSONObject(target.toString());panelOpen=true}
+    fun closeExpression(){expressionTarget=null}
+    fun saveExpression(target:JSONObject,source:String,enabled:Boolean,seed:Long,callback:(String?)->Unit) {
+        val profile=state.sample?.optJSONObject("capabilities")?.optJSONObject("property_expressions")?.optString("profile")?:return
+        expressionCommand(JSONObject().put("op","set_expression").put("frame",floor(frame).toInt())
+            .put("expression",JSONObject().put("target",target).put("source",source).put("enabled",enabled).put("seed",seed).put("profile",profile)),callback)
+    }
+    fun removeExpression(target:JSONObject,callback:(String?)->Unit)=expressionCommand(JSONObject().put("op","remove_expression").put("target",target),callback)
+    private fun expressionCommand(command:JSONObject,callback:(String?)->Unit) {
+        pause();val request=command.toString();val requestRoot=root;val generation=projectGeneration.get()
+        worker.post {
+            val error=runCatching {
+                check(id!=0L&&!closed.get()){"工程已关闭"}
+                check(root==requestRoot&&generation==projectGeneration.get()){"工程已切换"}
+                nativeData(NativeBridge.command(id,request))
+                publish(NativeBridge.save(id),true)
+            }.exceptionOrNull()?.message
+            main.post{if(!closed.get()&&root==requestRoot&&generation==projectGeneration.get())callback(error)}
+        }
+    }
     fun chooseEffectParam(instance:Long,param:String){pause();property="effect:$instance:$param"}
     fun installPlugin(uri:Uri) {
         pause();state=state.copy(busy=true);val sourceRoot=root
@@ -914,6 +1045,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun cancelExport() {exporter?.cancelled?.set(true)}
     override fun onCleared() {
+        pluginEditor.close()
         closed.set(true);playing=false
         audioPlayer.close();mediaGeneration.incrementAndGet()
         exporter?.cancelled?.set(true)

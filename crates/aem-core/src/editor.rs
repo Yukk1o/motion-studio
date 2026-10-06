@@ -41,6 +41,13 @@ pub enum Command {
         object: u64,
         enabled: bool,
     },
+    SetExpression {
+        expression: crate::PropertyExpression,
+        frame: u32,
+    },
+    RemoveExpression {
+        target: crate::ExpressionTarget,
+    },
     Effect {
         object: u64,
         action: crate::EffectAction,
@@ -369,9 +376,69 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             }
             layer.three_d = enabled;
         }
+        Command::SetExpression { expression, frame } => {
+            crate::expressions::set(project, expression, frame)?
+        }
+        Command::RemoveExpression { target } => {
+            if target.object() != 0 {
+                ensure(
+                    !project.layer_mut(target.object())?.locked,
+                    "object is locked",
+                )?;
+            }
+            ensure(
+                project.expressions.iter().any(|e| e.target == target),
+                "expression does not exist",
+            )?;
+            project.expressions.retain(|e| e.target != target);
+        }
         Command::Effect { object, action } => {
+            let copy = if let crate::EffectAction::Duplicate { effect } = &action {
+                Some(*effect)
+            } else {
+                None
+            };
             let frames = project.frames;
             crate::effects::apply(project.layer_mut(object)?, action, frames)?;
+            if project
+                .layers
+                .iter()
+                .any(|l| l.effects.iter().any(|e| e.scene.is_some()))
+            {
+                project.version = 4;
+            }
+            if let Some(from) = copy {
+                let to = project.layer_mut(object)?.effects.last().unwrap().id;
+                let copies: Vec<_> = project
+                    .expressions
+                    .iter()
+                    .filter_map(|e| {
+                        if let crate::ExpressionTarget::Effect {
+                            object: o, effect, ..
+                        } = &e.target
+                        {
+                            if *o == object && *effect == from {
+                                let mut e = e.clone();
+                                if let crate::ExpressionTarget::Effect { effect, .. } =
+                                    &mut e.target
+                                {
+                                    *effect = to;
+                                }
+                                return Some(e);
+                            }
+                        }
+                        None
+                    })
+                    .collect();
+                project.expressions.extend(copies);
+            }
+            let ids: Vec<_> = project
+                .layer_mut(object)?
+                .effects
+                .iter()
+                .map(|e| e.id)
+                .collect();
+            project.expressions.retain(|e|!matches!(&e.target,crate::ExpressionTarget::Effect {object:o,effect,..} if *o==object && !ids.contains(effect)));
         }
         Command::SeparateDimensions { object, property } => {
             match channel(project, object, property)? {
@@ -467,6 +534,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 ..clip
             });
             project.layers.insert(index + 1, right);
+            crate::expressions::copy_layer(project, object, right_object);
             result = Some(EditResult::SplitLayerClip {
                 left_object: object,
                 right_object,
@@ -616,6 +684,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             } else {
                 project.layers.retain(|l| l.id != object);
             }
+            project.expressions.retain(|e| e.target.object() != object);
         }
         Command::Parent {
             object,
@@ -630,6 +699,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 return Err(Error::Locked(object));
             }
             project.layers.retain(|l| l.id != object);
+            project.expressions.retain(|e| e.target.object() != object);
         }
         Command::Duplicate { object } => {
             let mut layer = project.layer_mut(object)?.clone();
@@ -643,7 +713,9 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 .ok_or_else(|| Error::Invalid("layer ID space exhausted".into()))?;
             layer.name = format!("{} 副本", layer.name);
             layer.locked = false;
+            let new_object = layer.id;
             project.layers.push(layer);
+            crate::expressions::copy_layer(project, object, new_object);
         }
         Command::Rename { object, name } => project.layer_mut(object)?.name = name,
         Command::Flags {

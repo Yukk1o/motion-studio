@@ -1,4 +1,4 @@
-use crate::{cache_path, contained_dir, decode, Result};
+use crate::{cache_path, contained_dir, DecodeAudio, Result};
 use aem_core::{AudioAsset, AudioClip, Command, Content, Engine, Layer, LayerTimeline};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -97,6 +97,7 @@ struct Task {
 pub struct AudioJobs {
     root: PathBuf,
     limits: Limits,
+    decode: DecodeAudio,
     tasks: Mutex<HashMap<String, Arc<Mutex<Task>>>>,
 }
 struct Worker;
@@ -107,6 +108,10 @@ impl Drop for Worker {
 }
 impl AudioJobs {
     pub fn new(root: PathBuf, limits: Limits) -> Result<Self> {
+        Self::with_decoder(root, limits, Arc::new(crate::decode_audio))
+    }
+    /// Platform adapters use the same transactions, cancellation and cache rebuild path.
+    pub fn with_decoder(root: PathBuf, limits: Limits, decode: DecodeAudio) -> Result<Self> {
         if limits.source_bytes == 0
             || limits.source_bytes > aem_core::storage::MAX_MEDIA_ASSET
             || limits.cache_bytes == 0
@@ -116,6 +121,7 @@ impl AudioJobs {
         Ok(Self {
             root: root.canonicalize().map_err(|e| e.to_string())?,
             limits,
+            decode,
             tasks: Mutex::new(HashMap::new()),
         })
     }
@@ -246,6 +252,7 @@ impl AudioJobs {
         )?;
         let root = self.root.clone();
         let limits = self.limits;
+        let decode = self.decode.clone();
         let initial = task.lock().unwrap().status.clone();
         let spawn_task = task.clone();
         let spawn = std::thread::Builder::new()
@@ -299,12 +306,12 @@ impl AudioJobs {
                         drop(reader);
                         let pcm = stage.path.join("decoded.pcm");
                         let mut last_space = Instant::now();
-                        let asset = decode::decode(
+                        let asset = decode(
                             &source,
                             &pcm,
                             options.track,
                             limits.cache_bytes,
-                            |progress| {
+                            &mut |progress| {
                                 update(&spawn_task, "decoding", progress)?;
                                 if last_space.elapsed() >= Duration::from_millis(100) {
                                     last_space = Instant::now();
@@ -428,11 +435,7 @@ impl AudioJobs {
                 .to_str()
                 .unwrap()
                 .trim_start_matches('.');
-            let ext = match prepared.asset.mime.as_str() {
-                "audio/mp4" => "m4a",
-                "audio/mpeg" => "mp3",
-                _ => "wav",
-            };
+            let ext = crate::source_extension(&prepared.stage.path.join("source"))?;
             prepared.asset.id = asset_id;
             prepared.asset.path = format!("assets/audio-{stem}.{ext}");
             contained_dir(&self.root, &self.root.join("assets"))?;
@@ -490,6 +493,7 @@ impl AudioJobs {
         let initial = task.lock().unwrap().status.clone();
         let root = self.root.clone();
         let limit = self.limits.cache_bytes;
+        let decode = self.decode.clone();
         let spawn_task = task.clone();
         let spawn = std::thread::Builder::new()
             .name("motion-audio-cache".into())
@@ -508,7 +512,7 @@ impl AudioJobs {
                         }
                         let mut last_space = Instant::now();
                         let decoded =
-                            decode::decode(&source, &pcm, Some(asset.track), limit, |progress| {
+                            decode(&source, &pcm, Some(asset.track), limit, &mut |progress| {
                                 update(&spawn_task, "decoding", progress)?;
                                 if last_space.elapsed() >= Duration::from_millis(100) {
                                     last_space = Instant::now();

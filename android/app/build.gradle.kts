@@ -17,7 +17,7 @@ android {
     }
     buildFeatures { compose = true }
     sourceSets.getByName("androidTest").assets.srcDir("../../crates/aem-media/tests/fixtures")
-    androidResources { noCompress += listOf("wav", "mp3", "m4a", "mp4", "bin") }
+    androidResources { noCompress += listOf("wav", "mp3", "m4a", "mp4", "bin", "mov", "mkv", "webm", "flac", "ogg", "aac", "aiff") }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -52,6 +52,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
