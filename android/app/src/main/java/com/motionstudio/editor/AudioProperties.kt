@@ -40,7 +40,7 @@ import kotlin.math.*
             }}
         }
         Text("长按时间轴片段移动；拖动两端裁剪。",color=Muted,fontSize=12.sp,lineHeight=18.sp)
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){TextButton(onClick=vm::undo,enabled=vm.state.canUndo,modifier=Modifier.height(48.dp)){Text("撤销")};TextButton(onClick=vm::splitClip,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("当前帧分割")};TextButton(onClick=vm::duplicate,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("复制")}}
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){TextButton(onClick=vm::undo,enabled=vm.state.canUndo,modifier=Modifier.height(48.dp)){Text("撤销")};TextButton(onClick=vm::splitClip,enabled=vm.canSplitClip(),modifier=Modifier.height(48.dp)){Text("当前帧分割")};TextButton(onClick=vm::duplicate,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("创建副本")}}
     }
     DisposableEffect(objectId){onDispose{if(dragging)vm.cancelGesture()}}
 }

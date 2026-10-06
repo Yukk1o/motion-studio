@@ -335,7 +335,7 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                 TextButton(enabled=!row.locked,onClick={vm.reorder(1);contextRow=null}){Text("上移图层")}
                 TextButton(enabled=!row.locked,onClick={vm.reorder(-1);contextRow=null}){Text("下移图层")}
             }
-            TextButton(onClick={vm.duplicate();contextRow=null}){Text("复制图层")}
+            TextButton(onClick={vm.duplicate();contextRow=null}){Text("创建副本")}
             TextButton(onClick={vm.flags(row.id,row.visible,!row.locked);contextRow=null}){Text(if(row.locked)"解锁图层"else"锁定图层")}
             TextButton(enabled=!row.locked,onClick={vm.deleteLayer();contextRow=null}){Text("删除图层")}
         }

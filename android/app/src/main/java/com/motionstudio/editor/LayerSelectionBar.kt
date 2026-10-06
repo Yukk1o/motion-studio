@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.sp
                 val hidden=layers.all{!it.getBoolean("visible")};val locked=layers.all{it.getBoolean("locked")}
                 DropdownMenuItem(text={Text(if(hidden)"显示所选"else"隐藏所选")},modifier=Modifier.testTag("selected-visibility"),onClick={more=false;vm.selectedFlags(visible=hidden)})
                 DropdownMenuItem(text={Text(if(locked)"解锁所选"else"锁定所选")},modifier=Modifier.testTag("selected-lock"),onClick={more=false;vm.selectedFlags(locked=!locked)})
-                DropdownMenuItem(text={Text("复制所选")},enabled=editable,modifier=Modifier.testTag("selected-duplicate"),onClick={more=false;vm.duplicateSelectedLayers()})
+                DropdownMenuItem(text={Text("创建所选副本")},enabled=editable,modifier=Modifier.testTag("selected-duplicate"),onClick={more=false;vm.duplicateSelectedLayers()})
                 DropdownMenuItem(text={Text("移动所选片段")},enabled=vm.selectedClipDeltaRange()!=null,modifier=Modifier.testTag("selected-move"),onClick={more=false;moving=true})
                 DropdownMenuItem(text={Text("删除所选")},enabled=editable,modifier=Modifier.testTag("selected-delete"),onClick={more=false;deleting=true})
                 if(!editable)DropdownMenuItem(text={Text("含锁定图层，解锁后可编辑",fontSize=12.sp)},enabled=false,onClick={})

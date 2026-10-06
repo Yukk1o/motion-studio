@@ -71,6 +71,19 @@ class EditorInertiaTest {
         assertEquals(2999.0,vm.frame,0.0)
         assertNull(vm.state.error)
     }
+    @Test fun accessibleCategoryActivationStopsTimelineInertia() {
+        compose.mainClock.autoAdvance=false
+        compose.onNodeWithTag("timeline").performTouchInput {
+            down(Offset(center.x,28*density));moveBy(Offset(-30*density,0f),40);moveBy(Offset(-30*density,0f),40);up()
+        }
+        val released=vm.frame
+        compose.mainClock.advanceTimeBy(80)
+        assertTrue(vm.frame>released)
+        compose.onNodeWithTag("footer-transform").performClick()
+        val stopped=vm.frame
+        compose.mainClock.advanceTimeBy(500)
+        assertEquals(stopped,vm.frame,0.0);assertTrue(vm.panelOpen);assertNull(vm.state.error)
+    }
     private fun timelinePixels():List<Int> {
         val pixels=compose.onNodeWithTag("timeline").captureToImage().toPixelMap()
         return buildList {for(y in (44*density).toInt() until pixels.height step 3)for(x in 0 until pixels.width step 5)add(pixels[x,y].hashCode())}
