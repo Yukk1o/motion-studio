@@ -1,5 +1,5 @@
 //! Pixel handoff and independent export readers; no frontend or activity code.
-use super::video_decode::DecodedFrame;
+use crate::video_frame::DecodedFrame;
 use super::video_frames::VideoFrames;
 use super::*;
 use std::sync::Arc;
@@ -46,17 +46,19 @@ fn copy_frame(
     let capacity = env
         .get_direct_buffer_capacity(buffer)
         .map_err(|e| e.to_string())?;
-    if address.is_null() || capacity < frame.rgba.len() {
+    let required = frame.width as usize * frame.height as usize * 4;
+    if address.is_null() || capacity < required {
         return Err(format!(
             "video requires a direct buffer with {} bytes",
-            frame.rgba.len()
+            required
         ));
     }
+    let pixels = frame.rgba()?;
     unsafe {
-        std::ptr::copy_nonoverlapping(frame.rgba.as_ptr(), address, frame.rgba.len());
+        std::ptr::copy_nonoverlapping(pixels.as_ptr(), address, pixels.len());
     }
     Ok(
-        json!({"object":object,"sequence":sequence,"width":frame.width,"height":frame.height,"bytes":frame.rgba.len(),"format":"rgba8","pts_us":frame.pts,"end_us":frame.end,"decode_us":frame.decode_us,"source_transfer":frame.source_transfer,"decoder":frame.decoder_name}),
+        json!({"object":object,"sequence":sequence,"width":frame.width,"height":frame.height,"bytes":pixels.len(),"format":"rgba8","pts_us":frame.pts,"end_us":frame.end,"decode_us":frame.decode_us,"codec_us":frame.codec_us,"transfer_us":frame.transfer_us,"pack_us":frame.pack_us,"source_transfer":frame.source_transfer,"decoder":frame.decoder_name}),
     )
 }
 #[no_mangle]
