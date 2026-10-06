@@ -1,3 +1,5 @@
+> 本文保留1.1.0的算法记录；最新1.2.0共52项，范围与接入见 [common-library.md](common-library.md)。
+
 # Motion Studio 核心效果库 1.1.0
 
 `crates/aem-effects/library/core-effects.msfx` 包含36项效果，新增16项直接放入核心库。已发布1.0.0的20项描述、WGSL及完整包字节保持不变并继续预装，既有工程不会自动升级。包显示名为“Motion Studio 核心效果”；内部插件ID `com.motionstudio.effects.ae2021` 保留用于解析工程身份，界面使用manifest.name。

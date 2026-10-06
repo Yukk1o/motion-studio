@@ -35,7 +35,12 @@ fn sdk_two_generators_and_independent_editor_assets_compile_portably() {
         assert!(shader.glsl.vertex.contains("layout(location = 0)"));
     }
     assert_eq!(
-        builtin::package().unwrap().hash,
+        builtin::packages()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.manifest.id == builtin::PLUGIN_ID && p.manifest.version == "1.1.0")
+            .unwrap()
+            .hash,
         "df9da73a4c18ee5c8d1c652d60bb5c45b01677371e461f65cafc3272746bbbf2"
     );
 }

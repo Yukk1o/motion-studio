@@ -31,6 +31,14 @@ impl ParamKind {
     pub fn discrete(self) -> bool {
         matches!(self, Self::Bool | Self::Enum)
     }
+    /// Package, persisted tracks, and sampled render plans use the same value rules.
+    pub fn valid_value(self, value: &[f32; 4], min: f32, max: f32) -> bool {
+        value.iter().all(|v| v.is_finite())
+            && value[..self.dimensions()]
+                .iter()
+                .all(|v| *v >= min && *v <= max)
+            && (!self.discrete() || value[0].fract() == 0.0)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -340,10 +348,25 @@ impl PluginManifest {
                     "non-finite parameter default",
                 )?;
                 ensure(
-                    p.default[..p.kind.dimensions()]
-                        .iter()
-                        .all(|v| *v >= p.min && *v <= p.max),
+                    p.kind.valid_value(&p.default, p.min, p.max),
                     "parameter default exceeds range",
+                )?;
+                ensure(
+                    p.kind != ParamKind::Bool || (p.min == 0.0 && p.max == 1.0),
+                    "boolean range must be 0..1",
+                )?;
+                ensure(
+                    p.kind != ParamKind::Enum
+                        || (p.min.fract() == 0.0
+                            && p.max.fract() == 0.0
+                            && p.max - p.min + 1.0 == p.options.len() as f32),
+                    "enum range must match its contiguous integer options",
+                )?;
+                ensure(
+                    self.sdk_version < 2
+                        || p.kind != ParamKind::Color
+                        || (p.min >= 0.0 && p.max <= 1.0),
+                    "SDK 2 colors require normalized 0..1 bounds",
                 )?;
                 ensure(
                     !matches!(p.kind, ParamKind::Enum)
