@@ -213,22 +213,25 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
 }
 
 @Composable private fun EffectNumeric(vm:EditorViewModel,objectId:Long,instance:Long,desc:JSONObject,axis:Int,value:JSONArray,enabled:Boolean,label:String,onSelect:()->Unit,onInput:()->Unit) {
-    val param=desc.getString("id");val minimum=desc.getDouble("min").toFloat();val maximum=desc.getDouble("max").toFloat()
-    var draft by remember(instance,param,axis){mutableStateOf<Float?>(null)}
+    val param=desc.getString("id");val minimum=desc.getDouble("min");val maximum=desc.getDouble("max")
+    var draft by remember(instance,param,axis){mutableStateOf<Double?>(null)}
     var captured by remember{mutableStateOf<JSONArray?>(null)};var at by remember{mutableIntStateOf(0)}
+    var adjusting by remember{mutableStateOf(false)}
+    var gestureTicket by remember{mutableLongStateOf(0)}
     val fontScale=LocalDensity.current.fontScale
     Row(Modifier.fillMaxWidth().heightIn(min=(40.dp*fontScale).coerceAtLeast(56.dp)),verticalAlignment=Alignment.CenterVertically) {
         TextButton(onClick=onSelect,modifier=Modifier.width(96.dp).heightIn(min=48.dp).testTag(if(desc.getString("kind")=="float")"effect-select-$param"else"effect-axis-select-$param-$axis")) {
             Text(label,Modifier.fillMaxWidth(),color=if(vm.property=="effect:$instance:$param")Accent else Ink,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
         }
-        if(maximum>minimum)StudioSlider(value=(draft?:value.getDouble(axis).toFloat()).coerceIn(minimum,maximum),valueRange=minimum..maximum,enabled=enabled,
-            onValueChange={next->if(captured==null){captured=JSONArray(value.toString());at=floor(vm.frame).toInt();onSelect();vm.beginGesture()};draft=next
+        if(maximum>minimum)NumericWheel(value=(draft?:value.getDouble(axis)).coerceIn(minimum,maximum),minimum=minimum,maximum=maximum,label=label,enabled=enabled,
+            onValueChange={next->if(captured==null){captured=JSONArray(value.toString());at=floor(vm.frame).toInt();onSelect();vm.beginGesture();adjusting=true;gestureTicket++};draft=next
                 vm.effectAction(objectId,instance,"set",JSONObject().put("param",param).put("frame",at).put("value",JSONArray(captured.toString()).put(axis,next)),false)
-            },onValueChangeFinished={if(captured!=null)vm.endGesture();draft=null;captured=null},modifier=Modifier.weight(1f).testTag("effect-slider-$param-$axis"))
+            },onFinished={val ticket=gestureTicket;if(captured!=null)vm.endGesture{if(!adjusting&&ticket==gestureTicket)draft=null};captured=null;adjusting=false},
+            onCancelled={if(captured!=null)vm.cancelGesture();captured=null;draft=null;adjusting=false},modifier=Modifier.weight(1f).testTag("effect-wheel-$param-$axis"))
         else Spacer(Modifier.weight(1f))
         val valueWidth=(72.dp*fontScale).coerceIn(80.dp,120.dp)
         TextButton(onClick=onInput,enabled=enabled,contentPadding=PaddingValues(horizontal=4.dp),modifier=Modifier.width(valueWidth).heightIn(min=48.dp).testTag("effect-value-$param-$axis")) {
-            Text(String.format(Locale.US,"%.3f",(draft?:value.getDouble(axis).toFloat())),fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+            Text(String.format(Locale.US,"%.3f",(draft?:value.getDouble(axis))),fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
     }
     DisposableEffect(instance,param,axis){onDispose{if(captured!=null)vm.cancelGesture()}}
