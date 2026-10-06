@@ -123,7 +123,7 @@ class FrontendLayerControlsTest {
         compose.waitUntil(10000){vm.keys().size==3&&vm.state.saved}
         val before=vm.state.project!!.toString();val y=axis("y").toString();val z=axis("z").toString()
         compose.onNodeWithTag("timeline").performTouchInput {
-            down(Offset(center.x,9*density));moveBy(Offset(60*density,0f),100);up()
+            down(Offset(center.x,9*density));advanceEventTime(600);moveBy(Offset(60*density,0f),100);up()
         }
         compose.waitUntil(10000){vm.keys().any{it.getInt("frame")==60}&&vm.state.saved}
         assertEquals(40,vm.keys().first{it.getInt("frame")==60}.getInt("local_frame"))
