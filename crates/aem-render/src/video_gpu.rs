@@ -204,7 +204,7 @@ impl VideoGpu {
             frame.range,
             frame.phase[0],
             frame.phase[1],
-            0,
+            frame.chroma_layout as u32,
         ];
         queue.write_buffer(&input.uniform, 0, bytemuck::cast_slice(&params));
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
