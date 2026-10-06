@@ -345,8 +345,8 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         precision highp float; uniform sampler2D image; uniform vec4 color; uniform vec3 extent; in vec2 uv; out vec4 result;
         void main(){vec4 s=texture(image,uv);float a=color.a*extent.z;result=vec4(s.rgb*color.rgb*a,s.a*a);}"""
         private const val PRESENT_VERTEX="""#version 300 es
-        out vec2 uv;const vec2 p[3]=vec2[3](vec2(-1.,-1.),vec2(3.,-1.),vec2(-1.,3.));
-        void main(){vec2 v=p[gl_VertexID];gl_Position=vec4(v,0.,1.);uv=v*.5+.5;}"""
+        out vec2 uv;
+        void main(){vec2 v=vec2(float((gl_VertexID<<1)&2)*2.-1.,float(gl_VertexID&2)*2.-1.);gl_Position=vec4(v,0.,1.);uv=v*.5+.5;}"""
         private const val PRESENT_FRAGMENT="""#version 300 es
         precision highp float;uniform sampler2D image;in vec2 uv;out vec4 result;
         vec3 encode(vec3 v){return mix(1.055*pow(max(v,vec3(0.)),vec3(1./2.4))-.055,12.92*v,lessThanEqual(v,vec3(.0031308)));}
