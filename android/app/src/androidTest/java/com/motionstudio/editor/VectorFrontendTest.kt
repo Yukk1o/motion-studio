@@ -62,7 +62,7 @@ class VectorFrontendTest {
     @Test fun shapeConversionRequiresConfirmationAndStyleIsUndoable() {
         scenario.onActivity{vm.addVectorShape("ellipse","椭圆")};settled{vm.vectorData()!=null}
         compose.onNodeWithTag("footer-vector-style").performClick();photo("vector-style")
-        compose.onNodeWithTag("vector-stroke-toggle").performClick();settled{vm.vectorData()?.optJSONObject("stroke")!=null}
+        compose.onNodeWithTag("vector-stroke-toggle").performScrollTo().performClick();settled{vm.vectorData()?.optJSONObject("stroke")!=null}
         scenario.onActivity{vm.undo()};settled{vm.vectorData()?.optJSONObject("stroke")==null}
         compose.onNodeWithTag("vector-tab-geometry").performClick();compose.onNodeWithTag("vector-convert").performScrollTo().performClick()
         assertEquals("shape",vm.vectorData()!!.getJSONObject("source").getString("kind"))
