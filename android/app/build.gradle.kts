@@ -10,8 +10,10 @@ android {
         applicationId = "com.motionstudio.editor"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = providers.environmentVariable("MOTION_VERSION_CODE").orNull?.toInt()?.also {
+            require(it in 1..2100000000) { "Invalid Android version code" }
+        } ?: 1
+        versionName = providers.environmentVariable("MOTION_VERSION_NAME").orNull ?: "0.1.0"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -23,6 +25,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    val automationKey=providers.environmentVariable("MOTION_KEYSTORE_FILE").orNull
+    if(automationKey!=null)signingConfigs.create("automation") {
+        storeFile=file(automationKey)
+        storePassword=providers.environmentVariable("MOTION_KEYSTORE_PASSWORD").get()
+        keyAlias=providers.environmentVariable("MOTION_KEY_ALIAS").get()
+        keyPassword=providers.environmentVariable("MOTION_KEY_PASSWORD").get()
+    }
     buildTypes {
         debug {
             isDebuggable = true
@@ -30,12 +39,15 @@ android {
                 applicationIdSuffix = ".effectsacceptance"
             }
         }
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            if(automationKey!=null)signingConfig=signingConfigs.getByName("automation")
+        }
         create("preview") {
             initWith(getByName("release"))
             isDebuggable=false
-            signingConfig=signingConfigs.getByName("debug")
-            versionNameSuffix="-preview.1"
+            signingConfig=signingConfigs.getByName(if (automationKey!=null) "automation" else "debug")
+            versionNameSuffix="-preview."+(providers.environmentVariable("MOTION_VERSION_CODE").orNull ?: "1")
             matchingFallbacks+=listOf("release")
         }
         create("benchmark") {
