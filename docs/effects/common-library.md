@@ -75,3 +75,9 @@ cargo test --workspace -- --test-threads=1
 ```
 
 新生成器始终从不可变的 1.1.0 包和参数快照构建，重复执行不会删除新效果或依赖本地参考目录。`generate_creative_library.py` 仍是旧 1.1.0 的生成工具，不能用于构建最新包。`tools/ae_collect_common.jsx` 供复核实机参数，必须在独立、工具持有的 AE 实例执行；生成的项目、日志、图像均放入忽略的 artifacts。所有 reference/refer 资料继续不进 Git。
+
+## 导出色彩复核
+
+本轮全高清对照还发现旧版 Google OMX 软件 AVC 编码器的 RGB Surface 转换使用 BT.601，原宿主却统一要求 BT.709，导致输出携带错误矩阵标记。宿主对 `OMX.google.h264.encoder` 使用 BT.601 NTSC，Codec2 与硬件编码器继续使用 BT.709。该限定基于本机实际编码输出及 [AOSP 的 OMX 转换实现](https://android.googlesource.com/platform/frameworks/av/+/2edda09a%5E%21/)，不对所有软件编码器套用同一假设。
+
+编码对照工具 `tools/compare_export_frames.py` 由文件标记选择 FFmpeg 解码矩阵，不允许为了达标手动覆盖矩阵；要求 Pillow 与 FFmpeg/FFprobe。RGB 全画面平均误差仍低于6、前景仍低于8。工具检查指定帧及尺寸，不能代替完整帧序列、时间戳、资源冻结和真机长期测试。

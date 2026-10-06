@@ -24,6 +24,9 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 runCatching{info.getCapabilitiesForType("video/avc").videoCapabilities.areSizeAndRateSupported(width,height,fps.toDouble())}.getOrDefault(false)
         }.sortedByDescending{it.isHardwareAccelerated}
         val info=codecs.firstOrNull()?:error("当前编码器不支持所选尺寸和帧率")
+        // Legacy Google OMX's RGB Surface conversion is fixed to BT.601. Labeling
+        // its samples BT.709 causes visible hue shifts. Codec2/hardware retain 709.
+        val colorStandard=if(info.name.equals("OMX.google.h264.encoder",true))MediaFormat.COLOR_STANDARD_BT601_NTSC else MediaFormat.COLOR_STANDARD_BT709
         val file=File(root,"exports/motion-"+System.currentTimeMillis()+".mp4").apply{parentFile!!.mkdirs()}
         var codec:MediaCodec?=null;var muxer:MediaMuxer?=null;var input:Surface?=null
         var gpu:EglMovieRenderer?=null;var native=0L;var muxStarted=false
@@ -39,7 +42,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 setInteger(MediaFormat.KEY_BIT_RATE,(width.toLong()*height*fps/8).coerceIn(2_000_000L,20_000_000L).toInt())
                 setInteger(MediaFormat.KEY_FRAME_RATE,fps);setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,1)
                 setInteger(MediaFormat.KEY_MAX_B_FRAMES,0)
-                setInteger(MediaFormat.KEY_COLOR_STANDARD,MediaFormat.COLOR_STANDARD_BT709)
+                setInteger(MediaFormat.KEY_COLOR_STANDARD,colorStandard)
                 setInteger(MediaFormat.KEY_COLOR_RANGE,MediaFormat.COLOR_RANGE_LIMITED)
                 setInteger(MediaFormat.KEY_COLOR_TRANSFER,MediaFormat.COLOR_TRANSFER_SDR_VIDEO)
             }
