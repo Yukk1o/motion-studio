@@ -151,8 +151,11 @@ impl Renderer {
         });
         let uncaptured = gpu_failure.clone();
         device.on_uncaptured_error(Box::new(move |error| {
-            *uncaptured.lock().unwrap_or_else(|e| e.into_inner()) =
-                Some(format!("GPU error: {error}"));
+            // Invalid-command follow-up errors must not overwrite the root cause.
+            uncaptured
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get_or_insert_with(|| format!("GPU error: {error}"));
         }));
         let alignment = device.limits().min_uniform_buffer_offset_alignment as usize;
         let uniform_stride = (DRAW_SIZE as usize).div_ceil(alignment) * alignment;

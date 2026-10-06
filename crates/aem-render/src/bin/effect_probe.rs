@@ -11,25 +11,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cases: Vec<Value> = serde_json::from_slice(&fs::read(root.join("cases.json"))?)?;
     let package = aem_effects::builtin::package()?;
     let mut renderer = pollster::block_on(Renderer::headless())?;
-    let target = renderer.capture_target(256, 256)?;
     let mut records = vec![];
     for case in cases {
         let id = case["id"].as_str().unwrap();
+        let width = case["width"].as_u64().unwrap_or(256) as u32;
+        let height = case["height"].as_u64().unwrap_or(256) as u32;
+        let pixels = image::open(root.join(case["input"].as_str().unwrap()))?.into_rgba8();
+        let source_size = [pixels.width() as f32, pixels.height() as f32];
+        let target = renderer.capture_target(width, height)?;
         let def = package
             .manifest
             .effects
             .iter()
             .find(|e| e.id == case["effect"])
             .unwrap();
-        let mut p = Project::new(256, 256, 30, 180)?;
+        let mut p = Project::new(width, height, 30, 180)?;
         p.background = [0.0; 4];
-        let mut layer = Layer::solid(1, "Reference", [256.0; 2], [128.0, 128.0, 0.0], [1.0; 4]);
+        let mut layer = Layer::solid(
+            1,
+            "Reference",
+            source_size,
+            [width as f32 * 0.5, height as f32 * 0.5, 0.0],
+            [1.0; 4],
+        );
         layer.content = Content::Image { asset: 1 };
         p.assets.push(aem_core::Asset {
             id: 1,
             path: format!("assets/{}", case["input"].as_str().unwrap()),
-            width: 256,
-            height: 256,
+            width: pixels.width(),
+            height: pixels.height(),
         });
         let mut effect = EffectInstance::new(
             1,
@@ -37,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &package.manifest.version,
             &package.hash,
             def,
-            [256.0; 2],
+            source_size,
         );
         for (key, value) in case["properties"].as_object().unwrap() {
             if let Some(param) = def
@@ -59,8 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         p.layers.push(layer);
         p.rebuild_plugin_dependencies();
         p.validate()?;
-        let pixels = image::open(root.join(case["input"].as_str().unwrap()))?.into_rgba8();
-        renderer.upload_image(1, 256, 256, pixels.as_raw())?;
+        renderer.upload_image(1, pixels.width(), pixels.height(), pixels.as_raw())?;
         let mut scene = Scene::new(&p);
         scene.sample(&p, case["frame"].as_f64().unwrap_or(0.0), None)?;
         match renderer.capture(&scene, &target) {
@@ -68,8 +77,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 image::save_buffer(
                     root.join(format!("motion-{id}.png")),
                     &rgba,
-                    256,
-                    256,
+                    width,
+                    height,
                     image::ColorType::Rgba8,
                 )?;
                 records.push(serde_json::json!({"id":id,"draws":stats.draw_calls,"texture_bytes":stats.texture_bytes}));

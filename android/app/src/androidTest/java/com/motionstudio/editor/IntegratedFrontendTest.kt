@@ -218,7 +218,7 @@ class IntegratedFrontendTest {
     }
     @Test fun catalogueChainParametersAndUndoWorkFromThePanel() {
         solid();effects()
-        assertEquals(36,availableEffects(vm).size)
+        assertEquals(65,availableEffects(vm).size)
         photo("effect-catalogue")
         addEffect("brightness_contrast");enterEffect()
         photo("effect-parameters")

@@ -137,7 +137,7 @@ class EffectsRuntimeTest {
         } finally {NativeBridge.destroy(native)}
     }
 
-    @Test fun allFiftyTwoEffectsCompileOnDeviceAndUnencodedGlesMatchesWgpu() {
+    @Test fun allFiftyNineEffectsCompileOnDeviceAndUnencodedGlesMatchesWgpu() {
         val root=root();val p=data(NativeBridge.projectTemplate(0)).put("width",64).put("height",64).put("frames",12).put("background",JSONArray(listOf(0,0,0,0)))
         p.getJSONObject("camera").put("created",false)
         val layer=p.getJSONArray("layers").getJSONObject(1);layer.put("size",JSONArray(listOf(64,64)))
@@ -163,12 +163,19 @@ class EffectsRuntimeTest {
                 GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D,0,GLES30.GL_SRGB8_ALPHA8,w,h,0,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,ByteBuffer.allocateDirect(bytes.size).put(bytes).apply{flip()});textures.add(id[0]);return id[0]
             }
             texture(1,1,byteArrayOf(-1,-1,-1,-1));texture(64,64,NativeBridge.assetPixels(native,1)!!)
-            val pkg=corePackage(native,"1.2.0");val effects=pkg.getJSONObject("manifest").getJSONArray("effects")
+            val pkg=corePackage(native,"1.3.0");val effects=pkg.getJSONObject("manifest").getJSONArray("effects")
             fun linear(v:Double)=if(v<=.04045)v/12.92 else ((v+.055)/1.055).pow(2.4)
             fun encode(v:Double)=if(v<=.0031308)v*12.92 else 1.055*v.pow(1/2.4)-.055
             for(index in 0 until effects.length()) {
-                val name=effects.getJSONObject(index).getString("id");val added=add(native,name,"1.2.0")
+                val name=effects.getJSONObject(index).getString("id");val added=add(native,name,"1.3.0")
                 val instance=added.getJSONObject("project").getJSONArray("layers").getJSONObject(0).getJSONArray("effects").getJSONObject(0).getLong("id")
+                fun setParam(id:String,value:Double) {
+                    data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set").put("effect",instance).put("param",id).put("frame",0).put("value",JSONArray(listOf(value,0,0,0)))).toString()))
+                }
+                if(name=="motion_tile") {setParam("tile_width",50.0);setParam("output_width",200.0);setParam("phase",90.0);setParam("mirror",1.0)}
+                if(name=="optics_compensation")setParam("fov",90.0)
+                if(name=="spherize")setParam("radius",24.0)
+                if(name=="simple_choker")setParam("choke",-3.0)
                 if(name=="gaussian_blur")data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set").put("effect",instance).put("param","p0001").put("frame",0).put("value",JSONArray(listOf(8,0,0,0)))).toString()))
                 if(name=="curves") {
                     val channels=JSONArray().put(JSONArray("[[0,0],[0.5,0.7],[1,1]]"))
@@ -199,7 +206,7 @@ class EffectsRuntimeTest {
                 }finally{gl.close();reference.recycle()}
                 data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","remove").put("effect",instance)).toString()))
             }
-            assertEquals(52,reports.length())
+            assertEquals(59,reports.length())
         }finally {
             GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0);EGL14.eglMakeCurrent(display,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT);EGL14.eglDestroySurface(display,surface);EGL14.eglDestroyContext(display,context);EGL14.eglTerminate(display);NativeBridge.destroy(native)
         }
