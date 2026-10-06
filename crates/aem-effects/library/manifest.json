@@ -2,7 +2,7 @@
   "format_version": 1,
   "sdk_version": 1,
   "id": "com.motionstudio.effects.ae2021",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "Motion Studio 核心效果",
   "author": "motion-studio contributors",
   "license": "MIT",
@@ -696,8 +696,8 @@
             0,
             0
           ],
-          "min": -3921568.62745098,
-          "max": 3921568.62745098,
+          "min": 0,
+          "max": 1,
           "step": 1,
           "units": "",
           "animatable": true,
@@ -715,8 +715,8 @@
             1,
             0
           ],
-          "min": -3921568.62745098,
-          "max": 3921568.62745098,
+          "min": 0,
+          "max": 1,
           "step": 1,
           "units": "",
           "animatable": true,
@@ -808,8 +808,8 @@
             1,
             0
           ],
-          "min": -3921568.62745098,
-          "max": 3921568.62745098,
+          "min": 0,
+          "max": 1,
           "step": 1,
           "units": "",
           "animatable": true,
@@ -827,8 +827,8 @@
             0.27450980392157,
             0
           ],
-          "min": -3921568.62745098,
-          "max": 3921568.62745098,
+          "min": 0,
+          "max": 1,
           "step": 1,
           "units": "",
           "animatable": true,
@@ -846,8 +846,8 @@
             0,
             0
           ],
-          "min": -3921568.62745098,
-          "max": 3921568.62745098,
+          "min": 0,
+          "max": 1,
           "step": 1,
           "units": "",
           "animatable": true,
@@ -6148,6 +6148,2464 @@
         "multipass",
         "dynamic_bounds",
         "color_profile"
+      ]
+    },
+    {
+      "id": "invert",
+      "name": "反相",
+      "english_name": "Invert",
+      "category": "调色",
+      "params": [
+        {
+          "id": "channel",
+          "name": "通道",
+          "kind": "enum",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 5,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [
+            "RGB",
+            "红",
+            "绿",
+            "蓝",
+            "Alpha"
+          ],
+          "reference_match_name": "ADBE Invert-0001"
+        },
+        {
+          "id": "blend",
+          "name": "与原始图像混合",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "百分比",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Invert-0002"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/invert.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Invert",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "仅提供 RGB/R/G/B/Alpha；宿主菜单 5 对应 AE 菜单 16（Alpha），不支持 HLS/YIQ。"
+      ]
+    },
+    {
+      "id": "black_white",
+      "name": "黑白",
+      "english_name": "Black & White",
+      "category": "调色",
+      "params": [
+        {
+          "id": "red",
+          "name": "红色",
+          "kind": "float",
+          "default": [
+            40,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 300,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0001"
+        },
+        {
+          "id": "yellow",
+          "name": "黄色",
+          "kind": "float",
+          "default": [
+            60,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 300,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0002"
+        },
+        {
+          "id": "green",
+          "name": "绿色",
+          "kind": "float",
+          "default": [
+            40,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 300,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0003"
+        },
+        {
+          "id": "cyan",
+          "name": "青色",
+          "kind": "float",
+          "default": [
+            60,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 300,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0004"
+        },
+        {
+          "id": "blue",
+          "name": "蓝色",
+          "kind": "float",
+          "default": [
+            20,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 300,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0005"
+        },
+        {
+          "id": "magenta",
+          "name": "洋红",
+          "kind": "float",
+          "default": [
+            80,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 300,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0006"
+        },
+        {
+          "id": "tint",
+          "name": "淡色:",
+          "kind": "bool",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0007"
+        },
+        {
+          "id": "tint_color",
+          "name": "色调颜色",
+          "kind": "color",
+          "default": [
+            0.88235294117647,
+            0.82745098039216,
+            0.70196078431373,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Black&White-0008"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/black_white.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Black&White",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "六色按色相线性混合灰度权重，着色以亮度归一化；与 AE 色彩选择性响应不同。"
+      ]
+    },
+    {
+      "id": "channel_mixer",
+      "name": "通道混合器",
+      "english_name": "Channel Mixer",
+      "category": "调色",
+      "params": [
+        {
+          "id": "red_red",
+          "name": "红色 - 红色",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0001"
+        },
+        {
+          "id": "red_green",
+          "name": "红色 - 绿色",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0002"
+        },
+        {
+          "id": "red_blue",
+          "name": "红色 - 蓝色",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0003"
+        },
+        {
+          "id": "red_constant",
+          "name": "红色 - 恒量",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0004"
+        },
+        {
+          "id": "green_red",
+          "name": "绿色 - 红色",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0005"
+        },
+        {
+          "id": "green_green",
+          "name": "绿色 - 绿色",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0006"
+        },
+        {
+          "id": "green_blue",
+          "name": "绿色 - 蓝色",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0007"
+        },
+        {
+          "id": "green_constant",
+          "name": "绿色 - 恒量",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0008"
+        },
+        {
+          "id": "blue_red",
+          "name": "蓝色 - 红色",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0009"
+        },
+        {
+          "id": "blue_green",
+          "name": "蓝色 - 绿色",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0010"
+        },
+        {
+          "id": "blue_blue",
+          "name": "蓝色 - 蓝色",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0011"
+        },
+        {
+          "id": "blue_constant",
+          "name": "蓝色 - 恒量",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -200,
+          "max": 200,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0012"
+        },
+        {
+          "id": "monochrome",
+          "name": "单色",
+          "kind": "bool",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE CHANNEL MIXER-0013"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/channel_mixer.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE CHANNEL MIXER",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。"
+      ]
+    },
+    {
+      "id": "posterize",
+      "name": "色调分离",
+      "english_name": "Posterize",
+      "category": "调色",
+      "params": [
+        {
+          "id": "levels",
+          "name": "级别",
+          "kind": "float",
+          "default": [
+            7,
+            0,
+            0,
+            0
+          ],
+          "min": 2,
+          "max": 255,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Posterize-0001"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/posterize.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Posterize",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "级别采样时四舍五入为整数；量化采用最近色阶。"
+      ]
+    },
+    {
+      "id": "threshold",
+      "name": "阈值",
+      "english_name": "Threshold",
+      "category": "调色",
+      "params": [
+        {
+          "id": "level",
+          "name": "级别",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": -30000,
+          "max": 30000,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Threshold2-0001"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/threshold.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Threshold2",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "身份固定为 ADBE Threshold2；使用 BT.601 亮度，不混用旧版 Threshold。"
+      ]
+    },
+    {
+      "id": "find_edges",
+      "name": "查找边缘",
+      "english_name": "Find Edges",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "invert",
+          "name": "反转",
+          "kind": "bool",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Find Edges-0001"
+        },
+        {
+          "id": "blend",
+          "name": "与原始图像混合",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "百分比",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Find Edges-0002"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/find_edges.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Find Edges",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "中心差分逐通道边缘，与 AE 内核不同；此控件原始比例为 0～1。"
+      ]
+    },
+    {
+      "id": "emboss",
+      "name": "浮雕",
+      "english_name": "Emboss",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "direction",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            45,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Emboss-0001"
+        },
+        {
+          "id": "relief",
+          "name": "起伏",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Emboss-0002"
+        },
+        {
+          "id": "contrast",
+          "name": "对比度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32767,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Emboss-0003"
+        },
+        {
+          "id": "blend",
+          "name": "与原始图像混合",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Emboss-0004"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/emboss.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Emboss",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "沿方向两点亮度差；边缘钳制，未复现 AE 精确浮雕内核。"
+      ]
+    },
+    {
+      "id": "color_emboss",
+      "name": "彩色浮雕",
+      "english_name": "Color Emboss",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "direction",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            45,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Color Emboss-0001"
+        },
+        {
+          "id": "relief",
+          "name": "起伏",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Color Emboss-0002"
+        },
+        {
+          "id": "contrast",
+          "name": "对比度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32767,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Color Emboss-0003"
+        },
+        {
+          "id": "blend",
+          "name": "与原始图像混合",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Color Emboss-0004"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/color_emboss.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Color Emboss",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "沿方向两点亮度差；边缘钳制，未复现 AE 精确浮雕内核。"
+      ]
+    },
+    {
+      "id": "mosaic",
+      "name": "马赛克",
+      "english_name": "Mosaic",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "horizontal",
+          "name": "水平块",
+          "kind": "float",
+          "default": [
+            10,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4000,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Mosaic-0001"
+        },
+        {
+          "id": "vertical",
+          "name": "垂直块",
+          "kind": "float",
+          "default": [
+            10,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4000,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Mosaic-0002"
+        },
+        {
+          "id": "sharp",
+          "name": "锐化颜色",
+          "kind": "bool",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Mosaic-0003"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/mosaic.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Mosaic",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "普通模式每块固定 4×4 采样近似均值；锐化颜色取块中心；块数取整。"
+      ]
+    },
+    {
+      "id": "turbulent_displace",
+      "name": "湍流置换",
+      "english_name": "Turbulent Displace",
+      "category": "扭曲",
+      "params": [
+        {
+          "id": "amount",
+          "name": "数量",
+          "kind": "float",
+          "default": [
+            50,
+            0,
+            0,
+            0
+          ],
+          "min": -10000,
+          "max": 10000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Turbulent Displace-0002"
+        },
+        {
+          "id": "size",
+          "name": "大小",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 2,
+          "max": 1000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Turbulent Displace-0003"
+        },
+        {
+          "id": "offset",
+          "name": "偏移（湍流）",
+          "kind": "vec2",
+          "default": [
+            128,
+            128,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "像素",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Turbulent Displace-0004",
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "complexity",
+          "name": "复杂度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 10,
+          "step": 0.01,
+          "units": "百分比",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Turbulent Displace-0005"
+        },
+        {
+          "id": "evolution",
+          "name": "演化",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Turbulent Displace-0006"
+        },
+        {
+          "id": "seed",
+          "name": "随机植入",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100000,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Turbulent Displace-0010"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/turbulent_displace.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Turbulent Displace",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "仅湍流模式，1～10 层插值值噪声；边缘钳制、固定输出，不提供固定边缘和扩展图层。",
+        "演化为周期性的双噪声插值，未复现 AE 非循环演化；随机植入取整。",
+        "尚未提供 AE 控件：置换、循环演化、循环（旋转次数）、固定、调整图层大小、消除锯齿（最佳品质）"
+      ]
+    },
+    {
+      "id": "gradient_ramp",
+      "name": "渐变",
+      "english_name": "Gradient Ramp",
+      "category": "生成",
+      "params": [
+        {
+          "id": "start",
+          "name": "渐变起点",
+          "kind": "vec2",
+          "default": [
+            128,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "像素",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Ramp-0001",
+          "relative_default": [
+            0.5,
+            0
+          ]
+        },
+        {
+          "id": "start_color",
+          "name": "起始颜色",
+          "kind": "color",
+          "default": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Ramp-0002"
+        },
+        {
+          "id": "end",
+          "name": "渐变终点",
+          "kind": "vec2",
+          "default": [
+            128,
+            256,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "像素",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Ramp-0003",
+          "relative_default": [
+            0.5,
+            1
+          ]
+        },
+        {
+          "id": "end_color",
+          "name": "结束颜色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Ramp-0004"
+        },
+        {
+          "id": "shape",
+          "name": "渐变形状",
+          "kind": "enum",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 2,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [
+            "线性",
+            "径向"
+          ],
+          "reference_match_name": "ADBE Ramp-0005"
+        },
+        {
+          "id": "scatter",
+          "name": "渐变散射",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Ramp-0006"
+        },
+        {
+          "id": "blend",
+          "name": "与原始图像混合",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "百分比",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Ramp-0007"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/gradient_ramp.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Ramp",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "保留源 Alpha，不在空像素生成；散射为固定像素哈希抖动。"
+      ]
+    },
+    {
+      "id": "fill",
+      "name": "填充",
+      "english_name": "Fill",
+      "category": "生成",
+      "params": [
+        {
+          "id": "color",
+          "name": "颜色",
+          "kind": "color",
+          "default": [
+            1,
+            0,
+            0,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fill-0002"
+        },
+        {
+          "id": "opacity",
+          "name": "不透明度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "百分比",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fill-0005"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/fill.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Fill",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "仅无蒙版填充颜色与不透明度；不提供填充蒙版、反转或蒙版羽化。",
+        "尚未提供 AE 控件：填充蒙版、所有蒙版、反转、水平羽化、垂直羽化"
+      ]
+    },
+    {
+      "id": "linear_wipe",
+      "name": "线性擦除",
+      "english_name": "Linear Wipe",
+      "category": "过渡",
+      "params": [
+        {
+          "id": "completion",
+          "name": "过渡完成",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Linear Wipe-0001"
+        },
+        {
+          "id": "angle",
+          "name": "擦除角度",
+          "kind": "float",
+          "default": [
+            90,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Linear Wipe-0002"
+        },
+        {
+          "id": "feather",
+          "name": "羽化",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Linear Wipe-0003"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/linear_wipe.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Linear Wipe",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "平面半空间擦除，羽化为 smoothstep；端点明确完全保留/完全透明。"
+      ]
+    },
+    {
+      "id": "radial_wipe",
+      "name": "径向擦除",
+      "english_name": "Radial Wipe",
+      "category": "过渡",
+      "params": [
+        {
+          "id": "completion",
+          "name": "过渡完成",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Radial Wipe-0001"
+        },
+        {
+          "id": "angle",
+          "name": "起始角度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Radial Wipe-0002"
+        },
+        {
+          "id": "center",
+          "name": "擦除中心",
+          "kind": "vec2",
+          "default": [
+            128,
+            128,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "像素",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Radial Wipe-0003",
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "direction",
+          "name": "擦除",
+          "kind": "enum",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 3,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [
+            "顺时针",
+            "逆时针",
+            "双向"
+          ],
+          "reference_match_name": "ADBE Radial Wipe-0004"
+        },
+        {
+          "id": "feather",
+          "name": "羽化",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Radial Wipe-0005"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/radial_wipe.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Radial Wipe",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "角向覆盖率与按半径换算的像素羽化；起始射线的接缝与 AE 不完全相同。"
+      ]
+    },
+    {
+      "id": "venetian_blinds",
+      "name": "百叶窗",
+      "english_name": "Venetian Blinds",
+      "category": "过渡",
+      "params": [
+        {
+          "id": "completion",
+          "name": "过渡完成",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Venetian Blinds-0001"
+        },
+        {
+          "id": "direction",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Venetian Blinds-0002"
+        },
+        {
+          "id": "width",
+          "name": "宽度",
+          "kind": "float",
+          "default": [
+            20,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 32000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Venetian Blinds-0003"
+        },
+        {
+          "id": "feather",
+          "name": "羽化",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Venetian Blinds-0004"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/venetian_blinds.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Venetian Blinds",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "条带以图层原点为相位，双边 smoothstep 羽化；实际宽度按图层像素解释。"
+      ]
+    },
+    {
+      "id": "fractal_noise",
+      "name": "分形杂色",
+      "english_name": "Fractal Noise",
+      "category": "生成",
+      "params": [
+        {
+          "id": "noise_type",
+          "name": "杂色类型",
+          "kind": "enum",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [
+            "块",
+            "线性",
+            "柔和线性",
+            "样条"
+          ],
+          "reference_match_name": "ADBE Fractal Noise-0002"
+        },
+        {
+          "id": "invert",
+          "name": "反转",
+          "kind": "bool",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0003"
+        },
+        {
+          "id": "contrast",
+          "name": "对比度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 10000,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0004"
+        },
+        {
+          "id": "brightness",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -10000,
+          "max": 10000,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0005"
+        },
+        {
+          "id": "rotation",
+          "name": "旋转",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0008"
+        },
+        {
+          "id": "scale",
+          "name": "缩放",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 10000,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0010"
+        },
+        {
+          "id": "offset",
+          "name": "偏移（湍流）",
+          "kind": "vec2",
+          "default": [
+            128,
+            128,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "像素",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0013",
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "complexity",
+          "name": "复杂度",
+          "kind": "float",
+          "default": [
+            6,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 20,
+          "step": 0.01,
+          "units": "百分比",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0015"
+        },
+        {
+          "id": "evolution",
+          "name": "演化",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -1000000,
+          "max": 1000000,
+          "step": 0.01,
+          "units": "deg",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0023"
+        },
+        {
+          "id": "seed",
+          "name": "随机植入",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100000,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0027"
+        },
+        {
+          "id": "opacity",
+          "name": "不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": "ADBE Fractal Noise-0029"
+        },
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "%",
+          "animatable": true,
+          "center_default": false,
+          "implemented": true,
+          "options": [],
+          "reference_match_name": ""
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/fractal_noise.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "edge_mode": "clamp",
+      "edge_param": null,
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "compatibility": "approximate",
+      "compatibility_profile": "ae18-common-srgb8-v1",
+      "reference_match_name": "ADBE Fractal Noise",
+      "reference_version": "18.0.1",
+      "required_capabilities": [
+        "single_frame",
+        "color_profile"
+      ],
+      "known_differences": [
+        "独立 WGSL 算法；参数已实采核对，尚未通过完整 AE 图像对照验收。",
+        "8 bpc sRGB；RGB 截断至 0～1；调色/生成保留源 Alpha，扭曲搬移 Alpha，擦除效果乘以覆盖率。",
+        "仅基本分形，固定子影响 70%、子缩放 56%；普通覆盖混合，保留源 Alpha。",
+        "独立值噪声、最大20层，样条模式目前等同柔和线性；演化周期性且不自动依赖时间。",
+        "尚未提供 AE 控件：分形类型、溢出、统一缩放、缩放宽度、缩放高度、透视位移、子影响 (%)、子缩放、子旋转、子位移、中心辅助比例、循环演化、循环（旋转次数）、混合模式"
       ]
     }
   ]

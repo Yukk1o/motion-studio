@@ -13,6 +13,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
     private val pool=IntArray(8)
     private val luts=HashMap<Int,Pair<Int,ByteArray>>()
     private var poolWidth=0;private var poolHeight=0;private var poolMask=0
+    private var poolSizes=IntArray(16)
     private var framebuffer=0;private var uniform=0;private var sprites=0;private var spriteVao=0
     init {
         try {
@@ -79,10 +80,24 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
             GL.glBindBuffer(GL.GL_ARRAY_BUFFER,sprites);GL.glBufferSubData(GL.GL_ARRAY_BUFFER,0,spriteCount*48,data)
         }
         val w=plan.getInt(32);val h=plan.getInt(36);val mask=plan.getInt(40)
-        check(mask and 255==mask&&w>=0&&h>=0&&w.toLong()*h*4*(Integer.bitCount(mask)+if(mask and 128!=0)1 else 0)<=64L*1024*1024){"效果临时纹理超过 64 MiB"}
-        if(w!=poolWidth||h!=poolHeight||mask!=poolMask) {
+        check(mask and 255==mask&&w>=0&&h>=0){"效果纹理描述错误"}
+        // Capacities are derived from the existing v2 pass table, identically to Rust.
+        val sizes=IntArray(16);val passBase=plan.getInt(20);val passCount=plan.getInt(12)
+        check(passCount>=0&&passBase>=64&&passBase.toLong()+passCount.toLong()*40<=plan.getInt(28)){"效果 pass 表错误"}
+        var actualMask=0
+        for(i in 0 until passCount) {
+            val p=passBase+i*40;val slot=plan.getInt(p+12);val pw=plan.getInt(p+16);val ph=plan.getInt(p+20)
+            check(slot in 0..7&&pw in 1..w&&ph in 1..h){"效果纹理尺寸错误"}
+            actualMask=actualMask or (1 shl slot)
+            sizes[slot*2]=maxOf(sizes[slot*2],pw);sizes[slot*2+1]=maxOf(sizes[slot*2+1],ph)
+        }
+        check(mask==actualMask){"效果纹理槽位不一致"}
+        val bytes=(0..7).sumOf{i->sizes[i*2].toLong()*sizes[i*2+1]*(if(i==7)8 else 4)}
+        check(bytes<=64L*1024*1024){"效果临时纹理需要 ${bytes/1048576.0} MiB，超过 64 MiB"}
+        if(w!=poolWidth||h!=poolHeight||mask!=poolMask||!sizes.contentEquals(poolSizes)) {
             GL.glDeleteTextures(8,pool,0);pool.fill(0);poolWidth=w;poolHeight=h;poolMask=mask
-            for(i in pool.indices)if(mask and (1 shl i)!=0)pool[i]=texture(w,h,i !in 1..3&&i!=7,null,i==7)
+            poolSizes=sizes
+            for(i in pool.indices)if(mask and (1 shl i)!=0)pool[i]=texture(sizes[i*2],sizes[i*2+1],i !in 1..3&&i!=7,null,i==7)
         }
         val lutBase=plan.getInt(44);val count=plan.getInt(48)
         for(i in 0 until count) {
@@ -106,8 +121,8 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
             val p=base+i*40;check(p>=64&&p+40<=plan.getInt(28)){"效果 pass 地址错误"}
             val shaderIndex=plan.getInt(p);check(shaderIndex in shaders.indices){"效果程序索引错误"}
             val shader=shaders[shaderIndex];val source=input(plan.getInt(p+8));val previous=input(plan.getInt(p+4))
-            val target=texture(plan.getInt(p+12));val w=plan.getInt(p+16);val h=plan.getInt(p+20)
-            check(w in 1..poolWidth&&h in 1..poolHeight&&target!=source&&target!=previous){"效果输出目标错误"}
+            val targetSlot=plan.getInt(p+12);val target=texture(targetSlot);val w=plan.getInt(p+16);val h=plan.getInt(p+20)
+            check(w in 1..poolSizes[targetSlot*2]&&h in 1..poolSizes[targetSlot*2+1]&&target!=source&&target!=previous){"效果输出目标错误"}
             val offset=plan.getInt(p+24);check(offset>=64&&offset+624<=plan.getInt(28)){"效果参数地址错误"}
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,framebuffer)
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,target,0)
