@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -88,10 +90,15 @@ open class MainActivity:ComponentActivity() {
     }}
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {StudioTheme {Editor(model)}}
+        val startAtHome=initialProjectDirectory()==null
+        setContent {StudioTheme {Editor(model,startAtHome)}}
     }
     override fun onStart(){super.onStart();model.resumePreview()}
-    override fun onStop() { model.suspendPreview();super.onStop() }
+    override fun dispatchTouchEvent(event:MotionEvent):Boolean {
+        if(event.actionMasked==MotionEvent.ACTION_DOWN)model.gestureInertia.stop()
+        return super.dispatchTouchEvent(event)
+    }
+    override fun onStop() {model.gestureInertia.stop();model.suspendPreview();super.onStop()}
 }
 
 @Composable internal fun StudioTheme(content:@Composable ()->Unit) {
@@ -104,9 +111,10 @@ open class MainActivity:ComponentActivity() {
         Icon(editorIcon(icon),label,tint=if(enabled)Ink else Muted.copy(alpha=.35f),modifier=Modifier.size(22.dp))
     }
 }
-@Composable internal fun Editor(vm:EditorViewModel) {
+@Composable internal fun Editor(vm:EditorViewModel,startAtHome:Boolean=false) {
     val context=LocalContext.current
     val scope=rememberCoroutineScope()
+    var home by rememberSaveable{mutableStateOf(startAtHome)}
     var addMenu by remember{mutableStateOf(false)}
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
@@ -120,7 +128,7 @@ open class MainActivity:ComponentActivity() {
     var previewBounds by remember{mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)}
     var editorOrigin by remember{mutableStateOf(Offset.Zero)}
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importImage)}
-    val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importProject)}
+    val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importProject(it);home=false}}
     val audioPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"audio")}}
     val videoPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"video",keepSound)}}
     val pluginPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::installPlugin)}
@@ -133,8 +141,19 @@ open class MainActivity:ComponentActivity() {
     val videoSave=rememberLauncherForActivityResult(CreateOutputDocument("video/mp4")){uri->
         vm.completeOutputSelection(uri)
     }
+    if(home) {
+        ProjectHome(vm,onOpen={project->if(project.directory!=vm.root.name||vm.state.project==null)vm.openProject(project.directory);home=false},
+            onNew={w,h,fps,name->vm.newProject(w,h,fps,name);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onPackages={vm.pluginsOpen=true})
+        if(vm.pluginsOpen)PluginsPanel(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onDismiss={vm.pluginsOpen=false})
+        return
+    }
     BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.closeWorkspace()}
-    Surface(color=Background,modifier=Modifier.fillMaxSize()) {
+    BackHandler(enabled=!vm.panelOpen&&!vm.layerSelectionMode&&!layoutEditing){vm.pause();home=true}
+    Surface(color=Background,modifier=Modifier.fillMaxSize().pointerInput(vm) {
+        awaitPointerEventScope {while(true) {
+            if(awaitPointerEvent(PointerEventPass.Initial).changes.any{it.changedToDownIgnoreConsumed()})vm.gestureInertia.stop()
+        }}
+    }) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).onGloballyPositioned{editorOrigin=it.positionInRoot()}) {
             val wide=maxWidth>maxHeight
             val availableHeight=maxHeight
@@ -160,10 +179,10 @@ open class MainActivity:ComponentActivity() {
             val previewModifier=Modifier.onGloballyPositioned{previewBounds=it.boundsInRoot()}
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.panelOpen)"收起属性" else "工程列表") {
-                        if(layoutEditing)layoutEditing=false else if(vm.panelOpen)vm.closeWorkspace() else {vm.refreshProjects();library=true}
+                    Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.layerSelectionMode)"退出多选" else if(vm.panelOpen)"收起属性" else "工程列表") {
+                        if(layoutEditing)layoutEditing=false else if(vm.layerSelectionMode)vm.finishLayerSelection() else if(vm.panelOpen)vm.closeWorkspace() else {vm.pause();home=true}
                     }
-                    Text(if(layoutEditing)"调整布局" else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                    Text(if(layoutEditing)"调整布局" else if(vm.layerSelectionMode)"选择图层"else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                     if(layoutEditing)TextButton(onClick={layoutEditing=false},modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
                     else {
                         Tool(Icons.Default.Tune,"合成设置"){settings=true}
@@ -207,7 +226,7 @@ open class MainActivity:ComponentActivity() {
                 }
                 if(wide&&effectEditing)Timeline(vm,Modifier.fillMaxWidth().height(focusedTimelineHeight),focused=true)
             }
-            if(!vm.panelOpen) {
+            if(!vm.panelOpen&&!vm.layerSelectionMode) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {
                     Button(onClick={vm.pause();addMenu=true},modifier=Modifier.height(48.dp).testTag("add-layer"),
                         shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=Background)) {
@@ -295,7 +314,7 @@ open class MainActivity:ComponentActivity() {
         text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
             Text(vm.state.project?.let{it.getInt("width").toString()+" × "+it.getInt("height")+"\n"+
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
-            TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
+            TextButton(onClick={settings=false;vm.pause();vm.finishLayerSelection();home=true}){Text("打开工程")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
             TextButton(onClick={settings=false;vm.pluginsOpen=true},modifier=Modifier.testTag("open-plugins")){Text("效果包")}
             TextButton(onClick={vm.pause();settings=false;layoutEditing=true},enabled=vm.state.project!=null,modifier=Modifier.testTag("adjust-layout")){Text("调整布局")}
@@ -368,16 +387,27 @@ open class MainActivity:ComponentActivity() {
         }
         Canvas(Modifier.fillMaxSize()) {
             if(!vm.playing&&vm.selected!=0L) {
-                previewPolygons(vm,size.width,size.height).firstOrNull{it.first==vm.selected}?.second?.let{points->
+                previewPolygons(vm,size.width,size.height).filter{if(vm.layerSelectionMode)it.first in vm.selectedLayerIds else it.first==vm.selected}.forEach{(_,points)->
                     val outline=Path().apply{moveTo(points[0].x,points[0].y);points.drop(1).forEach{lineTo(it.x,it.y)};close()}
                     drawPath(outline,Accent,style=androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
-                    points.forEach{drawRect(Ink,Offset(it.x-3.dp.toPx(),it.y-3.dp.toPx()),Size(6.dp.toPx(),6.dp.toPx()))}
+                    if(!vm.layerSelectionMode)points.forEach{drawRect(Ink,Offset(it.x-3.dp.toPx(),it.y-3.dp.toPx()),Size(6.dp.toPx(),6.dp.toPx()))}
                 }
             }
         }
         Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(Unit) {
             awaitEachGesture {
                 val down=awaitFirstDown()
+                if(vm.layerSelectionMode) {
+                    var travel=Offset.Zero;var ended=false
+                    do {
+                        val event=awaitPointerEvent();travel+=event.calculatePan();ended=event.changes.none{it.pressed}
+                        event.changes.forEach{it.consume()}
+                    }while(!ended)
+                    if(travel.getDistance()<=viewConfiguration.touchSlop)vm.pickLayer(down.position.x,down.position.y,size.width.toFloat(),size.height.toFloat()){candidate->
+                        if(vm.layerSelectionMode)candidate?.let(vm::toggleLayerSelection)
+                    }
+                    return@awaitEachGesture
+                }
                 val selectedCorners=previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).firstOrNull{it.first==vm.selected}?.second
                 val handleRadius=selectedCorners?.let{points->min(20.dp.toPx(),points.indices.minOf{(points[it]-points[(it+1)%points.size]).getDistance()}/3f)}?:0f
                 val resize=!vm.state.observing&&selectedCorners?.any{(it-down.position).getDistance()<=handleRadius}==true

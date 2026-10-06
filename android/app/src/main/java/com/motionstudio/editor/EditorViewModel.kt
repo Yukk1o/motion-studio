@@ -46,6 +46,7 @@ private fun activeProjectDirectory(app:Application):File {
 }
 
 class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null,initialProjectJson:String="") : AndroidViewModel(app) {
+    internal val gestureInertia=GestureInertiaGroup()
     internal val layoutPreferences=app.getSharedPreferences("motion-studio-layout"+
         (if(projectDirectory==null)""else"-"+projectDirectory.canonicalPath.hashCode()),0)
     var state by mutableStateOf(StudioState()); private set
@@ -54,6 +55,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var frame by mutableDoubleStateOf(0.0); private set
     var playing by mutableStateOf(false); private set
     var selected by mutableLongStateOf(0L)
+    var layerSelectionMode by mutableStateOf(false);private set
+    var selectedLayerIds by mutableStateOf<Set<Long>>(emptySet());private set
     var property by mutableStateOf("position")
     var panelOpen by mutableStateOf(false)
     var effectsOpen by mutableStateOf(false)
@@ -77,6 +80,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var previewInfo by mutableStateOf<JSONObject?>(null);private set
     var loadFailed by mutableStateOf(false);private set
     var projects by mutableStateOf<List<ProjectSummary>>(emptyList());private set
+    var projectsLoading by mutableStateOf(false);private set
     var lastSavedOutput by mutableStateOf<Uri?>(null);private set
     var pendingOutput:File?=null
     var pendingOutputKind:String="png"
@@ -256,13 +260,14 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     state=StudioState(d.getJSONObject("project"),d,d.optBoolean("canUndo"),
                         d.optBoolean("canRedo"),d.optBoolean("observing"),
                         nextError,false,savedState)
+                    selectedLayerIds=selectedLayerIds.intersect(state.project?.optJSONArray("layers").objects().map{it.getLong("id")}.toSet())
                     d.optJSONObject("edit_result")?.takeIf{it.optString("op")=="split_layer_clip"}?.let {
                         if(selected==it.optLong("left_object"))selected=it.getLong("right_object")
                     }
                     if(selectedExisted&&selected!=0L&&layer(selected)==null){selected=0L;panelOpen=false;expressionTarget=null;pluginEditor.close()}
                     if(d.has("root")) {
                         val nextRoot=File(d.getString("root"))
-                        if(nextRoot!=root){frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false;effectsOpen=false;expressionTarget=null}
+                        if(nextRoot!=root){finishLayerSelection();frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false;effectsOpen=false;expressionTarget=null}
                         root=nextRoot
                         if(persistProjectSelection)getApplication<Application>().getSharedPreferences("motion-studio",0)
                             .edit().putString("activeProject",root.name).apply()
@@ -376,6 +381,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun refreshProjects() {
         val active=root;val parent=active.parentFile?:return
+        projectsLoading=true
         viewModelScope.launch(Dispatchers.IO) {
             val library=parent.canonicalFile
             val items=parent.listFiles().orEmpty().filter{it.isDirectory&&(it.name==active.name||it.name=="default"||it.name.matches(Regex("(?:project|import)-[0-9]+")))}
@@ -385,10 +391,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     val json=JSONObject(file.readText())
                     ProjectSummary(folder.name,json.optString("name",folder.name),json.optInt("width"),json.optInt("height"),json.optInt("fps"),file.lastModified())
                 }.getOrNull()}.sortedByDescending{it.modified}
-            withContext(Dispatchers.Main){projects=items}
+            withContext(Dispatchers.Main){projects=items;projectsLoading=false}
         }
     }
     fun openProject(directory:String) {
+        finishLayerSelection()
         projectGeneration.incrementAndGet()
         closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true,error=null)
         worker.post {
@@ -408,6 +415,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun togglePlay() {
+        gestureInertia.stop()
         if(pluginEditor.gesture)return
         if(playing)pause() else if(state.project!=null) {
             val p=state.project!!
@@ -433,6 +441,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun step(delta:Int)=seek(floor(frame)+delta)
     fun select(objectId:Long,openEditor:Boolean=true) {
+        gestureInertia.stop();finishLayerSelection()
         pause()
         if(selected!=objectId) {
             pluginEditor.close()
@@ -463,9 +472,9 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         if(!save&&queueGesture(routed))return
         invoke(save){NativeBridge.command(id,JSONArray(routed).toString())}
     }
-    fun undo() {if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,0)}}
-    fun redo() {if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,1)}}
-    fun beginGesture() {pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{NativeBridge.history(id,2)}}
+    fun undo() {gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,0)}}
+    fun redo() {gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,1)}}
+    fun beginGesture() {gestureInertia.stop();pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{NativeBridge.history(id,2)}}
     fun endGesture(onComplete:()->Unit={}) {
         val pending=gestureUpdates?.take().orEmpty();gestureUpdates=null
         invoke(true,onComplete=onComplete) {
@@ -674,6 +683,44 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun flags(id:Long,visible:Boolean,locked:Boolean)=edit(JSONObject().put("op","flags").put("object",id).put("visible",visible).put("locked",locked))
     fun rename(name:String) {if(selected!=0L)edit(JSONObject().put("op","rename").put("object",selected).put("name",name))}
     fun duplicate() {if(selected!=0L)edit(JSONObject().put("op","duplicate").put("object",selected))}
+    fun startLayerSelection(objectId:Long=selected) {
+        closeWorkspace();pause();layerSelectionMode=true
+        selectedLayerIds=if(objectId!=0L&&layer(objectId)!=null)setOf(objectId)else emptySet()
+    }
+    fun finishLayerSelection(){layerSelectionMode=false;selectedLayerIds=emptySet()}
+    fun toggleLayerSelection(objectId:Long) {
+        if(!layerSelectionMode||objectId==0L||layer(objectId)==null)return
+        selectedLayerIds=if(objectId in selectedLayerIds)selectedLayerIds-objectId else selectedLayerIds+objectId
+    }
+    fun selectAllLayers(){selectedLayerIds=state.project?.optJSONArray("layers").objects().map{it.getLong("id")}.toSet()}
+    fun clearLayerSelection(){selectedLayerIds=emptySet()}
+    fun selectedLayers()=state.project?.optJSONArray("layers").objects().filter{it.getLong("id") in selectedLayerIds}
+    fun selectionEditable()=selectedLayers().let{it.isNotEmpty()&&it.none{layer->layer.getBoolean("locked")}}
+    fun selectedFlags(visible:Boolean?=null,locked:Boolean?=null) {
+        val commands=selectedLayers().map{layer->JSONObject().put("op","flags").put("object",layer.getLong("id"))
+            .put("visible",visible?:layer.getBoolean("visible")).put("locked",locked?:layer.getBoolean("locked"))}
+        if(commands.isNotEmpty())editBatch(JSONArray(commands))
+    }
+    fun duplicateSelectedLayers(){if(selectionEditable())editBatch(JSONArray(selectedLayers().map{JSONObject().put("op","duplicate").put("object",it.getLong("id"))}))}
+    fun deleteSelectedLayers() {
+        if(!selectionEditable())return
+        editBatch(JSONArray(selectedLayers().map{JSONObject().put("op","remove").put("object",it.getLong("id")).put("frame",floor(frame).toInt())}))
+        finishLayerSelection()
+    }
+    fun selectedClipDeltaRange():IntRange? {
+        if(!selectionEditable())return null
+        val clips=selectedLayers().map{timelineLayer(it.getLong("id"))?:return null}
+        val frames=state.project?.optInt("frames")?:return null
+        val first=clips.maxOf{-it.getInt("in_frame")};val last=clips.minOf{frames-it.getInt("out_frame")}
+        return (first..last).takeUnless{it.isEmpty()}
+    }
+    fun moveSelectedClips(delta:Int):Boolean {
+        val range=selectedClipDeltaRange()?:return false
+        if(delta !in range)return false
+        if(delta!=0)editBatch(JSONArray(selectedLayers().map{layer->JSONObject().put("op","move_layer_clip").put("object",layer.getLong("id"))
+            .put("in_frame",timelineLayer(layer.getLong("id"))!!.getInt("in_frame")+delta)}))
+        return true
+    }
     fun deleteLayer() {if(selected!=0L||hasCamera()){edit(JSONObject().put("op","remove").put("object",selected).put("frame",floor(frame).toInt()));selected=0L;property="position";panelOpen=false;effectsOpen=false}}
     fun reorder(delta:Int) {
         val p=state.project?:return;val a=p.getJSONArray("layers")
@@ -772,7 +819,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             } else fail(r.optString("error"))
         }
     }
-    fun newProject(width:Int,height:Int,fps:Int=30) {
+    fun newProject(width:Int,height:Int,fps:Int=30,name:String="新建工程") {
+        finishLayerSelection()
         projectGeneration.incrementAndGet()
         closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true,error=null)
         val target=JSONArray(listOf(width/2f,height/2f,0))
@@ -780,7 +828,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val camera=JSONObject().put("created",false).put("mode","position").put("position",channel(JSONArray(listOf(width/2f,height/2f,-distance))))
             .put("target",channel(target)).put("roll",channel(0)).put("fov",channel(45))
             .put("radius",channel(distance)).put("azimuth",channel(0)).put("elevation",channel(0))
-        val project=JSONObject().put("version",3).put("name","新建工程").put("width",width).put("height",height)
+        val project=JSONObject().put("version",3).put("name",name.trim().ifBlank{"新建工程"}).put("width",width).put("height",height)
             .put("fps",fps).put("frames",fps*6).put("background",JSONArray(listOf(.05,.06,.09,1)))
             .put("camera",camera).put("assets",JSONArray()).put("layers",JSONArray())
         worker.post {
@@ -799,6 +847,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun importProject(uri:Uri) {
+        finishLayerSelection()
         projectGeneration.incrementAndGet()
         closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true)
         viewModelScope.launch(Dispatchers.IO) {
@@ -894,7 +943,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             readCatalogue()
         }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
     }
-    fun closeWorkspace(){expressionTarget=null;pluginEditor.close();effectsOpen=false;panelOpen=false}
+    fun closeWorkspace(){gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;panelOpen=false}
     fun openEffects(){pluginEditor.close();expressionTarget=null;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
     fun openPluginEditor(instance:Long){pause();expressionTarget=null;pluginEditor.open(selected,instance)}
     fun expressionTargetForCurrent(axis:Int?=null):JSONObject? {
@@ -1045,6 +1094,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun cancelExport() {exporter?.cancelled?.set(true)}
     override fun onCleared() {
+        gestureInertia.stop()
         pluginEditor.close()
         closed.set(true);playing=false
         audioPlayer.close();mediaGeneration.incrementAndGet()

@@ -222,6 +222,12 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
 }
 
 @Composable private fun EffectNumeric(vm:EditorViewModel,objectId:Long,instance:Long,desc:JSONObject,axis:Int,value:JSONArray,enabled:Boolean,label:String,onSelect:()->Unit,onInput:()->Unit) {
+    key(vm.root,objectId,instance,desc.getString("id"),axis) {
+        EffectNumericControl(vm,objectId,instance,desc,axis,value,enabled,label,onSelect,onInput)
+    }
+}
+
+@Composable private fun EffectNumericControl(vm:EditorViewModel,objectId:Long,instance:Long,desc:JSONObject,axis:Int,value:JSONArray,enabled:Boolean,label:String,onSelect:()->Unit,onInput:()->Unit) {
     val param=desc.getString("id");val minimum=desc.getDouble("min");val maximum=desc.getDouble("max")
     var draft by remember(instance,param,axis){mutableStateOf<Double?>(null)}
     var captured by remember{mutableStateOf<JSONArray?>(null)};var at by remember{mutableIntStateOf(0)}
@@ -236,14 +242,13 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
             onValueChange={next->if(captured==null){captured=JSONArray(value.toString());at=floor(vm.frame).toInt();onSelect();vm.beginGesture();adjusting=true;gestureTicket++};draft=next
                 vm.effectAction(objectId,instance,"set",JSONObject().put("param",param).put("frame",at).put("value",JSONArray(captured.toString()).put(axis,next)),false)
             },onFinished={val ticket=gestureTicket;if(captured!=null)vm.endGesture{if(!adjusting&&ticket==gestureTicket)draft=null};captured=null;adjusting=false},
-            onCancelled={if(captured!=null)vm.cancelGesture();captured=null;draft=null;adjusting=false},modifier=Modifier.weight(1f).testTag("effect-wheel-$param-$axis"))
+            onCancelled={if(captured!=null)vm.cancelGesture();captured=null;draft=null;adjusting=false},inertiaGroup=vm.gestureInertia,modifier=Modifier.weight(1f).testTag("effect-wheel-$param-$axis"))
         else Spacer(Modifier.weight(1f))
         val valueWidth=(72.dp*fontScale).coerceIn(80.dp,120.dp)
         TextButton(onClick=onInput,enabled=enabled,contentPadding=PaddingValues(horizontal=4.dp),modifier=Modifier.width(valueWidth).heightIn(min=48.dp).testTag("effect-value-$param-$axis")) {
             Text(String.format(Locale.US,"%.3f",(draft?:value.getDouble(axis))),fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
     }
-    DisposableEffect(instance,param,axis){onDispose{if(captured!=null)vm.cancelGesture()}}
 }
 
 @Composable private fun EffectCatalogue(vm:EditorViewModel,modifier:Modifier,onChoose:(JSONObject,JSONObject)->Unit) {

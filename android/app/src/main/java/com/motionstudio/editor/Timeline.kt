@@ -15,9 +15,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.KeyboardType
 import org.json.JSONObject
@@ -88,10 +90,22 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
     var moveRow by remember{mutableStateOf<TrackRow?>(null)}
     var jumpDialog by remember{mutableStateOf(false)}
     var hoveredRow by remember{mutableStateOf<Int?>(null)}
-    Canvas(modifier.testTag("timeline").onSizeChanged{viewportHeight=it.height.toFloat()}.pointerInput(focused,density,fontScale) {
+    val inertia=rememberGestureInertia(vm.gestureInertia)
+    val limits=rememberFlingLimits()
+    val projectKey=vm.root
+    LaunchedEffect(projectKey,vm.playing,focused,vm.selected,vm.panelOpen,vm.effectsOpen,density,fontScale) {inertia.stop()}
+    Canvas(modifier.testTag("timeline").semantics {
+        if(vm.layerSelectionMode) {
+            stateDescription="已选 ${vm.selectedLayerIds.size} 个图层"
+            customActions=rows.filter{it.id!=0L}.map{row->CustomAccessibilityAction((if(row.id in vm.selectedLayerIds)"取消选择 "else"选择 ")+row.name){vm.toggleLayerSelection(row.id);true}}
+        }
+    }.onSizeChanged{viewportHeight=it.height.toFloat()}.pointerInput(projectKey,focused,density,fontScale) {
         var lastTapId=-1L;var lastTapTime=0L
         awaitEachGesture {
             val down=awaitFirstDown()
+            vm.gestureInertia.stop()
+            val tracker=VelocityTracker().also{it.addPosition(down.uptimeMillis,down.position)}
+            var lastX=down.uptimeMillis;var lastY=down.uptimeMillis
             val values=currentRows
             val totalFrames=vm.state.project?.optInt("frames")?:180
             val startFrame=vm.frame;val startScale=vm.timelineScale*density;val startScroll=vertical
@@ -113,7 +127,10 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                     val event=awaitPointerEvent()
                     if(event.changes.any{it.isConsumed})break
                     val pan=event.calculatePan();total+=pan
+                    event.changes.firstOrNull{it.id==down.id}?.let{tracker.addPosition(it.uptimeMillis,it.position)}
                     val elapsed=event.changes.first().uptimeMillis-down.uptimeMillis
+                    if(pan.x!=0f)lastX=event.changes.first().uptimeMillis
+                    if(pan.y!=0f)lastY=event.changes.first().uptimeMillis
                     if(event.changes.count{it.pressed}>1) {
                         if(gesture){vm.cancelGesture();gesture=false;clipDraft=null}
                         mode="zoom"
@@ -125,6 +142,7 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                         vm.seek((anchor-(center.x-size.width/2f)/(next*density)).roundToInt().toDouble())
                     }else if(mode.isEmpty()&&total.getDistance()>viewConfiguration.touchSlop) {
                         mode=when {
+                            vm.layerSelectionMode->if(abs(total.x)>=abs(total.y))"scrub"else"scroll"
                             hitKey!=null&&keyRow?.locked==false->"key"
                             edge!=null&&abs(total.x)>=abs(total.y)->edge
                             !focused&&row!=null&&row.id!=0L&&!row.locked&&elapsed>=viewConfiguration.longPressTimeoutMillis&&abs(total.y)>abs(total.x)->"reorder"
@@ -157,14 +175,35 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                     completed=event.changes.none{it.pressed}
                     if(mode.isNotEmpty())event.changes.forEach{it.consume()}
                 }while(!completed)
-                if(completed&&mode=="key"&&keyRow!=null&&hitKey!=null&&target!=hitKey) {
+                if(completed&&mode in listOf("scrub","scroll")) {
+                    val releasedAt=currentEvent.changes.first().uptimeMillis
+                    val velocity=tracker.calculateVelocity()
+                    var position=if(mode=="scrub")vm.frame else vertical.toDouble()
+                    val speed=releaseVelocity(if(mode=="scrub")velocity.x else velocity.y,releasedAt,if(mode=="scrub")lastX else lastY,limits)
+                    inertia.start(speed,limits.minimum,1.2f,onDelta={delta->
+                        if(vm.root!=projectKey||vm.playing||vm.isClosed)false
+                        else if(mode=="scrub") {
+                            val last=(vm.state.project?.optInt("frames")?:1)-1.0
+                            position=(position-delta/startScale).coerceIn(0.0,last.coerceAtLeast(0.0))
+                            val frame=position.roundToInt().toDouble()
+                            if(frame!=vm.frame)vm.seek(frame)
+                            position>0.0&&position<last
+                        }else {
+                            val last=max(0f,currentRows.size*rowHeight-viewportHeight+head)
+                            position=(position-delta).coerceIn(0.0,last.toDouble())
+                            vertical=position.toFloat()
+                            position>0.0&&position<last
+                        }
+                    })
+                }else if(completed&&mode=="key"&&keyRow!=null&&hitKey!=null&&target!=hitKey) {
                     vm.moveKeyFor(keyRow.id,keyRow.property,hitKey,target!!,keyRow.axis);vm.seek(target!!.toDouble())
                 }else if(completed&&mode=="reorder"&&row!=null&&hoveredRow!=null) {
                     val cameraCount=if(values.firstOrNull()?.id==0L)1 else 0
                     vm.select(row.id,false);vm.reorderTo(row.id,values.size-cameraCount-1-(hoveredRow!!-cameraCount))
                 }else if(completed&&mode.isEmpty()) {
                     val duration=currentEvent.changes.first().uptimeMillis-down.uptimeMillis
-                    if(hitKey!=null&&keyRow!=null) {
+                    if(vm.layerSelectionMode&&row!=null){vm.toggleLayerSelection(row.id)}
+                    else if(hitKey!=null&&keyRow!=null) {
                         vm.select(keyRow.id,false);vm.property=keyRow.property;keyRow.axis?.let{vm.chooseAxis(it)};vm.seek(hitKey.toDouble())
                         if(duration>=viewConfiguration.longPressTimeoutMillis)editKey=KeyTarget(keyRow.id,keyRow.property,keyRow.axis,hitKey)
                     }else if(row!=null) {
@@ -221,16 +260,17 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
         drawContext.canvas.nativeCanvas.drawText(time,center,32*density,paint)
         clipRect(top=head) {
             rows.forEachIndexed{index,row->
+                val chosen=if(vm.layerSelectionMode)row.id in vm.selectedLayerIds else row.id==vm.selected
                 val y=head+index*rowHeight-vertical
                 if(y+rowHeight<head||y>size.height)return@forEachIndexed
                 val draft=clipDraft?.takeIf{it.objectId==row.id}
                 val begin=draft?.start?:row.start;val end=draft?.end?:row.end
                 val x=center+(begin-vm.frame).toFloat()*scale;val right=center+(end-vm.frame).toFloat()*scale
                 val left=max(49*density,x);val width=max(0f,min(size.width-12*density,right)-left)
-                if(row.id==vm.selected)drawRect(Accent.copy(alpha=.08f),Offset(0f,y),Size(size.width,rowHeight))
+                if(chosen)drawRect(Accent.copy(alpha=.08f),Offset(0f,y),Size(size.width,rowHeight))
                 if(width>1) {
                     drawRoundRect(row.color.copy(alpha=if(row.visible).18f else .06f),Offset(left,y+2*density),Size(width,rowHeight-4*density),androidx.compose.ui.geometry.CornerRadius(3*density))
-                    if(row.id==vm.selected)drawRoundRect(Accent.copy(alpha=.65f),Offset(left,y+2*density),Size(width,rowHeight-4*density),androidx.compose.ui.geometry.CornerRadius(3*density),style=Stroke(density))
+                    if(chosen)drawRoundRect(Accent.copy(alpha=.65f),Offset(left,y+2*density),Size(width,rowHeight-4*density),androidx.compose.ui.geometry.CornerRadius(3*density),style=Stroke(density))
                     drawRoundRect(row.color,Offset(left+3*density,y+rowHeight/2-9*density),Size(min(3*density,width),18*density),androidx.compose.ui.geometry.CornerRadius(1.5f*density))
                     val wave=vm.waveforms[row.id];val buckets=wave?.optJSONArray("buckets")
                     val audio=vm.audioClip(row.id)
@@ -249,13 +289,13 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                             px+=step
                         }
                     }
-                    if(row.id==vm.selected&&row.id!=0L&&!row.locked)for(edge in listOf(x+4*density,right-4*density)) {
+                    if(!vm.layerSelectionMode&&chosen&&row.id!=0L&&!row.locked)for(edge in listOf(x+4*density,right-4*density)) {
                         if(edge in 49*density..size.width-12*density)drawLine(Accent,Offset(edge,y+rowHeight/2-11*density),Offset(edge,y+rowHeight/2+11*density),2*density)
                     }
                 }
                 paint.color=(if(row.visible)Ink else Muted).let{android.graphics.Color.argb(255,(it.red*255).toInt(),(it.green*255).toInt(),(it.blue*255).toInt())}
                 paint.textAlign=android.graphics.Paint.Align.LEFT;paint.textSize=12*density*fontScale
-                paint.typeface=if(row.id==vm.selected)android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                paint.typeface=if(chosen)android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
                 val labelY=y+(if(row.allKeys.any{it in 0 until frames})(rowHeight-10*density)/2 else rowHeight/2)-(paint.fontMetrics.ascent+paint.fontMetrics.descent)/2
                 clipRect(left=if(width>24*density)left+10*density else 49*density,top=y+2*density,
                     right=if(width>24*density)left+width-6*density else size.width-12*density,bottom=y+rowHeight-2*density) {
@@ -263,7 +303,10 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                 }
                 val middle=y+rowHeight/2
                 val eye=Path().apply{moveTo(12*density,middle);quadraticTo(23*density,middle-15*density,34*density,middle);quadraticTo(23*density,middle+15*density,12*density,middle)}
-                if(vm.contentKind(row.id)=="audio") {
+                if(vm.layerSelectionMode&&row.id!=0L) {
+                    drawRoundRect(if(chosen)Accent else Muted,Offset(15*density,middle-8*density),Size(16*density,16*density),androidx.compose.ui.geometry.CornerRadius(2*density),style=if(chosen)androidx.compose.ui.graphics.drawscope.Fill else Stroke(density))
+                    if(chosen)drawPath(Path().apply{moveTo(18*density,middle);lineTo(22*density,middle+4*density);lineTo(28*density,middle-4*density)},Background,style=Stroke(1.5f*density))
+                }else if(vm.contentKind(row.id)=="audio") {
                     paint.textSize=18*density;paint.color=android.graphics.Color.LTGRAY
                     drawContext.canvas.nativeCanvas.drawText(if(vm.audioClip(row.id)?.optBoolean("muted")==true)"×"else"♪",18*density,middle+6*density,paint)
                 }else {
@@ -282,6 +325,7 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
     moveRow?.let{row->ClipMoveDialog(vm,row){moveRow=null}}
     trimRow?.let{row->ClipTrimDialog(vm,row){trimRow=null}}
     contextRow?.let{row->AlertDialog(onDismissRequest={contextRow=null},title={Text(row.name)},text={Column(Modifier.verticalScroll(rememberScrollState())) {
+        if(row.id!=0L)TextButton(onClick={vm.startLayerSelection(row.id);contextRow=null},modifier=Modifier.testTag("context-layer-selection")){Text("多选图层")}
         TextButton(onClick={vm.select(row.id);if(vm.contentKind(row.id)=="audio")vm.property="audio";contextRow=null}){Text(if(vm.contentKind(row.id)=="audio")"声音"else"移动和变换")}
         if(row.id!=0L) {
             TextButton(enabled=!row.locked,onClick={moveRow=row;contextRow=null}){Text("精确移动片段")}
