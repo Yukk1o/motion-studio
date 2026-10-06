@@ -22,6 +22,14 @@ ImageReader 的 RGB 格式兼容回退仍使用 CPU 像素搬运/旋转。预览
 
 暂停/精确静帧和 PNG capture 必须准确匹配目标，不能以旧画面代替；捕获未就绪时按原约定重试。`MediaBridge.request_video_frame`、`readVideoFrameInto` 和冻结导出接口保持原来的 sequence、精确 PTS 和 RGBA8 契约。CPU RGBA 只在这些显式像素消费者或缩略图请求时生成，MP4 导出继续按冻结工程准确取帧。冻结 reader 不启用前向预取，不共享编辑器的可变帧状态。
 
+## 素材 ID 与混合导入
+
+工程中的 `assets`（图片和文字栅格）、`audio_assets`、`video_assets` 共用素材 ID 空间。ID 必须非零且在三个表中全局唯一，不能按单个表的长度或最大值分配。图层 ID 属于独立空间。
+
+图片和文字通过 `register_asset` 与 `add` 批量提交时，素材 ID 应取三个表的最大 ID 加一；图层内容中的 `asset` 或 `raster_asset` 必须引用这个 ID。原生音频/视频导入已按同一规则分配。带原声的视频会注册两个素材 ID，即使引用同一文件也不能重复。例如视频 ID 1、原声 ID 2，随后添加图片应使用 ID 3。
+
+保存、重开、撤销和重做保留已有 ID，分配时仍需检查三个素材表。后端拒绝 ID 冲突并保持批量编辑的原子性，不能通过放宽唯一性校验规避冲突。Android `MediaImportOrderTest` 覆盖无声视频、带原声视频、音频先导入以及反向混合导入，并检查图片/文字引用、撤销重做和重开后继续添加。
+
 ## 诊断字段
 
 `NativeBridge.previewInfo(id)` 的 `data.video`，以及 `state.data.preview.video` 包含：
