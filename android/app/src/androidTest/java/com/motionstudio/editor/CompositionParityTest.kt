@@ -45,11 +45,13 @@ class CompositionParityTest {
                     .put("action", JSONObject().put("kind", "set").put("effect", 1).put("param", parameter).put("frame", 0).put("value", values))))
             val inside = result(action(native, "comp-main", "precompose", "objects" to array(1, 2), "name" to "inside")).getString("composition")
             val first = req(native, "comp-main", "state").getJSONObject("project").getJSONArray("layers").getJSONObject(0).getLong("id")
-            action(native, "comp-main", "precompose", "objects" to array(first), "name" to "outside")
+            val outside = result(action(native, "comp-main", "precompose", "objects" to array(first), "name" to "outside")).getString("composition")
+            req(native, inside, "open", "path" to array("comp-main", outside, inside))
             val settings = JSONObject().put("name", "144 fps inner").put("width", 192).put("height", 192).put("fps", 144).put("frames", 288)
                 .put("timing", "preserve_seconds").put("shorten", "reject")
             val preview = req(native, inside, "settings_preview", "settings" to settings); assertTrue(preview.toString(), preview.getBoolean("valid"))
             req(native, inside, "settings_apply", "settings" to settings, "expected_revision" to preview.getLong("expected_revision"))
+            req(native, "comp-main", "open", "path" to array("comp-main"))
             val reference = req(native, "comp-main", "state").getJSONObject("project").getJSONArray("layers").getJSONObject(0).getLong("id")
             data(CompositionBridge.command(native, "comp-main", JSONObject().put("op", "duplicate").put("object", reference)))
             val duplicate = req(native, "comp-main", "state").getJSONObject("project").getJSONArray("layers").getJSONObject(1).getLong("id")
@@ -58,22 +60,30 @@ class CompositionParityTest {
             val saved = JSONObject(CompositionBridge.freezeProject(native, "comp-main"))
             saved.getJSONArray("layers").getJSONObject(1).getJSONObject("transform").getJSONObject("rotation").put("value", array(10, 30, 5))
             data(NativeBridge.replace(native, saved.toString()))
-            for (frame in listOf(0, 17, 58, 115, 17)) {
-                req(native, "comp-main", "seek", "frame" to frame)
-                val png = BitmapFactory.decodeFile(data(CompositionBridge.capture(native, "comp-main")).getString("path"), BitmapFactory.Options().apply { inPremultiplied = false; inScaled = false })
-                val info = data(NativeBridge.renderPlanInfo(native))
-                val tiny = ByteBuffer.allocateDirect(32).order(ByteOrder.LITTLE_ENDIAN)
-                val needed = CompositionBridge.sampleFrameBundleInto(native, "comp-main", frame.toDouble(), tiny); assertTrue(needed < -32)
-                val bundle = ByteBuffer.allocateDirect(-needed).order(ByteOrder.LITTLE_ENDIAN)
-                assertEquals(-needed, CompositionBridge.sampleFrameBundleInto(native, "comp-main", frame.toDouble(), bundle))
-                val gpu = EglMovieRenderer(null, 192, 192, saved, native, info)
+            data class Sample(val frame: Int, val png: android.graphics.Bitmap, val bundle: ByteBuffer)
+            val samples = ArrayList<Sample>()
+            try {
+                for (frame in listOf(0, 17, 58, 115, 17)) {
+                    req(native, "comp-main", "seek", "frame" to frame)
+                    val png = BitmapFactory.decodeFile(data(CompositionBridge.capture(native, "comp-main")).getString("path"), BitmapFactory.Options().apply { inPremultiplied = false; inScaled = false })
+                    val tiny = ByteBuffer.allocateDirect(32).order(ByteOrder.LITTLE_ENDIAN)
+                    val needed = CompositionBridge.sampleFrameBundleInto(native, "comp-main", frame.toDouble(), tiny); assertTrue(needed < -32)
+                    val bundle = ByteBuffer.allocateDirect(-needed).order(ByteOrder.LITTLE_ENDIAN)
+                    assertEquals(-needed, CompositionBridge.sampleFrameBundleInto(native, "comp-main", frame.toDouble(), bundle))
+                    samples.add(Sample(frame, png, bundle))
+                }
+                assertFalse("Timed references had no visible effect", samples[0].png.sameAs(samples[3].png))
+                assertTrue("Random native seek changed the same frame", samples[1].png.sameAs(samples[4].png))
+                val gpu = EglMovieRenderer(null, 192, 192, saved, native, data(NativeBridge.renderPlanInfo(native)))
                 try {
-                    gpu.prepareBundle(bundle); gpu.drawBundle(bundle)
-                    val pixels = ByteBuffer.allocateDirect(192 * 192 * 4); gpu.readPixelsInto(pixels)
-                    reports.put(glesParity(png, pixels).put("frame", frame).put("nodes", bundle.getInt(8)))
-                    File(root, "unencoded-report.json").writeText(reports.toString(2))
-                } finally { gpu.close(); png.recycle() }
-            }
+                    for (sample in samples) {
+                        gpu.prepareBundle(sample.bundle); gpu.drawBundle(sample.bundle)
+                        val pixels = ByteBuffer.allocateDirect(192 * 192 * 4); gpu.readPixelsInto(pixels)
+                        reports.put(glesParity(sample.png, pixels).put("frame", sample.frame).put("nodes", sample.bundle.getInt(8)))
+                        File(root, "unencoded-report.json").writeText(reports.toString(2))
+                    }
+                } finally { gpu.close() }
+            } finally { samples.forEach { it.png.recycle() } }
         } finally { NativeBridge.destroy(native) }
     }
 }
