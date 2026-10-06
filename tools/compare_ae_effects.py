@@ -121,7 +121,9 @@ def main():
             count = sum(x["metrics"] is not None for x in selected)
             fail = sum(x["status"] == "approximate_difference" for x in selected)
             matrix.append(f"| {effect['name']} / {effect['english_name']} | `{effect['reference_match_name']}` | 近似实现 | {count}/{len(selected)} | {fail} |")
-        (ROOT / "docs/effects/compatibility.md").write_text("\n".join(matrix)+"\n", encoding="utf-8")
+        local_matrix = ROOT / "docs/effects/compatibility.md"
+        local_matrix.parent.mkdir(parents=True, exist_ok=True)
+        local_matrix.write_text("\n".join(matrix)+"\n", encoding="utf-8")
     print(json.dumps(dict(cases=len(cases), decoded_pairs=report["decoded_pairs"], accepted_effects=0)))
 
 

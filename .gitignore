@@ -26,11 +26,3 @@ reference/
 /tools/summarize_effects.py
 /docs/
 /design/
-
-# Versioned effect runtime handoff only; other local study materials stay excluded.
-!/docs/
-/docs/*
-!/docs/effects/
-!/docs/expressions/
-
-!/docs/scene-effects/

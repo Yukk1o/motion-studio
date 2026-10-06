@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -28,11 +29,15 @@ private data class TrackRow(val id:Long,val name:String,val color:Color,val visi
 private data class KeyTarget(val objectId:Long,val property:String,val axis:Int?,val frame:Int)
 private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mode:String)
 
-@Composable internal fun Timeline(vm:EditorViewModel,modifier:Modifier) {
+internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
+
+@Composable internal fun Timeline(vm:EditorViewModel,modifier:Modifier,focused:Boolean=false) {
     val density=LocalDensity.current.density
+    val fontScale=LocalDensity.current.fontScale
+    val rowHeight=timelineRowHeightDp(fontScale)*density;val head=44*density
     val project=vm.state.project
     val frames=project?.optInt("frames")?:180
-    val rows=remember(project,vm.state.sample,vm.selected,vm.property,vm.activeAxis()){buildList {
+    val rows=remember(project,vm.state.sample,vm.selected,vm.property,vm.activeAxis(),focused){buildList {
         if(project!=null) {
             fun keys(track:JSONObject?):List<Int> = track?.optJSONArray("keys")?.let{a->
                 (0 until a.length()).map{a.getJSONObject(it).getLong("frame")}.filter{it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()}.map{it.toInt()}}?:emptyList()
@@ -60,7 +65,7 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                     l.getBoolean("visible"),l.getBoolean("locked"),key,axis,keyFrames,all,clip?.optInt("in_frame")?:0,clip?.optInt("out_frame")?:frames,parentOf(vm,id)))
             }
         }
-    }}
+    }.let{if(focused)it.filter{row->row.id==vm.selected}else it}}
     val currentRows by rememberUpdatedState(rows)
     LaunchedEffect(project,vm.frame.toInt()/150,vm.importTask) {
         if(vm.importTask==null)rows.filter{vm.audioClip(it.id)!=null}.forEach{row->
@@ -70,7 +75,11 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
             vm.requestWaveform(row.id,first)
         }
     }
-    var vertical by remember{mutableFloatStateOf(0f)}
+    var vertical by remember(focused,density,fontScale){mutableFloatStateOf(0f)}
+    var viewportHeight by remember{mutableFloatStateOf(0f)}
+    LaunchedEffect(rows.size,viewportHeight,focused,density,fontScale) {
+        if(viewportHeight>0)vertical=vertical.coerceIn(0f,max(0f,rows.size*rowHeight-viewportHeight+head))
+    }
     var movedKey by remember{mutableStateOf<KeyTarget?>(null)}
     var editKey by remember{mutableStateOf<KeyTarget?>(null)}
     var clipDraft by remember{mutableStateOf<ClipDraft?>(null)}
@@ -79,18 +88,17 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
     var moveRow by remember{mutableStateOf<TrackRow?>(null)}
     var jumpDialog by remember{mutableStateOf(false)}
     var hoveredRow by remember{mutableStateOf<Int?>(null)}
-    Canvas(modifier.testTag("timeline").pointerInput(Unit) {
+    Canvas(modifier.testTag("timeline").onSizeChanged{viewportHeight=it.height.toFloat()}.pointerInput(focused,density,fontScale) {
         var lastTapId=-1L;var lastTapTime=0L
         awaitEachGesture {
             val down=awaitFirstDown()
             val values=currentRows
-            val rowHeight=52*density;val head=44*density
             val totalFrames=vm.state.project?.optInt("frames")?:180
             val startFrame=vm.frame;val startScale=vm.timelineScale*density;val startScroll=vertical
             val rowIndex=floor((down.position.y-head+vertical)/rowHeight).toInt()
             val row=if(down.position.y>=head)values.getOrNull(rowIndex)else null
             val rulerRow=values.firstOrNull{it.id==vm.selected}
-            val keyRow=if(down.position.y<16*density)rulerRow else if(row!=null&&down.position.y>=head+rowIndex*rowHeight-vertical+32*density)row else null
+            val keyRow=if(down.position.y<16*density)rulerRow else if(row!=null&&down.position.x>=49*density&&down.position.y>=head+(rowIndex+1)*rowHeight-vertical-14*density)row else null
             val hitKey=keyRow?.keys?.minByOrNull{abs(size.width/2f+(it-startFrame)*startScale-down.position.x)}
                 ?.takeIf{abs(size.width/2f+(it-startFrame)*startScale-down.position.x)<=18*density}
             fun x(frame:Int)=size.width/2f+(frame-startFrame).toFloat()*startScale
@@ -119,7 +127,7 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                         mode=when {
                             hitKey!=null&&keyRow?.locked==false->"key"
                             edge!=null&&abs(total.x)>=abs(total.y)->edge
-                            row!=null&&row.id!=0L&&!row.locked&&elapsed>=viewConfiguration.longPressTimeoutMillis&&abs(total.y)>abs(total.x)->"reorder"
+                            !focused&&row!=null&&row.id!=0L&&!row.locked&&elapsed>=viewConfiguration.longPressTimeoutMillis&&abs(total.y)>abs(total.x)->"reorder"
                             row!=null&&row.id!=0L&&!row.locked&&insideClip&&elapsed>=viewConfiguration.longPressTimeoutMillis->"move"
                             abs(total.x)>=abs(total.y)->"scrub"
                             else->"scroll"
@@ -180,27 +188,27 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
             }
         }
     }) {
-        val rowHeight=52*density;val head=44*density;val center=size.width/2f;val scale=vm.timelineScale*density
+        val center=size.width/2f;val scale=vm.timelineScale*density
         val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{color=android.graphics.Color.LTGRAY;textSize=11*density}
         val startFrame=max(0,(vm.frame-center/scale).toInt());val endFrame=min(frames,ceil(vm.frame+center/scale).toInt())
         for(f in startFrame..endFrame)if(f%5==0) {
             val x=center+(f-vm.frame).toFloat()*scale
             drawLine(Muted.copy(alpha=.35f),Offset(x,0f),Offset(x,if(f%30==0)13*density else 7*density),density)
         }
-        fun diamond(frame:Int,y:Float,active:Boolean) {
-            val x=center+(frame-vm.frame).toFloat()*scale;val r=if(active)6*density else 4*density
+        fun diamond(frame:Int,y:Float,active:Boolean,compact:Boolean=false) {
+            val x=center+(frame-vm.frame).toFloat()*scale;val r=(if(compact)if(active)4 else 3 else if(active)6 else 4)*density
             val path=Path().apply{moveTo(x,y-r);lineTo(x+r,y);lineTo(x,y+r);lineTo(x-r,y);close()}
             drawPath(path,if(active)Accent else Muted.copy(alpha=.28f))
             if(active)drawPath(path,Ink,style=Stroke(density))
         }
-        fun keyMarks(keys:Collection<Int>,y:Float,active:Collection<Int>) {
+        fun keyMarks(keys:Collection<Int>,y:Float,active:Collection<Int>,compact:Boolean=false) {
             val bin=max(1,ceil(14*density/scale).toInt())
             keys.filter{it in 0 until frames}.sorted().groupBy{it/bin}.values.forEach{group->
-                if(group.size==1)diamond(group.first(),y,group.first() in active)
+                if(group.size==1)diamond(group.first(),y,group.first() in active,compact)
                 else {
                     val x=center+(group.average()-vm.frame).toFloat()*scale
                     drawCircle(if(group.any{it in active})Accent.copy(alpha=.65f)else Muted.copy(alpha=.35f),2.5f*density,Offset(x,y))
-                    group.firstOrNull{it in active&&abs(it-vm.frame)<.5}?.let{diamond(it,y,true)}
+                    group.firstOrNull{it in active&&abs(it-vm.frame)<.5}?.let{diamond(it,y,true,compact)}
                 }
             }
         }
@@ -221,12 +229,12 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                 val left=max(49*density,x);val width=max(0f,min(size.width-12*density,right)-left)
                 if(row.id==vm.selected)drawRect(Accent.copy(alpha=.08f),Offset(0f,y),Size(size.width,rowHeight))
                 if(width>1) {
-                    drawRoundRect(row.color.copy(alpha=if(row.visible).18f else .06f),Offset(left,y+7*density),Size(width,30*density),androidx.compose.ui.geometry.CornerRadius(6*density))
-                    if(row.id==vm.selected)drawRoundRect(Accent.copy(alpha=.65f),Offset(left,y+7*density),Size(width,30*density),androidx.compose.ui.geometry.CornerRadius(6*density),style=Stroke(density))
-                    drawRoundRect(row.color,Offset(left+3*density,y+13*density),Size(min(3*density,width),18*density),androidx.compose.ui.geometry.CornerRadius(1.5f*density))
+                    drawRoundRect(row.color.copy(alpha=if(row.visible).18f else .06f),Offset(left,y+2*density),Size(width,rowHeight-4*density),androidx.compose.ui.geometry.CornerRadius(3*density))
+                    if(row.id==vm.selected)drawRoundRect(Accent.copy(alpha=.65f),Offset(left,y+2*density),Size(width,rowHeight-4*density),androidx.compose.ui.geometry.CornerRadius(3*density),style=Stroke(density))
+                    drawRoundRect(row.color,Offset(left+3*density,y+rowHeight/2-9*density),Size(min(3*density,width),18*density),androidx.compose.ui.geometry.CornerRadius(1.5f*density))
                     val wave=vm.waveforms[row.id];val buckets=wave?.optJSONArray("buckets")
                     val audio=vm.audioClip(row.id)
-                    if(audio!=null&&buckets!=null&&buckets.length()>0)clipRect(left=left+6*density,top=y+8*density,right=left+width,bottom=y+37*density) {
+                    if(audio!=null&&buckets!=null&&buckets.length()>0)clipRect(left=left+6*density,top=y+3*density,right=left+width,bottom=y+rowHeight-3*density) {
                         val offset=vm.timelineLayer(row.id)?.optInt("offset_frame")?:0
                         val sourceOffset=audio.optLong("source_offset_us")/10000.0
                         val step=max(1f,2*density);var px=left+8*density
@@ -235,31 +243,35 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
                             val source=sourceOffset+(comp-offset)*100/fps
                             val bucket=(floor(source).toLong()-wave.getLong("first_bucket")).toInt()
                             if(bucket in 0 until buckets.length()) {
-                                val b=buckets.getJSONObject(bucket);drawLine(if(audio.optBoolean("muted"))Muted.copy(alpha=.2f)else row.color.copy(alpha=.5f),Offset(px,y+(23f-b.optDouble("max").toFloat()*12f)*density),Offset(px,y+(23f-b.optDouble("min").toFloat()*12f)*density),density)
+                                val b=buckets.getJSONObject(bucket);val amplitude=(rowHeight-12*density)/2
+                                drawLine(if(audio.optBoolean("muted"))Muted.copy(alpha=.2f)else row.color.copy(alpha=.5f),Offset(px,y+rowHeight/2-b.optDouble("max").toFloat()*amplitude),Offset(px,y+rowHeight/2-b.optDouble("min").toFloat()*amplitude),density)
                             }
                             px+=step
                         }
                     }
                     if(row.id==vm.selected&&row.id!=0L&&!row.locked)for(edge in listOf(x+4*density,right-4*density)) {
-                        if(edge in 49*density..size.width-12*density)drawLine(Accent,Offset(edge,y+15*density),Offset(edge,y+29*density),2*density)
+                        if(edge in 49*density..size.width-12*density)drawLine(Accent,Offset(edge,y+rowHeight/2-11*density),Offset(edge,y+rowHeight/2+11*density),2*density)
                     }
                 }
                 paint.color=(if(row.visible)Ink else Muted).let{android.graphics.Color.argb(255,(it.red*255).toInt(),(it.green*255).toInt(),(it.blue*255).toInt())}
-                paint.textAlign=android.graphics.Paint.Align.LEFT;paint.textSize=12*density
+                paint.textAlign=android.graphics.Paint.Align.LEFT;paint.textSize=12*density*fontScale
                 paint.typeface=if(row.id==vm.selected)android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
-                if(width>24*density)clipRect(left=left+10*density,top=y+7*density,right=left+width-6*density,bottom=y+37*density) {
-                    drawContext.canvas.nativeCanvas.drawText((if(row.parent!=null)"↳ "else"")+row.name,left+12*density,y+27*density,paint)
-                }else drawContext.canvas.nativeCanvas.drawText(row.name,58*density,y+27*density,paint)
-                val eye=Path().apply{moveTo(12*density,y+25*density);quadraticTo(23*density,y+10*density,34*density,y+25*density);quadraticTo(23*density,y+40*density,12*density,y+25*density)}
+                val labelY=y+(if(row.allKeys.any{it in 0 until frames})(rowHeight-10*density)/2 else rowHeight/2)-(paint.fontMetrics.ascent+paint.fontMetrics.descent)/2
+                clipRect(left=if(width>24*density)left+10*density else 49*density,top=y+2*density,
+                    right=if(width>24*density)left+width-6*density else size.width-12*density,bottom=y+rowHeight-2*density) {
+                    drawContext.canvas.nativeCanvas.drawText((if(row.parent!=null)"↳ "else"")+row.name,if(width>24*density)left+12*density else 58*density,labelY,paint)
+                }
+                val middle=y+rowHeight/2
+                val eye=Path().apply{moveTo(12*density,middle);quadraticTo(23*density,middle-15*density,34*density,middle);quadraticTo(23*density,middle+15*density,12*density,middle)}
                 if(vm.contentKind(row.id)=="audio") {
                     paint.textSize=18*density;paint.color=android.graphics.Color.LTGRAY
-                    drawContext.canvas.nativeCanvas.drawText(if(vm.audioClip(row.id)?.optBoolean("muted")==true)"×"else"♪",18*density,y+31*density,paint)
+                    drawContext.canvas.nativeCanvas.drawText(if(vm.audioClip(row.id)?.optBoolean("muted")==true)"×"else"♪",18*density,middle+6*density,paint)
                 }else {
                     drawPath(eye,if(row.visible)Ink else Muted,style=Stroke(1.3f*density))
-                    if(row.visible)drawCircle(Ink,3*density,Offset(23*density,y+25*density))
+                    if(row.visible)drawCircle(Ink,3*density,Offset(23*density,middle))
                 }
-                keyMarks(row.allKeys,y+44*density,if(row.id==vm.selected)row.keys else emptyList())
-                if(row.locked)drawRect(Muted,Offset(size.width-19*density,y+16*density),Size(7*density,8*density))
+                clipRect(left=49*density,right=size.width-12*density){keyMarks(row.allKeys,y+rowHeight-7*density,if(row.id==vm.selected)row.keys else emptyList(),compact=true)}
+                if(row.locked)drawRect(Muted,Offset(size.width-19*density,middle-4*density),Size(7*density,8*density))
             }
             hoveredRow?.let{index->drawLine(Accent,Offset(48*density,head+index*rowHeight-vertical),Offset(size.width,head+index*rowHeight-vertical),2*density)}
         }
@@ -313,9 +325,14 @@ private data class ClipDraft(val objectId:Long,val start:Int,val end:Int,val mod
 
 @Composable private fun InputKeyDialog(vm:EditorViewModel,key:KeyTarget,onDismiss:()->Unit) {
     var target by remember(key){mutableStateOf(key.frame.toString())}
+    val to=target.toIntOrNull()
+    val track=vm.propertyTrack(key.objectId,key.property)?.let{if(key.axis!=null)it.optJSONObject("axes")?.optJSONObject(vm.axisName(key.axis))else it}
+    val occupied=track?.optJSONArray("keys").objects().any{it.getInt("frame")==to}
+    val valid=to!=null&&to in 0 until (vm.state.project?.optInt("frames")?:0)&&!occupied
     AlertDialog(onDismissRequest=onDismiss,title={Text("关键帧 "+key.frame)},text={Column {
-        OutlinedTextField(target,{target=it},label={Text("目标帧")})
-        TextButton(onClick={target.toIntOrNull()?.let{vm.copyKeyFor(key.objectId,key.property,key.frame,it,key.axis)};onDismiss()}){Text("复制到目标帧")}
-    }},confirmButton={TextButton(onClick={target.toIntOrNull()?.let{vm.moveKeyFor(key.objectId,key.property,key.frame,it,key.axis)};onDismiss()}){Text("精确移动")}},
-        dismissButton={TextButton(onClick={vm.deleteKeyFor(key.objectId,key.property,key.frame,key.axis);onDismiss()}){Text("删除")}})
+        OutlinedTextField(target,{target=it},label={Text("目标帧")},singleLine=true,isError=!valid,
+            supportingText={if(!valid)Text(if(occupied)"目标帧已有关键帧"else"请输入合成范围内的整数帧")},modifier=Modifier.testTag("timeline-key-destination"))
+        TextButton(enabled=valid&&vm.editable(),onClick={vm.copyKeyFor(key.objectId,key.property,key.frame,to!!,key.axis);onDismiss()},modifier=Modifier.testTag("timeline-key-copy")){Text("复制到目标帧")}
+    }},confirmButton={TextButton(enabled=valid&&vm.editable(),onClick={vm.moveKeyFor(key.objectId,key.property,key.frame,to!!,key.axis);onDismiss()},modifier=Modifier.testTag("timeline-key-move")){Text("精确移动")}},
+        dismissButton={TextButton(enabled=vm.editable(),onClick={vm.deleteKeyFor(key.objectId,key.property,key.frame,key.axis);onDismiss()},modifier=Modifier.testTag("timeline-key-delete")){Text("删除")}})
 }
