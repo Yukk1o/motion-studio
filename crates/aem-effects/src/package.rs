@@ -116,7 +116,8 @@ impl EffectPackage {
                     })?)
                     .map_err(|_| Error::Invalid("shader must be UTF-8".into()))?;
                 let compiled = if effect.output_bounds.is_some() {
-                    shader::compile_rect_image(source, &pass.entry)
+                    if manifest.sdk_version >= 4 { shader::compile_spatial_image(source, &pass.entry) }
+                    else { shader::compile_rect_image(source, &pass.entry) }
                 } else {
                     shader::compile_mode(
                         source,

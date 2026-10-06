@@ -58,7 +58,7 @@ impl Stream {
         let shared = Arc::new((
             Mutex::new(State {
                 desired: None,
-                cache: FrameCache::new(),
+                cache: FrameCache::for_size(asset.display_width, asset.display_height),
                 error: None,
                 stop: false,
                 prefetch: false,
@@ -141,7 +141,8 @@ impl Stream {
                                 if !s.cache.insert(frame, desired.time) {
                                     if target == desired.time {
                                         s.error = Some(
-                                            "video source frame exceeds 8 MiB stream cache".into(),
+                                            "video source frame exceeds its stream cache budget"
+                                                .into(),
                                         );
                                     } else {
                                         s.failed_prefetch = Some(target);
@@ -477,6 +478,7 @@ impl VideoFrames {
     }
     pub fn metrics(&self) -> Value {
         let mut bytes = 0;
+        let mut budget = 0;
         let mut frames = 0;
         let mut hits = 0;
         let mut misses = 0;
@@ -485,13 +487,14 @@ impl VideoFrames {
         for stream in self.streams.values() {
             let s = stream.shared.0.lock().unwrap_or_else(|e| e.into_inner());
             bytes += s.cache.bytes();
+            budget += s.cache.budget();
             frames += s.cache.len();
             hits += s.hits;
             misses += s.misses;
             decoded += s.decoded;
             cancelled += s.cancelled;
         }
-        json!({"cacheBytes":bytes,"cacheFrames":frames,"cacheBudgetBytes":4 * crate::video_cache::CACHE_BYTES,
+        json!({"cacheBytes":bytes,"cacheFrames":frames,"cacheBudgetBytes":budget,"maxCacheBudgetBytes":4 * crate::video_cache::MAX_CACHE_BYTES,
             "cacheHits":hits,"cacheMisses":misses,"decodedFrames":decoded,"cancelledFrames":cancelled,"streams":self.streams.len()})
     }
 }

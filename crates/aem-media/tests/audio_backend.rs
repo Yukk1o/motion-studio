@@ -228,6 +228,33 @@ fn two_level_precomposition_preserves_pcm_and_offsets_with_shared_assets() {
 }
 
 #[test]
+fn nondivisor_frame_rates_preserve_frozen_pcm_across_two_precompositions() {
+    let _guard = TEST_LOCK.lock().unwrap();
+    for fps in [59, 144] {
+        let root = tempfile::tempdir().unwrap();
+        let jobs = AudioJobs::new(root.path().into(), Limits::default()).unwrap();
+        let mut e = Engine::new(Project::new(256, 256, fps, fps * 3).unwrap()).unwrap();
+        let a = import(&jobs, &mut e, "stereo", "tone-stereo-48000.wav", 7);
+        let b = import(&jobs, &mut e, "mono", "tone-mono-44100.mp3", 23);
+        let original = e.snapshot();
+        e.apply(Command::Composition { action: aem_core::CompositionAction::Precompose {
+            objects: vec![a, b], name: "inner".into(), range: "composition".into(),
+        }}).unwrap();
+        let reference = e.project().layers[0].id;
+        e.apply(Command::Composition { action: aem_core::CompositionAction::Precompose {
+            objects: vec![reference], name: "outer".into(), range: "composition".into(),
+        }}).unwrap();
+        let mut before = AudioMixer::new(original, root.path()).unwrap();
+        let mut after = AudioMixer::new(e.snapshot(), root.path()).unwrap();
+        for start in [0, 48000, 12000, 96000, 36900, 48000] {
+            let mut a = vec![0.; 12000 * 2]; let mut b = a.clone();
+            before.mix(start, &mut a).unwrap(); after.mix(start, &mut b).unwrap();
+            assert_eq!(a, b, "fps {fps}, sample {start}");
+        }
+    }
+}
+
+#[test]
 fn all_three_formats_decode_owned_audio_and_reopen_without_external_source() {
     let _guard = TEST_LOCK.lock().unwrap();
     let root = tempfile::tempdir().unwrap();

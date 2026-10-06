@@ -36,6 +36,7 @@ import androidx.compose.ui.res.vectorResource
         "ArrowDropDown"->R.drawable.ic_editor_chevron_down
         "ContentCopy"->R.drawable.ic_editor_copy
         "ContentPaste"->R.drawable.ic_editor_paste
+        "ContentCut"->R.drawable.ic_editor_cut
         "Search"->R.drawable.ic_editor_search
         "Check"->R.drawable.ic_editor_check
         "CropFree"->R.drawable.ic_editor_observe

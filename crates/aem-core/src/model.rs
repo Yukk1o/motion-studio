@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 pub const MAX_LAYERS: usize = 128;
 pub const MAX_FRAMES: u32 = 36_000;
+pub const MAX_COMPOSITION_FPS: u32 = 240;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -301,8 +302,8 @@ impl Project {
             "invalid composition size",
         )?;
         ensure(
-            matches!(self.fps, 30 | 60),
-            "composition frame rate must be 30 or 60",
+            (1..=MAX_COMPOSITION_FPS).contains(&self.fps),
+            "composition frame rate must be 1..240",
         )?;
         ensure(
             (1..=MAX_FRAMES).contains(&self.frames),

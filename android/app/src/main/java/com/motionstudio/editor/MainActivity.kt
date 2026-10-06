@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -88,10 +91,15 @@ open class MainActivity:ComponentActivity() {
     }}
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {StudioTheme {Editor(model)}}
+        val startAtHome=initialProjectDirectory()==null
+        setContent {StudioTheme {Editor(model,startAtHome)}}
     }
     override fun onStart(){super.onStart();model.resumePreview()}
-    override fun onStop() { model.suspendPreview();super.onStop() }
+    override fun dispatchTouchEvent(event:MotionEvent):Boolean {
+        if(event.actionMasked==MotionEvent.ACTION_DOWN)model.gestureInertia.stop()
+        return super.dispatchTouchEvent(event)
+    }
+    override fun onStop() {model.gestureInertia.stop();model.suspendPreview();super.onStop()}
 }
 
 @Composable internal fun StudioTheme(content:@Composable ()->Unit) {
@@ -104,13 +112,17 @@ open class MainActivity:ComponentActivity() {
         Icon(editorIcon(icon),label,tint=if(enabled)Ink else Muted.copy(alpha=.35f),modifier=Modifier.size(22.dp))
     }
 }
-@Composable internal fun Editor(vm:EditorViewModel) {
+@Composable internal fun Editor(vm:EditorViewModel,startAtHome:Boolean=false) {
     val context=LocalContext.current
     val scope=rememberCoroutineScope()
+    var home by rememberSaveable{mutableStateOf(startAtHome)}
+    var homePage by rememberSaveable{mutableStateOf("projects")}
+    val homeState=rememberSaveableStateHolder()
     var addMenu by remember{mutableStateOf(false)}
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
-    var layoutEditing by remember{mutableStateOf(false)}
+    var creating by remember{mutableStateOf(false)}
+    var layoutEditing by rememberSaveable{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
     var library by remember{mutableStateOf(false)}
     var videoImport by remember{mutableStateOf(false)}
@@ -120,7 +132,7 @@ open class MainActivity:ComponentActivity() {
     var previewBounds by remember{mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)}
     var editorOrigin by remember{mutableStateOf(Offset.Zero)}
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importImage)}
-    val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importProject)}
+    val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importProject(it);home=false}}
     val audioPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"audio")}}
     val videoPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"video",keepSound)}}
     val pluginPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::installPlugin)}
@@ -133,8 +145,30 @@ open class MainActivity:ComponentActivity() {
     val videoSave=rememberLauncherForActivityResult(CreateOutputDocument("video/mp4")){uri->
         vm.completeOutputSelection(uri)
     }
+    fun finishLayout(){layoutEditing=false;homePage="settings";home=true}
+    if(home) {
+        fun backHomePage(){homePage=if(homePage=="plugins")"settings"else"projects"}
+        BackHandler(enabled=homePage!="projects",onBack=::backHomePage)
+        homeState.SaveableStateProvider(homePage) {
+            when(homePage) {
+                "settings"->HomeSettings(vm,editorLayout,onBack=::backHomePage,onPackages={homePage="plugins"},onAdjustLayout={
+                    vm.gestureInertia.stop();vm.pause();vm.finishLayerSelection();layoutEditing=true;home=false
+                })
+                "plugins"->PluginSettings(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onBack=::backHomePage)
+                else->ProjectHome(vm,onOpen={project->if(project.directory!=vm.root.name||vm.state.project==null)vm.openProject(project.directory);home=false},
+                    onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onSettings={homePage="settings"})
+            }
+        }
+        if(homePage!="projects")vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
+        return
+    }
     BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.closeWorkspace()}
-    Surface(color=Background,modifier=Modifier.fillMaxSize()) {
+    BackHandler(enabled=!vm.panelOpen&&!vm.layerSelectionMode&&!layoutEditing){vm.pause();home=true}
+    Surface(color=Background,modifier=Modifier.fillMaxSize().pointerInput(vm) {
+        awaitPointerEventScope {while(true) {
+            if(awaitPointerEvent(PointerEventPass.Initial).changes.any{it.changedToDownIgnoreConsumed()})vm.gestureInertia.stop()
+        }}
+    }) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).onGloballyPositioned{editorOrigin=it.positionInRoot()}) {
             val wide=maxWidth>maxHeight
             val availableHeight=maxHeight
@@ -160,11 +194,11 @@ open class MainActivity:ComponentActivity() {
             val previewModifier=Modifier.onGloballyPositioned{previewBounds=it.boundsInRoot()}
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.panelOpen)"收起属性" else "工程列表") {
-                        if(layoutEditing)layoutEditing=false else if(vm.panelOpen)vm.closeWorkspace() else {vm.refreshProjects();library=true}
+                    Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.layerSelectionMode)"退出多选" else if(vm.panelOpen)"收起属性" else "工程列表") {
+                        if(layoutEditing)finishLayout() else if(vm.layerSelectionMode)vm.finishLayerSelection() else if(vm.panelOpen)vm.closeWorkspace() else {vm.pause();home=true}
                     }
-                    Text(if(layoutEditing)"调整布局" else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    if(layoutEditing)TextButton(onClick={layoutEditing=false},modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
+                    Text(if(layoutEditing)"调整布局" else if(vm.layerSelectionMode)"选择图层"else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                    if(layoutEditing)TextButton(onClick=::finishLayout,modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
                     else {
                         Tool(Icons.Default.Tune,"合成设置"){settings=true}
                         Box {
@@ -207,7 +241,7 @@ open class MainActivity:ComponentActivity() {
                 }
                 if(wide&&effectEditing)Timeline(vm,Modifier.fillMaxWidth().height(focusedTimelineHeight),focused=true)
             }
-            if(!vm.panelOpen) {
+            if(!vm.panelOpen&&!vm.layerSelectionMode) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {
                     Button(onClick={vm.pause();addMenu=true},modifier=Modifier.height(48.dp).testTag("add-layer"),
                         shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=Background)) {
@@ -286,7 +320,6 @@ open class MainActivity:ComponentActivity() {
         Text(phase);Spacer(Modifier.height(12.dp));LinearProgressIndicator(progress={task.optDouble("progress").toFloat().coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
     }},confirmButton={},dismissButton={TextButton(onClick=vm::cancelMediaImport){Text("取消导入")}})}
     vm.mediaNotice?.let{notice->AlertDialog(onDismissRequest=vm::clearMediaNotice,title={Text("导入完成")},text={Text(notice)},confirmButton={TextButton(onClick=vm::clearMediaNotice){Text("知道了")}})}
-    if(vm.pluginsOpen)PluginsPanel(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onDismiss={vm.pluginsOpen=false})
     if(vm.exporting)AlertDialog(onDismissRequest={},title={Text("导出视频")},
         text={Column{LinearProgressIndicator(progress={vm.exportProgress},modifier=Modifier.fillMaxWidth(),color=Accent)
             Spacer(Modifier.height(12.dp));Text((vm.exportProgress*100).toInt().toString()+"% · 本机编码")}},
@@ -295,11 +328,8 @@ open class MainActivity:ComponentActivity() {
         text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
             Text(vm.state.project?.let{it.getInt("width").toString()+" × "+it.getInt("height")+"\n"+
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
-            TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
+            TextButton(onClick={settings=false;vm.pause();vm.finishLayerSelection();home=true}){Text("打开工程")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
-            TextButton(onClick={settings=false;vm.pluginsOpen=true},modifier=Modifier.testTag("open-plugins")){Text("效果包")}
-            TextButton(onClick={vm.pause();settings=false;layoutEditing=true},enabled=vm.state.project!=null,modifier=Modifier.testTag("adjust-layout")){Text("调整布局")}
-            TextButton(onClick={editorLayout.reset();layoutEditing=false;settings=false},modifier=Modifier.testTag("reset-layout")){Text("重置布局比例")}
             if(vm.state.project?.optJSONArray("audio_assets")?.length()?.let{it>0}==true||vm.state.project?.optJSONArray("video_assets")?.length()?.let{it>0}==true)TextButton(onClick={settings=false;vm.prepareMediaCaches(true)}){Text("重建媒体缓存")}
             Text("预览清晰度",fontSize=12.sp,color=Muted)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
@@ -310,7 +340,8 @@ open class MainActivity:ComponentActivity() {
                 }
             }
             vm.previewInfo?.let{info->Text("预览 "+info.optInt("width")+" × "+info.optInt("height")+" · "+info.optInt("fps")+" fps",fontSize=11.sp,lineHeight=15.sp,color=Muted)}
-            Text("新建 6 秒合成",fontSize=12.sp,color=Muted)
+            TextButton(onClick={settings=false;creating=true},modifier=Modifier.testTag("open-new-composition")){Text("自定义新建合成")}
+            Text("快速新建 6 秒合成",fontSize=12.sp,color=Muted)
             listOf(1080 to 1920,1920 to 1080,1080 to 1080).forEach{(w,h)->
                 Row {
                     TextButton(onClick={settings=false;vm.newProject(w,h,30)},modifier=Modifier.testTag("new-"+w+"-"+h+"-30")){Text(w.toString()+"×"+h+" / 30")}
@@ -319,6 +350,7 @@ open class MainActivity:ComponentActivity() {
             }
         }},
         confirmButton={TextButton(onClick={settings=false}){Text("完成")}})
+    if(creating)NewProjectDialog(onDismiss={creating=false}){w,h,fps,name,frames->creating=false;vm.newProject(w,h,fps,name,frames)}
     if(library)AlertDialog(onDismissRequest={library=false},title={Text("打开工程")},
         text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
             if(vm.projects.isEmpty())Text("暂无其他已保存工程",color=Muted)
@@ -330,7 +362,7 @@ open class MainActivity:ComponentActivity() {
             }}
         }},confirmButton={TextButton(onClick={library=false}){Text("关闭")}})
     // Panels suspend their Back handlers while adjusting layout.
-    BackHandler(enabled=layoutEditing){layoutEditing=false}
+    BackHandler(enabled=layoutEditing,onBack=::finishLayout)
 }
 
 @Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
@@ -368,16 +400,27 @@ open class MainActivity:ComponentActivity() {
         }
         Canvas(Modifier.fillMaxSize()) {
             if(!vm.playing&&vm.selected!=0L) {
-                previewPolygons(vm,size.width,size.height).firstOrNull{it.first==vm.selected}?.second?.let{points->
+                previewPolygons(vm,size.width,size.height).filter{if(vm.layerSelectionMode)it.first in vm.selectedLayerIds else it.first==vm.selected}.forEach{(_,points)->
                     val outline=Path().apply{moveTo(points[0].x,points[0].y);points.drop(1).forEach{lineTo(it.x,it.y)};close()}
                     drawPath(outline,Accent,style=androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
-                    points.forEach{drawRect(Ink,Offset(it.x-3.dp.toPx(),it.y-3.dp.toPx()),Size(6.dp.toPx(),6.dp.toPx()))}
+                    if(!vm.layerSelectionMode)points.forEach{drawRect(Ink,Offset(it.x-3.dp.toPx(),it.y-3.dp.toPx()),Size(6.dp.toPx(),6.dp.toPx()))}
                 }
             }
         }
         Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(Unit) {
             awaitEachGesture {
                 val down=awaitFirstDown()
+                if(vm.layerSelectionMode) {
+                    var travel=Offset.Zero;var ended=false
+                    do {
+                        val event=awaitPointerEvent();travel+=event.calculatePan();ended=event.changes.none{it.pressed}
+                        event.changes.forEach{it.consume()}
+                    }while(!ended)
+                    if(travel.getDistance()<=viewConfiguration.touchSlop)vm.pickLayer(down.position.x,down.position.y,size.width.toFloat(),size.height.toFloat()){candidate->
+                        if(vm.layerSelectionMode)candidate?.let(vm::toggleLayerSelection)
+                    }
+                    return@awaitEachGesture
+                }
                 val selectedCorners=previewPolygons(vm,size.width.toFloat(),size.height.toFloat()).firstOrNull{it.first==vm.selected}?.second
                 val handleRadius=selectedCorners?.let{points->min(20.dp.toPx(),points.indices.minOf{(points[it]-points[(it+1)%points.size]).getDistance()}/3f)}?:0f
                 val resize=!vm.state.observing&&selectedCorners?.any{(it-down.position).getDistance()<=handleRadius}==true
@@ -483,15 +526,15 @@ open class MainActivity:ComponentActivity() {
     }
 }
 @Composable private fun Transport(vm:EditorViewModel) {
-    var more by remember{mutableStateOf(false)}
+    var more by remember(vm.root){mutableStateOf(false)}
     BoxWithConstraints(Modifier.fillMaxWidth().height(48.dp).testTag("transport")) {
     val compact=maxWidth<352.dp
-    Box(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp)) {
-        Row(Modifier.align(Alignment.CenterStart)) {
+    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+        Row {
             Tool(Icons.AutoMirrored.Filled.Undo,"撤销",vm.state.canUndo,vm::undo)
             if(!compact)Tool(Icons.AutoMirrored.Filled.Redo,"重做",vm.state.canRedo,vm::redo)
         }
-        Row(Modifier.align(Alignment.Center),verticalAlignment=Alignment.CenterVertically) {
+        Row(verticalAlignment=Alignment.CenterVertically) {
             Tool(Icons.Default.SkipPrevious,"上一帧"){vm.step(-1)}
             FilledIconButton(onClick=vm::togglePlay,modifier=Modifier.size(48.dp),
                 colors=IconButtonDefaults.filledIconButtonColors(containerColor=Accent.copy(alpha=.14f),contentColor=Accent)) {
@@ -499,13 +542,19 @@ open class MainActivity:ComponentActivity() {
             }
             Tool(Icons.Default.SkipNext,"下一帧"){vm.step(1)}
         }
-        Box(Modifier.align(Alignment.CenterEnd)) {
-            Tool(Icons.Default.MoreHoriz,"更多播放操作"){more=true}
+        Row {
+        Tool(Icons.Default.ContentCut,"切割图层",vm.canSplitClip(),vm::splitClip)
+        Box {
+            Tool(Icons.Default.MoreHoriz,"更多编辑操作"){more=true}
             DropdownMenu(more,{more=false}) {
+                DropdownMenuItem(text={Text(if(vm.layerSelectionMode)"复制所选图层"else"复制图层")},enabled=vm.canCopyLayers(),modifier=Modifier.testTag("copy-layers"),onClick={more=false;vm.copyLayers()})
+                DropdownMenuItem(text={Column{Text("粘贴图层");vm.layerPasteHint()?.let{Text(it,color=Muted,fontSize=12.sp)}}},enabled=vm.canPasteLayers(),modifier=Modifier.testTag("paste-layers"),onClick={more=false;vm.pasteLayers()})
+                HorizontalDivider(color=Muted.copy(alpha=.15f))
                 if(compact)DropdownMenuItem(text={Text("重做")},enabled=vm.state.canRedo,onClick={more=false;vm.redo()})
                 DropdownMenuItem(text={Text(if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧")},enabled=vm.editable(),onClick={more=false;vm.toggleKey()})
                 DropdownMenuItem(text={Text("观察视图")},onClick={more=false;vm.observe(!vm.state.observing)})
             }
+        }
         }
     }
     }
