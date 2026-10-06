@@ -5,6 +5,14 @@ import android.graphics.Bitmap
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.view.PixelCopy
+import android.view.SurfaceView
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.lifecycle.ViewModelProvider
@@ -21,12 +29,15 @@ import org.junit.Assert.*
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class IntegratedFrontendTest {
     @get:Rule val compose=createEmptyComposeRule()
     private lateinit var scenario:ActivityScenario<AcceptanceActivity>
     private lateinit var vm:EditorViewModel
+    private lateinit var activity:AcceptanceActivity
     private lateinit var root:File
     private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
     @Before fun setup() {
@@ -35,7 +46,7 @@ class IntegratedFrontendTest {
         p.getJSONObject("camera").put("created",false)
         File(root,"project.json").writeText(p.toString())
         scenario=ActivityScenario.launch(Intent(context,AcceptanceActivity::class.java).putExtra("projectDirectory",root.absolutePath))
-        scenario.onActivity{vm=ViewModelProvider(it)[EditorViewModel::class.java]}
+        scenario.onActivity{activity=it;vm=ViewModelProvider(it)[EditorViewModel::class.java]}
         compose.waitUntil(30000){vm.state.project!=null&&vm.catalogue!=null}
     }
     @After fun teardown(){
@@ -89,6 +100,16 @@ class IntegratedFrontendTest {
         assertFalse("preview covers timeline",preview.overlaps(timeline))
         compose.onNodeWithTag("effect-time").assertDoesNotExist()
     }
+    private fun assertWheelPainted(tag:String) {
+        val pixels=compose.onNodeWithTag(tag).captureToImage().toPixelMap()
+        assertTrue("wheel has no drawing space",pixels.width>=20&&pixels.height>=20)
+        val centre=pixels.width/2
+        val marker=(centre-2..centre+2).sumOf{x->(pixels.height/4 until pixels.height*3/4).count{y->
+            val color=pixels[x,y]
+            color.green>.5f&&color.blue>.4f&&color.red<.5f
+        }}
+        assertTrue("wheel centre marker is invisible",marker>=10)
+    }
     private fun longPressKey(frame:Int) {
         val offset=(frame-vm.frame).toFloat()*vm.timelineScale*context.resources.displayMetrics.density
         val y=9*context.resources.displayMetrics.density
@@ -114,7 +135,7 @@ class IntegratedFrontendTest {
             .wait(Until.findObject(By.desc("播放/暂停")),10000).also{assertNotNull(it)}!!.click()
         compose.waitUntil(10000){!vm.playing}
         val instance=vm.layer(vm.selected)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
-        compose.onNodeWithTag("effect-slider-p0001-0").performScrollTo().performTouchInput{swipe(center,androidx.compose.ui.geometry.Offset(width*.8f,centerY),400)}
+        compose.onNodeWithTag("effect-wheel-p0001-0").performScrollTo().performTouchInput{swipe(androidx.compose.ui.geometry.Offset(width*.8f,centerY),androidx.compose.ui.geometry.Offset(width*.2f,centerY),400)}
         compose.waitUntil(15000){vm.state.saved&&vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)>0}
         scenario.onActivity{vm.undo()}
         compose.waitUntil(10000){vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)==0.0}
@@ -212,6 +233,113 @@ class IntegratedFrontendTest {
         compose.onNodeWithTag("add-layer").assertIsDisplayed()
         assertNull(vm.state.error)
     }
+    @Test fun wheelUsesRelativeContinuousMotionAndAccessibleInput() {
+        solid();effects();addEffect("brightness_contrast");enterEffect()
+        val instance=vm.layer(vm.selected)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
+        val wheel=compose.onNodeWithTag("effect-wheel-p0001-0").performScrollTo()
+        assertWheelPainted("effect-wheel-p0001-0")
+        wheel.performTouchInput{click(androidx.compose.ui.geometry.Offset(width*.9f,centerY))}
+        assertEquals(0.0,vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0),.00001)
+        wheel.performTouchInput{swipe(androidx.compose.ui.geometry.Offset(width*.85f,centerY),androidx.compose.ui.geometry.Offset(width*.15f,centerY),500)}
+        compose.waitUntil(10000){vm.state.saved&&vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)>0}
+        val value=vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)
+        assertTrue("wheel jumps across the range",value<50)
+        compose.onNodeWithTag("effect-value-p0001-0").assertTextContains(String.format(java.util.Locale.US,"%.3f",value))
+        wheel.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress){it(149.9f)}
+        compose.waitUntil(10000){vm.state.saved&&vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)>149.89}
+        wheel.performTouchInput{swipe(androidx.compose.ui.geometry.Offset(width*.85f,centerY),androidx.compose.ui.geometry.Offset(width*.15f,centerY),300)}
+        compose.waitUntil(10000){vm.state.saved&&vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)==150.0}
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){vm.state.saved&&vm.effectParam(vm.selected,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)<150}
+        assertNull(vm.state.error);photo("effect-numeric-wheel")
+    }
+    @Test fun queuedGestureUpdatesKeepAllTargetsAndOneUndo() {
+        solid()
+        val objectId=vm.selected
+        scenario.onActivity{vm.setThreeD(true)}
+        compose.waitUntil(10000){vm.state.saved&&vm.threeD()}
+        scenario.onActivity{vm.openProperty("position");vm.separateDimensions()}
+        compose.waitUntil(10000){vm.state.saved&&vm.isSeparated()}
+        effects();addEffect("brightness_contrast");enterEffect()
+        val instance=vm.layer(objectId)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
+        val original=vm.layer(objectId)!!.toString()
+        val revision=vm.state.sample!!.getLong("revision")
+        val blocked=CountDownLatch(1);val release=CountDownLatch(1)
+        val field=EditorViewModel::class.java.getDeclaredField("worker").apply{isAccessible=true}
+        (field.get(vm) as Handler).post{blocked.countDown();release.await(10,TimeUnit.SECONDS)}
+        assertTrue(blocked.await(5,TimeUnit.SECONDS))
+        try {
+            scenario.onActivity {
+                vm.beginGesture()
+                repeat(500){i->
+                    val v=i/10.0
+                    vm.effectAction(objectId,instance,"set",JSONObject().put("param","p0001").put("frame",0).put("value",JSONArray(listOf(v,0,0,0))),false)
+                    vm.effectAction(objectId,instance,"set",JSONObject().put("param","p0002").put("frame",0).put("value",JSONArray(listOf(-v,0,0,0))),false)
+                    vm.setPropertyValue(objectId,"position",0,JSONArray(listOf(100+v,200+v,300+v,0)),false,listOf(0,1,2))
+                }
+                vm.endGesture()
+            }
+        }finally{release.countDown()}
+        compose.waitUntil(15000){vm.state.saved&&kotlin.math.abs(vm.effectParam(objectId,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)-49.9)<.00001}
+        assertEquals(-49.9,vm.effectParam(objectId,instance,"p0002")!!.getJSONObject("track").getJSONArray("value").getDouble(0),.00001)
+        val axes=vm.propertyTrack(objectId,"position")!!.getJSONObject("axes")
+        listOf("x","y","z").forEachIndexed{i,axis->assertEquals(100*(i+1)+49.9,axes.getJSONObject(axis).getDouble("value"),.00001)}
+        val applied=vm.state.sample!!.getLong("revision")-revision
+        assertTrue("obsolete gesture commands accumulated: $applied",applied<=8)
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){vm.state.saved&&vm.layer(objectId)!!.toString()==original}
+        assertNull(vm.state.error)
+        File(root,"gesture-queue-report.json").writeText(JSONObject().put("submittedAssignments",2500).put("appliedRevisionChanges",applied).put("allTargetsPreserved",true).put("singleUndo",true).toString(2))
+    }
+    private fun copyPreview():Bitmap {
+        fun find(view:View):SurfaceView? {
+            if(view is SurfaceView)return view
+            if(view is ViewGroup)for(i in 0 until view.childCount)find(view.getChildAt(i))?.let{return it}
+            return null
+        }
+        var surface:SurfaceView?=null
+        onUi{surface=find(activity.window.decorView)}
+        val view=surface!!;val bitmap=Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888)
+        val complete=CountDownLatch(1);var result=-1
+        onUi{PixelCopy.request(view,bitmap,{result=it;complete.countDown()},Handler(Looper.getMainLooper()))}
+        assertTrue(complete.await(5,TimeUnit.SECONDS));assertEquals(PixelCopy.SUCCESS,result)
+        return bitmap
+    }
+    private fun onUi(action:()->Unit) {
+        val complete=CountDownLatch(1);var failure:Throwable?=null
+        Handler(Looper.getMainLooper()).post{try{action()}catch(e:Throwable){failure=e}finally{complete.countDown()}}
+        assertTrue("main thread stopped responding",complete.await(5,TimeUnit.SECONDS))
+        failure?.let{throw it}
+    }
+    private fun verifyVideoPlayback(withAudio:Boolean,file:String="sound-24fps.mp4") {
+        import("video",file,withAudio)
+        scenario.onActivity{vm.panelOpen=false;vm.clearMediaNotice();vm.seek(0.0)}
+        photo("video-playback-start")
+        val presented=mutableSetOf<Int>();val pixels=mutableSetOf<Int>()
+        onUi{vm.togglePlay()}
+        compose.waitUntil(10000){vm.playing}
+        val end=SystemClock.elapsedRealtime()+2500
+        try {
+            while(SystemClock.elapsedRealtime()<end) {
+                onUi{vm.refreshDiagnostics()}
+                SystemClock.sleep(100)
+                vm.state.sample?.takeUnless{it.isNull("lastPresentedFrame")}?.let{presented+=it.getDouble("lastPresentedFrame").toInt()}
+                val bitmap=copyPreview()
+                val sample=Bitmap.createScaledBitmap(bitmap,64,36,false);val colors=IntArray(64*36)
+                sample.getPixels(colors,0,64,0,0,64,36);sample.recycle()
+                if(pixels.add(colors.contentHashCode())&&pixels.size<=6)File(root,"video-playing-${pixels.size}.png").outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+                bitmap.recycle()
+            }
+        }finally{onUi{vm.pause()}}
+        File(root,"video-playback-report.json").writeText(JSONObject().put("source",file).put("withAudio",withAudio).put("presentedFrames",JSONArray(presented.sorted())).put("differentPreviewImages",pixels.size).toString(2))
+        assertTrue("video stays on the frame before playback: $presented",presented.size>=4)
+        assertTrue("presented video pixels never change: ${pixels.size}",pixels.size>=3)
+        scenario.onActivity{vm.seek(30.0)};photo("video-playback-after-seek")
+        assertNull(vm.state.error)
+    }
+    @Test fun videoPlaybackUpdatesDecodedFramesWithOriginalSound(){verifyVideoPlayback(true)}
+    @Test fun videoPlaybackUpdatesDecodedFramesWithoutSound(){verifyVideoPlayback(false)}
+    @Test fun videoPlaybackUpdates1080pDecodedFramesWithoutSound(){verifyVideoPlayback(false,"preview-1080p.mp4")}
     @Test fun audioImportsWaveformPlaysAndMutesWithoutSpatialControls() {
         import("audio","tone-stereo-48000.wav")
         compose.onNodeWithTag("audio-properties").assertExists()
@@ -269,7 +397,8 @@ class IntegratedFrontendTest {
         }
         addEffect("brightness_contrast");enterEffect();photo("layout-effect-parameters")
         assertTimelineVisible()
-        compose.onNodeWithTag("effect-slider-p0001-0").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("effect-wheel-p0001-0").performScrollTo().assertIsDisplayed()
+        assertWheelPainted("effect-wheel-p0001-0")
         compose.onNodeWithTag("effect-select-p0001").performScrollTo().performClick()
         compose.onNodeWithTag("effect-animate-p0001").performClick()
         compose.waitUntil(10000){vm.keys().size==1&&vm.state.saved}
