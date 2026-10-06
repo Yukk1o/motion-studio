@@ -67,12 +67,27 @@ class ProjectHomeTest {
         compose.onNodeWithTag("new-project-preset-16:9").performClick()
         compose.onNodeWithTag("new-project-name").performTextInput("测试工程")
         compose.onNodeWithTag("new-project-name").performImeAction()
-        compose.onNodeWithTag("new-project-fps-60").performScrollTo().performClick();photo("new-project")
+        compose.onNodeWithTag("new-project-fps-60").performScrollTo().performClick()
+        compose.onNodeWithTag("new-project-duration").performScrollTo().performTextReplacement("0")
+        compose.onNodeWithTag("create-project").assertIsNotEnabled()
+        compose.onNodeWithTag("new-project-duration").performTextReplacement("1.25")
+        compose.onNodeWithTag("new-project-duration").performImeAction();photo("new-project")
         compose.onNodeWithTag("create-project").performClick()
         compose.waitUntil(20000){vm.root!=root&&vm.state.saved&&vm.state.project?.optString("name")=="测试工程"}
         assertEquals(1920,vm.state.project!!.getInt("width"));assertEquals(1080,vm.state.project!!.getInt("height"));assertEquals(60,vm.state.project!!.getInt("fps"))
+        assertEquals(75,vm.state.project!!.getInt("frames"))
         scenario.onActivity{vm.openProject(root.name)}
         compose.waitUntil(20000){vm.root.canonicalFile==root.canonicalFile&&vm.state.saved&&!vm.state.busy}
         assertEquals(previous,vm.state.project!!.toString());assertNull(vm.state.error)
+    }
+    @Test fun editorSettingsOpenTheSameCustomCompositionForm() {
+        compose.onNodeWithTag("home-project-default").performClick()
+        compose.onNodeWithContentDescription("合成设置").performClick()
+        compose.onNodeWithTag("open-new-composition").performScrollTo().performClick()
+        compose.onNodeWithTag("new-project-duration").performScrollTo().performTextReplacement("0.5")
+        compose.onNodeWithTag("new-project-duration").performImeAction()
+        compose.onNodeWithTag("create-project").performClick()
+        compose.waitUntil(20000){vm.root!=root&&vm.state.saved&&!vm.state.busy}
+        assertEquals(30,vm.state.project!!.getInt("fps"));assertEquals(15,vm.state.project!!.getInt("frames"));assertNull(vm.state.error)
     }
 }

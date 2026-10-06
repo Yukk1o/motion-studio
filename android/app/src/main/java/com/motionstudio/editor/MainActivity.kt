@@ -118,6 +118,7 @@ open class MainActivity:ComponentActivity() {
     var addMenu by remember{mutableStateOf(false)}
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
+    var creating by remember{mutableStateOf(false)}
     var layoutEditing by remember{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
     var library by remember{mutableStateOf(false)}
@@ -143,7 +144,7 @@ open class MainActivity:ComponentActivity() {
     }
     if(home) {
         ProjectHome(vm,onOpen={project->if(project.directory!=vm.root.name||vm.state.project==null)vm.openProject(project.directory);home=false},
-            onNew={w,h,fps,name->vm.newProject(w,h,fps,name);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onPackages={vm.pluginsOpen=true})
+            onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onPackages={vm.pluginsOpen=true})
         if(vm.pluginsOpen)PluginsPanel(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onDismiss={vm.pluginsOpen=false})
         return
     }
@@ -329,7 +330,8 @@ open class MainActivity:ComponentActivity() {
                 }
             }
             vm.previewInfo?.let{info->Text("预览 "+info.optInt("width")+" × "+info.optInt("height")+" · "+info.optInt("fps")+" fps",fontSize=11.sp,lineHeight=15.sp,color=Muted)}
-            Text("新建 6 秒合成",fontSize=12.sp,color=Muted)
+            TextButton(onClick={settings=false;creating=true},modifier=Modifier.testTag("open-new-composition")){Text("自定义新建合成")}
+            Text("快速新建 6 秒合成",fontSize=12.sp,color=Muted)
             listOf(1080 to 1920,1920 to 1080,1080 to 1080).forEach{(w,h)->
                 Row {
                     TextButton(onClick={settings=false;vm.newProject(w,h,30)},modifier=Modifier.testTag("new-"+w+"-"+h+"-30")){Text(w.toString()+"×"+h+" / 30")}
@@ -338,6 +340,7 @@ open class MainActivity:ComponentActivity() {
             }
         }},
         confirmButton={TextButton(onClick={settings=false}){Text("完成")}})
+    if(creating)NewProjectDialog(onDismiss={creating=false}){w,h,fps,name,frames->creating=false;vm.newProject(w,h,fps,name,frames)}
     if(library)AlertDialog(onDismissRequest={library=false},title={Text("打开工程")},
         text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
             if(vm.projects.isEmpty())Text("暂无其他已保存工程",color=Muted)

@@ -38,8 +38,16 @@ import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
-@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String)->Unit,onImport:()->Unit,onPackages:()->Unit) {
+internal fun compositionFrames(seconds:String,fps:Int):Int? {
+    val value=seconds.toDoubleOrNull()?:return null
+    val frames=value*fps
+    if(!frames.isFinite()||frames<1.0||frames>36000.0)return null
+    return frames.roundToInt()
+}
+
+@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String,Int)->Unit,onImport:()->Unit,onPackages:()->Unit) {
     var query by rememberSaveable{mutableStateOf("")}
     var creating by rememberSaveable{mutableStateOf(false)}
     var more by remember{mutableStateOf(false)}
@@ -110,7 +118,7 @@ import java.util.Locale
             }
         }
     }
-    if(creating)NewProjectDialog(onDismiss={creating=false}){w,h,fps,name->creating=false;onNew(w,h,fps,name)}
+    if(creating)NewProjectDialog(onDismiss={creating=false}){w,h,fps,name,frames->creating=false;onNew(w,h,fps,name,frames)}
     vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
 }
 
@@ -127,12 +135,14 @@ import java.util.Locale
     }
 }
 
-@Composable private fun NewProjectDialog(onDismiss:()->Unit,onCreate:(Int,Int,Int,String)->Unit) {
+@Composable internal fun NewProjectDialog(onDismiss:()->Unit,onCreate:(Int,Int,Int,String,Int)->Unit) {
     var name by remember{mutableStateOf("")}
     var width by remember{mutableStateOf("1080")};var height by remember{mutableStateOf("1920")}
     var fps by remember{mutableIntStateOf(30)}
+    var duration by remember{mutableStateOf("6")}
+    val frames=compositionFrames(duration,fps)
     val w=width.toIntOrNull();val h=height.toIntOrNull()
-    val valid=w!=null&&h!=null&&w in 1..8192&&h in 1..8192
+    val valid=w!=null&&h!=null&&w in 1..8192&&h in 1..8192&&frames!=null
     AlertDialog(onDismissRequest=onDismiss,containerColor=Panel,title={Text("新建工程")},text={
         val keyboard=LocalSoftwareKeyboardController.current
         val focus=LocalFocusManager.current
@@ -149,9 +159,14 @@ import java.util.Locale
             OutlinedTextField(width,{width=it},label={Text("宽度")},singleLine=true,isError=w==null||w !in 1..8192,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={finishInput()}),modifier=Modifier.weight(1f).testTag("new-project-width"))
             OutlinedTextField(height,{height=it},label={Text("高度")},singleLine=true,isError=h==null||h !in 1..8192,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={finishInput()}),modifier=Modifier.weight(1f).testTag("new-project-height"))
         }
-        if(!valid)Text("宽度和高度需要在 1 至 8192 之间",color=MaterialTheme.colorScheme.error,fontSize=12.sp)
+        if(w==null||h==null||w !in 1..8192||h !in 1..8192)Text("宽度和高度需要在 1 至 8192 之间",color=MaterialTheme.colorScheme.error,fontSize=12.sp)
         Spacer(Modifier.height(16.dp));Text("帧率",color=Muted,fontSize=13.sp)
-        Row {listOf(24,30,60).forEach{rate->TextButton(onClick={finishInput();fps=rate},modifier=Modifier.heightIn(min=48.dp).testTag("new-project-fps-$rate")){Text("$rate fps",color=if(fps==rate)Accent else Muted)}}}
-        Text("初始时长 6 秒，素材保存在本机。",fontSize=12.sp,color=Muted)
-    }},confirmButton={TextButton(onClick={onCreate(w!!,h!!,fps,name)},enabled=valid,modifier=Modifier.testTag("create-project")){Text("创建")}},dismissButton={TextButton(onClick=onDismiss){Text("取消")}})
+        Row {listOf(30,60).forEach{rate->TextButton(onClick={finishInput();fps=rate},modifier=Modifier.heightIn(min=48.dp).testTag("new-project-fps-$rate")){Text("$rate fps",color=if(fps==rate)Accent else Muted)}}}
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(duration,{duration=it},label={Text("时长（秒）")},singleLine=true,isError=frames==null,
+            supportingText={Text(if(frames==null)"时长需为 1 帧至 ${36000/fps} 秒"else"$frames 帧 · ${String.format(Locale.getDefault(),"%.3f",frames.toDouble()/fps)} 秒")},
+            keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={finishInput()}),
+            modifier=Modifier.fillMaxWidth().testTag("new-project-duration"))
+        Text("素材保存在本机。",fontSize=12.sp,color=Muted)
+    }},confirmButton={TextButton(onClick={onCreate(w!!,h!!,fps,name,frames!!)},enabled=valid,modifier=Modifier.testTag("create-project")){Text("创建")}},dismissButton={TextButton(onClick=onDismiss){Text("取消")}})
 }
