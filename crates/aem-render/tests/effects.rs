@@ -112,14 +112,18 @@ fn effect_outputs_preserve_crossing_plane_batches_in_both_stack_orders() {
     let mut scene = Scene::new(&p);
     let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
     let target = renderer.capture_target(256, 256).unwrap();
-    let mut builder = PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    let mut builder =
+        PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
     for _ in 0..2 {
         scene.sample(&p, 0.0, None).unwrap();
         let plan = builder.build(&scene, &[0, 0], 256, 256, true).unwrap();
         assert_eq!(plan.batches.len(), 3);
         let mut bytes = vec![0; plan.buffer_bytes(&scene)];
         plan.write(&scene, &mut bytes).unwrap();
-        assert_eq!(u32::from_ne_bytes(bytes[4..8].try_into().unwrap()), aem_render::effect_plan::PLAN_VERSION);
+        assert_eq!(
+            u32::from_ne_bytes(bytes[4..8].try_into().unwrap()),
+            aem_render::effect_plan::PLAN_VERSION
+        );
         assert_eq!(u32::from_ne_bytes(bytes[56..60].try_into().unwrap()), 3);
         let (pixels, _) = renderer.capture(&scene, &target).unwrap();
         let left = &pixels[(128 * 256 + 96) * 4..(128 * 256 + 96) * 4 + 4];

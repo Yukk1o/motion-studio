@@ -142,7 +142,8 @@ fn particle_budget_failure_is_explicit_and_binary_plan_has_bounded_instances() {
         PLAN_VERSION
     );
     let offset = u32::from_ne_bytes(bytes[64..68].try_into().unwrap()) as usize;
-    let end = offset + builder.frame.sprites.len()*std::mem::size_of::<aem_render::scene_generator::Sprite>();
+    let end = offset
+        + builder.frame.sprites.len() * std::mem::size_of::<aem_render::scene_generator::Sprite>();
     assert_eq!(
         &bytes[offset..end],
         bytemuck::cast_slice::<_, u8>(&builder.frame.sprites)
@@ -174,14 +175,20 @@ fn two_dimensional_generators_ignore_camera_motion_and_spatial_depth() {
         let mut p = project(id);
         p.camera.created = true;
         if id == "starfield" {
-            p.layers[0].effects[0].params.get_mut("extent").unwrap().track.value=[80.,80.,0.,0.];
+            p.layers[0].effects[0]
+                .params
+                .get_mut("extent")
+                .unwrap()
+                .track
+                .value = [80., 80., 0., 0.];
         }
-        let (_, before)=plan(&p,30.);
+        let (_, before) = plan(&p, 30.);
         assert!(!before.frame.sprites.is_empty());
-        p.camera.position.value[0]+=100.;p.camera.target.value[0]+=100.;
-        p.layers[0].transform.position.value[2]=200.;
-        let (_, after)=plan(&p,30.);
-        assert_eq!(before.frame.sprites,after.frame.sprites);
+        p.camera.position.value[0] += 100.;
+        p.camera.target.value[0] += 100.;
+        p.layers[0].transform.position.value[2] = 200.;
+        let (_, after) = plan(&p, 30.);
+        assert_eq!(before.frame.sprites, after.frame.sprites);
     }
 }
 #[test]
@@ -287,6 +294,7 @@ fn hidden_generator_capacity_missing_sources_and_chain_order_block_export() {
 #[test]
 fn source_image_alpha_uses_filtered_pixels_and_cache_budget_is_explicit() {
     let mut p = project("lens_flare");
+    p.layers[0].three_d = true;
     p.layers[0].effects[0]
         .params
         .get_mut("position")
@@ -301,6 +309,7 @@ fn source_image_alpha_uses_filtered_pixels_and_cache_budget_is_explicit() {
         height: 1,
     });
     let mut layer = Layer::solid(2, "遮挡图片", [128., 128.], [64., 64., 0.], [1.; 4]);
+    layer.three_d = true;
     layer.content = aem_core::Content::Image { asset: 1 };
     p.layers.push(layer);
     let mut scene = Scene::new(&p);

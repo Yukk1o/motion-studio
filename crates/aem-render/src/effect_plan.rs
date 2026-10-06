@@ -85,11 +85,13 @@ pub struct EffectFramePlan {
 }
 impl EffectFramePlan {
     pub fn buffer_bytes(&self, scene: &Scene) -> usize {
-        HEADER_BYTES + self.draws.len() * 128
+        HEADER_BYTES
+            + self.draws.len() * 128
             + self.passes.len() * 40
             + self.passes.len() * shader::UNIFORM_BYTES
             + scene.curve_luts.len() * 1024
-            + self.batches.len() * 12 + self.vertices.len() * 20
+            + self.batches.len() * 12
+            + self.vertices.len() * 20
             + self.sprites.len() * 48
     }
     pub fn write(&self, scene: &Scene, out: &mut [u8]) -> Result<usize, String> {
@@ -164,12 +166,24 @@ impl EffectFramePlan {
         }
         out[sprite_offset..batch_offset].copy_from_slice(bytemuck::cast_slice(&self.sprites));
         for (i, batch) in self.batches.iter().enumerate() {
-            let data = [batch.layer as u32, batch.vertices.start, batch.vertices.end - batch.vertices.start];
-            out[batch_offset+i*12..batch_offset+(i+1)*12].copy_from_slice(bytemuck::cast_slice(&data));
+            let data = [
+                batch.layer as u32,
+                batch.vertices.start,
+                batch.vertices.end - batch.vertices.start,
+            ];
+            out[batch_offset + i * 12..batch_offset + (i + 1) * 12]
+                .copy_from_slice(bytemuck::cast_slice(&data));
         }
         for (i, v) in self.vertices.iter().enumerate() {
-            let data = [v.position[0],v.position[1],v.position[2],v.uv[0],v.uv[1]];
-            out[vertex_offset+i*20..vertex_offset+(i+1)*20].copy_from_slice(bytemuck::cast_slice(&data));
+            let data = [
+                v.position[0],
+                v.position[1],
+                v.position[2],
+                v.uv[0],
+                v.uv[1],
+            ];
+            out[vertex_offset + i * 20..vertex_offset + (i + 1) * 20]
+                .copy_from_slice(bytemuck::cast_slice(&data));
         }
         Ok(size)
     }
@@ -925,7 +939,11 @@ impl PlanBuilder {
             words[21] = region[3];
             words[22] = layer.opacity;
             words[23] = if additive { 1. } else { 0. };
-            words[24] = if layer.video.is_some() { -(layer.order as f32 + 1.0) } else { asset as f32 };
+            words[24] = if layer.video.is_some() {
+                -(layer.order as f32 + 1.0)
+            } else {
+                asset as f32
+            };
             words[25] = 1.0;
             words[26] = 1.0;
             words[27] = if materialized { 0.0 } else { -1.0 };
@@ -949,8 +967,11 @@ impl PlanBuilder {
             }
         }
         self.sizes.clear();
-        self.sizes.extend(self.frame.draws.iter().map(|d| [d.words[20],d.words[21]]));
-        self.geometry.prepare_with_sizes_and_overlays(scene, &self.sizes, &self.overlays).map_err(|e|e.to_string())?;
+        self.sizes
+            .extend(self.frame.draws.iter().map(|d| [d.words[20], d.words[21]]));
+        self.geometry
+            .prepare_with_sizes_and_overlays(scene, &self.sizes, &self.overlays)
+            .map_err(|e| e.to_string())?;
         self.frame.vertices.clone_from(&self.geometry.vertices);
         self.frame.batches.clone_from(&self.geometry.batches);
         Ok(&self.frame)

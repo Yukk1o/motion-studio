@@ -54,11 +54,13 @@ class ExpressionAndPluginUiTest {
         assertFalse("panel covers timeline",panel.overlaps(timeline));assertFalse("panel covers preview",panel.overlaps(preview))
     }
     private fun applySource(source:String) {
-        compose.onNodeWithTag("expression-source").performTextReplacement(source)
+        compose.onNodeWithTag("expression-source").performScrollTo().performTextReplacement(source)
         compose.onNodeWithTag("expression-apply").performScrollTo().performClick()
     }
     @Test fun expressionEditsBaseValuePreservesInvalidDraftAndSupportsAxesUndo() {
-        scenario.onActivity{vm.openProperty("position");vm.openExpression(vm.expressionTargetForCurrent()!!)}
+        scenario.onActivity{vm.openProperty("position")}
+        compose.onNodeWithContentDescription("图层操作").performClick()
+        compose.onNodeWithTag("open-property-expression").performClick()
         visibleWorkspace("expression-workspace")
         val target=vm.expressionTarget!!
         applySource("value+[time*60,0,0]")
@@ -72,7 +74,7 @@ class ExpressionAndPluginUiTest {
         compose.waitUntil(10000){compose.onAllNodesWithTag("expression-error").fetchSemanticsNodes().isNotEmpty()}
         assertEquals(revision,vm.state.sample!!.getLong("revision"))
         compose.onNodeWithTag("expression-source").assertTextContains("unknown()")
-        compose.onNodeWithTag("expression-enabled").performClick()
+        compose.onNodeWithTag("expression-enabled").performScrollTo().performClick()
         compose.onNodeWithTag("expression-apply").performScrollTo().performClick()
         compose.waitUntil(10000){vm.expressionFor(target)?.optString("source")=="unknown()"&&!vm.expressionFor(target)!!.getBoolean("enabled")}
         compose.onNodeWithTag("expression-scope-x").performClick()
@@ -93,9 +95,27 @@ class ExpressionAndPluginUiTest {
         assertNull(vm.state.error)
     }
     private fun web(root:View):WebView?=if(root is WebView)root else if(root is ViewGroup)(0 until root.childCount).firstNotNullOfOrNull{web(root.getChildAt(it))}else null
+    @Test fun lateExpressionFailureKeepsPreviewEditableAndCanBeDisabled() {
+        scenario.onActivity{vm.openProperty("position");vm.openExpression(vm.expressionTargetForCurrent()!!)}
+        val target=vm.expressionTarget!!
+        applySource("time<.1 ? value : unknown()")
+        compose.waitUntil(10000){vm.expressionFor(target)!=null&&vm.state.saved}
+        scenario.onActivity{vm.seek(15.0)}
+        compose.waitUntil(10000){vm.state.sample?.optString("renderError")?.startsWith("expression ")==true}
+        compose.onNodeWithTag("expression-render-error").assertIsDisplayed()
+        visibleWorkspace("expression-workspace");assertNull(vm.lastGpuFailure)
+        photo("expression-error-repair")
+        compose.onNodeWithTag("expression-enabled").performScrollTo().performClick()
+        compose.onNodeWithTag("expression-apply").performScrollTo().performClick()
+        compose.waitUntil(10000){vm.expressionFor(target)?.optBoolean("enabled")==false&&vm.state.sample?.isNull("renderError")==true}
+        compose.onNodeWithTag("expression-render-error").assertDoesNotExist();assertNull(vm.state.error)
+    }
     private fun js(script:String):String {
         var result:String?=null;val latch=CountDownLatch(1)
-        scenario.onActivity{activity->web(activity.window.decorView)!!.evaluateJavascript(script){result=it;latch.countDown()}}
+        scenario.onActivity{activity->
+            val current=web(activity.window.decorView)
+            if(current==null){result="0";latch.countDown()}else current.evaluateJavascript(script){result=it;latch.countDown()}
+        }
         assertTrue("WebView did not reply",latch.await(10,TimeUnit.SECONDS));return result!!
     }
     private fun plugin(id:String) {
@@ -145,5 +165,20 @@ class ExpressionAndPluginUiTest {
         scenario.onActivity{vm.newProject(256,144)}
         compose.waitUntil(15000){vm.pluginEditor.session==null&&vm.state.project?.optInt("width")==256&&!vm.state.busy}
         assertTrue(token.isNotEmpty());assertNull(vm.expressionTarget);assertNull(vm.state.error)
+    }
+    @Test fun workspacesKeepPreviewAndTimelineUsableAtActualDisplayAndFontSizes() {
+        scenario.onActivity{vm.openProperty("position");vm.openExpression(vm.expressionTargetForCurrent()!!)}
+        visibleWorkspace("expression-workspace")
+        compose.onNodeWithTag("expression-source").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("expression-apply").performScrollTo().assertIsDisplayed()
+        photo("workspace-expression")
+        scenario.onActivity{vm.closeExpression()}
+        plugin("starfield")
+        assertTrue("plugin page overflows horizontally",js("document.documentElement.scrollWidth-document.documentElement.clientWidth").toDouble()<=1)
+        photo("workspace-particles")
+        val config=InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration
+        File(root,"layout-profile-report.json").writeText(JSONObject().put("fontScale",config.fontScale).put("densityDpi",config.densityDpi)
+            .put("screenWidthDp",config.screenWidthDp).put("screenHeightDp",config.screenHeightDp).put("passed",true).toString(2))
+        assertNull(vm.state.error)
     }
 }

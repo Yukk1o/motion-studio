@@ -121,9 +121,16 @@ py tools/validate_performance.py --serial <adb-device-serial> --seconds 600 --ou
 
 ## 已有验证与待完成事项
 
-当前基线已通过 38 项 Rust/GPU 检查，并在 Android 模拟器 中验证编辑操作、工程保存、180 帧视频编码、八个准确索引解码帧/PNG 比对、取消后再次导出及六秒 Surface 播放。运行日志与生成产物保存在本地 `artifacts/`，不纳入版本管理。
+当前整合版本已通过 145 项 Rust/GPU 检查，并在 Android 模拟器验证表达式工作区、真实插件页面操作、媒体格式导入、视频特效、几何透明纹理导出、取消后再次导出及六秒 Surface 播放。新增七项图像效果已逐项比较编码帧与 PNG，动态拼贴包含动画输出边界检查；媒体格式检查还包含 19 个素材的画面和音频对照。运行日志与生成产物保存在本地 `artifacts/`，不纳入版本管理。另有一项超大工程的 release 专项测试未运行。
 
-无效预览时间导致的状态污染已修复，播放时钟也处理了早于播放开始的帧回调；短时资源释放及已保存工程的进程终止恢复检查通过。更长时间的资源趋势、输入到显示延迟、完整呈现归因，以及正式手机的性能/热状态仍需补齐。效果扩展在基础验收后推进。
+无效预览时间导致的状态污染已修复，播放时钟也处理了早于播放开始的帧回调；编码输出由独立线程读取，避免输入 Surface 在输出队列积压时阻塞整个导出。短时资源释放及已保存工程的进程终止恢复检查通过。更长时间的资源趋势、输入到显示延迟、完整呈现归因，以及正式手机的性能/热状态仍需补齐。
+
+布局检查可分别运行效果面板和表达式/专用编辑器两组，覆盖窄屏、横屏与大字体，完成后恢复设备显示设置：
+
+```powershell
+py tools/validate_layout_profiles.py --serial <adb-device-serial> --suite integrated --output artifacts/layout-integrated
+py tools/validate_layout_profiles.py --serial <adb-device-serial> --suite workspaces --output artifacts/layout-workspaces
+```
 
 供安装测试的预览包使用本地开发证书签名，关闭调试与故障注入：
 

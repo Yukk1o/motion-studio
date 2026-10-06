@@ -54,6 +54,19 @@ internal fun pluginEditorResource(session:PluginEditorSession,uri:Uri):WebResour
                         if(host.session?.token!=session.token||view!==web)return
                         web.evaluateJavascript("typeof window.motionStudioConnect === 'function'"){ready->
                             if(ready=="true") {
+                                if(session.definition.optJSONObject("editor")?.optString("id")=="com.motionstudio.scene-editor") {
+                                    // The native workspace already supplies composition preview and transport.
+                                    // Keep presets and reset, and let the embedded page start with its controls.
+                                    web.evaluateJavascript("""(()=>{
+                                        document.querySelector('.topbar').hidden=true;
+                                        document.querySelector('.preview-panel').hidden=true;
+                                        document.querySelector('.workspace').style.display='block';
+                                        document.querySelector('.workspace').style.padding='0';
+                                        document.querySelector('.inspector').style.border='0';
+                                        document.querySelector('.inspector').append(document.getElementById('preset-panel'));
+                                        document.getElementById('auto-preview').checked=false;
+                                    })()""",null)
+                                }
                                 call(web,"motionStudioConnect",JSONObject().put("token",session.token).put("definition",session.definition).put("state",latestState?:session.initialState))
                                 connected=true
                             }else if(attempt<100)web.postDelayed({connect(attempt+1)},100)

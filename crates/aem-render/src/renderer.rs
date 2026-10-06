@@ -242,11 +242,11 @@ impl Renderer {
                     module: &shader,
                     entry_point: Some("vertex_main"),
                     compilation_options: Default::default(),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<GeometryVertex>() as u64,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x2],
-                }],
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<GeometryVertex>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x2],
+                    }],
                 },
                 primitive: wgpu::PrimitiveState {
                     cull_mode: None,
@@ -499,7 +499,10 @@ impl Renderer {
             ],
         });
         if let TextureKey::Static(asset) = id {
-            self.effect_gpu.builder.set_alpha(asset, width, height, rgba).map_err(RenderError::Invalid)?;
+            self.effect_gpu
+                .builder
+                .set_alpha(asset, width, height, rgba)
+                .map_err(RenderError::Invalid)?;
         }
         self.images.insert(
             id,
@@ -556,9 +559,13 @@ impl Renderer {
             })
             .collect();
         for id in remove {
-            if let TextureKey::Static(asset) = id { self.effect_gpu.builder.alpha_images.remove(&asset); }
+            if let TextureKey::Static(asset) = id {
+                self.effect_gpu.builder.alpha_images.remove(&asset);
+            }
             self.texture_bytes -= self.images.remove(&id).unwrap().bytes;
-            if let TextureKey::Static(asset) = id { self.asset_order.retain(|v| *v != asset); }
+            if let TextureKey::Static(asset) = id {
+                self.asset_order.retain(|v| *v != asset);
+            }
             self.effect_gpu.invalidate();
         }
         Ok(())
@@ -786,9 +793,17 @@ impl Renderer {
         }
         let frame = &self.effect_gpu.builder.frame;
         self.geometry_upload.clear();
-        self.geometry_upload.extend(frame.vertices.iter().map(|v| GeometryVertex {position:v.position,uv:v.uv}));
+        self.geometry_upload
+            .extend(frame.vertices.iter().map(|v| GeometryVertex {
+                position: v.position,
+                uv: v.uv,
+            }));
         if !self.geometry_upload.is_empty() {
-            self.queue.write_buffer(&self.vertex_buffer,0,bytemuck::cast_slice(&self.geometry_upload));
+            self.queue.write_buffer(
+                &self.vertex_buffer,
+                0,
+                bytemuck::cast_slice(&self.geometry_upload),
+            );
         }
         self.effect_diagnostics.clone_from(&frame.diagnostics);
         for (i, draw) in frame.draws.iter().enumerate() {
@@ -843,7 +858,9 @@ impl Renderer {
             let i = batch.layer;
             let draw = &frame.draws[i];
             for p in draw.pass_start..draw.pass_end {
-                if materialized == Some(i) { break; }
+                if materialized == Some(i) {
+                    break;
+                }
                 self.effect_gpu.state.encode_pass(
                     p,
                     frame,
@@ -914,8 +931,8 @@ impl Renderer {
             draw_calls: (frame.batches.len() + executed_passes) as u32,
             texture_bytes: self.texture_bytes + self.effect_gpu.state.bytes(),
             parameter_upload_bytes: (bytes
-                + executed_passes * aem_effects::shader::UNIFORM_BYTES + frame.vertices.len()*20)
-                as u64,
+                + executed_passes * aem_effects::shader::UNIFORM_BYTES
+                + frame.vertices.len() * 20) as u64,
             instance_upload_bytes: (frame.sprites.len() * 48) as u64,
             particles_alive: frame.generator_stats.alive,
             particles_visible: frame.generator_stats.visible,

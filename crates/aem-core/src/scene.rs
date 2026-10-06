@@ -265,7 +265,10 @@ impl Scene {
         })
     }
     pub fn node_is_spatial(&self, id: u64) -> Option<bool> {
-        self.node_ids.iter().position(|v| *v == id).map(|i| self.node_spatial[i])
+        self.node_ids
+            .iter()
+            .position(|v| *v == id)
+            .map(|i| self.node_spatial[i])
     }
     /// Bounds picking ordered at this exact pixel, rather than by layer centre.
     /// Texture alpha is deliberately not read back; transparent bounds remain selectable.
