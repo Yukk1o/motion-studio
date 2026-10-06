@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.font.FontFamily
@@ -135,8 +136,9 @@ open class MainActivity:ComponentActivity() {
             val sideWidth=if(split)(availableWidth*.48f).coerceIn(248.dp,320.dp).coerceAtMost(availableWidth-304.dp) else 0.dp
             val effectEditing=vm.panelOpen&&vm.effectsOpen&&vm.selected!=0L
             val effectWidth=if(split)sideWidth else (availableWidth*.5f).coerceAtMost(320.dp)
+            val focusedTimelineHeight=(48f+timelineRowHeightDp(LocalDensity.current.fontScale)).dp
             val effectHeight=(availableHeight*(if(curveExpanded).52f else .44f)).coerceAtMost(360.dp)
-                .coerceAtMost((availableHeight-48.dp-48.dp-104.dp-96.dp).coerceAtLeast(144.dp))
+                .coerceAtMost((availableHeight-48.dp-48.dp-focusedTimelineHeight-96.dp).coerceAtLeast(144.dp))
             fun closeEffects(){vm.effectsOpen=false;vm.property="position";vm.panelOpen=false}
             val timelineHeight=if(wide)(availableHeight*.3f).coerceAtMost(132.dp)
                 else (availableHeight*.38f).coerceAtMost(300.dp)
@@ -174,11 +176,11 @@ open class MainActivity:ComponentActivity() {
                 }else {
                     Preview(vm,Modifier.weight(1f).fillMaxWidth())
                     Transport(vm)
-                    Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)104.dp else timelineHeight),focused=effectEditing)
+                    Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)focusedTimelineHeight else timelineHeight),focused=effectEditing)
                     if(effectEditing)EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
                     else EditorFooter(vm)
                 }
-                if(wide&&effectEditing)Timeline(vm,Modifier.fillMaxWidth().height(104.dp),focused=true)
+                if(wide&&effectEditing)Timeline(vm,Modifier.fillMaxWidth().height(focusedTimelineHeight),focused=true)
             }
             if(!vm.panelOpen) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(end=16.dp,bottom=64.dp)) {

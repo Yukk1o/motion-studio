@@ -31,6 +31,7 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 @RunWith(AndroidJUnit4::class)
 class IntegratedFrontendTest {
@@ -92,7 +93,7 @@ class IntegratedFrontendTest {
         val panel=compose.onNodeWithTag("effects-panel").fetchSemanticsNode().boundsInRoot
         val transport=compose.onNodeWithTag("transport").fetchSemanticsNode().boundsInRoot
         val density=context.resources.displayMetrics.density
-        assertTrue("timeline does not show a complete layer",timeline.height/density>=103)
+        assertTrue("timeline does not show a complete layer",timeline.height/density>=83)
         assertTrue("preview is too small",preview.height/density>=48&&preview.width/density>=120)
         assertFalse("effects cover timeline",panel.overlaps(timeline))
         assertFalse("effects cover preview",panel.overlaps(preview))
@@ -114,6 +115,32 @@ class IntegratedFrontendTest {
         val offset=(frame-vm.frame).toFloat()*vm.timelineScale*context.resources.displayMetrics.density
         val y=9*context.resources.displayMetrics.density
         compose.onNodeWithTag("timeline").performTouchInput{longClick(androidx.compose.ui.geometry.Offset(centerX+offset,y))}
+    }
+    private fun multipleLayers() {
+        solid()
+        scenario.onActivity {
+            val original=vm.layer(vm.selected)!!
+            val commands=JSONArray()
+            for(id in 2..14)commands.put(JSONObject().put("op","add").put("layer",JSONObject(original.toString()).put("id",id).put("name","图层 $id")))
+            vm.editBatch(commands);vm.select(14,false);vm.panelOpen=false;vm.timelineScale=3f;vm.seek(15.0)
+        }
+        compose.waitUntil(10000){vm.state.project!!.getJSONArray("layers").length()==14&&vm.state.saved&&vm.state.sample?.optDouble("frame")==15.0}
+        scenario.onActivity{vm.addKey()}
+        compose.waitUntil(10000){vm.keys().size==1&&vm.state.saved}
+    }
+    private fun assertCompactLayerGap() {
+        val density=context.resources.displayMetrics.density
+        val pixels=compose.onNodeWithTag("timeline").captureToImage().toPixelMap()
+        val x=(pixels.width/2+16*density).roundToInt().coerceAtMost(pixels.width-1)
+        val spans=mutableListOf<IntRange>();var start:Int?=null
+        for(y in (44*density).roundToInt() until minOf(pixels.height,(154*density).roundToInt())) {
+            if(pixels[x,y].blue>.21f){if(start==null)start=y}
+            else if(start!=null){if(y-start>=20*density)spans+=start until y;start=null}
+        }
+        assertTrue("two complete clips must be visible",spans.size>=2)
+        val gap=(spans[1].first-spans[0].last-1)/density
+        assertTrue("layer gap is $gap dp",gap in 2f..6f)
+        File(root,"timeline-density-report.json").writeText(JSONObject().put("observedClipGapDp",gap).put("layerCount",14).toString(2))
     }
     private fun import(kind:String,file:String,withAudio:Boolean=true) {
         scenario.onActivity{vm.panelOpen=false;vm.importMedia(Uri.parse("content://com.motionstudio.editor.test.audio-fixtures/$file"),kind,withAudio)}
@@ -385,7 +412,46 @@ class IntegratedFrontendTest {
         compose.waitUntil(10000){vm.state.error!=null}
         assertEquals(before,vm.state.project!!.getJSONArray("layers").length())
     }
+    @Test fun compactRowsRouteNeighboursAndKeysAndResetScrollForEffects() {
+        multipleLayers();photo("layout-timeline-multiple-layers");assertCompactLayerGap()
+        val density=context.resources.displayMetrics.density
+        val rowHeight=timelineRowHeightDp(context.resources.configuration.fontScale)*density
+        val timeline=compose.onNodeWithTag("timeline")
+        timeline.performTouchInput{click(androidx.compose.ui.geometry.Offset(centerX+16*density,44*density+rowHeight*1.5f))}
+        compose.waitUntil(10000){vm.selected==13L}
+        val before=vm.state.project!!.toString()
+        timeline.performTouchInput{click(androidx.compose.ui.geometry.Offset(24*density,44*density+rowHeight*1.5f))}
+        compose.waitUntil(10000){vm.layer(13)?.optBoolean("visible")==false&&vm.state.saved}
+        assertTrue(vm.layer(14)!!.getBoolean("visible"))
+        scenario.onActivity{vm.undo()}
+        compose.waitUntil(10000){vm.state.project!!.toString()==before&&vm.state.saved}
+        scenario.onActivity{vm.addKey()}
+        compose.waitUntil(10000){vm.keys().size==1&&vm.state.saved}
+        val beforeKey=vm.state.project!!.toString()
+        scenario.onActivity{vm.select(14,false)}
+        timeline.performTouchInput {
+            down(androidx.compose.ui.geometry.Offset(centerX,37*density+rowHeight*2));moveBy(androidx.compose.ui.geometry.Offset(30*density,0f),100);up()
+        }
+        compose.waitUntil(10000){vm.selected==13L&&vm.keys().any{it.getInt("frame")==25}&&vm.state.saved}
+        assertEquals(15,vm.propertyTrack(14,"position")!!.getJSONArray("keys").getJSONObject(0).getInt("frame"))
+        scenario.onActivity{vm.undo();vm.seek(15.0)}
+        compose.waitUntil(10000){vm.state.project!!.toString()==beforeKey&&vm.state.saved&&vm.state.sample?.optDouble("frame")==15.0}
+        timeline.performTouchInput {
+            down(androidx.compose.ui.geometry.Offset(width-28*density,44*density+rowHeight/2));moveBy(androidx.compose.ui.geometry.Offset(0f,-720*density),100);up()
+        }
+        photo("layout-timeline-scrolled")
+        timeline.performTouchInput{click(androidx.compose.ui.geometry.Offset(centerX+16*density,height-rowHeight/2))}
+        compose.waitUntil(10000){vm.selected==1L}
+        scenario.onActivity{vm.openEffects()}
+        compose.onNodeWithTag("effects-panel").assertIsDisplayed()
+        photo("layout-timeline-focused")
+        val pixels=timeline.captureToImage().toPixelMap()
+        val x=(pixels.width/2+16*density).roundToInt().coerceAtMost(pixels.width-1)
+        assertTrue("selected clip was lost after focusing a scrolled timeline",pixels[x,(49*density).roundToInt()].blue>.21f)
+        assertNull(vm.state.error)
+    }
     @Test fun effectsAndAddMediaControlsFitTheRealWindow() {
+        multipleLayers();photo("layout-timeline-multiple-layers");assertCompactLayerGap()
         solid();effects();photo("layout-effect-catalogue")
         assertTimelineVisible()
         val nodes=compose.onAllNodes(hasClickAction()).fetchSemanticsNodes()
