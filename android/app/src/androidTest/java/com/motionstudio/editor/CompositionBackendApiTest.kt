@@ -100,7 +100,7 @@ class CompositionBackendApiTest {
             req(id,"comp-main","open")
             val wrong=JSONObject(MediaBridge.request(id,context,JSONObject().put("op","finish_media_import").put("request_id","child-video").toString()))
             assertEquals("context_mismatch",wrong.getJSONObject("error_detail").getString("code"))
-            req(id,child,"open");assertEquals("succeeded",media("finish_media_import","request_id" to "child-video").getJSONObject("task").getString("state"))
+            req(id,child,"open");val imported=media("finish_media_import","request_id" to "child-video").getJSONObject("task");assertEquals(imported.toString(),"succeeded",imported.getString("state"))
             req(id,"comp-main","open");action(id,"comp-main","reference","target" to child);action(id,"comp-main","precompose","objects" to array(1),"name" to "outer")
             assertTrue(req(id,"comp-main","state").getBoolean("has_audio"))
             val consumer=HandlerThread("composition-preview-consumer").apply{start()}
