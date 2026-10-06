@@ -222,6 +222,12 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
 }
 
 @Composable private fun EffectNumeric(vm:EditorViewModel,objectId:Long,instance:Long,desc:JSONObject,axis:Int,value:JSONArray,enabled:Boolean,label:String,onSelect:()->Unit,onInput:()->Unit) {
+    key(vm.root,objectId,instance,desc.getString("id"),axis) {
+        EffectNumericControl(vm,objectId,instance,desc,axis,value,enabled,label,onSelect,onInput)
+    }
+}
+
+@Composable private fun EffectNumericControl(vm:EditorViewModel,objectId:Long,instance:Long,desc:JSONObject,axis:Int,value:JSONArray,enabled:Boolean,label:String,onSelect:()->Unit,onInput:()->Unit) {
     val param=desc.getString("id");val minimum=desc.getDouble("min");val maximum=desc.getDouble("max")
     var draft by remember(instance,param,axis){mutableStateOf<Double?>(null)}
     var captured by remember{mutableStateOf<JSONArray?>(null)};var at by remember{mutableIntStateOf(0)}
@@ -236,14 +242,13 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
             onValueChange={next->if(captured==null){captured=JSONArray(value.toString());at=floor(vm.frame).toInt();onSelect();vm.beginGesture();adjusting=true;gestureTicket++};draft=next
                 vm.effectAction(objectId,instance,"set",JSONObject().put("param",param).put("frame",at).put("value",JSONArray(captured.toString()).put(axis,next)),false)
             },onFinished={val ticket=gestureTicket;if(captured!=null)vm.endGesture{if(!adjusting&&ticket==gestureTicket)draft=null};captured=null;adjusting=false},
-            onCancelled={if(captured!=null)vm.cancelGesture();captured=null;draft=null;adjusting=false},modifier=Modifier.weight(1f).testTag("effect-wheel-$param-$axis"))
+            onCancelled={if(captured!=null)vm.cancelGesture();captured=null;draft=null;adjusting=false},inertiaGroup=vm.gestureInertia,modifier=Modifier.weight(1f).testTag("effect-wheel-$param-$axis"))
         else Spacer(Modifier.weight(1f))
         val valueWidth=(72.dp*fontScale).coerceIn(80.dp,120.dp)
         TextButton(onClick=onInput,enabled=enabled,contentPadding=PaddingValues(horizontal=4.dp),modifier=Modifier.width(valueWidth).heightIn(min=48.dp).testTag("effect-value-$param-$axis")) {
             Text(String.format(Locale.US,"%.3f",(draft?:value.getDouble(axis))),fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
         }
     }
-    DisposableEffect(instance,param,axis){onDispose{if(captured!=null)vm.cancelGesture()}}
 }
 
 @Composable private fun EffectCatalogue(vm:EditorViewModel,modifier:Modifier,onChoose:(JSONObject,JSONObject)->Unit) {
@@ -262,27 +267,6 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun PluginsPanel(vm:EditorViewModel,onInstall:()->Unit,onDismiss:()->Unit) {
-    var remove by remember{mutableStateOf<JSONObject?>(null)}
-    LaunchedEffect(Unit){vm.refreshCatalogue()}
-    ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),containerColor=Panel) {
-        Column(Modifier.fillMaxWidth().heightIn(max=560.dp).verticalScroll(rememberScrollState()).padding(16.dp).testTag("plugins-panel")) {
-            Row(verticalAlignment=Alignment.CenterVertically){Text("效果包",Modifier.weight(1f),fontSize=20.sp);TextButton(onClick=onInstall,modifier=Modifier.height(48.dp).testTag("plugin-install")){Text("安装 .msfx")};Tool(Icons.Default.Close,"关闭效果包",action=onDismiss)}
-            Text("工程使用固定版本。分享工程时，需要同时提供对应效果包。",color=Muted,fontSize=12.sp)
-            effectPackages(vm).forEach{pkg->val m=pkg.getJSONObject("manifest")
-                Row(Modifier.fillMaxWidth().heightIn(min=64.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)){Text(m.getString("name"),color=Ink,fontSize=15.sp);Text(m.getString("version"),color=Muted,fontSize=12.sp)}
-                    Switch(pkg.getBoolean("enabled"),{on->vm.pluginOperation(JSONObject().put("op","enable").put("plugin",m.getString("id")).put("version",m.getString("version")).put("hash",pkg.getString("hash")).put("enabled",on))})
-                    if(m.getString("id")!="com.motionstudio.effects.ae2021")TextButton(onClick={remove=pkg}){Text("卸载")}
-                }
-            }
-            vm.catalogue?.optJSONArray("errors")?.let{a->for(i in 0 until a.length())Text(a.getString(i),color=MaterialTheme.colorScheme.error,fontSize=12.sp)}
-        }
-    }
-    remove?.let{pkg->AlertDialog(onDismissRequest={remove=null},title={Text("卸载效果包")},text={Text("使用此固定版本的效果将显示缺失，工程中的参数仍保留。")},confirmButton={TextButton(onClick={val m=pkg.getJSONObject("manifest");vm.pluginOperation(JSONObject().put("op","uninstall").put("plugin",m.getString("id")).put("version",m.getString("version")).put("hash",pkg.getString("hash")));remove=null}){Text("卸载")}},dismissButton={TextButton(onClick={remove=null}){Text("取消")}})}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
