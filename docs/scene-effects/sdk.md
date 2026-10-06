@@ -11,7 +11,7 @@ ZIP 的 format_version 仍为 1；sdk_version 可为 1 或 2。SDK 1 图像效�
     "protocol": 1,
     "title": "镜头编辑器",
     "entry": "ui/editor.html",
-    "files": ["ui/editor.html", "ui/editor.js", "ui/editor.css"]
+    "files": ["ui/editor.html", "ui/editor.js", "ui/editor.css", "ui/bridge.js"]
   }
 }
 ```
@@ -19,6 +19,8 @@ ZIP 的 format_version 仍为 1；sdk_version 可为 1 或 2。SDK 1 图像效�
 支持 ui/ 内的 HTML、JS、CSS、JSON 和 PNG。文件最多 32 个，每文件最多 256 KiB；文本必须是无 NUL 的 UTF-8；PNG 在解码前检查大小，并计入包资源预算。沿用 ZIP 路径、重复名称、软链接、包总大小及未引用文件校验。资源不能通过包清单声明网络权限。
 
 模板见 `crates/aem-effects/scene-library/ui/`。图像效果也可以提供专用编辑器，不必采用场景生成器。
+
+内置1.1.0编辑器使用本地ES module加载bridge.js，没有外部字体、网络服务或UI依赖。所有页面文件必须通过同一隔离来源的清单路由加载，不能只复制HTML或绕过资源白名单。1.0.0原始包继续预装，既有实例不会自动切换到新页面。
 
 ## 场景生成器
 

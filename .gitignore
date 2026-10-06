@@ -12,6 +12,7 @@
 /android/app/src/main/jniLibs/
 *.tmp
 __pycache__/
+/tools/plugin-editor-tests/node_modules/
 refer/
 reference/
 

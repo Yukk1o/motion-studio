@@ -1,5 +1,7 @@
 # 场景效果验收
 
+以下保留原1.0.0的验收历史。最新1.1.0插件页面、版本保留与浏览器回归见 [editor-validation.md](editor-validation.md)。
+
 验收日期：2026-10-06（Asia/Tokyo）。代码提交 `d550363dd51ff61484bd0c46519b57c17d48786f`；本次后续提交只更新文档。完整数字及构建哈希见 [validation.json](validation.json)。测试对象为 Motion Studio 独立效果，没有进行厂商插件画面对照。
 
 ## 结果与范围

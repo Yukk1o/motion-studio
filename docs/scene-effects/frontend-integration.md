@@ -12,7 +12,7 @@
 {"op":"editor_open","object":2,"instance":1}
 ```
 
-`data` 含 `protocol:1`、`token`、完整 `definition` 和 `state`。state 包含 revision、frame、values、参数轨道、scene、seed、图层变换、合成尺寸、摄影机、可引用图层列表及该效果的表达式。`values` 是表达式执行前的基础参数采样；表达式仍影响实际预览。
+`data` 含 `protocol:1`、`token`、完整 `definition` 和 `state`。state 包含 revision、frame、values、参数轨道、scene、seed、图层变换、合成尺寸、摄影机、可引用图层列表及该效果的表达式。`values` 是表达式执行前的基础参数采样；表达式仍影响实际预览。新增的 `transform_values={position,rotation,scale}` 使用当前合成帧换算后的图层局部时间，给出三分量基础变换采样；不能直接用 `transform.position.value` 代替动画当前值。
 
 只能同时打开一个插件编辑器。token 是当前挂载窗口的路由标识，不能代替 WebView 的来源隔离。窗口绑定 object、instance、effect、精确版本及包哈希；实例删除、升级或工程替换后必须关闭并重新打开。
 
@@ -50,6 +50,12 @@
 调用页面的 `window.motionStudioReply({token,id,ok,result,error})` 回传结果。`result` 对应 JNI 的 `data`。初始化调用 `window.motionStudioConnect({token,definition,state})`；使用正确的 JSON 序列化，不拼接用户字符串为 JavaScript 代码。
 
 建议消息不超过 256 KiB，单窗口只保持少量待处理请求。内置页面的超时为 10 秒。撤销、重做、寻帧或普通 Inspector 修改后，发送新的 state；陈旧 revision 会被后端拒绝。
+
+1.1.0页面使用ES module。等页面加载完成且 `window.motionStudioConnect` 已存在后再初始化；加载资源时将所有四个UI文件按相同来源提供。插件内部串行提交修改，每条请求读取前一条返回的revision及参数向量。宿主收到消息仍须串行访问Native会话。
+
+撤销、重做、寻帧和外部编辑后，调用 `window.motionStudioUpdate(newState)`。已有拖动事务期间固定宿主当前帧，不让一次拖动写入多个帧；先提交/取消或关闭该编辑器，再切换工程/效果实例。窗口关闭时先调用 `editor_close(commit=false)`，再调用 `window.motionStudioDisconnect()` 并移除WebView；页面的pagehide取消只是尽力处理，不能替代宿主关闭接口。
+
+页面会拒绝旧token、断开后的消息和更旧revision；预览只有一个请求在途，丢弃旧revision/旧frame的PNG，并补发最新请求。宿主预览失败时保留上次画面和当前工程，不阻止修复参数。需要恢复状态时先查询state，错误编辑不会自动重放。
 
 ## 4. 允许的消息
 
@@ -94,3 +100,11 @@ preview 返回 `{width,height,png,revision,frame,instances}`，png 是 PNG 的 B
 镜头元件的列表数据是静态结构，强度、总尺寸、光源位置等总控参数支持轨道和表达式。若引用光源被删除，保留引用并报错；用户通过编辑器重新绑定或选择手动位置。保持编辑器可打开，以便修复。
 
 此变更没有实现 App 中打开窗口的按钮、WebView 容器、3D 操纵柄或 ViewModel；无需合并现有前端 PR 才能使用后端 API。
+
+## 7. 已交付的插件页面
+
+场景包1.1.0自带粒子与镜头专用编辑页。粒子支持分组参数、RGBA拾色、合法范围输入、种子、动画开关、发射器变换和轻盈/均衡/密集起点；镜头支持绑定/缺失引用修复、遮挡、元件选择/复制/增删/启停/上下移动、形状、颜色与几何编辑。恢复默认仅重置效果参数（镜头包含元件/绑定默认配置）；动画参数只改当前帧，不删除其他关键帧。种子及所属图层变换由各自控件编辑。
+
+拖动使用begin/set/commit，Esc或pointercancel使用cancel；预设、恢复默认和RGB拾色在单个事务内提交，一次撤销还原。硬范围来自精确包，超出范围或粒子容量时明确反馈；不调整用户输入使其通过。布尔/枚举按实际整数值提交。缺失光源保留原引用，锁定图层只允许查看与预览。
+
+320px起采用上下布局，768px起采用左右布局；桌面参数区独立滚动，手机页面正常滚动；交互控件最小48px。预览是当前合成，不能在插件里把用户寻帧替换成模拟动画或导出视频。具体测试和剩余宿主责任见 [editor-validation.md](editor-validation.md)。
