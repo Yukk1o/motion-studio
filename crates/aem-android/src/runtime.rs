@@ -38,6 +38,9 @@ mod video_frames;
 #[path = "video_runtime.rs"]
 mod video_runtime;
 
+#[path = "composition_runtime.rs"]
+mod composition_runtime;
+
 type Result<T> = std::result::Result<T, String>;
 static NEXT: AtomicI64 = AtomicI64::new(1);
 static SESSIONS: OnceLock<Mutex<HashMap<i64, Session>>> = OnceLock::new();
@@ -71,6 +74,9 @@ struct Graphics {
     timer: Option<GpuTimer>,
 }
 struct Session {
+    composition_contexts: HashMap<String,composition_runtime::CompositionContext>,
+    composition_bundle:Vec<u8>,
+    media_compositions:HashMap<String,String>,
     video_jobs: aem_media::VideoJobs,
     video_frames: video_frames::VideoFrames,
     audio_jobs: aem_media::AudioJobs,
@@ -125,6 +131,7 @@ impl Session {
         self.effects.alpha_images.clear();
         self.scene = Scene::new(engine.project());
         self.observer = Observer::new(engine.project().width, engine.project().height);
+        self.composition_contexts.clear();self.media_compositions.clear();
         self.engine = engine;
         self.audio_jobs = audio_jobs;
         self.video_jobs = video_jobs;
@@ -168,6 +175,7 @@ impl Session {
             aem_effects::Registry::load(&plugin_root).map_err(|e| e.to_string())?,
         )?;
         Ok(Self {
+            composition_contexts:Default::default(),composition_bundle:Vec::new(),media_compositions:Default::default(),
             video_jobs: aem_media::VideoJobs::with_audio_decoder(root.clone(), std::sync::Arc::new(audio_decode::decode))?,
             video_frames: video_frames::VideoFrames::default(),
             audio_jobs: aem_media::AudioJobs::with_decoder(root.clone(), aem_media::Limits::default(), std::sync::Arc::new(audio_decode::decode))?,
@@ -375,18 +383,30 @@ impl Session {
     }
     fn attach(&mut self, window: NativeWindow, width: u32, height: u32) -> Result<()> {
         self.detach();
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-        // Surface owns a NativeWindow clone via its safe raw-window-handle implementation.
-        let surface = instance
-            .create_surface(AndroidWindow(window))
-            .map_err(|e| e.to_string())?;
-        let mut renderer = pollster::block_on(Renderer::new_profiled(
-            &instance,
-            Some(&surface),
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-            true,
-        ))
-        .map_err(|e| e.to_string())?;
+        // Vulkan surface creation can connect the Android buffer producer even
+        // when no Vulkan adapter is available. Keep only one backend's surface
+        // alive, otherwise the GLES fallback cannot connect the same window.
+        let mut candidate = None;
+        let mut failures = Vec::new();
+        for backend in [wgpu::Backends::VULKAN, wgpu::Backends::GL] {
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                backends: backend,
+                ..Default::default()
+            });
+            // Surface owns its window via the safe raw-window-handle wrapper.
+            let surface = match instance.create_surface(AndroidWindow(window.clone())) {
+                Ok(surface) => surface,
+                Err(error) => { failures.push(error.to_string()); continue; }
+            };
+            match pollster::block_on(Renderer::new_profiled(
+                &instance, Some(&surface), wgpu::TextureFormat::Rgba8UnormSrgb, true,
+            )) {
+                Ok(renderer) => { candidate = Some((instance, surface, renderer)); break; }
+                Err(error) => failures.push(error.to_string()),
+            }
+        }
+        let (instance, surface, mut renderer) = candidate
+            .ok_or_else(|| format!("no Android surface backend: {}", failures.join("; ")))?;
         renderer.set_effect_registry(self.effects.registry.clone());
         let caps = surface.get_capabilities(&renderer.adapter);
         let format = caps
@@ -468,8 +488,8 @@ impl Session {
         for (object, image) in frames {
             let source = self
                 .scene
-                .layers
-                .iter()
+                .video_layers()
+                .into_iter()
                 .find(|l| l.id == object)
                 .unwrap()
                 .video
@@ -697,12 +717,13 @@ impl Session {
             vec!["target"]
         };
         json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
-            "main_composition":"comp-main",
+            "main_composition":"comp-main","composition":p.composition_id,"compositions":p.composition_list(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),
+            "composition_context":self.composition_context_snapshot(),
             "capabilities":{"scene_effects":{"sdk_version":2,"plugin_editor_protocol":1,"max_particles_per_effect":20000,"max_sprites_per_frame":65536,"occlusion":"source_alpha_planes","simulation":"analytic_local_space"},"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"layer_3d":{"supported":true,"default":false,"activation":"explicit","command":"set_layer_3d"},
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
-                "multiple_compositions":false,"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":7,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
                 "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","containers":["MP4","MOV","3GP","Matroska","WebM"],"codecs":["H.264","H.265 Main","VP8","VP9 profile 0"],"profile":"8-bit 4:2:0 SDR","device_query":"media_capabilities","max_pixels":2073600,"max_fps":120,
                 "max_duration_seconds":3600,"async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
                 "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true},
@@ -735,7 +756,7 @@ fn string_result(env: &mut JNIEnv<'_>, operation: impl FnOnce() -> Result<Value>
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(operation));
     let value = match result {
         Ok(Ok(value)) => json!({"ok":true,"data":value}),
-        Ok(Err(error)) => json!({"ok":false,"error":error}),
+        Ok(Err(error)) => json!({"ok":false,"error":error,"error_detail":error.strip_prefix("composition_error:").and_then(|v|serde_json::from_str::<Value>(v).ok())}),
         Err(payload) => {
             let reason = payload
                 .downcast_ref::<String>()
@@ -791,6 +812,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                 return Err("plugin request exceeds 256 KiB".into());
             }
             let v: Value = serde_json::from_str(&request).map_err(|e| e.to_string())?;
+            if v.get("composition").is_some_and(|v|v.as_str()!=Some(s.engine.project().composition_id.as_str())){return Err(s.composition_error("context_mismatch","Open the requested composition before plugin access",json!({})));}
             if v["op"].as_str().is_some_and(|op| op.starts_with("editor_")) {
                 return s.editor_operation(&v);
             }
@@ -921,13 +943,13 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             s.observing = false;
             s.sample()?;
             let p = s.engine.project();
-            s.effects.preflight_project(p)?;
+            for id in p.reachable_compositions().map_err(|e|e.to_string())?{s.effects.preflight_project(&p.composition(&id).map_err(|e|e.to_string())?)?;}
             s.effects.synchronize_alpha(p, &s.root)?;
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
-            s.effects
-                .build(&s.scene, &assets, p.width, p.height, true)?;
+            for id in p.reachable_compositions().map_err(|e|e.to_string())?{let mut node=p.composition(&id).map_err(|e|e.to_string())?;for e in &mut node.expressions{e.enabled=false;}for c in &mut node.compositions{for e in &mut c.expressions{e.enabled=false;}}let mut scene=Scene::new(&node);scene.sample(&node,0.,None).map_err(|e|e.to_string())?;s.effects.synchronize(&scene)?;}
+            s.effects.build(&s.scene, &assets, p.width, p.height, true)?;
             let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"sprite":program.shader.sprite,"additive":program.shader.additive,"resources":program.resources.iter().map(|path|{
    let bytes=&program.package.as_ref().unwrap().files[path];let dimensions=image::load_from_memory(bytes).map(|v|(v.width(),v.height())).unwrap_or((0,0));json!({"path":path,"width":dimensions.0,"height":dimensions.1})
   }).collect::<Vec<_>>() })).collect::<Vec<_>>();
@@ -943,7 +965,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
                 + count * 1024
                 + aem_effects::MAX_SPRITES * 48 + 8192 * 12 + 65536 * 20;
             Ok(
-                json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
             )
         })
     })
@@ -968,6 +990,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleRenderPla
             s.frame = f64::from(frame);
             s.sample()?;
             let p = s.engine.project();
+            if !s.scene.nested.is_empty(){return Err("nested compositions require CompositionBridge.sampleFrameBundleInto".into());}
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
@@ -1157,12 +1180,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
         let text = parsed?;
         with_session(id, |s| {
             let commands = aem_core::parse_commands(&text).map_err(|e| e.to_string())?;
-            let resources = commands.iter().any(|c| {
-                matches!(
-                    c,
-                    Command::RegisterAsset { .. } | Command::Content { .. } | Command::Add { .. }
-                )
-            });
+            let resources = commands.iter().any(Command::changes_resources);
             if resources {
                 let mut check = Engine::new(s.engine.snapshot()).map_err(|e| e.to_string())?;
                 check
@@ -1290,6 +1308,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
 ) -> jstring {
     string_result(&mut env, || {
         with_session(id, |s| {
+            let active=s.engine.project().composition_id.clone();
             match op {
                 0 => {
                     s.engine.undo().map_err(|e| e.to_string())?;
@@ -1302,6 +1321,8 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
                 4 => s.engine.end_gesture(false).map_err(|e| e.to_string())?,
                 _ => return Err("invalid history operation".into()),
             }
+            if !s.engine.gesture_active(){let target=if s.engine.project().composition_ids().contains(&active){active.as_str()}else{aem_core::MAIN_COMPOSITION};s.engine.activate_composition(target).map_err(|e|e.to_string())?;}
+            s.frame=s.frame.min(f64::from(s.engine.project().frames-1));s.audio_mixer=None;s.video_frames.clear();
             if let Some(g) = &mut s.graphics {
                 g.renderer
                     .synchronize_assets(s.engine.project(), &s.root)
@@ -1638,7 +1659,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
     string_result(&mut env, || {
         with_session(id, |s| {
             let p = s.engine.project();
-            s.effects.preflight_project(p)?;
+            for id in p.reachable_compositions().map_err(|e|e.to_string())?{s.effects.preflight_project(&p.composition(&id).map_err(|e|e.to_string())?)?;}
             s.effects.synchronize_alpha(p, &s.root)?;
             let mut scene = Scene::new(p);
             scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
@@ -1666,8 +1687,8 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
             renderer.retain_video_instances(&scene);
             for (object, image) in frames {
                 let source = scene
-                    .layers
-                    .iter()
+                    .video_layers()
+                    .into_iter()
                     .find(|l| l.id == object)
                     .unwrap()
                     .video

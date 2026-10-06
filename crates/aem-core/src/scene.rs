@@ -20,6 +20,7 @@ pub struct DrawLayer {
     pub opacity: f32,
     pub asset: Option<u64>,
     pub video: Option<crate::VideoSample>,
+    pub composition: bool,
     pub depth: f32,
     pub order: usize,
     pub three_d: bool,
@@ -37,11 +38,20 @@ pub struct Scene {
     pub curve_luts: Vec<crate::CurveLut>,
     pub frame: f64,
     pub fps: u32,
+    pub composition_id: String,
+    pub nested: Vec<NestedScene>,
     node_world: Vec<Mat4>,
     node_states: Vec<u8>,
     node_ids: Vec<u64>,
     node_spatial: Vec<bool>,
+    source_objects:Vec<(u64,u64)>,
     evaluated_project: Option<Project>,
+}
+#[derive(Clone, Debug)]
+pub struct NestedScene {
+    pub layer: u64,
+    pub composition: String,
+    pub scene: Box<Scene>,
 }
 impl Scene {
     pub fn new(project: &Project) -> Self {
@@ -55,10 +65,13 @@ impl Scene {
             curve_luts: Vec::new(),
             frame: 0.0,
             fps: project.fps,
+            composition_id: project.composition_id.clone(),
+            nested: Vec::new(),
             node_world: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_states: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_ids: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_spatial: Vec::with_capacity(crate::MAX_LAYERS + 1),
+            source_objects:Vec::new(),
             evaluated_project: None,
         }
     }
@@ -68,6 +81,17 @@ impl Scene {
         frame: f64,
         observer: Option<&Observer>,
     ) -> Result<()> {
+        self.sample_inner(project, project, frame, observer, 0)?;
+        if !self.nested.is_empty() {
+            let mut used: std::collections::HashSet<_> = project.layers.iter().map(|l|l.id)
+                .chain(project.compositions.iter().flat_map(|c|c.layers.iter().map(|l|l.id))).collect();
+            let mut next=1u64<<40;
+            for node in &mut self.nested { node.scene.assign_instance_ids(&mut used,&mut next); }
+        }
+        Ok(())
+    }
+    fn sample_inner(&mut self, document:&Project, project:&Project, frame:f64, observer:Option<&Observer>, depth:usize)->Result<()> {
+        ensure(depth<crate::composition::MAX_COMPOSITION_DEPTH,"composition nesting too deep")?;
         ensure(
             frame.is_finite() && frame >= 0.0 && frame < f64::from(project.frames),
             "invalid sample time",
@@ -76,6 +100,9 @@ impl Scene {
         let project = evaluated.as_ref();
         self.frame = frame;
         self.fps = project.fps;
+        self.composition_id.clone_from(&project.composition_id);
+        self.nested.clear();
+        self.source_objects.clear();
         self.curve_luts.clear();
         let mut effect_index = 0;
         for layer in &project.layers {
@@ -159,6 +186,14 @@ impl Scene {
                 continue;
             }
             let center = self.node_world[order].w_axis.truncate();
+            if let Content::Composition { clip } = &layer.content {
+                let child=document.composition_frame_view(&clip.composition)?;
+                let source=clip.source_frame(layer.local_frame(frame),project.fps,child.fps);
+                if source<0.||source>=f64::from(child.frames) {continue;}
+                let mut scene=Scene::new(&child);
+                if let Err(error)=scene.sample_inner(document,&child,source,None,depth+1){return crate::composition::fail(&clip.composition,"sample_failed",&error.to_string(),serde_json::json!({"frame":source,"parent_composition":project.composition_id,"reference":layer.id}));}
+                self.nested.push(NestedScene {layer:layer.id,composition:clip.composition.clone(),scene:Box::new(scene)});
+            }
             let video = if let Content::Video { video } = &layer.content {
                 let a = project
                     .video_assets
@@ -180,6 +215,7 @@ impl Scene {
                 Content::Null | Content::Audio { .. } => unreachable!(),
                 Content::Solid { color } => (*color, None),
                 Content::Video { .. } => ([1.0; 4], None),
+                Content::Composition { .. } => ([1.0;4],None),
                 Content::Image { asset } => ([1.0; 4], Some(*asset)),
                 Content::Text {
                     color,
@@ -195,6 +231,7 @@ impl Scene {
                 opacity,
                 asset,
                 video,
+                composition: matches!(layer.content,Content::Composition {..}),
                 depth: (center - self.camera.eye).dot(forward),
                 order,
                 three_d: layer.three_d,
@@ -225,6 +262,29 @@ impl Scene {
             std::borrow::Cow::Borrowed(_) => None,
         };
         Ok(())
+    }
+    fn assign_instance_ids(&mut self, used:&mut std::collections::HashSet<u64>, next:&mut u64) {
+        let mut mapping=std::collections::HashMap::new();
+        for id in &mut self.node_ids { if *id!=0 {
+            while used.contains(next) {*next+=1;}
+            let target=*next;*next+=1;used.insert(target);mapping.insert(*id,target);*id=target;
+        }}
+        self.source_objects.extend(mapping.iter().map(|(source,alias)|(*alias,*source)));
+        for l in &mut self.layers {l.id=mapping[&l.id];}
+        for e in &mut self.effects {
+            e.layer=mapping[&e.layer];
+            if let Some(source)=e.scene.as_mut().and_then(|s|s.source_layer.as_mut()) { *source=mapping[source]; }
+        }
+        for n in &mut self.nested {n.layer=mapping[&n.layer];n.scene.assign_instance_ids(used,next);}
+    }
+    pub fn video_layers(&self) -> Vec<&DrawLayer> {
+        let mut layers:Vec<_>=self.layers.iter().filter(|l|l.video.is_some()).collect();
+        for node in &self.nested {layers.extend(node.scene.video_layers());} layers
+    }
+    pub fn source_object(&self,id:u64)->u64 {self.source_objects.iter().find(|v|v.0==id).map_or(id,|v|v.1)}
+    pub fn diagnostic(&self,message:&str)->String {
+        let mut text=message.to_string();for (alias,source) in &self.source_objects{text=text.replace(&format!("layer {alias},"),&format!("layer {source},"));}
+        format!("composition {}: {text}",self.composition_id)
     }
     /// Computed numeric values for UI snapshots; original project tracks stay intact.
     pub fn sampled_project<'a>(&'a self, original: &'a Project) -> &'a Project {

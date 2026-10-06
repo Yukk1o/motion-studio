@@ -17,6 +17,7 @@ pub struct Asset {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Content {
+    Composition { clip: crate::CompositionClip },
     Video {
         video: crate::VideoClip,
     },
@@ -190,6 +191,10 @@ pub struct ParentLink {
 #[serde(deny_unknown_fields)]
 pub struct Project {
     pub version: u32,
+    #[serde(default = "crate::composition::main_composition")]
+    pub composition_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub compositions: Vec<crate::Composition>,
     pub name: String,
     pub width: u32,
     pub height: u32,
@@ -213,7 +218,9 @@ impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 5,
+            version: 7,
+            composition_id: crate::MAIN_COMPOSITION.into(),
+            compositions: Vec::new(),
             name: "空间练习 01".into(),
             width,
             height,
@@ -265,8 +272,12 @@ impl Project {
         p
     }
     pub fn validate(&self) -> Result<()> {
+        self.validate_one()?;
+        self.validate_compositions()
+    }
+    pub(crate) fn validate_one(&self) -> Result<()> {
         ensure(
-            matches!(self.version, 1 | 2 | 3 | 4 | 5),
+            (1..=7).contains(&self.version),
             "unsupported project format",
         )?;
         ensure(
@@ -282,7 +293,7 @@ impl Project {
             "scene generator projects require format 4",
         )?;
         ensure(
-            self.plugin_dependencies == crate::effects::dependencies(&self.layers),
+            self.plugin_dependencies == self.composition_dependencies(),
             "plugin dependency list does not match effect instances",
         )?;
         ensure(
@@ -416,6 +427,11 @@ impl Project {
                 e.validate(self.frames)?;
             }
             match &layer.content {
+                Content::Composition { clip } => {
+                    self.composition(&clip.composition)?;
+                    ensure(clip.volume.is_finite() && (0.0..=4.0).contains(&clip.volume)
+                        && clip.source_start_frame.unsigned_abs() <= MAX_FRAMES, "invalid composition source interval or volume")?;
+                }
                 Content::Video { video } => {
                     video.validate()?;
                     let asset = self
@@ -528,7 +544,7 @@ impl Project {
             }
             self.version = 3;
         }
-        self.version = 5;
+        self.version = 7;
         Ok(self)
     }
     pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {
@@ -554,7 +570,11 @@ impl Project {
         serde_json::to_vec(self).map_or(usize::MAX, |v| v.len())
     }
     pub fn rebuild_plugin_dependencies(&mut self) {
-        self.plugin_dependencies = crate::effects::dependencies(&self.layers);
+        self.plugin_dependencies = self.composition_dependencies();
+    }
+    fn composition_dependencies(&self) -> Vec<crate::PluginDependency> {
+        let layers: Vec<_> = self.layers.iter().chain(self.compositions.iter().flat_map(|c|c.layers.iter())).cloned().collect();
+        crate::effects::dependencies(&layers)
     }
 }
 fn validate_color(color: [f32; 4]) -> Result<()> {

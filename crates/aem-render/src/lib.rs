@@ -2,6 +2,7 @@
 //! playback uploads only fixed-size layer uniforms.
 mod effect_gpu;
 pub mod effect_plan;
+pub mod composition_plan;
 mod measurement;
 mod presenter;
 mod quality;

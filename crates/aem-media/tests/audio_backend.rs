@@ -210,6 +210,22 @@ fn import(j: &AudioJobs, e: &mut Engine, id: &str, name: &str, at: u32) -> u64 {
 fn engine() -> Engine {
     Engine::new(Project::new(256, 256, 30, 180).unwrap()).unwrap()
 }
+#[test]
+fn two_level_precomposition_preserves_pcm_and_offsets_with_shared_assets() {
+    let _guard=TEST_LOCK.lock().unwrap();let root=tempfile::tempdir().unwrap();let jobs=AudioJobs::new(root.path().into(),Limits::default()).unwrap();let mut e=engine();
+    let a=import(&jobs,&mut e,"first-nested","tone-stereo-48000.wav",7);
+    let b=import(&jobs,&mut e,"second-nested","tone-mono-44100.mp3",23);
+    let before=e.snapshot();
+    e.apply(Command::Composition{action:aem_core::CompositionAction::Precompose{objects:vec![a,b],name:"inner".into(),range:"composition".into()}}).unwrap();
+    let reference=e.project().layers[0].id;
+    e.apply(Command::Composition{action:aem_core::CompositionAction::Precompose{objects:vec![reference],name:"outer".into(),range:"composition".into()}}).unwrap();
+    let frozen=e.snapshot();let mut original=AudioMixer::new(before,root.path()).unwrap();let mut nested=AudioMixer::new(frozen.clone(),root.path()).unwrap();
+    for start in [0,48000,12000,96000,36900,48000] {let mut a=vec![0.;12000*2];let mut b=a.clone();original.mix(start,&mut a).unwrap();nested.mix(start,&mut b).unwrap();assert_eq!(a,b,"sample {start}");}
+    let mut p=frozen;let inner=p.compositions.iter().find(|c|c.name=="inner").unwrap().id.clone();
+    let settings=aem_core::CompositionSettings{name:"inner60".into(),width:256,height:256,fps:60,frames:360,timing:"preserve_seconds".into(),shorten:"reject".into()};
+    let mut e=Engine::new(p.clone()).unwrap();e.apply(Command::InComposition{composition:inner,command:Box::new(Command::Composition{action:aem_core::CompositionAction::Settings{settings}})}).unwrap();p=e.snapshot();
+    let mut retimed=AudioMixer::new(p,root.path()).unwrap();let mut a=vec![0.;24000*2];let mut b=a.clone();nested.mix(36000,&mut a).unwrap();retimed.mix(36000,&mut b).unwrap();assert_eq!(a,b);
+}
 
 #[test]
 fn all_three_formats_decode_owned_audio_and_reopen_without_external_source() {
