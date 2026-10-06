@@ -12,7 +12,10 @@ use std::{
 #[derive(Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
-    MediaCapabilities,
+    MediaCapabilities {
+        #[serde(default)]
+        video_query: Option<super::media_capabilities::VideoQuery>,
+    },
     ImportMedia {
         request_id: String,
         uri: String,
@@ -229,7 +232,7 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_request(
         let text=read_string(&mut env,&text)?;if text.len()>16*1024{return Err("media request too large".into());}
         let request:Request=serde_json::from_str(&text).map_err(|e|e.to_string())?;
         match request {
-            Request::MediaCapabilities=>super::media_capabilities::query(&mut env),
+            Request::MediaCapabilities{video_query}=>super::media_capabilities::query(&mut env,video_query),
             Request::ImportMedia{request_id,uri,kind,at_frame,name,track,with_audio,audio_track} => {
                 if kind!="audio"&&kind!="video"{return Err("media kind must be audio or video".into());}
                 let name=name.unwrap_or_else(||if kind=="video"{"视频".into()}else{audio_name()});

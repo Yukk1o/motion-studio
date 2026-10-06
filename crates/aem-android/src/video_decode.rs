@@ -215,7 +215,12 @@ pub fn probe(
     let height = format.i32("height").unwrap_or(0) as u32;
     let rotation = format.i32("rotation-degrees").unwrap_or(0) as u32;
     let declared = format.i64("durationUs").unwrap_or(0);
-    let rate = format.i32("frame-rate").unwrap_or(0);
+    let rate = format
+        .f32("frame-rate")
+        .map(f64::from)
+        .or_else(|| format.i32("frame-rate").map(f64::from))
+        .filter(|r| r.is_finite() && *r > 0.0)
+        .unwrap_or(0.0);
     let standard = vui
         .color_standard
         .or(container_standard)
@@ -232,11 +237,11 @@ pub fn probe(
         .unwrap_or(2) as u32;
     if width == 0
         || height == 0
-        || width > 1920
-        || height > 1920
-        || u64::from(width) * u64::from(height) > 1920 * 1080
+        || width > aem_core::MAX_VIDEO_DIMENSION
+        || height > aem_core::MAX_VIDEO_DIMENSION
+        || u64::from(width) * u64::from(height) > aem_core::MAX_VIDEO_PIXELS
     {
-        return Err("video exceeds 1080p decode budget".into());
+        return Err("video exceeds 4K source decode budget".into());
     }
     ex.select(track)?;
     let mut timestamps = Vec::new();
@@ -253,7 +258,7 @@ pub fn probe(
         if time >= 0 {
             timestamps.push(time as u64);
         }
-        if timestamps.len() > 500_000 {
+        if timestamps.len() > aem_core::MAX_VIDEO_FRAMES as usize {
             return Err("video exceeds timestamp cache budget".into());
         }
         if !ex.advance() {
@@ -273,8 +278,8 @@ pub fn probe(
     let step = deltas
         .get(deltas.len() / 2)
         .copied()
-        .unwrap_or(if rate > 0 {
-            1_000_000 / rate as u64
+        .unwrap_or(if rate > 0.0 {
+            (1_000_000.0 / rate).round().max(1.0) as u64
         } else {
             33_333
         });
@@ -305,11 +310,12 @@ pub fn probe(
         duration_us: end,
         frame_count: timestamps.len() as u32,
         variable_frame_rate: deltas.iter().any(|d| d.abs_diff(step) > 2),
-        nominal_frame_rate: if rate > 0 {
-            f64::from(rate)
-        } else {
-            1_000_000.0 / step as f64
-        },
+        nominal_frame_rate: aem_media::source_frame_rate(
+            rate,
+            &timestamps,
+            step,
+            deltas.iter().any(|d| d.abs_diff(step) > 2),
+        ),
         color_standard: standard,
         color_range: range,
         audio_asset: None,
@@ -431,7 +437,11 @@ impl Decoder {
                         }
                     }
                 }
-                result => return result,
+                result => return result.map_err(|error| format!(
+                    "video decoder {} failed for {}x{} at {} fps (transfer {}): {error}",
+                    self.decoder_name, self.asset.width, self.asset.height,
+                    self.asset.nominal_frame_rate, self.reader_kind
+                )),
             }
         }
     }
