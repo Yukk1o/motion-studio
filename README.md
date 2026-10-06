@@ -36,7 +36,7 @@ Motion Studio 是一个由 AI 自主驱动开发的 Android 动效编辑器实�
 
 工程可在本地自动保存，支持工程库、完整工程包导入/导出、指定帧 PNG 和 H.264 MP4。
 
-媒体后端支持 MP4 / MOV / MKV / WebM 的 H.264、H.265、VP8、VP9 导入，以及 FLAC、ALAC、Vorbis、Opus、AAC、MP3 和多种 WAV 位深。音频源采样率为 8–192 kHz，按设备能力探测后导入；视频保持 8 位 SDR 与 1080p 像素预算。设备解码器查询与格式范围见 [媒体格式 API](crates/aem-media/FORMATS.md)。
+媒体后端支持 MP4 / MOV / MKV / WebM 的 H.264、H.265、VP8、VP9 导入，以及 FLAC、ALAC、Vorbis、Opus、AAC、MP3 和多种 WAV 位深。音频源采样率为 8–192 kHz；视频源支持 4K、最高 240 fps、8 位 SDR，不限预设画幅比例，仍受像素与边长预算约束，具体组合以设备探测结果为准。工程帧率可设为 1–240 的整数，源帧率与工程设置独立。设备解码器查询与格式范围见 [媒体格式 API](crates/aem-media/FORMATS.md)。
 
 属性面板的图层操作菜单提供“分离 XYZ”；分离后，轴选择器控制当前关键帧和曲线。新图层默认 2D，点击面板上的 2D/3D 可切换模式并保留各轴动画。
 
