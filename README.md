@@ -63,6 +63,8 @@ Motion Studio 是一个由 AI 自主驱动开发的 Android 动效编辑器实�
 
 当前 Android 工具链脚本面向 **Windows / PowerShell**。需要 Git、Python 3.12+、Rust/rustup；Windows 原生核心检查需要可用的 MSVC C++ 构建工具。Android 应用最低 API 29，默认构建 `arm64-v8a` 与 `x86_64`。
 
+GitHub Actions 使用 Ubuntu 24.04、Rust 1.97.1、JDK 21、Gradle 8.11.1、Android 35 与 NDK 27.0.12077973。构建脚本也接受 Linux 环境中的 `JAVA_HOME`、`ANDROID_HOME`、`ANDROID_NDK_HOME` 和 PATH 中的 Gradle。
+
 **1. 准备独立工具链**
 
 ```powershell
@@ -139,6 +141,16 @@ py tools/build_android.py --task assemblePreview
 ```
 
 产物：`android/app/build/outputs/apk/preview/app-preview.apk`。
+
+### 持续集成与自动发布
+
+Pull Request 和 main 更新会运行 Rust/GPU 测试、工具与 SVG 检查、Android 双架构构建、JVM 测试、Lint 和 Android 35 模拟器交互检查。运行日志与测试报告作为 Actions artifacts 保存。模拟器套件明确选择稳定的编辑交互用例；完整视频导入、导出与设备性能验收仍使用上面的专用命令。
+
+main 的检查全部通过后自动更新 [预览版](https://github.com/Yukk1o/motion-studio/releases/tag/preview)。推送 `vMAJOR.MINOR.PATCH` 标签后自动发布正式版，带 `-rc.1` 等后缀的标签发布预发行版。标签必须指向需要发布的代码；发布脚本核对构建提交和校验和，已发布的正式版本不能被替换。Android versionCode 使用同一工作流的递增运行编号。
+
+下载包同时包含 arm64-v8a 与 x86_64，发布附件提供 APK、`SHA256SUMS` 和 `build-info.json`。发布前检查签名、包名、版本和非调试状态；预览/正式包不启用 GPU 故障注入。构建或交互检查失败时不会发布。手动运行工作流仅执行 CI。
+
+签名材料从仓库 Actions secrets 读取：预览使用 `PREVIEW_KEYSTORE_BASE64`、`PREVIEW_KEYSTORE_PASSWORD`、`PREVIEW_KEY_ALIAS`、`PREVIEW_KEY_PASSWORD`；正式版使用对应的 `RELEASE_` 前缀。密钥不会进入 Git、日志或构建附件，临时 keystore 在构建后删除。预览沿用开发证书以保持现有预览包的覆盖安装，正式版使用独立发布证书；两种证书的安装包不能直接互相覆盖。维护者必须在仓库以外备份正式签名文件和密码，后续版本保持同一证书。
 
 测试代码位于 `crates/*/tests/` 和 `android/app/src/androidTest/`。需要了解具体断言、测试负载与边界时，可直接检查这些实现。
 
