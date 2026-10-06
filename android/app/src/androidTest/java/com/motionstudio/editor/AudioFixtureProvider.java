@@ -15,6 +15,10 @@ public final class AudioFixtureProvider extends ContentProvider {
     @Override public AssetFileDescriptor openAssetFile(Uri uri, String mode) throws FileNotFoundException {
         if (!"r".equals(mode)) throw new FileNotFoundException("Read only");
         String name = uri.getLastPathSegment();
+        if (uri.getPathSegments().size() == 2 && "inputs".equals(uri.getPathSegments().get(0)) && name != null && name.matches("[a-zA-Z0-9._-]+")) {
+            try { return getContext().getAssets().openFd("inputs/" + name); }
+            catch (IOException e) { throw new FileNotFoundException(e.toString()); }
+        }
         if (uri.getPathSegments().size() == 2 && "formats".equals(uri.getPathSegments().get(0)) && name != null && name.matches("[a-zA-Z0-9._-]+")) {
             try { return getContext().getAssets().openFd("formats/" + name); }
             catch (IOException e) { throw new FileNotFoundException(e.toString()); }
