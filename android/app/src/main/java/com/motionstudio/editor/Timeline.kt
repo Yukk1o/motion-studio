@@ -18,6 +18,8 @@ import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,7 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
 
 @Composable internal fun Timeline(vm:EditorViewModel,modifier:Modifier,focused:Boolean=false) {
     val density=LocalDensity.current.density
+    val haptics=LocalHapticFeedback.current
     val fontScale=LocalDensity.current.fontScale
     val rowHeight=timelineRowHeightDp(fontScale)*density;val head=44*density
     val project=vm.state.project
@@ -143,14 +146,14 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                     }else if(mode.isEmpty()&&total.getDistance()>viewConfiguration.touchSlop) {
                         mode=when {
                             vm.layerSelectionMode->if(abs(total.x)>=abs(total.y))"scrub"else"scroll"
-                            hitKey!=null&&keyRow?.locked==false->"key"
+                            hitKey!=null&&keyRow?.locked==false&&elapsed>=viewConfiguration.longPressTimeoutMillis->"key"
                             edge!=null&&abs(total.x)>=abs(total.y)->edge
                             !focused&&row!=null&&row.id!=0L&&!row.locked&&elapsed>=viewConfiguration.longPressTimeoutMillis&&abs(total.y)>abs(total.x)->"reorder"
                             row!=null&&row.id!=0L&&!row.locked&&insideClip&&elapsed>=viewConfiguration.longPressTimeoutMillis->"move"
                             abs(total.x)>=abs(total.y)->"scrub"
                             else->"scroll"
                         }
-                        if(mode=="key"&&keyRow!=null){vm.select(keyRow.id,false);vm.property=keyRow.property;keyRow.axis?.let{vm.chooseAxis(it)}}
+                        if(mode=="key"&&keyRow!=null){haptics.performHapticFeedback(HapticFeedbackType.LongPress);vm.select(keyRow.id,false);vm.property=keyRow.property;keyRow.axis?.let{vm.chooseAxis(it)}}
                         if(mode in listOf("move","trim-start","trim-end")&&row!=null){vm.select(row.id,false);vm.beginGesture();gesture=true}
                     }
                     when(mode) {
