@@ -211,4 +211,45 @@ class EffectsRuntimeTest {
             GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0);EGL14.eglMakeCurrent(display,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT);EGL14.eglDestroySurface(display,surface);EGL14.eglDestroyContext(display,context);EGL14.eglTerminate(display);NativeBridge.destroy(native)
         }
     }
+
+    @Test fun rectangleEffectsAndAnimatedTileBoundsMatchEncodedFrames() {
+        val reports=JSONArray()
+        for(effect in listOf("motion_tile","optics_compensation","spherize","cc_lens","cc_radial_fast_blur","simple_choker","solid_composite")) {
+            val root=root();val p=data(NativeBridge.projectTemplate(0)).put("width",128).put("height",128).put("frames",12).put("background",JSONArray(listOf(0,0,0,1)))
+            p.getJSONObject("camera").put("created",false)
+            val layer=p.getJSONArray("layers").getJSONObject(1).put("size",JSONArray(listOf(32,32))).put("content",JSONObject().put("kind","image").put("asset",1))
+            layer.getJSONObject("transform").getJSONObject("position").put("value",JSONArray(listOf(64,64,0)))
+            p.put("layers",JSONArray().put(layer)).put("assets",JSONArray().put(JSONObject().put("id",1).put("path","assets/input.png").put("width",32).put("height",32)))
+            File(root,"assets").mkdirs()
+            val image=android.graphics.Bitmap.createBitmap(32,32,android.graphics.Bitmap.Config.ARGB_8888)
+            val pixels=IntArray(1024){i->val x=i%32;val y=i/32;Color.argb(if(x<3||y<3||x>28||y>28)80 else 255,x*8,y*8,if((x/4+y/4)%2==0)220 else 30)}
+            image.setPixels(pixels,0,32,0,0,32,32);File(root,"assets/input.png").outputStream().use{image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};image.recycle()
+            val native=NativeBridge.create(root.absolutePath,p.toString());assertTrue(NativeBridge.creationError(),native>0)
+            try {
+                add(native,effect,"1.3.0")
+                fun set(param:String,value:Double,frame:Int=0)=data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set").put("effect",1).put("param",param).put("frame",frame).put("value",JSONArray(listOf(value,0,0,0)))).toString()))
+                when(effect) {
+                    "motion_tile"->{set("output_width",200.0);set("output_height",200.0);set("mirror",1.0)
+                        data(NativeBridge.command(native,"{\"op\":\"effect\",\"object\":2,\"action\":{\"kind\":\"animate\",\"effect\":1,\"param\":\"output_width\",\"frame\":0,\"enabled\":true}}"));set("output_width",300.0,11)}
+                    "optics_compensation"->set("fov",50.0)
+                    "spherize"->set("radius",25.0)
+                    "cc_lens"->set("size",40.0)
+                    "cc_radial_fast_blur"->set("amount",30.0)
+                    "simple_choker"->set("choke",3.0)
+                    "solid_composite"->set("opacity",50.0)
+                }
+                data(NativeBridge.seek(native,7.0))
+                val reference=BitmapFactory.decodeFile(data(NativeBridge.capture(native)).getString("path"))
+                val frozen=data(NativeBridge.state(native)).getJSONObject("project").toString()
+                val file=VideoExporter(root,frozen).run{_,_->}
+                val retriever=MediaMetadataRetriever();val decoded=try{retriever.setDataSource(file.absolutePath);assertEquals("12",retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT));retriever.getFrameAtIndex(7)!!}finally{retriever.release()}
+                var rgb=0L
+                for(y in 0 until 128)for(x in 0 until 128) {val a=reference.getPixel(x,y);val b=decoded.getPixel(x,y);rgb+=abs(Color.red(a)-Color.red(b))+abs(Color.green(a)-Color.green(b))+abs(Color.blue(a)-Color.blue(b))}
+                val report=JSONObject().put("effect",effect).put("rgbMae",rgb.toDouble()/(128*128*3)).put("frame",7).put("frames",12).put("animatedBounds",effect=="motion_tile")
+                reports.put(report);File(root,"rectangle-mp4-report.json").writeText(report.toString(2));assertTrue(report.toString(),report.getDouble("rgbMae")<8)
+                reference.recycle();decoded.recycle()
+            }finally{NativeBridge.destroy(native)}
+        }
+        File(root(),"rectangle-mp4-summary.json").writeText(reports.toString(2));assertEquals(7,reports.length())
+    }
 }

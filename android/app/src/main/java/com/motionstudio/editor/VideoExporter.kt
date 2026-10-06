@@ -9,6 +9,8 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.pow
 
 /** Frozen Rust sampling + an independent EGL compositor into MediaCodec's Surface.
@@ -32,6 +34,10 @@ class VideoExporter(private val root:File,private val projectJson:String) {
         var gpu:EglMovieRenderer?=null;var native=0L;var muxStarted=false
         var videoHandle=0L;var audioHandle=0L;var videoUploads=0L
         var complete=false;val times=ArrayList<Long>();var parameterBytes=0L;var vertexBytes=0L
+        val stopOutput=AtomicBoolean(false);val codecStopped=AtomicBoolean(false)
+        val outputFailure=AtomicReference<Throwable>()
+        val endSubmitted=AtomicLong(0);val surfaceSubmission=AtomicLong(0)
+        var outputThread:Thread?=null
         val started=System.nanoTime()
         try {
             native=NativeBridge.create(root.absolutePath,projectJson);check(native!=0L){"冻结工程创建失败"}
@@ -60,20 +66,26 @@ class VideoExporter(private val root:File,private val projectJson:String) {
             muxer=outputMuxer
             gpu=EglMovieRenderer(input,width,height,project,native,planInfo)
             val buffer=ByteBuffer.allocateDirect(planInfo.getInt("bufferBytes")).order(ByteOrder.nativeOrder())
-            val outputInfo=MediaCodec.BufferInfo();var track=-1
-            fun drain(end:Boolean) {
+            val outputCodec=codec
+            // A Surface submission can wait for the encoder to free its input queue.
+            // Consume output independently so that backpressure cannot block both ends.
+            outputThread=Thread({
+                val outputInfo=MediaCodec.BufferInfo();var track=-1
                 var lastOutput=System.nanoTime()
-                while(true) {
+                try {while(!stopOutput.get()) {
                     check(!cancelled.get()){"导出已取消"}
-                    val index=codec.dequeueOutputBuffer(outputInfo,if(end)5000L else 0L)
+                    val submitting=surfaceSubmission.get()
+                    check(submitting==0L||System.nanoTime()-submitting<30_000_000_000L){"编码 Surface 提交超时"}
+                    val index=outputCodec.dequeueOutputBuffer(outputInfo,5000L)
                     if(index==MediaCodec.INFO_TRY_AGAIN_LATER) {
-                        if(!end)return
-                        check(System.nanoTime()-lastOutput<15_000_000_000L){"编码器未及时结束"}
+                        val end=endSubmitted.get()
+                        check(end==0L||System.nanoTime()-maxOf(lastOutput,end)<15_000_000_000L){"编码器未及时结束"}
                     } else if(index==MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                         check(!muxStarted){"编码格式重复变更"}
-                        track=outputMuxer.addTrack(codec.outputFormat);outputMuxer.start();muxStarted=true
+                        track=outputMuxer.addTrack(outputCodec.outputFormat);outputMuxer.start();muxStarted=true
                     } else if(index>=0) {
-                        val output=codec.getOutputBuffer(index)?:error("编码输出为空")
+                        val output=outputCodec.getOutputBuffer(index)?:error("编码输出为空")
+                        try {
                         if(outputInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG!=0)outputInfo.size=0
                         if(outputInfo.size>0) {
                             check(muxStarted){"编码格式尚未就绪"}
@@ -81,14 +93,19 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                             outputMuxer.writeSampleData(track,output,outputInfo)
                             times.add(outputInfo.presentationTimeUs)
                         }
-                        val eos=outputInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM!=0
-                        codec.releaseOutputBuffer(index,false);lastOutput=System.nanoTime()
-                        if(eos)return
+                        }finally{outputCodec.releaseOutputBuffer(index,false)}
+                        lastOutput=System.nanoTime()
+                        if(outputInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM!=0)break
                     }
+                }}catch(error:Throwable) {
+                    outputFailure.compareAndSet(null,error)
+                    // Release a producer that may already be waiting in eglSwapBuffers.
+                    if(codecStopped.compareAndSet(false,true))runCatching{outputCodec.stop()}
                 }
-            }
+            },"motion-encoder-output").apply{start()}
+            fun checkOutput() {outputFailure.get()?.let{throw it};check(!cancelled.get()){"导出已取消"}}
             for(frame in 0 until frames) {
-                check(!cancelled.get()){"导出已取消"}
+                checkOutput()
                 val bytes=NativeBridge.sampleRenderPlanInto(native,frame,buffer)
                 check(bytes>=0){nativeData(NativeBridge.state(native)).optString("renderError","帧计划失败")}
                 parameterBytes+=bytes
@@ -116,10 +133,12 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 }
                 gpu.draw(buffer)
                 val ptsUs=(frame.toLong()*1_000_000L+fps/2)/fps
+                checkOutput();surfaceSubmission.set(System.nanoTime())
                 gpu.present(ptsUs*1000)
-                drain(false);onProgress(frame+1,frames)
+                surfaceSubmission.set(0);checkOutput();onProgress(frame+1,frames)
             }
-            codec.signalEndOfInputStream();drain(true)
+            endSubmitted.set(System.nanoTime());codec.signalEndOfInputStream()
+            outputThread.join(20_000);check(!outputThread.isAlive){"编码器未及时结束"};checkOutput()
             check(times.size==frames){"编码输出帧数不一致: "+times.size+" / "+frames}
             check(times.zipWithNext().all{it.second>it.first}){"输出时间戳顺序不正确"}
             outputMuxer.stop();muxStarted=false
@@ -129,8 +148,14 @@ class VideoExporter(private val root:File,private val projectJson:String) {
         } finally {
             val cleanupErrors=ArrayList<String>()
             fun release(name:String,action:()->Unit) {runCatching(action).onFailure{cleanupErrors.add(name+": "+it.message)}}
+            stopOutput.set(true)
+            release("output thread") {
+                outputThread?.join(2_000)
+                if(outputThread?.isAlive==true){if(codecStopped.compareAndSet(false,true))codec?.stop();outputThread?.join(5_000)}
+                check(outputThread?.isAlive!=true){"编码输出线程未结束"}
+            }
             release("EGL"){gpu?.close()};release("input Surface"){input?.release()}
-            release("codec stop"){codec?.stop()};release("codec release"){codec?.release()}
+            release("codec stop"){if(codecStopped.compareAndSet(false,true))codec?.stop()};release("codec release"){codec?.release()}
             if(muxStarted)release("muxer stop"){muxer?.stop()};release("muxer release"){muxer?.release()}
             if(videoHandle!=0L)release("video snapshot"){nativeData(MediaBridge.releaseFrozenVideo(videoHandle))}
             if(audioHandle!=0L)release("audio snapshot"){nativeData(MediaBridge.releaseFrozenAudio(audioHandle))}
@@ -240,7 +265,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         GLES30.glDisable(GLES30.GL_DEPTH_TEST);GLES30.glDisable(GLES30.GL_CULL_FACE)
         val values=buffer.asFloatBuffer();var materialized=-1
         val batchOffset=buffer.getInt(52);val count=buffer.getInt(56)
-        check(batchOffset>=64&&count in 0..8192&&batchOffset.toLong()+count*12<=vertexOffset){"几何批次范围失效"}
+        check(batchOffset>=80&&count in 0..8192&&batchOffset.toLong()+count*12<=vertexOffset){"几何批次范围失效"}
         for(i in 0 until count) {
             val batch=batchOffset+i*12;val layer=buffer.getInt(batch)
             check(layer in 0 until buffer.getInt(8)){"图层计划索引失效"}

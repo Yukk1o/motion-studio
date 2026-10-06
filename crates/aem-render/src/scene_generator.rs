@@ -298,7 +298,7 @@ fn generate_inner(
         out.extend(sampled.drain(..).map(|(_, _, s)| s));
     } else {
         let position = param(e, "position")?;
-        let world = if let Some(source) = settings.source_layer {
+        let mut world = if let Some(source) = settings.source_layer {
             scene
                 .world_matrix(source)
                 .ok_or_else(|| format!("source layer {source} missing"))?
@@ -307,10 +307,23 @@ fn generate_inner(
         } else {
             aem_core::to_world(position[..3].try_into().unwrap(), scene.width, scene.height)
         };
-        let source_spatial = settings.source_layer.map_or(layer.three_d, |id| scene.node_is_spatial(id).unwrap_or(false));
-        let vp = if source_spatial { scene.camera.view_projection } else {
-            glam::Mat4::orthographic_rh(-(scene.width as f32)*0.5, scene.width as f32*0.5,
-                -(scene.height as f32)*0.5, scene.height as f32*0.5, -1., 1.)
+        let source_spatial = settings.source_layer.map_or(layer.three_d, |id| {
+            scene.node_is_spatial(id).unwrap_or(false)
+        });
+        if !source_spatial {
+            world.z = 0.;
+        }
+        let vp = if source_spatial {
+            scene.camera.view_projection
+        } else {
+            glam::Mat4::orthographic_rh(
+                -(scene.width as f32) * 0.5,
+                scene.width as f32 * 0.5,
+                -(scene.height as f32) * 0.5,
+                scene.height as f32 * 0.5,
+                -1.,
+                1.,
+            )
         };
         let clip = vp * world.extend(1.);
         if !clip.is_finite() {
@@ -403,8 +416,9 @@ fn visibility(
     ] {
         let end = light + (right * x + up * y) * world_radius;
         let end_clip = vp * end.extend(1.);
-        let near = vp.inverse() * glam::Vec4::new(end_clip.x/end_clip.w, end_clip.y/end_clip.w, 0., 1.);
-        let ray_origin = near.truncate()/near.w;
+        let near = vp.inverse()
+            * glam::Vec4::new(end_clip.x / end_clip.w, end_clip.y / end_clip.w, 0., 1.);
+        let ray_origin = near.truncate() / near.w;
         let mut transmission = 1.;
         for layer in &scene.layers {
             if layer.id == owner
