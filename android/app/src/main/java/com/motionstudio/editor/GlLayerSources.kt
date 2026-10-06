@@ -13,7 +13,10 @@ internal class GlLayerSources {
     private var width=0;private var height=0
     private var fbo=0;private var resolveFbo=0;private var vbo=0;private var vao=0
     private var vectorProgram=0;private var mixProgram=0;private var copyProgram=0
+    private var clearVbo=0;private var clearVao=0;private var msaaDrawClear=false;private var msaaProbed=false
+    var graphicsCapabilityReadbackBytes=0L;private set
     private val matrix=FloatArray(16)
+    private val colorAttachment=intArrayOf(GL.GL_COLOR_ATTACHMENT0)
     init {
         try {
             vectorProgram=program(VECTOR_VERTEX,VECTOR_FRAGMENT)
@@ -25,6 +28,12 @@ internal class GlLayerSources {
             GL.glGenVertexArrays(1,ids,0);vao=ids[0];GL.glBindVertexArray(vao)
             GL.glEnableVertexAttribArray(0);GL.glVertexAttribPointer(0,2,GL.GL_FLOAT,false,24,0)
             GL.glEnableVertexAttribArray(1);GL.glVertexAttribPointer(1,4,GL.GL_FLOAT,false,24,8)
+            GL.glGenBuffers(1,ids,0);clearVbo=ids[0];GL.glBindBuffer(GL.GL_ARRAY_BUFFER,clearVbo)
+            val clearVertices=ByteBuffer.allocateDirect(24).order(ByteOrder.nativeOrder())
+            clearVertices.asFloatBuffer().put(floatArrayOf(-1f,1f,3f,1f,-1f,-3f))
+            GL.glBufferData(GL.GL_ARRAY_BUFFER,24,clearVertices,GL.GL_STATIC_DRAW)
+            GL.glGenVertexArrays(1,ids,0);clearVao=ids[0];GL.glBindVertexArray(clearVao)
+            GL.glEnableVertexAttribArray(0);GL.glVertexAttribPointer(0,2,GL.GL_FLOAT,false,8,0)
             GL.glBindVertexArray(0)
         }catch(error:Throwable){close();throw error}
     }
@@ -32,6 +41,10 @@ internal class GlLayerSources {
         check(plan.getInt(4)==4&&plan.getInt(96)==24&&plan.getInt(108)==28){"不兼容的矢量计划"}
         val table=plan.getInt(84);val count=plan.getInt(88);val total=plan.getInt(28)
         check(count in 0..128&&table>=112&&table.toLong()+count*28<=total){"矢量资源表失效"}
+        if(count>0&&!msaaProbed) {
+            val samples=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_SAMPLES,samples,0);check(samples[0]>=4){"矢量描边需要 4x MSAA"}
+            msaaDrawClear=!probeMsaaClear();graphicsCapabilityReadbackBytes=4;msaaProbed=true
+        }
         val active=HashSet<Int>()
         for(i in 0 until count)active.add(plan.getInt(table+i*28))
         val stale=vectors.keys.filter{it !in active}
@@ -63,13 +76,22 @@ internal class GlLayerSources {
                 }
                 GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,fbo);GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_RENDERBUFFER,renderbuffer)
                 check(GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER)==GL.GL_FRAMEBUFFER_COMPLETE){"矢量 MSAA 目标不可用"}
-                GL.glViewport(0,0,sw,sh);GL.glClearColor(0f,0f,0f,0f);GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+                GL.glViewport(0,0,sw,sh)
+                GL.glDisable(GL.GL_DEPTH_TEST);GL.glDisable(GL.GL_CULL_FACE)
+                if(msaaDrawClear) {
+                    // Some GLES implementations clear only one MSAA sample.
+                    // Replace all samples with a triangle when the startup probe detects it.
+                    GL.glDisable(GL.GL_BLEND);GL.glBindVertexArray(clearVao);GL.glUseProgram(vectorProgram)
+                    GL.glVertexAttrib4f(1,0f,0f,0f,0f);GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
+                }else {GL.glClearColor(0f,0f,0f,0f);GL.glClear(GL.GL_COLOR_BUFFER_BIT)}
                 GL.glDisable(GL.GL_DEPTH_TEST);GL.glDisable(GL.GL_CULL_FACE);GL.glEnable(GL.GL_BLEND);GL.glBlendFunc(GL.GL_ONE,GL.GL_ONE_MINUS_SRC_ALPHA)
                 GL.glUseProgram(vectorProgram);GL.glBindVertexArray(vao);GL.glBindBuffer(GL.GL_ARRAY_BUFFER,vbo)
                 if(vertices>0){val data=plan.duplicate().order(ByteOrder.nativeOrder()).apply{position(offset);limit(offset+vertices*24)}.slice();GL.glBufferSubData(GL.GL_ARRAY_BUFFER,0,vertices*24,data);GL.glDrawArrays(GL.GL_TRIANGLES,0,vertices)}
                 GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_DRAW_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,target,0)
                 check(GL.glCheckFramebufferStatus(GL.GL_DRAW_FRAMEBUFFER)==GL.GL_FRAMEBUFFER_COMPLETE){"矢量解析目标不可用"}
+                GL.glDisable(GL.GL_BLEND)
                 GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER,fbo);GL.glBlitFramebuffer(0,0,sw,sh,0,0,sw,sh,GL.GL_COLOR_BUFFER_BIT,GL.GL_NEAREST)
+                GL.glInvalidateFramebuffer(GL.GL_READ_FRAMEBUFFER,1,colorAttachment,0)
                 check(GL.glGetError()==GL.GL_NO_ERROR){"矢量绘制失败"}
                 if(resize)old?.let{GL.glDeleteTextures(1,intArrayOf(it.texture),0)}
                 vectors[layer]=Source(target,sw,sh,fingerprint);if(resize)resident=resident-previous+cost
@@ -83,6 +105,34 @@ internal class GlLayerSources {
         }
     }
     fun vector(layer:Int)=vectors[layer]?.texture?:error("矢量源缺失")
+    /** One synthetic pixel on first vector use; never reads animation frames back. */
+    private fun probeMsaaClear():Boolean {
+        val ids=IntArray(1);var renderbuffer=0;var image=0
+        try {
+            GL.glGenRenderbuffers(1,ids,0);renderbuffer=ids[0];GL.glBindRenderbuffer(GL.GL_RENDERBUFFER,renderbuffer)
+            GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER,4,GL.GL_SRGB8_ALPHA8,4,4)
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,fbo);GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_RENDERBUFFER,renderbuffer)
+            check(GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER)==GL.GL_FRAMEBUFFER_COMPLETE){"MSAA 清除能力检测目标不可用"}
+            image=texture(4,4,true)
+            GL.glViewport(0,0,4,4);GL.glDisable(GL.GL_BLEND);GL.glDisable(GL.GL_DEPTH_TEST);GL.glDisable(GL.GL_CULL_FACE)
+            GL.glBindVertexArray(clearVao);GL.glUseProgram(vectorProgram);GL.glVertexAttrib4f(1,1f,1f,1f,1f)
+            GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
+            GL.glClearColor(0f,0f,0f,0f);GL.glClear(GL.GL_COLOR_BUFFER_BIT)
+            GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_DRAW_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,image,0)
+            check(GL.glCheckFramebufferStatus(GL.GL_DRAW_FRAMEBUFFER)==GL.GL_FRAMEBUFFER_COMPLETE){"MSAA 清除能力检测解析目标不可用"}
+            GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER,fbo);GL.glBlitFramebuffer(0,0,4,4,0,0,4,4,GL.GL_COLOR_BUFFER_BIT,GL.GL_NEAREST)
+            GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER,resolveFbo)
+            val pixel=ByteBuffer.allocateDirect(4);GL.glReadPixels(1,1,1,1,GL.GL_RGBA,GL.GL_UNSIGNED_BYTE,pixel)
+            check(GL.glGetError()==GL.GL_NO_ERROR){"MSAA 清除能力检测失败"}
+            return (0..3).all{pixel.get(it).toInt()==0}
+        }finally {
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,fbo);GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_RENDERBUFFER,0)
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,0,0)
+            if(renderbuffer!=0)GL.glDeleteRenderbuffers(1,intArrayOf(renderbuffer),0)
+            if(image!=0)GL.glDeleteTextures(1,intArrayOf(image),0)
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,0)
+        }
+    }
     fun accumulator(index:Int)=accumulators[index].also{check(it!=0)}
     fun target(texture:Int,w:Int,h:Int,clear:Boolean=false) {
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,texture,0)
@@ -120,9 +170,9 @@ internal class GlLayerSources {
     fun close() {
         vectors.values.forEach{GL.glDeleteTextures(1,intArrayOf(it.texture),0)};vectors.clear();GL.glDeleteTextures(2,accumulators,0);accumulators.fill(0)
         GL.glDeleteRenderbuffers(rasterScratch.size,rasterScratch.values.toIntArray(),0);rasterScratch.clear()
-        GL.glDeleteFramebuffers(2,intArrayOf(fbo,resolveFbo),0);GL.glDeleteBuffers(1,intArrayOf(vbo),0);GL.glDeleteVertexArrays(1,intArrayOf(vao),0)
+        GL.glDeleteFramebuffers(2,intArrayOf(fbo,resolveFbo),0);GL.glDeleteBuffers(2,intArrayOf(vbo,clearVbo),0);GL.glDeleteVertexArrays(2,intArrayOf(vao,clearVao),0)
         for(p in listOf(vectorProgram,mixProgram,copyProgram))GL.glDeleteProgram(p)
-        fbo=0;resolveFbo=0;vbo=0;vao=0;vectorProgram=0;mixProgram=0;copyProgram=0
+        fbo=0;resolveFbo=0;vbo=0;vao=0;clearVbo=0;clearVao=0;vectorProgram=0;mixProgram=0;copyProgram=0
     }
     private fun texture(w:Int,h:Int,srgb:Boolean):Int {
         val limit=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_TEXTURE_SIZE,limit,0);check(w in 1..limit[0]&&h in 1..limit[0]){"图层源纹理超过设备尺寸"}

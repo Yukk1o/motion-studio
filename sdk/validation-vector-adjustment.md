@@ -13,7 +13,28 @@
 已外扩源矩形为基准，图层原锚点不变。回归用例在修复前 Alpha MAE 为 8.9675，
 修复后满足不超过 0.1 的断言。
 
-以下 2026-10-06 记录保留当时的结果；补充 Android 验证结果另列。
+补充 Android 验收覆盖 6 个专项：既有矢量/调整层 2 项、空间效果 2 项、未编码对照
+1 项、取消并重新导出 1 项。未编码对照在同一个 GLES 导出器内绘制 0、7、23、7 帧，
+并切换纯矢量、矢量 Tint、单调整层、模糊调整层和完整叠加场景，共 9 组输出。
+圆环孔径动画改变画面，返回同一帧的原生 PNG 一致。最大全图 RGB MAE **1.9615**、
+前景 RGB MAE **2.3911**、Alpha MAE **0**（0–255 单位，三项阈值均为 3）。
+
+专项发现 GLES 复用 MSAA 源时，半透明 Alpha 从 128 增长到 176、200，孔径变化后
+留下旧图形；修复前第 23 帧 Alpha MAE 为 24.2364。新增首次矢量使用时的清除能力
+探测：填满 4×4 MSAA 目标，再清空并读取一个测试像素。异常设备使用缓存的实顶点
+透明三角形覆盖全部采样点，正常设备保留快速清空；解析后丢弃不再需要的 MSAA 内容。
+首期探测只读取 4 字节，纯非矢量导出不探测，动画帧不增加应用读回。
+导出报告单列 `graphicsCapabilityReadbackBytes`，不混入 `applicationFrameReadbacks`。
+这与 SwiftShader 曾记录的[多采样清除问题](https://swiftshader.googlesource.com/SwiftShader.git/+/53e83aa8ecebea4913051dcdfd6923a3dd6fcccb%5E%21/)症状一致；
+本次启用回退以运行时探测为准，不依据厂商名称推断。
+
+ARM64/x86_64 原生构建、Android APK/test APK、10 项单元测试和 `lintDebug` 通过（0 错误、5 项告警）；软件 Vulkan
+宿主回归经 GitHub CI 验证。新增 Android 专项进入 CI 选择器。Android CI 固定禁用
+模拟器 Vulkan 和硬解仿真，与本地软件 GLES 验收条件一致；不代表 Vulkan 或 ARM 真机验收。
+本地证据另存于 `artifacts/pr24-android-final-build.log`、`pr24-android-final-tests.log`、
+`pr24-unencoded-report.json`，采集画面及日志不提交 Git。
+
+以下 2026-10-06 记录保留当时的结果。
 
 ## 2026-10-06 初始验证
 

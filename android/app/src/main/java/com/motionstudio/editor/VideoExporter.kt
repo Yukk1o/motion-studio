@@ -33,7 +33,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
         var codec:MediaCodec?=null;var muxer:MediaMuxer?=null;var input:Surface?=null
         var gpu:EglMovieRenderer?=null;var native=0L;var muxStarted=false
         var videoHandle=0L;var audioHandle=0L;var videoUploads=0L
-        var complete=false;val times=ArrayList<Long>();var parameterBytes=0L;var vertexBytes=0L
+        var complete=false;val times=ArrayList<Long>();var parameterBytes=0L;var vertexBytes=0L;var graphicsCapabilityReadbackBytes=0L
         val stopOutput=AtomicBoolean(false);val codecStopped=AtomicBoolean(false)
         val outputFailure=AtomicReference<Throwable>()
         val endSubmitted=AtomicLong(0);val surfaceSubmission=AtomicLong(0)
@@ -154,7 +154,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 if(outputThread?.isAlive==true){if(codecStopped.compareAndSet(false,true))codec?.stop();outputThread?.join(5_000)}
                 check(outputThread?.isAlive!=true){"编码输出线程未结束"}
             }
-            release("EGL"){gpu?.close()};release("input Surface"){input?.release()}
+            release("EGL"){graphicsCapabilityReadbackBytes=gpu?.graphicsCapabilityReadbackBytes?:0L;gpu?.close()};release("input Surface"){input?.release()}
             release("codec stop"){if(codecStopped.compareAndSet(false,true))codec?.stop()};release("codec release"){codec?.release()}
             if(muxStarted)release("muxer stop"){muxer?.stop()};release("muxer release"){muxer?.release()}
             if(videoHandle!=0L)release("video snapshot"){nativeData(MediaBridge.releaseFrozenVideo(videoHandle))}
@@ -167,7 +167,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 .put("width",width).put("height",height).put("fps",fps).put("expectedFrames",frames)
                 .put("encodedFrames",times.size).put("timestampsUs",JSONArray(times))
                 .put("elapsedSeconds",elapsed).put("throughputFps",times.size/elapsed)
-                .put("applicationFrameReadbacks",0).put("applicationFrameUploads",videoUploads).put("audioMuxed",audioHandle!=0L).put("colorStandard",colorStandard)
+                .put("applicationFrameReadbacks",0).put("graphicsCapabilityReadbackBytes",graphicsCapabilityReadbackBytes).put("applicationFrameUploads",videoUploads).put("audioMuxed",audioHandle!=0L).put("colorStandard",colorStandard)
                 .put("parameterTransferBytes",parameterBytes).put("vertexTransferBytes",vertexBytes)
                 .put("geometrySampling",true).put("cancelled",cancelled.get()).put("completed",complete)
                 .put("cleanupErrors",JSONArray(cleanupErrors))
@@ -201,6 +201,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
     val skippedSlots=HashSet<Int>()
     private var effects:GlEffects?=null
     private var layerSources:GlLayerSources?=null
+    val graphicsCapabilityReadbackBytes:Long get()=layerSources?.graphicsCapabilityReadbackBytes?:0L
     init {
         try {
         val version=IntArray(2);check(EGL14.eglInitialize(display,version,0,version,1)){"EGL 初始化失败"}
