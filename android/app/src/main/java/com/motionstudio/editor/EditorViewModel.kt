@@ -685,6 +685,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun trimClip(objectId:Long,start:Int,end:Int,save:Boolean=true)=edit(JSONObject().put("op","trim_layer_clip").put("object",objectId).put("in_frame",start).put("out_frame",end),save)
     fun splitClip(){if(selected!=0L&&editable())edit(JSONObject().put("op","split_layer_clip").put("object",selected).put("frame",floor(frame).toInt()))}
     private fun nextId(a:JSONArray):Long=(0 until a.length()).maxOfOrNull{a.getJSONObject(it).getLong("id")}?.plus(1)?:1
+    private fun nextAssetId(project:JSONObject):Long {
+        val highest=listOf("assets","audio_assets","video_assets")
+            .flatMap{project.optJSONArray(it).objects()}.maxOfOrNull{it.getLong("id")}?:0L
+        check(highest<Long.MAX_VALUE){"素材 ID 已用尽"}
+        return highest+1
+    }
     private fun channel(value:Any)=JSONObject().put("value",value).put("keys",JSONArray())
     private fun newLayer(name:String,content:JSONObject,width:Float,height:Float):JSONObject {
         val p=state.project!!
@@ -717,7 +723,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 }
                 val file=File(root,"assets/"+UUID.randomUUID()+".png").apply{parentFile!!.mkdirs()}
                 file.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
-                val assetId=nextId(p.getJSONArray("assets"))
+                val assetId=nextAssetId(p)
                 val a=JSONObject().put("id",assetId).put("path","assets/"+file.name).put("width",bitmap.width).put("height",bitmap.height)
                 val l=newLayer("图片",JSONObject().put("kind","image").put("asset",assetId),bitmap.width.toFloat(),bitmap.height.toFloat())
                 bitmap.recycle()
@@ -739,7 +745,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 Canvas(bitmap).drawText(text,16f,112f,paint)
                 val file=File(root,"assets/"+UUID.randomUUID()+".png").apply{parentFile!!.mkdirs()}
                 file.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
-                val aid=nextId(p.getJSONArray("assets"))
+                val aid=nextAssetId(p)
                 val a=JSONObject().put("id",aid).put("path","assets/"+file.name).put("width",w).put("height",160)
                 val content=JSONObject().put("kind","text").put("text",text).put("font","sans-bold")
                     .put("color",JSONArray(listOf(1,1,1,1))).put("raster_asset",aid)
