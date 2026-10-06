@@ -375,18 +375,30 @@ impl Session {
     }
     fn attach(&mut self, window: NativeWindow, width: u32, height: u32) -> Result<()> {
         self.detach();
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-        // Surface owns a NativeWindow clone via its safe raw-window-handle implementation.
-        let surface = instance
-            .create_surface(AndroidWindow(window))
-            .map_err(|e| e.to_string())?;
-        let mut renderer = pollster::block_on(Renderer::new_profiled(
-            &instance,
-            Some(&surface),
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-            true,
-        ))
-        .map_err(|e| e.to_string())?;
+        // Vulkan surface creation can connect the Android buffer producer even
+        // when no Vulkan adapter is available. Keep only one backend's surface
+        // alive, otherwise the GLES fallback cannot connect the same window.
+        let mut candidate = None;
+        let mut failures = Vec::new();
+        for backend in [wgpu::Backends::VULKAN, wgpu::Backends::GL] {
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                backends: backend,
+                ..Default::default()
+            });
+            // Surface owns its window via the safe raw-window-handle wrapper.
+            let surface = match instance.create_surface(AndroidWindow(window.clone())) {
+                Ok(surface) => surface,
+                Err(error) => { failures.push(error.to_string()); continue; }
+            };
+            match pollster::block_on(Renderer::new_profiled(
+                &instance, Some(&surface), wgpu::TextureFormat::Rgba8UnormSrgb, true,
+            )) {
+                Ok(renderer) => { candidate = Some((instance, surface, renderer)); break; }
+                Err(error) => failures.push(error.to_string()),
+            }
+        }
+        let (instance, surface, mut renderer) = candidate
+            .ok_or_else(|| format!("no Android surface backend: {}", failures.join("; ")))?;
         renderer.set_effect_registry(self.effects.registry.clone());
         let caps = surface.get_capabilities(&renderer.adapter);
         let format = caps
