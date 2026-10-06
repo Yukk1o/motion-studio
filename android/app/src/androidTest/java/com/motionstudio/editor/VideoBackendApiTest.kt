@@ -1,6 +1,10 @@
 package com.motionstudio.editor
 
 import android.graphics.BitmapFactory
+import android.graphics.PixelFormat
+import android.media.ImageReader
+import android.os.Handler
+import android.os.HandlerThread
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONArray
@@ -39,6 +43,54 @@ class VideoBackendApiTest {
     private fun pcm(id:Long,start:Long,frames:Int=1024):FloatArray {val b=ByteBuffer.allocateDirect(frames*8).order(ByteOrder.LITTLE_ENDIAN);data(MediaBridge.readPcmInto(id,start,frames,b));return FloatArray(frames*2).also{b.asFloatBuffer().get(it)}}
     private fun assertActive(values:FloatArray){assertTrue("Expected decoded sound",values.any{abs(it)>.03f})}
     private fun assertSilent(values:FloatArray){assertTrue("Unexpected sound in silence",values.all{abs(it)<.003f})}
+
+    @Test fun gpuYuvPreviewPrefetchesWithoutMoreRenderRequestsAndSeekStaysExact() {
+        val root=root();val id=create(root)
+        val consumer=HandlerThread("video-preview-consumer").apply{start()}
+        val reader=ImageReader.newInstance(256,144,PixelFormat.RGBA_8888,3)
+        reader.setOnImageAvailableListener({r->r.acquireLatestImage()?.close()},Handler(consumer.looper))
+        try {
+            import(id,"silent-24fps.mp4")
+            data(NativeBridge.surface(id,reader.surface,256,144))
+            data(NativeBridge.previewMode(id,1,0))
+            val deadline=System.nanoTime()+15_000_000_000L
+            while(!NativeBridge.render(id,0.0)) {
+                assertTrue(JSONObject(NativeBridge.state(id)).toString(),System.nanoTime()<deadline);Thread.sleep(5)
+            }
+            // Worker progress must not depend on another VSync/render invocation.
+            var metrics=data(NativeBridge.previewInfo(id)).getJSONObject("video")
+            while(metrics.getInt("cacheFrames")<3) {
+                assertTrue(metrics.toString(),System.nanoTime()<deadline);Thread.sleep(5)
+                metrics=data(NativeBridge.previewInfo(id)).getJSONObject("video")
+            }
+            assertEquals(1L,metrics.getLong("gpuConversions"))
+            assertEquals(256L*144*3/2,metrics.getLong("uploadBytes"))
+            assertTrue(metrics.getLong("cacheBytes")<=metrics.getLong("cacheBudgetBytes"))
+            val pending=metrics.getLong("pendingAttempts")
+            assertTrue("Prefetched next source frame must render immediately",NativeBridge.render(id,3.0))
+            metrics=data(NativeBridge.previewInfo(id)).getJSONObject("video")
+            assertEquals(pending,metrics.getLong("pendingAttempts"))
+            assertTrue(metrics.getLong("cacheHits")>0)
+            // Reverse/large seeks cannot return a prefetched frame from a wrong interval.
+            for((seq,time)in listOf(75.0,0.0,45.0).withIndex()) {
+                val decoded=frame(id,1,time,(seq+1).toLong())
+                assertTrue(decoded.first.getLong("pts_us")<=time*1_000_000/60)
+                data(NativeBridge.seek(id,time))
+                val capture=data(NativeBridge.capture(id))
+                val bitmap=BitmapFactory.decodeFile(capture.getString("path"))
+                val expected=pixel(decoded.second,256,128,72)
+                val actual=bitmap.getPixel(128,72)
+                assertTrue(abs(expected[0]-(actual shr 16 and 255))<=2)
+                assertTrue(abs(expected[1]-(actual shr 8 and 255))<=2)
+                assertTrue(abs(expected[2]-(actual and 255))<=2)
+                bitmap.recycle()
+            }
+            File(root,"preview-prefetch-report.json").writeText(metrics.toString())
+        } finally {
+            data(NativeBridge.surface(id,null,0,0));NativeBridge.destroy(id)
+            reader.close();consumer.quitSafely();consumer.join(3000)
+        }
+    }
 
     @Test fun actualMp4FramesComposeAndReopenFromTheOwnedCopy() {
         val root=root();var id=create(root)
