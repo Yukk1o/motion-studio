@@ -41,6 +41,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -107,11 +110,15 @@ open class MainActivity:ComponentActivity() {
     var addMenu by remember{mutableStateOf(false)}
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
+    var layoutEditing by remember{mutableStateOf(false)}
     var textDialog by remember{mutableStateOf(false)}
     var library by remember{mutableStateOf(false)}
     var videoImport by remember{mutableStateOf(false)}
     var keepSound by remember{mutableStateOf(true)}
     var curveExpanded by remember{mutableStateOf(false)}
+    val editorLayout=remember(vm){EditorLayoutState(vm.layoutPreferences)}
+    var previewBounds by remember{mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)}
+    var editorOrigin by remember{mutableStateOf(Offset.Zero)}
     val imagePicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importImage)}
     val projectPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let(vm::importProject)}
     val audioPicker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->uri?.let{vm.importMedia(it,"audio")}}
@@ -126,58 +133,70 @@ open class MainActivity:ComponentActivity() {
     val videoSave=rememberLauncherForActivityResult(CreateOutputDocument("video/mp4")){uri->
         vm.completeOutputSelection(uri)
     }
-    BackHandler(enabled=vm.panelOpen){vm.panelOpen=false;vm.effectsOpen=false}
+    BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.panelOpen=false;vm.effectsOpen=false}
     Surface(color=Background,modifier=Modifier.fillMaxSize()) {
-        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
+        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).onGloballyPositioned{editorOrigin=it.positionInRoot()}) {
             val wide=maxWidth>maxHeight
             val availableHeight=maxHeight
             val availableWidth=maxWidth
             val split=wide&&availableWidth>=552.dp
-            val sideWidth=if(split)(availableWidth*.48f).coerceIn(248.dp,320.dp).coerceAtMost(availableWidth-304.dp) else 0.dp
+            val sideWidth=if(split)editorLayout.value("landscape.side",availableWidth.value,
+                (availableWidth*.48f).coerceIn(248.dp,320.dp).value,248f,(availableWidth-304.dp).value).dp else 0.dp
             val effectEditing=vm.panelOpen&&vm.effectsOpen&&vm.selected!=0L
-            val effectWidth=if(split)sideWidth else (availableWidth*.5f).coerceAtMost(320.dp)
-            val focusedTimelineHeight=(48f+timelineRowHeightDp(LocalDensity.current.fontScale)).dp
-            val effectHeight=(availableHeight*(if(curveExpanded).52f else .44f)).coerceAtMost(360.dp)
-                .coerceAtMost((availableHeight-48.dp-48.dp-focusedTimelineHeight-96.dp).coerceAtLeast(144.dp))
+            val effectWidth=if(split)sideWidth else editorLayout.value("landscape.side",availableWidth.value,
+                (availableWidth*.5f).coerceAtMost(320.dp).value,200f,(availableWidth-256.dp).value).dp
+            val dragDensity=LocalDensity.current.density
+            val defaultFocusedHeight=48f+timelineRowHeightDp(LocalDensity.current.fontScale)
+            val focusedTimelineHeight=if(wide)editorLayout.value("landscape.focused",availableHeight.value,
+                defaultFocusedHeight,defaultFocusedHeight,(availableHeight-192.dp).value).dp else defaultFocusedHeight.dp
+            val maxEffectHeight=(availableHeight-48.dp-48.dp-focusedTimelineHeight-96.dp).coerceAtLeast(144.dp)
+            val effectHeight=editorLayout.value("portrait.effects",availableHeight.value,
+                (availableHeight*(if(curveExpanded).52f else .44f)).coerceAtMost(360.dp).coerceAtMost(maxEffectHeight).value,
+                144f,maxEffectHeight.value).dp
             fun closeEffects(){vm.effectsOpen=false;vm.property="position";vm.panelOpen=false}
-            val timelineHeight=if(wide)(availableHeight*.3f).coerceAtMost(132.dp)
-                else (availableHeight*.38f).coerceAtMost(300.dp)
+            val defaultTimelineHeight=if(wide)(availableHeight*.3f).coerceAtMost(132.dp)else (availableHeight*.38f).coerceAtMost(300.dp)
+            val timelineHeight=editorLayout.value(if(wide)"landscape.timeline"else"portrait.timeline",availableHeight.value,
+                defaultTimelineHeight.value,120f,(availableHeight-244.dp).value).dp
+            val previewModifier=Modifier.onGloballyPositioned{previewBounds=it.boundsInRoot()}
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Tool(Icons.AutoMirrored.Filled.ArrowBack,if(vm.panelOpen)"收起属性" else "工程列表") {
-                        if(vm.panelOpen)vm.panelOpen=false else {vm.refreshProjects();library=true}
+                    Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.panelOpen)"收起属性" else "工程列表") {
+                        if(layoutEditing)layoutEditing=false else if(vm.panelOpen)vm.panelOpen=false else {vm.refreshProjects();library=true}
                     }
-                    Text(vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    Tool(Icons.Default.Tune,"合成设置"){settings=true}
-                    Box {
-                        TextButton(onClick={outputMenu=true},modifier=Modifier.height(48.dp)) {
-                            Icon(editorIcon(Icons.Default.IosShare),"输出",Modifier.size(18.dp),tint=Accent)
-                            Spacer(Modifier.width(6.dp));Text("导出",color=Accent,fontSize=13.sp)
-                        }
-                        DropdownMenu(outputMenu,{outputMenu=false}) {
-                            DropdownMenuItem(text={Text("视频 MP4")},onClick={outputMenu=false;vm.exportVideo{vm.pendingOutput=it;vm.pendingOutputKind="video";videoSave.launch("MotionStudio.mp4")}})
-                            DropdownMenuItem(text={Text("当前帧 PNG")},onClick={outputMenu=false;vm.output(true){vm.pendingOutput=it;vm.pendingOutputKind="png";pngSave.launch("motion-frame.png")}})
-                            DropdownMenuItem(text={Text("备份工程")},onClick={outputMenu=false;vm.output(false){vm.pendingOutput=it;vm.pendingOutputKind="project";projectSave.launch("MotionStudio.motion")}})
+                    Text(if(layoutEditing)"调整布局" else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                    if(layoutEditing)TextButton(onClick={layoutEditing=false},modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
+                    else {
+                        Tool(Icons.Default.Tune,"合成设置"){settings=true}
+                        Box {
+                            TextButton(onClick={outputMenu=true},modifier=Modifier.height(48.dp)) {
+                                Icon(editorIcon(Icons.Default.IosShare),"输出",Modifier.size(18.dp),tint=Accent)
+                                Spacer(Modifier.width(6.dp));Text("导出",color=Accent,fontSize=13.sp)
+                            }
+                            DropdownMenu(outputMenu,{outputMenu=false}) {
+                                DropdownMenuItem(text={Text("视频 MP4")},onClick={outputMenu=false;vm.exportVideo{vm.pendingOutput=it;vm.pendingOutputKind="video";videoSave.launch("MotionStudio.mp4")}})
+                                DropdownMenuItem(text={Text("当前帧 PNG")},onClick={outputMenu=false;vm.output(true){vm.pendingOutput=it;vm.pendingOutputKind="png";pngSave.launch("motion-frame.png")}})
+                                DropdownMenuItem(text={Text("备份工程")},onClick={outputMenu=false;vm.output(false){vm.pendingOutput=it;vm.pendingOutputKind="project";projectSave.launch("MotionStudio.motion")}})
+                            }
                         }
                     }
                 }
                 if(split||(wide&&effectEditing))Row(Modifier.weight(1f).fillMaxWidth()) {
                     Column(Modifier.weight(1f).fillMaxHeight()) {
-                        Preview(vm,Modifier.weight(1f).fillMaxWidth())
+                        Preview(vm,Modifier.weight(1f).fillMaxWidth().then(previewModifier))
                         Transport(vm)
                     }
                     Column(Modifier.width(if(effectEditing)effectWidth else sideWidth).fillMaxHeight()) {
-                        if(effectEditing)EffectsPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                        if(effectEditing)EffectsPanel(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
                         else {
                             Timeline(vm,Modifier.weight(1f).fillMaxWidth())
                             EditorFooter(vm)
                         }
                     }
                 }else {
-                    Preview(vm,Modifier.weight(1f).fillMaxWidth())
+                    Preview(vm,Modifier.weight(1f).fillMaxWidth().then(previewModifier))
                     Transport(vm)
                     Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)focusedTimelineHeight else timelineHeight),focused=effectEditing)
-                    if(effectEditing)EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
+                    if(effectEditing)EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
                     else EditorFooter(vm)
                 }
                 if(wide&&effectEditing)Timeline(vm,Modifier.fillMaxWidth().height(focusedTimelineHeight),focused=true)
@@ -196,12 +215,26 @@ open class MainActivity:ComponentActivity() {
             val propertyBounds=if(split)Modifier.width(sideWidth).height((availableHeight-48.dp-(if(curveExpanded)0.dp else 44.dp)).coerceAtLeast(0.dp))
                 else if(wide)Modifier.width((availableWidth*.5f).coerceIn(280.dp,320.dp).coerceAtMost(availableWidth)).height((availableHeight-48.dp).coerceAtLeast(0.dp))
                 else Modifier.fillMaxWidth().height(if(curveExpanded||vm.effectsOpen)(availableHeight*.64f).coerceAtMost(440.dp)
+                    else if(editorLayout.custom("portrait.timeline"))timelineHeight+8.dp
                     else (availableHeight*.42f).coerceAtMost(304.dp).coerceAtMost(timelineHeight+8.dp))
             AnimatedVisibility(visible=vm.panelOpen&&!effectEditing&&(vm.selected!=0L||vm.hasCamera()),
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
-                Properties(vm,propertyBounds,onCurveMode={curveExpanded=it})
+                Properties(vm,propertyBounds,backEnabled=!layoutEditing,onCurveMode={curveExpanded=it})
+            }
+            if(layoutEditing&&vm.state.project!=null)previewBounds?.let{bounds->
+                if(split||(wide&&effectEditing))LayoutGrip(bounds,editorOrigin,true,"调整左右布局比例","layout-resize-side",editorLayout) {delta->
+                    val current=if(effectEditing)effectWidth else sideWidth
+                    editorLayout.set("landscape.side",(current.value-delta/dragDensity)/availableWidth.value)
+                }
+                if((!split||effectEditing)&&(!vm.panelOpen||vm.effectsOpen||!curveExpanded)) {
+                    val key=when{wide&&effectEditing->"landscape.focused";effectEditing->"portrait.effects";wide->"landscape.timeline";else->"portrait.timeline"}
+                    val current=when{wide&&effectEditing->focusedTimelineHeight;effectEditing->effectHeight;else->timelineHeight}
+                    LayoutGrip(bounds,editorOrigin,false,"调整预览与下方面板比例","layout-resize-height",editorLayout) {delta->
+                        editorLayout.set(key,(current.value-delta/dragDensity)/availableHeight.value)
+                    }
+                }
             }
             if(vm.state.project==null&&vm.loadFailed&&!vm.state.busy) {
                 Column(Modifier.fillMaxSize().background(Background).padding(24.dp),verticalArrangement=Arrangement.Center,
@@ -259,6 +292,8 @@ open class MainActivity:ComponentActivity() {
             TextButton(onClick={settings=false;vm.refreshProjects();library=true}){Text("打开工程")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
             TextButton(onClick={settings=false;vm.pluginsOpen=true},modifier=Modifier.testTag("open-plugins")){Text("效果包")}
+            TextButton(onClick={vm.pause();settings=false;layoutEditing=true},enabled=vm.state.project!=null,modifier=Modifier.testTag("adjust-layout")){Text("调整布局")}
+            TextButton(onClick={editorLayout.reset();layoutEditing=false;settings=false},modifier=Modifier.testTag("reset-layout")){Text("重置布局比例")}
             if(vm.state.project?.optJSONArray("audio_assets")?.length()?.let{it>0}==true||vm.state.project?.optJSONArray("video_assets")?.length()?.let{it>0}==true)TextButton(onClick={settings=false;vm.prepareMediaCaches(true)}){Text("重建媒体缓存")}
             Text("预览清晰度",fontSize=12.sp,color=Muted)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
@@ -288,6 +323,8 @@ open class MainActivity:ComponentActivity() {
                 }
             }}
         }},confirmButton={TextButton(onClick={library=false}){Text("关闭")}})
+    // Panels suspend their Back handlers while adjusting layout.
+    BackHandler(enabled=layoutEditing){layoutEditing=false}
 }
 
 @Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
