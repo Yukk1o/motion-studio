@@ -817,6 +817,7 @@ impl Renderer {
                     p,
                     frame,
                     &self.asset_order,
+                    scene.layers[i].video.as_ref().map(|_| scene.layers[i].id),
                     &self.images,
                     &self.device,
                     &self.queue,

@@ -89,10 +89,11 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }
     }
     fun texture(slot:Int):Int {check(slot in pool.indices&&pool[slot]!=0){"效果纹理索引错误"};return pool[slot]}
-    fun passes(plan:ByteBuffer,start:Int,end:Int) {
+    fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null) {
         val count=plan.getInt(12);check(start>=0&&end in start..count){"效果 pass 范围错误"}
         val base=plan.getInt(20)
-        fun input(index:Int)=if(index<0){check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}else texture(index)
+        // Materialize the current decoded video texture into the layer's effect chain.
+        fun input(index:Int)=if(index<0){videoTexture?:run{check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}}else texture(index)
         for(i in start until end) {
             val p=base+i*32;check(p>=64&&p+32<=plan.getInt(28)){"效果 pass 地址错误"}
             val shaderIndex=plan.getInt(p);check(shaderIndex in shaders.indices){"效果程序索引错误"}

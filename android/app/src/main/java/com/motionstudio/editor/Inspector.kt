@@ -74,7 +74,7 @@ import kotlin.math.*
             Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
             DropdownMenu(more,{more=false}) {
                 if(vm.selected!=0L) {
-                    if(vm.contentKind() in listOf("solid","image","text"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
+                    if(vm.contentKind() in listOf("solid","image","text","video"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
                     if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.openProperty("audio")})
                     DropdownMenuItem(text={Text("透明度")},onClick={more=false;vm.openProperty("opacity")})
                     DropdownMenuItem(text={Text("复制图层")},onClick={more=false;vm.duplicate()})
@@ -169,7 +169,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         DropdownMenuItem(text={Text("删除摄影机")},onClick={more=false;vm.deleteLayer()})
                     }
                     else {
-                        if(vm.contentKind() in listOf("solid","image","text"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
+                        if(vm.contentKind() in listOf("solid","image","text","video"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
                         if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.property="audio"})
                         DropdownMenuItem(text={Text("锚点")},enabled=vm.editable(),onClick={more=false;anchor=true})
                         DropdownMenuItem(text={Text("摄影机对准此图层")},onClick={more=false;vm.focusCameraOnSelection()})
