@@ -819,7 +819,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             } else fail(r.optString("error"))
         }
     }
-    fun newProject(width:Int,height:Int,fps:Int=30,name:String="新建工程") {
+    fun newProject(width:Int,height:Int,fps:Int=30,name:String="新建工程",frames:Int=fps*6) {
+        if(width !in 1..8192||height !in 1..8192||fps !in listOf(30,60)||frames !in 1..36000){fail("合成尺寸、帧率或时长无效");return}
         finishLayerSelection()
         projectGeneration.incrementAndGet()
         closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true,error=null)
@@ -829,7 +830,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             .put("target",channel(target)).put("roll",channel(0)).put("fov",channel(45))
             .put("radius",channel(distance)).put("azimuth",channel(0)).put("elevation",channel(0))
         val project=JSONObject().put("version",3).put("name",name.trim().ifBlank{"新建工程"}).put("width",width).put("height",height)
-            .put("fps",fps).put("frames",fps*6).put("background",JSONArray(listOf(.05,.06,.09,1)))
+            .put("fps",fps).put("frames",frames).put("background",JSONArray(listOf(.05,.06,.09,1)))
             .put("camera",camera).put("assets",JSONArray()).put("layers",JSONArray())
         worker.post {
             try {
