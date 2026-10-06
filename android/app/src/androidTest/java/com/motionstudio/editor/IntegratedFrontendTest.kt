@@ -486,8 +486,7 @@ class IntegratedFrontendTest {
         compose.onNodeWithTag("effects-panel").assertIsDisplayed()
         assertTimelineVisible();photo("video-effects-from-properties")
         compose.onNodeWithContentDescription("关闭效果").performClick()
-        compose.onNodeWithContentDescription("图层快捷操作").performClick()
-        compose.onNodeWithTag("open-effects").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("open-effects").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithTag("effects-add").performClick();addEffect("brightness_contrast")
         assertNotNull(vm.audioClip());assertTimelineVisible();photo("video-effects-from-footer")
     }

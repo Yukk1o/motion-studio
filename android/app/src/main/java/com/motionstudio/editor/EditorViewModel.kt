@@ -11,6 +11,7 @@ import android.os.HandlerThread
 import android.os.PowerManager
 import android.view.Choreographer
 import android.view.Surface
+import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -75,6 +76,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var rotationAxis by mutableIntStateOf(2)
     var componentAxis by mutableIntStateOf(0)
     var curveClipboard by mutableStateOf<String?>(null); private set
+    private var layerClipboard by mutableStateOf<LayerClipboard?>(null)
+    private var layerClipboardBusy by mutableStateOf(false)
     var previewMode by mutableIntStateOf(if(projectDirectory==null)app.getSharedPreferences("motion-studio",0).getInt("previewMode",0).coerceIn(0,3) else 0);private set
     var previewInfo by mutableStateOf<JSONObject?>(null);private set
     var loadFailed by mutableStateOf(false);private set
@@ -451,7 +454,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
         if(openEditor)panelOpen=true
     }
-    fun openProperty(key:String) {pluginEditor.close();expressionTarget=null;effectsOpen=false;
+    fun openProperty(key:String) {gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;
         pause()
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
@@ -682,6 +685,47 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun flags(id:Long,visible:Boolean,locked:Boolean)=edit(JSONObject().put("op","flags").put("object",id).put("visible",visible).put("locked",locked))
     fun rename(name:String) {if(selected!=0L)edit(JSONObject().put("op","rename").put("object",selected).put("name",name))}
     fun duplicate() {if(selected!=0L)edit(JSONObject().put("op","duplicate").put("object",selected))}
+    fun canCopyLayers()=!state.busy&&importTask==null&&!layerClipboardBusy&&
+        (if(layerSelectionMode)selectedLayers().isNotEmpty()else selected!=0L&&layer(selected)!=null)
+    fun canPasteLayers()=!state.busy&&importTask==null&&!layerClipboardBusy&&
+        layerClipboard?.let{clip->clip.root==root.canonicalFile&&state.project?.let(clip::available)==true}==true
+    fun layerPasteHint():String?=layerClipboard?.let{clip->
+        when {clip.root!=root.canonicalFile->"在原工程内粘贴";state.project?.let(clip::available)==false->"素材或父级已变化，请重新复制";else->null}
+    }
+    fun copyLayers() {
+        if(!canCopyLayers())return
+        gestureInertia.stop();pause()
+        val sourceRoot=root.canonicalFile;val objects=if(layerSelectionMode)selectedLayerIds else setOf(selected)
+        layerClipboardBusy=true
+        invoke(repaint=false,onComplete={
+            layerClipboardBusy=false
+            if(root.canonicalFile==sourceRoot)state.project?.let{project->LayerClipboard.capture(sourceRoot,project,objects)}?.let{clip->
+                layerClipboard=clip
+                Toast.makeText(getApplication(),"已复制 ${clip.size} 个图层",Toast.LENGTH_SHORT).show()
+            }
+        }){NativeBridge.state(id)}
+    }
+    fun pasteLayers() {
+        if(!canPasteLayers())return
+        gestureInertia.stop();pluginEditor.close();pause()
+        val sourceRoot=root.canonicalFile;val clip=layerClipboard?:return;val at=floor(frame).toInt()
+        var pastedObjects=emptyList<Long>()
+        layerClipboardBusy=true
+        invoke(true,onComplete={
+            layerClipboardBusy=false
+            if(root.canonicalFile==sourceRoot&&pastedObjects.isNotEmpty()&&pastedObjects.all{layer(it)!=null}) {
+                closeWorkspace();selected=pastedObjects.last();property=if(contentKind()=="audio")"audio"else"position"
+                layerSelectionMode=pastedObjects.size>1;selectedLayerIds=if(layerSelectionMode)pastedObjects.toSet()else emptySet()
+            }
+        }){
+            val current=nativeData(NativeBridge.state(id))
+            check(File(current.getString("root")).canonicalFile==sourceRoot){"工程已切换，请重新复制"}
+            val paste=clip.plan(current.getJSONObject("project"),at)?:error("素材或父级已变化，请重新复制")
+            val result=NativeBridge.command(id,paste.commands.toString())
+            if(JSONObject(result).optBoolean("ok"))pastedObjects=paste.objects
+            result
+        }
+    }
     fun startLayerSelection(objectId:Long=selected) {
         closeWorkspace();pause();layerSelectionMode=true
         selectedLayerIds=if(objectId!=0L&&layer(objectId)!=null)setOf(objectId)else emptySet()
@@ -729,7 +773,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun reorderTo(objectId:Long,index:Int)=edit(JSONObject().put("op","reorder").put("object",objectId).put("index",index))
     fun moveClip(objectId:Long,start:Int,save:Boolean=true)=edit(JSONObject().put("op","move_layer_clip").put("object",objectId).put("in_frame",start),save)
     fun trimClip(objectId:Long,start:Int,end:Int,save:Boolean=true)=edit(JSONObject().put("op","trim_layer_clip").put("object",objectId).put("in_frame",start).put("out_frame",end),save)
-    fun splitClip(){if(selected!=0L&&editable())edit(JSONObject().put("op","split_layer_clip").put("object",selected).put("frame",floor(frame).toInt()))}
+    fun canSplitClip():Boolean {
+        if(selected==0L||layerSelectionMode||!editable()||state.busy||importTask!=null)return false
+        val clip=timelineLayer(selected)?:return false
+        return floor(frame).toInt() in clip.getInt("in_frame")+1 until clip.getInt("out_frame")
+    }
+    fun splitClip(){gestureInertia.stop();pause();if(canSplitClip())edit(JSONObject().put("op","split_layer_clip").put("object",selected).put("frame",floor(frame).toInt()))}
     private fun nextId(a:JSONArray):Long=(0 until a.length()).maxOfOrNull{a.getJSONObject(it).getLong("id")}?.plus(1)?:1
     private fun channel(value:Any)=JSONObject().put("value",value).put("keys",JSONArray())
     private fun newLayer(name:String,content:JSONObject,width:Float,height:Float):JSONObject {
@@ -944,7 +993,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
     }
     fun closeWorkspace(){gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;panelOpen=false}
-    fun openEffects(){pluginEditor.close();expressionTarget=null;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun openEffects(){gestureInertia.stop();pluginEditor.close();expressionTarget=null;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
     fun openPluginEditor(instance:Long){pause();expressionTarget=null;pluginEditor.open(selected,instance)}
     fun expressionTargetForCurrent(axis:Int?=null):JSONObject? {
         if(state.sample?.optJSONObject("capabilities")?.optJSONObject("property_expressions")?.optBoolean("supported")!=true)return null

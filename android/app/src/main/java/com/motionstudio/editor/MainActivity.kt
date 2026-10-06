@@ -526,15 +526,15 @@ open class MainActivity:ComponentActivity() {
     }
 }
 @Composable private fun Transport(vm:EditorViewModel) {
-    var more by remember{mutableStateOf(false)}
+    var more by remember(vm.root){mutableStateOf(false)}
     BoxWithConstraints(Modifier.fillMaxWidth().height(48.dp).testTag("transport")) {
     val compact=maxWidth<352.dp
-    Box(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp)) {
-        Row(Modifier.align(Alignment.CenterStart)) {
+    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
+        Row {
             Tool(Icons.AutoMirrored.Filled.Undo,"撤销",vm.state.canUndo,vm::undo)
             if(!compact)Tool(Icons.AutoMirrored.Filled.Redo,"重做",vm.state.canRedo,vm::redo)
         }
-        Row(Modifier.align(Alignment.Center),verticalAlignment=Alignment.CenterVertically) {
+        Row(verticalAlignment=Alignment.CenterVertically) {
             Tool(Icons.Default.SkipPrevious,"上一帧"){vm.step(-1)}
             FilledIconButton(onClick=vm::togglePlay,modifier=Modifier.size(48.dp),
                 colors=IconButtonDefaults.filledIconButtonColors(containerColor=Accent.copy(alpha=.14f),contentColor=Accent)) {
@@ -542,13 +542,19 @@ open class MainActivity:ComponentActivity() {
             }
             Tool(Icons.Default.SkipNext,"下一帧"){vm.step(1)}
         }
-        Box(Modifier.align(Alignment.CenterEnd)) {
-            Tool(Icons.Default.MoreHoriz,"更多播放操作"){more=true}
+        Row {
+        Tool(Icons.Default.ContentCut,"切割图层",vm.canSplitClip(),vm::splitClip)
+        Box {
+            Tool(Icons.Default.MoreHoriz,"更多编辑操作"){more=true}
             DropdownMenu(more,{more=false}) {
+                DropdownMenuItem(text={Text(if(vm.layerSelectionMode)"复制所选图层"else"复制图层")},enabled=vm.canCopyLayers(),modifier=Modifier.testTag("copy-layers"),onClick={more=false;vm.copyLayers()})
+                DropdownMenuItem(text={Column{Text("粘贴图层");vm.layerPasteHint()?.let{Text(it,color=Muted,fontSize=12.sp)}}},enabled=vm.canPasteLayers(),modifier=Modifier.testTag("paste-layers"),onClick={more=false;vm.pasteLayers()})
+                HorizontalDivider(color=Muted.copy(alpha=.15f))
                 if(compact)DropdownMenuItem(text={Text("重做")},enabled=vm.state.canRedo,onClick={more=false;vm.redo()})
                 DropdownMenuItem(text={Text(if(vm.currentKey()==null)"添加关键帧" else "删除当前关键帧")},enabled=vm.editable(),onClick={more=false;vm.toggleKey()})
                 DropdownMenuItem(text={Text("观察视图")},onClick={more=false;vm.observe(!vm.state.observing)})
             }
+        }
         }
     }
     }
