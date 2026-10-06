@@ -47,6 +47,8 @@ private fun activeProjectDirectory(app:Application):File {
 }
 
 class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null,initialProjectJson:String="") : AndroidViewModel(app) {
+    private val errors=(app as? StudioApplication)?.errors?:ErrorReports(app)
+    private var pendingDiagnostic:File?=null
     internal val gestureInertia=GestureInertiaGroup()
     internal val layoutPreferences=app.getSharedPreferences("motion-studio-layout"+
         (if(projectDirectory==null)""else"-"+projectDirectory.canonicalPath.hashCode()),0)
@@ -61,6 +63,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var property by mutableStateOf("position")
     var panelOpen by mutableStateOf(false)
     var effectsOpen by mutableStateOf(false)
+    var vectorOpen by mutableStateOf(false)
+    var vectorTab by mutableStateOf("geometry")
+    var vectorDrawMode by mutableStateOf(false)
+    var vectorPathId by mutableLongStateOf(1L)
+    var vectorNodeId by mutableLongStateOf(0L)
+    var vectorHandleMode by mutableStateOf("corner")
     var catalogue by mutableStateOf<JSONObject?>(null); private set
     var importTask by mutableStateOf<JSONObject?>(null); private set
     var mediaNotice by mutableStateOf<String?>(null); private set
@@ -186,10 +194,33 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
         Choreographer.getInstance().postFrameCallback(tick)
     }
-    private fun fail(message:String,surfaceGeneration:Long?=null) {main.post {
-        if(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())state=state.copy(error=message,busy=false)
+    private fun fail(message:String,surfaceGeneration:Long?=null,cause:Throwable?=null) {main.post {
+        if(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get()) {
+            state=state.copy(error=message,busy=false)
+            val p=state.project
+            val context=JSONObject().put("frame",frame).put("selected_kind",contentKind()).put("property",property)
+                .put("playing",playing).put("output_phase",outputPhase.substringBefore(':')).put("preview_mode",previewMode)
+            if(p!=null)context.put("composition",JSONObject().put("width",p.optInt("width")).put("height",p.optInt("height"))
+                .put("fps",p.optInt("fps")).put("frames",p.optInt("frames")).put("layer_count",p.optJSONArray("layers")?.length()?:0))
+            viewModelScope.launch(Dispatchers.IO){errors.record(message,cause,context)}
+        }
     }}
+    fun prepareErrorReport(onReady:()->Unit) {
+        viewModelScope.launch(Dispatchers.IO){try {
+            pendingDiagnostic=errors.export();withContext(Dispatchers.Main){onReady()}
+        }catch(e:Throwable){fail("错误报告生成失败",cause=e)}}
+    }
+    fun saveErrorReport(uri:Uri?) {
+        val file=pendingDiagnostic?:return;pendingDiagnostic=null
+        if(uri==null)return
+        viewModelScope.launch(Dispatchers.IO){try {
+            val output=getApplication<Application>().contentResolver.openOutputStream(uri,"w")?:error("无法写入所选位置")
+            output.use{out->file.inputStream().use{it.copyTo(out)}}
+            withContext(Dispatchers.Main){Toast.makeText(getApplication(),"错误报告已保存",Toast.LENGTH_LONG).show()}
+        }catch(e:Throwable){fail("错误报告保存失败，请重新选择位置",cause=e)}}
+    }
     fun clearError() {state=state.copy(error=null)}
+    internal fun showOperationError(message:String){fail(message)}
     private fun updatePreviewInfo(raw:String) {
         val result=JSONObject(raw)
         if(!result.optBoolean("ok")){fail(result.optString("error"));return}
@@ -295,7 +326,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     publish(saved.toString(),true)
                 }
                 else publish(result,repaint=repaint)
-            } catch(e:Throwable){fail(e.message?:"操作失败")}
+            } catch(e:Throwable){fail(e.message?:"操作失败",cause=e)}
             finally {if(onComplete!=null)main.post{if(!closed.get())onComplete()}}
         }
     }
@@ -306,6 +337,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             val action=command.getJSONObject("action")
             if(action.optString("kind") !in listOf("set","curve","set_curve_object"))return null
             return "effect:${command.getLong("object")}:${action.getLong("effect")}:${action.getString("param")}:${action.optInt("frame")}:${action.getString("kind")}"
+        }
+        if(op=="vector") {
+            val action=command.getJSONObject("action")
+            return "vector:${command.getLong("object")}:${action.optString("action")}:${action.optLong("path")}:${action.optLong("node")}:${action.optString("parameter")}"
         }
         if(op !in listOf("set_vector","set_scalar","set_component","set_audio"))return null
         return "$op:${command.getLong("object")}:${command.optString("property")}:${command.optString("axis")}:${command.optInt("frame")}:${command.has("volume")}:${command.has("muted")}"
@@ -449,12 +484,13 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             pluginEditor.close()
             expressionTarget=null
             effectsOpen=false
+            vectorOpen=false
             selected=objectId
             property=if(objectId==0L&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else "position"
         }
         if(openEditor)panelOpen=true
     }
-    fun openProperty(key:String) {gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;
+    fun openProperty(key:String) {gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;vectorOpen=false;
         pause()
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
@@ -462,20 +498,22 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun hasCamera()=state.project?.optJSONObject("camera")?.optBoolean("created",true)==true
     fun editable():Boolean=if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false
     fun edit(command:JSONObject,save:Boolean=true) {
+        errors.operation("edit:"+command.optString("op"))
         if(pluginEditor.gesture)return
         if(command.optString("op") in listOf("remove","flags","camera_mode","set_layer_3d"))pluginEditor.close()
-        pause();val routed=routeEffectCommand(command)
+        pause();val routed=routeVectorCommand(routeEffectCommand(command))?:return
         if(!save&&queueGesture(listOf(routed)))return
         invoke(save){NativeBridge.command(id,routed.toString())}
     }
     fun editBatch(commands:JSONArray,save:Boolean=true) {
+        errors.operation("batch:"+commands.objects().map{it.optString("op")}.distinct().joinToString(","))
         if(pluginEditor.gesture)return
-        pause();val routed=commands.objects().map(::routeEffectCommand)
+        pause();val routed=commands.objects().map{routeVectorCommand(routeEffectCommand(it))?:return}
         if(!save&&queueGesture(routed))return
         invoke(save){NativeBridge.command(id,JSONArray(routed).toString())}
     }
-    fun undo() {gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,0)}}
-    fun redo() {gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,1)}}
+    fun undo() {errors.operation("undo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,0)}}
+    fun redo() {errors.operation("redo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,1)}}
     fun beginGesture() {gestureInertia.stop();pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{NativeBridge.history(id,2)}}
     fun endGesture(onComplete:()->Unit={}) {
         val pending=gestureUpdates?.take().orEmpty();gestureUpdates=null
@@ -502,6 +540,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun timelineLayer(objectId:Long):JSONObject?=state.sample?.optJSONArray("timeline_layers")?.let{a->
         (0 until a.length()).map{a.getJSONObject(it)}.firstOrNull{it.getLong("object")==objectId}}
     fun propertyTrack(objectId:Long=selected,key:String=property):JSONObject? {
+        if(key.startsWith("vector:"))return vectorTrackRaw(objectId,key)?.let{raw->
+            JSONObject(raw.toString()).apply{val offset=timelineLayer(objectId)?.optInt("offset_frame")?:0
+                optJSONArray("keys").objects().forEach{it.put("frame",it.getLong("frame")+offset)}}
+        }
         effectTarget(key)?.let{(instance,param)->
             val data=effectParam(objectId,instance,param)?:return null
             val track=data.optJSONObject("curve")?:data.optJSONObject("track")?:return null
@@ -558,6 +600,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         return sampleValueFor(selected,property)
     }
     fun sampleValueFor(objectId:Long,key:String):Any? {
+        if(key.startsWith("vector:"))return vectorValue(objectId,key)
         effectTarget(key)?.let{(instance,param)->
             val saved=effectParam(objectId,instance,param)
             if(saved?.optString("kind")=="curve") {
@@ -597,6 +640,9 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val sample=sampleValue()?:return
         val value=if(isSeparated()&&sample is JSONArray)sample.getDouble(activeAxis())else sample
         val t=track()?:return
+        if(property.startsWith("vector:")) {
+            edit(channelCommand(if(value is JSONArray)"set_vector"else"set_scalar").put("frame",floor(frame).toInt()).put("value",value).put("animated",true));return
+        }
         val commands=JSONArray()
         if(t.getJSONArray("keys").length()==0)commands.put(channelCommand("animate").put("frame",floor(frame).toInt()).put("enabled",true))
         commands.put(channelCommand(if(isSeparated())"set_component"else if(value is JSONArray)"set_vector"else"set_scalar")
@@ -998,8 +1044,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             readCatalogue()
         }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
     }
-    fun closeWorkspace(){gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;panelOpen=false}
-    fun openEffects(){gestureInertia.stop();pluginEditor.close();expressionTarget=null;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun closeWorkspace(){gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;vectorOpen=false;panelOpen=false}
+    fun openEffects(){gestureInertia.stop();pluginEditor.close();expressionTarget=null;vectorOpen=false;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
     fun openPluginEditor(instance:Long){pause();expressionTarget=null;pluginEditor.open(selected,instance)}
     fun expressionTargetForCurrent(axis:Int?=null):JSONObject? {
         if(state.sample?.optJSONObject("capabilities")?.optJSONObject("property_expressions")?.optBoolean("supported")!=true)return null

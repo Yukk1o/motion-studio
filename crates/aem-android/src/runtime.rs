@@ -711,7 +711,13 @@ impl Session {
                 let nodes:Vec<_>=path.nodes.iter().enumerate().map(|(j,geometry)|json!({"id":original_path.and_then(|p|p.nodes.get(j)).map_or(j as u64+1,|n|n.id),"geometry":geometry})).collect();
                 json!({"id":original_path.map_or(i as u64+1,|p|p.id),"closed":path.closed,"nodes":nodes})
             }).collect();
-            Some(json!({"id":layer.id,"canvas_size":layer.source_size,"source_rect":layer.source_rect,"mvp":(layer.view_projection*layer.model).to_cols_array(),"paths":paths,"fill":vector.fill,"stroke":vector.stroke.map(|s|json!({"color":s.0,"width":s.1,"cap":s.2,"join":s.3,"miter_limit":s.4}))}))
+            let parameters=match stored {
+                Some(aem_core::vector::VectorSource::Shape{parameters,..})=>{
+                    let offset=p.layers.iter().find(|l|l.id==layer.id).map_or(0,|l|l.clip(p.frames).offset_frame);
+                    parameters.iter().map(|(name,track)|(name.clone(),json!(track.sample(f-f64::from(offset))))).collect::<serde_json::Map<_,_>>()
+                },_=>serde_json::Map::new(),
+            };
+            Some(json!({"id":layer.id,"canvas_size":layer.source_size,"source_rect":layer.source_rect,"mvp":(layer.view_projection*layer.model).to_cols_array(),"paths":paths,"parameters":parameters,"fill":vector.fill,"stroke":vector.stroke.map(|s|json!({"color":s.0,"width":s.1,"cap":s.2,"join":s.3,"miter_limit":s.4}))}))
         }).collect();
         let camera_properties: Vec<&str> = if !p.camera.created {
             vec![]

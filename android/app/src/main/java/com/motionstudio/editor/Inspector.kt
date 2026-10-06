@@ -59,7 +59,11 @@ import kotlin.math.*
                         LayerCategory("变换","footer-transform") {
                             vm.openProperty(if(vm.property in listOf("position","rotation","scale","opacity"))vm.property else "position")
                         }
-                        if(kind in listOf("solid","image","text","video"))LayerCategory("效果","open-effects",vm::openEffects)
+                        if(kind in listOf("solid","image","text","video","vector","adjustment","composition"))LayerCategory("效果","open-effects",vm::openEffects)
+                        if(kind=="vector") {
+                            LayerCategory(if(vm.vectorData()?.getJSONObject("source")?.optString("kind")=="shape")"形状"else"路径","footer-vector"){vm.openVector()}
+                            LayerCategory("样式","footer-vector-style"){vm.openVector("style")}
+                        }
                         if(vm.audioClip()!=null)LayerCategory("原声","footer-audio"){vm.openProperty("audio")}
                         if(vm.selected==0L) {
                             LayerCategory("镜头","footer-lens"){vm.openProperty("fov")}
@@ -154,7 +158,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
             if(curves)Tool(Icons.AutoMirrored.Filled.ArrowBack,"返回变换参数"){curves=false}
             Text(if(curves)if(vm.isSeparated())vm.axisName().uppercase()+" 轴曲线"else"缓动曲线" else objectName(vm,vm.selected),
                 Modifier.weight(1f),color=Ink,fontSize=15.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
-            if(!curves&&!camera)TextButton(onClick={vm.setThreeD(!threeD)},enabled=vm.editable(),
+            if(!curves&&!camera&&vm.contentKind()!="adjustment")TextButton(onClick={vm.setThreeD(!threeD)},enabled=vm.editable(),
                 modifier=Modifier.width(48.dp).height(48.dp).testTag("layer-3d-toggle").semantics{selected=threeD;stateDescription=if(threeD)"3D 图层"else"2D 图层"},contentPadding=PaddingValues(0.dp)) {
                 Text(if(threeD)"3D"else"2D",fontSize=12.sp,color=if(threeD)Accent else Muted)
             }
