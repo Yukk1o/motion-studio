@@ -47,6 +47,7 @@ pub(crate) struct GpuState {
     pool_width: u32,
     pool_height: u32,
     pool_slots: u32,
+    pool_sizes: [[u32; 2]; 8],
     epoch: u64,
     buffers: Vec<Buffer>,
     sprite_buffer: wgpu::Buffer,
@@ -219,6 +220,7 @@ impl EffectGpu {
                 pool_width: 0,
                 pool_height: 0,
                 pool_slots: 0,
+                pool_sizes: [[0; 2]; 8],
                 epoch: 0,
                 buffers: Vec::new(),
                 sprite_buffer: device.create_buffer(&wgpu::BufferDescriptor {
@@ -254,13 +256,14 @@ impl GpuState {
             self.pool_width = 0;
             self.pool_height = 0;
             self.pool_slots = 0;
+            self.pool_sizes = [[0; 2]; 8];
             self.luts.clear();
             self.buffers.clear();
             self.invalidate();
         }
     }
     pub fn bytes(&self) -> u64 {
-        crate::effect_plan::scratch_bytes(self.pool_width, self.pool_height, self.pool_slots)
+        crate::effect_plan::scratch_capacity_bytes(&self.pool_sizes)
             + self.resource_bytes
             + self.luts.len() as u64 * 1024
     }
@@ -288,6 +291,7 @@ impl GpuState {
         if self.pool_width != frame.width
             || self.pool_height != frame.height
             || self.pool_slots != frame.slots
+            || self.pool_sizes != frame.scratch_sizes
         {
             self.invalidate();
             self.pool = (0..8)
@@ -297,8 +301,8 @@ impl GpuState {
                             device,
                             composite,
                             &self.sampler,
-                            frame.width,
-                            frame.height,
+                            frame.scratch_sizes[i][0],
+                            frame.scratch_sizes[i][1],
                             if i == 7 {
                                 wgpu::TextureFormat::Rgba16Float
                             } else if (1..=3).contains(&i) {
@@ -315,6 +319,7 @@ impl GpuState {
             self.pool_width = frame.width;
             self.pool_height = frame.height;
             self.pool_slots = frame.slots;
+            self.pool_sizes = frame.scratch_sizes;
         }
         self.luts.truncate(scene.curve_luts.len());
         for (index, lut) in scene.curve_luts.iter().enumerate() {

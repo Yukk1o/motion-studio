@@ -18,6 +18,18 @@ pub fn scratch_bytes(width: u32, height: u32, slots: u32) -> u64 {
         * 4
         * u64::from(slots.count_ones() + u32::from(slots & 128 != 0))
 }
+/// Exact capacities of the independently sized, host-owned scratch textures.
+pub fn scratch_capacity_bytes(sizes: &[[u32; 2]; 8]) -> u64 {
+    sizes
+        .iter()
+        .enumerate()
+        .map(|(i, size)| u64::from(size[0]) * u64::from(size[1]) * if i == 7 { 8 } else { 4 })
+        .sum()
+}
+fn reserve_scratch(sizes: &mut [[u32; 2]; 8], slot: usize, width: u32, height: u32) {
+    sizes[slot][0] = sizes[slot][0].max(width);
+    sizes[slot][1] = sizes[slot][1].max(height);
+}
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct EffectUniform {
@@ -65,6 +77,7 @@ pub struct EffectFramePlan {
     pub width: u32,
     pub height: u32,
     pub slots: u32,
+    pub scratch_sizes: [[u32; 2]; 8],
     pub diagnostics: Vec<String>,
     pub vertices: Vec<aem_core::PlaneVertex>,
     pub batches: Vec<aem_core::PlaneBatch>,
@@ -222,6 +235,22 @@ fn bounds(expr: &BoundsExpr, fx: &SampledEffect, depth: u32) -> Result<f32, Stri
     Ok(v)
 }
 impl PlanBuilder {
+    fn check_scratch(sizes: &[[u32; 2]; 8], device_dimension: u32) -> Result<(), String> {
+        for (slot, size) in sizes.iter().enumerate() {
+            if size.iter().any(|&n| n > device_dimension) {
+                return Err(format!(
+                    "effect scratch texture {slot} requires {}x{}; device dimension limit is {}",
+                    size[0], size[1], device_dimension
+                ));
+            }
+        }
+        let bytes = scratch_capacity_bytes(sizes);
+        if bytes > aem_effects::SCRATCH_BUDGET {
+            return Err(format!("effect scratch textures require {:.2} MiB; budget is 64 MiB (full layer bounds, including effect padding)",
+                bytes as f64 / 1048576.0));
+        }
+        Ok(())
+    }
     pub fn set_alpha(
         &mut self,
         id: u64,
@@ -485,6 +514,7 @@ impl PlanBuilder {
         self.frame.width = 0;
         self.frame.height = 0;
         self.frame.slots = 0;
+        self.frame.scratch_sizes = [[0; 2]; 8];
         self.frame.draws.clear();
         self.overlays.clear();
         self.frame.passes.clear();
@@ -532,9 +562,7 @@ impl PlanBuilder {
                 }
                 for (i, p) in resolved.definition.params.iter().enumerate() {
                     let value = e.values[resolved.mapping[i]];
-                    if value[..p.kind.dimensions()]
-                        .iter()
-                        .any(|v| !v.is_finite() || *v < p.min || *v > p.max)
+                    if !p.kind.valid_value(&value, p.min, p.max)
                         || (!p.implemented && value != p.default)
                     {
                         return Err(format!(
@@ -579,16 +607,24 @@ impl PlanBuilder {
                     let mut params = [[0.0; 4]; 32];
                     for (i, p) in def.params.iter().enumerate() {
                         let v = e.values[resolved.mapping[i]];
-                        if v[..p.kind.dimensions()]
-                            .iter()
-                            .any(|v| !v.is_finite() || *v < p.min || *v > p.max)
-                        {
+                        if !p.kind.valid_value(&v, p.min, p.max) {
                             return Err(format!("parameter {} exceeds plugin range", p.id));
                         }
                         if !p.implemented && v != p.default {
                             return Err(format!("AE parameter {} is not implemented", p.id));
                         }
                         params[i] = v;
+                    }
+                    // The SDK wrapper mixes the final result with the original input.
+                    // Zero opacity is an exact identity: avoid all conversions, padding,
+                    // and shader passes while retaining dependency/parameter validation.
+                    if def
+                        .params
+                        .iter()
+                        .position(|p| p.id == "effect_opacity")
+                        .is_some_and(|i| params[i][0] == 0.0)
+                    {
+                        return Ok(());
                     }
                     if def.renderer != aem_effects::RendererKind::Image {
                         if materialized {
@@ -597,17 +633,20 @@ impl PlanBuilder {
                                     .into(),
                             );
                         }
-                        let w = (((scene.width as f32 * scale).ceil() as u32).div_ceil(128) * 128)
-                            .max(self.frame.width);
-                        let h = (((scene.height as f32 * scale).ceil() as u32).div_ceil(128) * 128)
-                            .max(self.frame.height);
+                        let w = ((scene.width as f32 * scale).ceil() as u32).max(self.frame.width);
+                        let h =
+                            ((scene.height as f32 * scale).ceil() as u32).max(self.frame.height);
                         let slots = self.frame.slots | 129;
-                        if w > self.device_dimension
-                            || h > self.device_dimension
-                            || scratch_bytes(w, h, slots) > aem_effects::SCRATCH_BUDGET
-                        {
-                            return Err("scene generator target exceeds texture budget or device dimensions".into());
+                        let mut sizes = self.frame.scratch_sizes;
+                        for slot in [0, 7] {
+                            reserve_scratch(
+                                &mut sizes,
+                                slot,
+                                (scene.width as f32 * scale).ceil() as u32,
+                                (scene.height as f32 * scale).ceil() as u32,
+                            );
                         }
+                        Self::check_scratch(&sizes, self.device_dimension)?;
                         let start = self.frame.sprites.len();
                         let stats = crate::scene_generator::generate(
                             scene,
@@ -672,6 +711,7 @@ impl PlanBuilder {
                         self.frame.width = w;
                         self.frame.height = h;
                         self.frame.slots = slots;
+                        self.frame.scratch_sizes = sizes;
                         materialized = true;
                         overlay = true;
                         additive = def.blend == aem_effects::SpriteBlend::Additive;
@@ -692,19 +732,33 @@ impl PlanBuilder {
                     } else {
                         4
                     };
-                    let slots = self.frame.slots | 1 | (7 << work);
-                    let w = (((next[2] * scale).ceil() as u32).div_ceil(128) * 128)
-                        .max(self.frame.width);
-                    let h = (((next[3] * scale).ceil() as u32).div_ceil(128) * 128)
-                        .max(self.frame.height);
-                    if w > self.device_dimension
-                        || h > self.device_dimension
-                        || scratch_bytes(w, h, slots) > aem_effects::SCRATCH_BUDGET
-                    {
-                        return Err(
-                            "effect scratch textures exceed 64 MiB or device dimensions".into()
+                    // A single-pass effect needs source + output, not a third ping-pong target.
+                    let work_slots = if resolved.programs.len() == 1 { 3 } else { 7 };
+                    let slots = self.frame.slots | 1 | (work_slots << work);
+                    let w = ((next[2] * scale).ceil() as u32).max(self.frame.width);
+                    let h = ((next[3] * scale).ceil() as u32).max(self.frame.height);
+                    let mut sizes = self.frame.scratch_sizes;
+                    reserve_scratch(
+                        &mut sizes,
+                        0,
+                        (next[2] * scale).ceil() as u32,
+                        (next[3] * scale).ceil() as u32,
+                    );
+                    reserve_scratch(
+                        &mut sizes,
+                        work as usize,
+                        (region[2] * scale).ceil() as u32,
+                        (region[3] * scale).ceil() as u32,
+                    );
+                    for i in 0..resolved.programs.len() {
+                        reserve_scratch(
+                            &mut sizes,
+                            (work + 1 + i as u32 % 2) as usize,
+                            (next[2] * scale).ceil() as u32,
+                            (next[3] * scale).ceil() as u32,
                         );
                     }
+                    Self::check_scratch(&sizes, self.device_dimension)?;
                     let working = [
                         if def.working_space == WorkingSpace::Srgb {
                             1.0
@@ -827,6 +881,7 @@ impl PlanBuilder {
                     self.frame.width = w;
                     self.frame.height = h;
                     self.frame.slots = slots;
+                    self.frame.scratch_sizes = sizes;
                     region = next;
                     materialized = true;
                     Ok(())
@@ -884,8 +939,10 @@ impl PlanBuilder {
         if self.frame.width > 0 {
             for d in &mut self.frame.draws {
                 if d.words[27] >= 0.0 {
-                    d.words[25] = (d.words[20] * scale).ceil() / self.frame.width as f32;
-                    d.words[26] = (d.words[21] * scale).ceil() / self.frame.height as f32;
+                    d.words[25] =
+                        (d.words[20] * scale).ceil() / self.frame.scratch_sizes[0][0] as f32;
+                    d.words[26] =
+                        (d.words[21] * scale).ceil() / self.frame.scratch_sizes[0][1] as f32;
                 }
             }
         }

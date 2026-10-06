@@ -25,7 +25,18 @@ pub fn packages() -> Result<Vec<Arc<EffectPackage>>> {
         })
         .clone()
         .map_err(Error::Invalid)?;
-    Ok(vec![previous, package()?, scene_package()?])
+    static CREATIVE: OnceLock<std::result::Result<Arc<EffectPackage>, String>> = OnceLock::new();
+    let creative = CREATIVE
+        .get_or_init(|| {
+            EffectPackage::from_bytes(
+                include_bytes!("../library/legacy/core-effects-1.1.0.msfx").to_vec(),
+            )
+            .map(Arc::new)
+            .map_err(|e| e.to_string())
+        })
+        .clone()
+        .map_err(Error::Invalid)?;
+    Ok(vec![previous, creative, package()?, scene_package()?])
 }
 fn build() -> Result<EffectPackage> {
     // Every host installs the exact published package bytes, independent of the

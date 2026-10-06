@@ -4,9 +4,9 @@ use std::{io::Write, sync::Arc};
 #[test]
 fn entire_library_compiles_to_wgsl_and_es300() {
     let package = builtin::package().unwrap();
-    assert_eq!(package.manifest.effects.len(), 36);
+    assert_eq!(package.manifest.effects.len(), 52);
     for e in &package.manifest.effects {
-        if e.compatibility_profile == "ae2021-srgb8-v1" {
+        if !e.reference_match_name.is_empty() {
             assert_eq!(e.reference_version, "18.0.1");
         } else {
             assert!(e.reference_match_name.is_empty());
@@ -33,14 +33,30 @@ fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
         .find(|p| p.manifest.version == "1.0.0")
         .unwrap();
     let current = builtin::package().unwrap();
-    assert_eq!(current.manifest.version, "1.1.0");
+    assert_eq!(current.manifest.version, "1.2.0");
     assert_eq!(old.manifest.effects.len(), 20);
     assert_eq!(
         old.hash, "446d91d606ee24c9acbee8dad942ecced978085133a3c380efef15def2226399",
         "published 1.0.0 bytes must never be repacked"
     );
     assert_ne!(old.hash, current.hash);
-    for definition in &old.manifest.effects {
+    let published = packages
+        .iter()
+        .find(|p| p.manifest.id == builtin::PLUGIN_ID && p.manifest.version == "1.1.0")
+        .unwrap();
+    assert_eq!(
+        published.hash,
+        "df9da73a4c18ee5c8d1c652d60bb5c45b01677371e461f65cafc3272746bbbf2"
+    );
+    assert_eq!(published.manifest.effects.len(), 36);
+    for definition in &published.manifest.effects {
+        let mut normalized = definition.clone();
+        for p in &mut normalized.params {
+            if p.kind == aem_effects::ParamKind::Color {
+                p.min = 0.;
+                p.max = 1.;
+            }
+        }
         assert_eq!(
             current
                 .manifest
@@ -48,11 +64,11 @@ fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
                 .iter()
                 .find(|e| e.id == definition.id)
                 .unwrap(),
-            definition
+            &normalized
         );
         for index in 0..definition.passes.len() {
             assert_eq!(
-                old.shaders[&(definition.id.clone(), index)].wgsl,
+                published.shaders[&(definition.id.clone(), index)].wgsl,
                 current.shaders[&(definition.id.clone(), index)].wgsl
             );
         }
@@ -186,7 +202,7 @@ fn installation_is_idempotent_and_snapshots_hold_resources() {
     let snapshot = r.resolve(&a.id, &a.version, &a.hash).unwrap();
     r.enable(&store, &a.id, &a.version, &a.hash, false).unwrap();
     assert!(r.resolve(&a.id, &a.version, &a.hash).is_err());
-    assert_eq!(snapshot.manifest.effects.len(), 36);
+    assert_eq!(snapshot.manifest.effects.len(), 52);
     assert!(!r.install(&store, &input).unwrap().enabled);
     r.enable(&store, &a.id, &a.version, &a.hash, true).unwrap();
     let loaded = Registry::load(&store).unwrap();

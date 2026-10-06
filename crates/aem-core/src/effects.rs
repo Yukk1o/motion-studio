@@ -182,10 +182,8 @@ impl EffectParam {
             std::iter::once(self.track.value).chain(self.track.keys.iter().map(|k| k.value))
         {
             ensure(
-                value[..self.kind.dimensions()]
-                    .iter()
-                    .all(|v| *v >= self.min && *v <= self.max),
-                "effect parameter exceeds range",
+                self.kind.valid_value(&value, self.min, self.max),
+                "effect parameter exceeds range or discrete value is not integral",
             )?;
             if self.kind.discrete() {
                 ensure(
