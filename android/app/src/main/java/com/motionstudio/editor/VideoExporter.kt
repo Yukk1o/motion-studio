@@ -247,7 +247,10 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             val base=buffer.getInt(16)/4+layer*32
             val asset=values.get(base+24).toInt();if(asset in skippedSlots)continue
             val passStart=values.get(base+28).toInt();val passEnd=values.get(base+29).toInt()
-            if(passStart<passEnd&&materialized!=layer) {effects!!.passes(buffer,passStart,passEnd);materialized=layer}
+            if(passStart<passEnd&&materialized!=layer) {
+                val video=if(asset<0)videoTextures[asset]?:error("视频画面未就绪")else null
+                effects!!.passes(buffer,passStart,passEnd,video);materialized=layer
+            }
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
             GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
             GLES30.glBindVertexArray(vertexArray);GLES30.glUseProgram(plane);GLES30.glUniform1i(imageLocation,0)

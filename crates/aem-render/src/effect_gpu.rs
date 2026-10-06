@@ -17,7 +17,7 @@ struct Buffer {
     group: wgpu::BindGroup,
 }
 struct Binding {
-    key: (i32, i32, i32, u32, u64),
+    key: (i32, i32, i32, u32, u64, Option<u64>),
     group: wgpu::BindGroup,
 }
 struct Lut {
@@ -499,6 +499,7 @@ impl GpuState {
         index: usize,
         frame: &EffectFramePlan,
         assets: &[u64],
+        video_object: Option<u64>,
         images: &HashMap<crate::renderer::TextureKey, GpuImage>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -510,11 +511,15 @@ impl GpuState {
             0,
             bytemuck::bytes_of(&p.uniform),
         );
-        let key = (p.input, p.source, p.lut, p.program, self.epoch);
+        let key = (p.input, p.source, p.lut, p.program, self.epoch, video_object);
         if self.bindings[index].as_ref().is_none_or(|v| v.key != key) {
             let view = |id: i32| -> &wgpu::TextureView {
                 if id < 0 {
-                    &images[&crate::renderer::TextureKey::Static(assets[(-id - 1) as usize])].view
+                    // External pass inputs refer to the owning layer's source.
+                    // Videos use a live instance texture rather than the white asset.
+                    let image = video_object.map(crate::renderer::TextureKey::Video)
+                        .unwrap_or_else(|| crate::renderer::TextureKey::Static(assets[(-id - 1) as usize]));
+                    &images[&image].view
                 } else {
                     &self.pool[id as usize].as_ref().unwrap().view
                 }

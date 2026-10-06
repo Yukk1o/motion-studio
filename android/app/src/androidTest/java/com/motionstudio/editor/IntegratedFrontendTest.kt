@@ -2,8 +2,11 @@ package com.motionstudio.editor
 
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -367,6 +370,98 @@ class IntegratedFrontendTest {
     @Test fun videoPlaybackUpdatesDecodedFramesWithOriginalSound(){verifyVideoPlayback(true)}
     @Test fun videoPlaybackUpdatesDecodedFramesWithoutSound(){verifyVideoPlayback(false)}
     @Test fun videoPlaybackUpdates1080pDecodedFramesWithoutSound(){verifyVideoPlayback(false,"preview-1080p.mp4")}
+    @Test fun compositionSurroundMarksTheFrameAndKeepsItsExportedBackground() {
+        val background=vm.state.project!!.getJSONArray("background").toString()
+        photo("composition-boundary")
+        val pixels=compose.onNodeWithTag("composition-boundary").captureToImage().toPixelMap()
+        val fit=minOf(pixels.width/256f,pixels.height/144f)
+        val left=(pixels.width-256*fit)/2;val top=(pixels.height-144*fit)/2
+        assertTrue("composition must have an outside region in this window",maxOf(left,top)>4)
+        val x=if(left>top)(left/2).roundToInt()else pixels.width/2
+        val y=if(left>top)pixels.height/2 else (top/2).roundToInt()
+        val outside=pixels[x,y]
+        assertEquals(48f,outside.red*255,2f);assertEquals(54f,outside.green*255,2f);assertEquals(64f,outside.blue*255,2f)
+        assertEquals(background,vm.state.project!!.getJSONArray("background").toString())
+        var output:File?=null
+        scenario.onActivity{vm.output(true){output=it}}
+        compose.waitUntil(30000){output!=null||vm.state.error!=null}
+        assertNull(vm.state.error);assertNotNull(output)
+        val bitmap=BitmapFactory.decodeFile(output!!.absolutePath)
+        assertEquals(256,bitmap.width);assertEquals(144,bitmap.height)
+        val actual=bitmap.getPixel(128,72);bitmap.recycle()
+        val expected=JSONArray(background)
+        assertEquals(expected.getDouble(0)*255,Color.red(actual).toDouble(),2.0)
+        assertEquals(expected.getDouble(1)*255,Color.green(actual).toDouble(),2.0)
+        assertEquals(expected.getDouble(2)*255,Color.blue(actual).toDouble(),2.0)
+        File(root,"composition-boundary-report.json").writeText(JSONObject().put("surroundRgb",JSONArray(listOf(48,54,64))).put("compositionWidth",256).put("compositionHeight",144).put("backgroundPreserved",true).toString(2))
+    }
+    @Test fun videoEffectMenusOpenFromPropertiesAndFooter() {
+        import("video","sound-24fps.mp4")
+        scenario.onActivity{vm.clearMediaNotice()}
+        compose.onNodeWithContentDescription("图层操作").performClick()
+        compose.onNodeWithTag("open-effects").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("effects-panel").assertIsDisplayed()
+        assertTimelineVisible();photo("video-effects-from-properties")
+        compose.onNodeWithContentDescription("关闭效果").performClick()
+        compose.onNodeWithContentDescription("图层快捷操作").performClick()
+        compose.onNodeWithTag("open-effects").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("effects-add").performClick();addEffect("brightness_contrast")
+        assertNotNull(vm.audioClip());assertTimelineVisible();photo("video-effects-from-footer")
+    }
+    private fun meanRgbDifference(a:Bitmap,b:Bitmap):Double {
+        assertEquals(a.width,b.width);assertEquals(a.height,b.height)
+        var sum=0L;var count=0
+        for(y in 0 until a.height step 2)for(x in 0 until a.width step 2) {
+            val left=a.getPixel(x,y);val right=b.getPixel(x,y)
+            sum+=kotlin.math.abs(Color.red(left)-Color.red(right))+kotlin.math.abs(Color.green(left)-Color.green(right))+kotlin.math.abs(Color.blue(left)-Color.blue(right))
+            count+=3
+        }
+        return sum.toDouble()/count
+    }
+    @Test fun videoEffectsUseMovingFramesInPreviewPngAndEncodedOutput() {
+        import("video","sound-24fps.mp4")
+        scenario.onActivity{vm.clearMediaNotice();vm.seek(0.0)}
+        effects();photo("video-effect-original")
+        val original=copyPreview()
+        addEffect("brightness_contrast");photo("video-effect-neutral")
+        val neutral=copyPreview();val neutralError=meanRgbDifference(original,neutral)
+        original.recycle();neutral.recycle()
+        assertTrue("neutral video effect replaced the decoded image: $neutralError",neutralError<2)
+        val objectId=vm.selected;val instance=vm.layer(objectId)!!.getJSONArray("effects").getJSONObject(0).getLong("id")
+        scenario.onActivity{vm.effectAction(objectId,instance,"set",JSONObject().put("param","p0001").put("frame",0).put("value",JSONArray(listOf(40,0,0,0))))}
+        compose.waitUntil(10000){vm.effectParam(objectId,instance,"p0001")!!.getJSONObject("track").getJSONArray("value").getDouble(0)==40.0&&vm.state.saved}
+        photo("video-effect-adjusted");val adjusted=copyPreview()
+        scenario.onActivity{vm.effectAction(objectId,instance,"enable",JSONObject().put("enabled",false))}
+        compose.waitUntil(10000){!vm.effectInstance(objectId,instance)!!.getBoolean("enabled")&&vm.state.saved}
+        photo("video-effect-disabled");val disabled=copyPreview()
+        val effectDifference=meanRgbDifference(adjusted,disabled);disabled.recycle()
+        assertTrue("video effect did not change preview pixels: $effectDifference",effectDifference>5)
+        scenario.onActivity{vm.effectAction(objectId,instance,"enable",JSONObject().put("enabled",true));vm.seek(30.0)}
+        photo("video-effect-later-frame");val later=copyPreview()
+        val frameDifference=meanRgbDifference(adjusted,later);adjusted.recycle();later.recycle()
+        assertTrue("video effect froze the decoded frames: $frameDifference",frameDifference>5)
+        scenario.onActivity{vm.seek(0.0)};photo("video-effect-export-frame")
+        var png:File?=null
+        scenario.onActivity{vm.output(true){png=it}}
+        compose.waitUntil(30000){png!=null||vm.state.error!=null}
+        assertNull(vm.state.error);assertNotNull(png)
+        val reference=BitmapFactory.decodeFile(png!!.absolutePath)
+        File(root,"video-effect-capture.png").outputStream().use{reference.compress(Bitmap.CompressFormat.PNG,100,it)}
+        var output:File?=null
+        scenario.onActivity{vm.exportVideo{output=it}}
+        compose.waitUntil(90000){output!=null||(!vm.exporting&&vm.state.error!=null)}
+        assertNull(vm.state.error);assertNotNull(output)
+        val retriever=MediaMetadataRetriever()
+        val decoded=try{retriever.setDataSource(output!!.absolutePath);retriever.getFrameAtIndex(0)!!}finally{retriever.release()}
+        val exportError=meanRgbDifference(reference,decoded);reference.recycle();decoded.recycle()
+        assertTrue("encoded video effect differs from PNG: $exportError",exportError<8)
+        File(root,"video-effects-report.json").writeText(JSONObject().put("neutralMeanRgb",neutralError).put("enabledDifferenceRgb",effectDifference).put("laterFrameDifferenceRgb",frameDifference).put("encodedVsPngMeanRgb",exportError).toString(2))
+        val extractor=MediaExtractor()
+        try {
+            extractor.setDataSource(output!!.absolutePath)
+            assertEquals(setOf("video/avc","audio/mp4a-latm"),(0 until extractor.trackCount).map{extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)}.toSet())
+        }finally{extractor.release()}
+    }
     @Test fun audioImportsWaveformPlaysAndMutesWithoutSpatialControls() {
         import("audio","tone-stereo-48000.wav")
         compose.onNodeWithTag("audio-properties").assertExists()

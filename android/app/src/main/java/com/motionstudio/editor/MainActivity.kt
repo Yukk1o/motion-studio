@@ -300,6 +300,25 @@ open class MainActivity:ComponentActivity() {
                 override fun surfaceDestroyed(holder:SurfaceHolder){vm.detach()}
             })
         }},modifier=Modifier.fillMaxSize())
+        Canvas(Modifier.fillMaxSize().testTag("composition-boundary")) {
+            val project=vm.state.project?:return@Canvas
+            val fit=min(size.width/project.getInt("width"),size.height/project.getInt("height"))
+            val width=project.getInt("width")*fit;val height=project.getInt("height")*fit
+            val left=(size.width-width)/2;val top=(size.height-height)/2
+            val surround=Color(0xFF303640)
+            if(left>0) {
+                drawRect(surround,Offset.Zero,Size(left,size.height))
+                drawRect(surround,Offset(left+width,0f),Size(left,size.height))
+            }
+            if(top>0) {
+                drawRect(surround,Offset.Zero,Size(size.width,top))
+                drawRect(surround,Offset(0f,top+height),Size(size.width,top))
+            }
+            val stroke=1.dp.toPx()
+            drawRect(Color(0xFF778291),Offset(left+stroke/2,top+stroke/2),
+                Size((width-stroke).coerceAtLeast(0f),(height-stroke).coerceAtLeast(0f)),
+                style=androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        }
         Canvas(Modifier.fillMaxSize()) {
             if(!vm.playing&&vm.selected!=0L) {
                 previewPolygons(vm,size.width,size.height).firstOrNull{it.first==vm.selected}?.second?.let{points->
