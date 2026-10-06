@@ -1,0 +1,1251 @@
+{
+  "adts.aac": {
+    "sha256": "d873bb544de097d05cecad8c7210fd6f9187c49edc90be5f0a6065b4a0af1662",
+    "bytes": 33489,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "aac",
+        "profile": "LC",
+        "sample_rate": "16000",
+        "channels": 2,
+        "duration": "2.112038",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "duration": "2.112038"
+    }
+  },
+  "avc.mkv": {
+    "sha256": "3129252025b5ba76cce93d0e444a568fc3122f29b2f1be8102857451eb3e3e0c",
+    "bytes": 18932,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "h264",
+        "profile": "High",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "HANDLER_NAME": "VideoHandler",
+          "ENCODER": "Lavc63.7.100 libx264",
+          "DURATION": "00:00:03.000000000"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "profile": "LC",
+        "sample_rate": "48000",
+        "channels": 2,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "HANDLER_NAME": "SoundHandler",
+          "DURATION": "00:00:03.029000000"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.029000",
+      "tags": {
+        "ENCODER": "Lavf63.5.101"
+      }
+    }
+  },
+  "avc.mov": {
+    "sha256": "eb1e752cd013dfca5d30e97b251e1f1be470b3a36590c1f3b2531224fef8fbb8",
+    "bytes": 20647,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "h264",
+        "profile": "High",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "duration": "2.999999",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "handler_name": "VideoHandler",
+          "vendor_id": "FFMP",
+          "encoder": "Lavc63.7.100 libx264"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "profile": "LC",
+        "sample_rate": "48000",
+        "channels": 2,
+        "duration": "3.000000",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "handler_name": "SoundHandler",
+          "vendor_id": "[0][0][0][0]"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.000000",
+      "tags": {
+        "major_brand": "qt  ",
+        "minor_version": "512",
+        "compatible_brands": "qt  ",
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "float32.wav": {
+    "sha256": "cd54bdbbb4c8193374ddf062df8694a4b6cb5b67b3adf2beba999d8bf9ac61a3",
+    "bytes": 512092,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "pcm_f32le",
+        "sample_rate": "32000",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "duration": "2.000000",
+      "tags": {
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "float64.wav": {
+    "sha256": "bca196bdfc108c4478904abc8dabf730e64536f443ce44b75c10bbeff1d0b74a",
+    "bytes": 352892,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "pcm_f64le",
+        "sample_rate": "11025",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "duration": "2.000000",
+      "tags": {
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "hevc.mkv": {
+    "sha256": "104262aafd99fed5134773e9811f2b0aea46f9ffd223e3bfa517c717ffece017",
+    "bytes": 20712,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "hevc",
+        "profile": "Main",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "HANDLER_NAME": "VideoHandler",
+          "ENCODER": "Lavc63.7.100 libx265",
+          "DURATION": "00:00:03.000000000"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "profile": "LC",
+        "sample_rate": "48000",
+        "channels": 2,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "HANDLER_NAME": "SoundHandler",
+          "DURATION": "00:00:03.029000000"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.029000",
+      "tags": {
+        "ENCODER": "Lavf63.5.101"
+      }
+    }
+  },
+  "hevc.mp4": {
+    "sha256": "7a1b8af1fe4db9d4d7fe09558b1d5df2936e7367dc575aa767bb2194dadb709e",
+    "bytes": 21986,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "hevc",
+        "profile": "Main",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "duration": "3.000000",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx265"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "aac",
+        "profile": "LC",
+        "sample_rate": "48000",
+        "channels": 2,
+        "duration": "3.000000",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "SoundHandler"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.000000",
+      "tags": {
+        "major_brand": "isom",
+        "minor_version": "512",
+        "compatible_brands": "isomiso2mp41",
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "linear.aiff": {
+    "sha256": "b7b50719c5aa392274815963e903e65aad0e2abc5884fb5a9eabde3568de0bc4",
+    "bytes": 384054,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "pcm_s16be",
+        "sample_rate": "48000",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "2.000000"
+    }
+  },
+  "lossless.flac": {
+    "sha256": "946084656c0225741c06a64320738227ca900aaf0204b8287935b856461455a5",
+    "bytes": 108251,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "flac",
+        "sample_rate": "96000",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "2.000000",
+      "tags": {
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "lossless.m4a": {
+    "sha256": "f5658d1f8d870f54887908762a0375ef8131e6e616e6205f8278d14eace347d4",
+    "bytes": 104714,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "alac",
+        "sample_rate": "44100",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "SoundHandler"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "2.000000",
+      "tags": {
+        "major_brand": "M4A ",
+        "minor_version": "512",
+        "compatible_brands": "M4A isomiso2",
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "opus.ogg": {
+    "sha256": "cd6aadf0e92da4e5e82717cc0237c76b45b6f2bcd838ee9730db87371d4b6282",
+    "bytes": 32097,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "opus",
+        "sample_rate": "48000",
+        "channels": 2,
+        "duration": "2.006500",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "encoder": "Lavc63.7.100 libopus"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "2.006500"
+    }
+  },
+  "pcm24.wav": {
+    "sha256": "6c942fa4a7c429502eaedd39b4a6842807fdaf897dcb5e870aa75c53c602a2d9",
+    "bytes": 1152102,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "pcm_s24le",
+        "sample_rate": "96000",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "duration": "2.000000",
+      "tags": {
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "pcm32.wav": {
+    "sha256": "833429478e11de880baf94f6f82be835e900801f19862b052d524d102f989aad",
+    "bytes": 3072102,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "pcm_s32le",
+        "sample_rate": "192000",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "duration": "2.000000",
+      "tags": {
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "pcm8.wav": {
+    "sha256": "b4882f21b65f20e8360514f4af61a6edc581c957765c967a2e0c361ba2167c39",
+    "bytes": 32078,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "pcm_u8",
+        "sample_rate": "8000",
+        "channels": 2,
+        "duration": "2.000000",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        }
+      }
+    ],
+    "format": {
+      "duration": "2.000000",
+      "tags": {
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "reject-hevc10.mp4": {
+    "sha256": "312e837987e8906b488da1c66806e039547a2d5c330d11098a522d13b53482fb",
+    "bytes": 7294,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "hevc",
+        "profile": "Main 10",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p10le",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "duration": "3.000000",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "language": "und",
+          "handler_name": "VideoHandler",
+          "encoder": "Lavc63.7.100 libx265"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.000000",
+      "tags": {
+        "major_brand": "isom",
+        "minor_version": "512",
+        "compatible_brands": "isomiso2mp41",
+        "encoder": "Lavf63.5.101"
+      }
+    }
+  },
+  "reject-vp9-10.webm": {
+    "sha256": "2800c99d7c7ee8c06aae2edab02cc78ae3ad69d2f450b8d7e8618696beb5a74c",
+    "bytes": 3730,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "vp9",
+        "profile": "Profile 2",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p10le",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libvpx-vp9",
+          "HANDLER_NAME": "VideoHandler",
+          "DURATION": "00:00:03.000000000"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.000000",
+      "tags": {
+        "ENCODER": "Lavf63.5.101"
+      }
+    }
+  },
+  "vorbis.ogg": {
+    "sha256": "05b6f88b0bb1fa85b825b02820a5d989e33726e43cf0647e49bd3bae564314b0",
+    "bytes": 8222,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "vorbis",
+        "sample_rate": "22050",
+        "channels": 2,
+        "duration": "2.011610",
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "encoder": "Lavc63.7.100 libvorbis"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "-0.011610",
+      "duration": "2.011610"
+    }
+  },
+  "vp8-601.webm": {
+    "sha256": "72c4eec645f740058d9b8970138787b6b326d5446c20014892c392859ea8a49a",
+    "bytes": 19137,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "vp8",
+        "profile": "0",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "smpte170m",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libvpx",
+          "HANDLER_NAME": "VideoHandler",
+          "DURATION": "00:00:03.000000000"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "vorbis",
+        "sample_rate": "48000",
+        "channels": 2,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libvorbis",
+          "HANDLER_NAME": "SoundHandler",
+          "DURATION": "00:00:03.003000000"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.003000",
+      "tags": {
+        "ENCODER": "Lavf63.5.101"
+      }
+    }
+  },
+  "vp8.webm": {
+    "sha256": "9707a79e87daea36dd7d378ddd6ec533408714e988fb035eaa983739c538394d",
+    "bytes": 18403,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "vp8",
+        "profile": "0",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libvpx",
+          "HANDLER_NAME": "VideoHandler",
+          "DURATION": "00:00:03.000000000"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "vorbis",
+        "sample_rate": "48000",
+        "channels": 2,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libvorbis",
+          "HANDLER_NAME": "SoundHandler",
+          "DURATION": "00:00:03.003000000"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.003000",
+      "tags": {
+        "ENCODER": "Lavf63.5.101"
+      }
+    },
+    "oracle_color_matrix": "bt709"
+  },
+  "vp9-delayed.webm": {
+    "sha256": "7d0875ae1ee3d475189a809bd1a9329c27ca5252ec3cc0a39799b608fd46de69",
+    "bytes": 40410,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "vp9",
+        "profile": "Profile 0",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libvpx-vp9",
+          "HANDLER_NAME": "VideoHandler",
+          "DURATION": "00:00:03.000000000"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "opus",
+        "sample_rate": "48000",
+        "channels": 2,
+        "disposition": {
+          "default": 0,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libopus",
+          "DURATION": "00:00:02.258000000"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.000000",
+      "tags": {
+        "ENCODER": "Lavf63.5.101"
+      }
+    }
+  },
+  "vp9.webm": {
+    "sha256": "c697d395940d6538e9ff357d2e57ebaa43b5d3edbf3bb50b0744a1784b537c7d",
+    "bytes": 49730,
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "index": 0,
+        "codec_name": "vp9",
+        "profile": "Profile 0",
+        "width": 256,
+        "height": 144,
+        "pix_fmt": "yuv420p",
+        "color_range": "tv",
+        "color_space": "bt709",
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libvpx-vp9",
+          "HANDLER_NAME": "VideoHandler",
+          "DURATION": "00:00:03.000000000"
+        }
+      },
+      {
+        "index": 1,
+        "codec_name": "opus",
+        "sample_rate": "48000",
+        "channels": 2,
+        "disposition": {
+          "default": 1,
+          "dub": 0,
+          "original": 0,
+          "comment": 0,
+          "lyrics": 0,
+          "karaoke": 0,
+          "forced": 0,
+          "hearing_impaired": 0,
+          "visual_impaired": 0,
+          "clean_effects": 0,
+          "attached_pic": 0,
+          "timed_thumbnails": 0,
+          "non_diegetic": 0,
+          "captions": 0,
+          "descriptions": 0,
+          "metadata": 0,
+          "dependent": 0,
+          "still_image": 0,
+          "multilayer": 0
+        },
+        "tags": {
+          "ENCODER": "Lavc63.7.100 libopus",
+          "HANDLER_NAME": "SoundHandler",
+          "DURATION": "00:00:03.008000000"
+        }
+      }
+    ],
+    "format": {
+      "start_time": "0.000000",
+      "duration": "3.008000",
+      "tags": {
+        "ENCODER": "Lavf63.5.101"
+      }
+    }
+  }
+}

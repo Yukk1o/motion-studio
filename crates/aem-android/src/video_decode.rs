@@ -13,7 +13,6 @@ use ndk_sys as ffi;
 use serde_json::json;
 use std::{
     fs::File,
-    io::Read,
     os::fd::AsRawFd,
     path::Path,
     ptr::NonNull,
@@ -24,7 +23,7 @@ static JVM: std::sync::OnceLock<jni::JavaVM> = std::sync::OnceLock::new();
 pub fn set_vm(vm: jni::JavaVM) {
     let _ = JVM.set(vm);
 }
-fn attach() -> Result<jni::AttachGuard<'static>> {
+pub(super) fn attach() -> Result<jni::AttachGuard<'static>> {
     JVM.get()
         .ok_or("video Java VM not initialized")?
         .attach_current_thread()
@@ -48,9 +47,9 @@ impl Drop for Permit {
         CODECS.fetch_sub(1, Ordering::AcqRel);
     }
 }
-struct Extractor(NonNull<ffi::AMediaExtractor>);
+pub(super) struct Extractor(pub(super) NonNull<ffi::AMediaExtractor>);
 impl Extractor {
-    fn open(path: &Path) -> Result<Self> {
+    pub(super) fn open(path: &Path) -> Result<Self> {
         let file = File::open(path).map_err(|e| e.to_string())?;
         let bytes = file.metadata().map_err(|e| e.to_string())?.len();
         let p = NonNull::new(unsafe { ffi::AMediaExtractor_new() })
@@ -64,26 +63,26 @@ impl Extractor {
         )?;
         Ok(this)
     }
-    fn format(&self, track: u32) -> Result<MediaFormat> {
+    pub(super) fn format(&self, track: u32) -> Result<MediaFormat> {
         let p = NonNull::new(unsafe {
             ffi::AMediaExtractor_getTrackFormat(self.0.as_ptr(), track as usize)
         })
         .ok_or("missing media track")?;
         Ok(unsafe { MediaFormat::from_ptr(p) })
     }
-    fn select(&self, track: u32) -> Result<()> {
+    pub(super) fn select(&self, track: u32) -> Result<()> {
         status(
             unsafe { ffi::AMediaExtractor_selectTrack(self.0.as_ptr(), track as usize) },
             "select video track",
         )
     }
-    fn pts(&self) -> i64 {
+    pub(super) fn pts(&self) -> i64 {
         unsafe { ffi::AMediaExtractor_getSampleTime(self.0.as_ptr()) }
     }
-    fn eos(&self) -> bool {
+    pub(super) fn eos(&self) -> bool {
         (unsafe { ffi::AMediaExtractor_getSampleTrackIndex(self.0.as_ptr()) }) < 0
     }
-    fn advance(&self) -> bool {
+    pub(super) fn advance(&self) -> bool {
         unsafe { ffi::AMediaExtractor_advance(self.0.as_ptr()) }
     }
     fn seek(&self, pts: u64) -> Result<()> {
@@ -124,13 +123,7 @@ pub fn probe(
     check: &dyn Fn() -> Result<()>,
 ) -> Result<VideoProbe> {
     let _attach = attach()?;
-    let mut header = [0; 12];
-    File::open(path)
-        .and_then(|mut f| f.read_exact(&mut header))
-        .map_err(|e| e.to_string())?;
-    if &header[4..8] != b"ftyp" || &header[8..12] == b"qt  " {
-        return Err("first video release requires an MP4 container".into());
-    }
+    // Let MediaExtractor sniff owned source bytes. Filenames are not a format gate.
     let ex = Extractor::open(path)?;
     let count = unsafe { ffi::AMediaExtractor_getTrackCount(ex.0.as_ptr()) };
     if count == 0 || count > 32 {
@@ -144,15 +137,15 @@ pub fn probe(
         check()?;
         let mut f = ex.format(i as u32)?;
         let mime = f.str("mime").unwrap_or("").to_string();
-        if mime.starts_with("video/") && selected.is_none_or(|n| n == i as u32) && video.is_none() {
+        if mime.starts_with("video/") && selected.map_or(aem_media::VIDEO_MIMES.contains(&mime.as_str()), |n| n == i as u32) && video.is_none() {
             video = Some(i as u32);
         }
         if mime.starts_with("audio/") {
             has_audio = true;
             let rate = f.i32("sample-rate").unwrap_or(0);
             let channels = f.i32("channel-count").unwrap_or(0);
-            let supported = mime == "audio/mp4a-latm"
-                && matches!(rate, 44100 | 48000)
+            let supported = aem_media::NATIVE_AUDIO_MIMES.contains(&mime.as_str())
+                && (8000..=192000).contains(&rate)
                 && matches!(channels, 1 | 2);
             tracks.push(json!({"track":i,"mime":mime,"sample_rate":rate,"channels":channels,"duration_us":f.i64("durationUs"),"supported":supported}));
             if supported && audio_selected.is_none_or(|n| n == i as u32) && chosen_audio.is_none() {
@@ -161,17 +154,47 @@ pub fn probe(
         }
     }
     if audio_selected != Some(u32::MAX) && has_audio && chosen_audio.is_none() {
-        return Err("video has no supported selected AAC-LC audio track; explicitly use with_audio:false to discard audio".into());
+        return Err("video has no supported selected mono/stereo audio track; explicitly use with_audio:false to discard audio".into());
     }
     if audio_selected.is_some_and(|n| n != u32::MAX) && chosen_audio != audio_selected {
         return Err("selected video audio track is unavailable".into());
     }
     let track = video.ok_or("selected video track missing")?;
     let mut format = ex.format(track)?;
-    if format.str("mime") != Some("video/avc") {
-        return Err("only H.264 video is supported".into());
+    let mime = format.str("mime").unwrap_or("").to_string();
+    if !aem_media::VIDEO_MIMES.contains(&mime.as_str()) {
+        return Err(format!("unsupported video codec: {mime}"));
     }
-    let vui = aem_media::avc_metadata(format.buffer("csd-0").ok_or("H.264 SPS missing")?)?;
+    let vui = match mime.as_str() {
+        "video/avc" => aem_media::avc_metadata(format.buffer("csd-0").ok_or("H.264 SPS missing")?)?,
+        "video/hevc" => aem_media::hevc_metadata(format.buffer("csd-0").ok_or("HEVC SPS missing")?)?,
+        "video/x-vnd.on2.vp9" => {
+            // VP9 profile zero is always 8-bit 4:2:0. Verify the first keyframe
+            // even when the extractor omits the profile key.
+            let check_ex = Extractor::open(path)?; check_ex.select(track)?;
+            let mut first = vec![0u8; 1024 * 1024];
+            let n = unsafe { ffi::AMediaExtractor_readSampleData(check_ex.0.as_ptr(), first.as_mut_ptr().cast(), first.len()) };
+            if n <= 0 || n as usize > first.len() { return Err("invalid VP9 first packet".into()); }
+            aem_media::vp9_metadata(&first[..n as usize])?
+        }
+        _ => aem_media::AvcMetadata::default(),
+    };
+    let container = if aem_media::source_extension(path)?=="mkv" {Some(aem_media::matroska_metadata(path)?)}else{None};
+    let container_track=container.as_ref().and_then(|m|{
+        let number=format.i32("track-id").unwrap_or(track as i32+1) as u64;
+        m.tracks.iter().find(|t|t.number==number)
+    });
+    if container_track.is_some_and(|t|t.primaries==Some(9)||t.transfer.is_some_and(|v|matches!(v,16|18))||t.bit_depth.is_some_and(|v|v>8)) {
+        return Err("HDR/10-bit Matroska video unsupported".into());
+    }
+    let container_standard=match container_track.and_then(|t|t.matrix) {
+        Some(1)=>Some(1),Some(5)=>Some(2),Some(6)=>Some(4),Some(2)|None=>None,
+        _=>return Err("unsupported Matroska colour matrix".into()),
+    };
+    let container_range=match container_track.and_then(|t|t.range) {
+        Some(1)=>Some(2),Some(2)=>Some(1),Some(0)|None=>None,
+        _=>return Err("unsupported Matroska colour range".into()),
+    };
     if format
         .i32("color-transfer")
         .is_some_and(|v| matches!(v, 6 | 7))
@@ -193,12 +216,14 @@ pub fn probe(
     let rate = format.i32("frame-rate").unwrap_or(0);
     let standard = vui
         .color_standard
+        .or(container_standard)
         .map(|v| v as i32)
         .or_else(|| format.i32("color-standard"))
         .filter(|v| *v != 0)
         .unwrap_or(if width >= 1280 || height > 576 { 1 } else { 4 }) as u32;
     let range = vui
         .color_range
+        .or(container_range)
         .map(|v| v as i32)
         .or_else(|| format.i32("color-range"))
         .filter(|v| *v != 0)
@@ -266,7 +291,7 @@ pub fn probe(
         id: 1,
         path: "assets/probed-video.mp4".into(),
         bytes: std::fs::metadata(path).map_err(|e| e.to_string())?.len(),
-        mime: "video/avc".into(),
+        mime,
         track,
         width,
         height,
@@ -287,7 +312,7 @@ pub fn probe(
         color_range: range,
         audio_asset: None,
     };
-    asset.validate().map_err(|e| e.to_string())?;
+    asset.validate().map_err(|e| format!("{e}; codec={}, color_standard={}, color_range={}",asset.mime,asset.color_standard,asset.color_range))?;
     let mut decoder = Decoder::new(path, asset.clone(), timestamps.clone())?;
     let first = decoder.frame(asset.video_start_us, check)?;
     if timestamps.len() > 1 {
@@ -370,8 +395,7 @@ impl Decoder {
                 .map_err(|e| format!("video reader allocation: {e}"))?,
             )
         };
-        let codec =
-            MediaCodec::from_decoder_type("video/avc").ok_or("no H.264 decoder on this device")?;
+        let codec = MediaCodec::from_decoder_type(&asset.mime).ok_or_else(||format!("no {} decoder on this device", asset.mime))?;
         let window = reader.as_ref().map(|r| ndk(r.window())).transpose()?;
         ndk(codec.configure(&f, window.as_ref(), MediaCodecDirection::Decoder))?;
         ndk(codec.start())?;
@@ -468,7 +492,7 @@ impl Decoder {
                                 buffer.len(),
                             )
                         };
-                        if n < 0 {
+                        if n < 0 || n as usize > buffer.len() {
                             return Err("video sample read failed".into());
                         }
                         n as usize

@@ -29,6 +29,10 @@ use std::{
 mod audio_runtime;
 #[path = "video_decode.rs"]
 mod video_decode;
+#[path = "audio_decode.rs"]
+mod audio_decode;
+#[path = "media_capabilities.rs"]
+mod media_capabilities;
 #[path = "video_frames.rs"]
 mod video_frames;
 #[path = "video_runtime.rs"]
@@ -100,8 +104,8 @@ struct Session {
 }
 impl Session {
     fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
-        let audio_jobs = aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?;
-        let video_jobs = aem_media::VideoJobs::new(root.clone())?;
+        let audio_jobs = aem_media::AudioJobs::with_decoder(root.clone(), aem_media::Limits::default(), std::sync::Arc::new(audio_decode::decode))?;
+        let video_jobs = aem_media::VideoJobs::with_audio_decoder(root.clone(), std::sync::Arc::new(audio_decode::decode))?;
         if let Some(g) = &mut self.graphics {
             g.renderer
                 .replace_assets(engine.project(), &root)
@@ -160,9 +164,9 @@ impl Session {
             aem_effects::Registry::load(&plugin_root).map_err(|e| e.to_string())?,
         )?;
         Ok(Self {
-            video_jobs: aem_media::VideoJobs::new(root.clone())?,
+            video_jobs: aem_media::VideoJobs::with_audio_decoder(root.clone(), std::sync::Arc::new(audio_decode::decode))?,
             video_frames: video_frames::VideoFrames::default(),
-            audio_jobs: aem_media::AudioJobs::new(root.clone(), aem_media::Limits::default())?,
+            audio_jobs: aem_media::AudioJobs::with_decoder(root.clone(), aem_media::Limits::default(), std::sync::Arc::new(audio_decode::decode))?,
             audio_mixer: None,
             audio_pcm: Vec::new(),
             engine,
@@ -678,10 +682,10 @@ impl Session {
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
                 "multiple_compositions":false,"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
-                "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","max_pixels":2073600,"max_fps":120,
+                "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","containers":["MP4","MOV","3GP","Matroska","WebM"],"codecs":["H.264","H.265 Main","VP8","VP9 profile 0"],"profile":"8-bit 4:2:0 SDR","device_query":"media_capabilities","max_pixels":2073600,"max_fps":120,
                 "max_duration_seconds":3600,"async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
                 "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true},
-                "audio":{"supported_formats":["M4A/AAC-LC","MP3","WAV/PCM16"],"sample_rates":[44100,48000],"channels":[1,2],
+                "audio":{"supported_formats":["M4A/AAC-LC/ALAC","MP3","FLAC","Ogg/Vorbis/Opus","ADTS/AAC","WAV/PCM8/16/24/32/float","AIFF"],"sample_rates":[8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000],"sample_rate_range":[8000,192000],"channels":[1,2],"device_query":"media_capabilities",
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
                 "source_limit_bytes":aem_core::storage::MAX_MEDIA_ASSET,"source_duration_limit_seconds":3600,
                 "pcm_block_limit_frames":aem_media::MAX_BLOCK_FRAMES,"async_import":true,"ui_playback_integrated":true,"mp4_audio_mux_integrated":true}},
