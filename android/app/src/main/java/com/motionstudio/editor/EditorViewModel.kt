@@ -60,7 +60,6 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var property by mutableStateOf("position")
     var panelOpen by mutableStateOf(false)
     var effectsOpen by mutableStateOf(false)
-    var pluginsOpen by mutableStateOf(false)
     var catalogue by mutableStateOf<JSONObject?>(null); private set
     var importTask by mutableStateOf<JSONObject?>(null); private set
     var mediaNotice by mutableStateOf<String?>(null); private set
