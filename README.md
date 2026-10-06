@@ -16,6 +16,8 @@ Motion Studio 是一个由 AI 自主驱动开发的 Android 动效编辑器实�
 
 编辑界面支持视频与音频导入、视频原声、真实波形、音量和静音；播放使用混音采样时钟，MP4 导出同时编码画面和声音。效果属性使用内嵌面板，支持效果链、参数动画、五通道颜色曲线和效果包管理。接口与资源范围见 [音频 API](crates/aem-media/README.md) 和 [视频 API](crates/aem-media/VIDEO.md)。
 
+属性表达式后端使用 JavaScript，兼容部分 AE 常用写法；前端接入及兼容范围见 [表达式文档](docs/expressions/README.md)。表达式编辑界面由前端另行实现。
+
 ## 从图层到镜头
 
 | 图层与动画 | 摄影机与空间 |
