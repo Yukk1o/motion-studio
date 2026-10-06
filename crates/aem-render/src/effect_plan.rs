@@ -939,7 +939,7 @@ impl PlanBuilder {
             words[21] = region[3];
             words[22] = layer.opacity;
             words[23] = if additive { 1. } else { 0. };
-            words[24] = if layer.video.is_some() {
+            words[24] = if layer.video.is_some() || layer.composition {
                 -(layer.order as f32 + 1.0)
             } else {
                 asset as f32
@@ -949,6 +949,7 @@ impl PlanBuilder {
             words[27] = if materialized { 0.0 } else { -1.0 };
             words[28] = pass_start as f32;
             words[29] = self.frame.passes.len() as f32;
+            words[30] = if layer.composition {2.}else if layer.video.is_some(){1.}else{0.};
             self.frame.draws.push(PlannedDraw {
                 layer: layer.id,
                 words,

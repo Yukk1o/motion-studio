@@ -28,19 +28,17 @@ pub struct AudioMixer {
     sources: Vec<Source>,
     bytes: Vec<u8>,
     samples: Vec<f32>,
+    voices: Vec<aem_core::composition::AudioVoice>,
 }
 impl AudioMixer {
     pub fn new(project: Project, root: &Path) -> Result<Self> {
         project.validate().map_err(|e| e.to_string())?;
         let root = root.canonicalize().map_err(|e| e.to_string())?;
         let mut sources = Vec::new();
+        let voices=project.audio_voices().map_err(|e|e.to_string())?;
         let mut tables = HashMap::new();
         for a in &project.audio_assets {
-            if !project.layers.iter().any(|l| {
-                project
-                    .layer_audio(l)
-                    .is_some_and(|audio| audio.asset == a.id)
-            }) {
+            if !voices.iter().any(|voice|voice.asset==a.id) {
                 continue;
             }
             let path = cache_path(&root, a)?.canonicalize().map_err(|_| {
@@ -73,6 +71,7 @@ impl AudioMixer {
             sources,
             bytes: Vec::with_capacity((MAX_BLOCK_FRAMES + 64) * 8),
             samples: Vec::with_capacity((MAX_BLOCK_FRAMES + 64) * 2),
+            voices,
         })
     }
     pub fn total_frames(&self) -> u64 {
@@ -87,18 +86,9 @@ impl AudioMixer {
         }
         out.fill(0.0);
         let count = (out.len() / 2).min((self.total_frames() - start_sample) as usize);
-        let samples_per_frame = OUTPUT_RATE / u64::from(self.project.fps);
-        for layer in &self.project.layers {
-            let Some(audio) = self.project.layer_audio(layer) else {
-                continue;
-            };
-            if audio.muted || audio.volume == 0.0 {
-                continue;
-            }
-            let clip = layer.clip(self.project.frames);
-            let begin = start_sample.max(u64::from(clip.in_frame) * samples_per_frame);
-            let end =
-                (start_sample + count as u64).min(u64::from(clip.out_frame) * samples_per_frame);
+        for audio in &self.voices {
+            let begin = start_sample.max(audio.begin_sample);
+            let end = (start_sample + count as u64).min(audio.end_sample);
             if begin >= end {
                 continue;
             }
@@ -111,7 +101,7 @@ impl AudioMixer {
             let rate = i128::from(asset.sample_rate);
             let den = i128::from(OUTPUT_RATE) * 1_000_000;
             let position = |sample: u64| {
-                (i128::from(sample) - i128::from(clip.offset_frame) * i128::from(samples_per_frame))
+                (i128::from(sample) - i128::from(audio.offset_sample))
                     * rate
                     * 1_000_000
                     + i128::from(audio.source_offset_us) * rate * i128::from(OUTPUT_RATE)

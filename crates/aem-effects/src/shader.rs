@@ -31,8 +31,8 @@ struct EffectUniform {
 @group(2) @binding(7) var resource_sampler3: sampler;
 struct EffectVertex { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32> };
 @vertex fn sdk_vertex(@builtin(vertex_index) index: u32) -> EffectVertex {
-    let points = array<vec2<f32>,3>(vec2(-1.0,-1.0),vec2(3.0,-1.0),vec2(-1.0,3.0));
-    let p = points[index]; var out: EffectVertex;
+    let p=vec2<f32>(f32((index<<1u)&2u),f32(index&2u))*2.0-vec2<f32>(1.0);
+    var out:EffectVertex;
     out.position = vec4(p,0.0,1.0); out.uv = vec2(p.x*0.5+0.5,0.5-p.y*0.5); return out;
 }
 fn edge_uv(uv: vec2<f32>) -> vec2<f32> {
@@ -272,8 +272,8 @@ struct SpriteVertex {
 };
 @vertex fn sdk_vertex(@builtin(vertex_index) index: u32,
     @location(0) rect: vec4<f32>, @location(1) color: vec4<f32>, @location(2) style: vec4<f32>) -> SpriteVertex {
-    let points = array<vec2<f32>,6>(vec2(-0.5,0.5),vec2(-0.5,-0.5),vec2(0.5,0.5),vec2(0.5,0.5),vec2(-0.5,-0.5),vec2(0.5,-0.5));
-    let p=points[index]; var out:SpriteVertex;
+    let p=vec2<f32>(select(-0.5,0.5,index==2u || index==3u || index==5u),select(-0.5,0.5,index==0u || index==2u || index==3u));
+    var out:SpriteVertex;
     out.position=vec4(rect.xy+p*rect.zw,0.0,1.0);
     out.uv=vec2(p.x+0.5,0.5-p.y); out.color=color; out.style=style; return out;
 }
