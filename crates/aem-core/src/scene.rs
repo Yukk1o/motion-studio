@@ -41,6 +41,7 @@ pub struct Scene {
     node_states: Vec<u8>,
     node_ids: Vec<u64>,
     node_spatial: Vec<bool>,
+    evaluated_project: Option<Project>,
 }
 impl Scene {
     pub fn new(project: &Project) -> Self {
@@ -58,6 +59,7 @@ impl Scene {
             node_states: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_ids: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_spatial: Vec::with_capacity(crate::MAX_LAYERS + 1),
+            evaluated_project: None,
         }
     }
     pub fn sample(
@@ -70,6 +72,8 @@ impl Scene {
             frame.is_finite() && frame >= 0.0 && frame < f64::from(project.frames),
             "invalid sample time",
         )?;
+        let evaluated = project.evaluated_at(frame)?;
+        let project = evaluated.as_ref();
         self.frame = frame;
         self.fps = project.fps;
         self.curve_luts.clear();
@@ -215,7 +219,15 @@ impl Scene {
                 .sort_unstable_by(|a, b| b.depth.total_cmp(&a.depth).then(a.order.cmp(&b.order)));
             start = end;
         }
+        self.evaluated_project = match evaluated {
+            std::borrow::Cow::Owned(p) => Some(p),
+            std::borrow::Cow::Borrowed(_) => None,
+        };
         Ok(())
+    }
+    /// Computed numeric values for UI snapshots; original project tracks stay intact.
+    pub fn sampled_project<'a>(&'a self, original: &'a Project) -> &'a Project {
+        self.evaluated_project.as_ref().unwrap_or(original)
     }
     pub fn node_position(&self, id: u64) -> Option<[f32; 3]> {
         self.node_ids.iter().position(|v| *v == id).map(|i| {

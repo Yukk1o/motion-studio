@@ -30,6 +30,11 @@ def main():
     config=json.loads((shared/".tools/environment.json").read_text(encoding="utf-8"))
     target_dir=args.target_dir.resolve() if args.target_dir else shared/"target"/("main" if ROOT==shared else ROOT.name)
     toolchain=Path(config["ndk"])/"toolchains/llvm/prebuilt/windows-x86_64/bin"
+    # Windows NDK distributions do not always include libclang for bindgen.
+    # Keep the pinned build-only wheel in the shared private tool directory.
+    libclang=shared/".tools/python-libclang/clang/native"
+    if not (libclang/"libclang.dll").exists():
+        subprocess.run([sys.executable,"-m","pip","install","--no-cache-dir","--target",str(shared/".tools/python-libclang"),"libclang==18.1.1"],check=True)
     env=os.environ.copy()
     env["JAVA_HOME"]=config["java_home"]
     env["ANDROID_HOME"]=config["sdk"]
@@ -47,6 +52,15 @@ def main():
         build_env=env.copy()
         build_env[prefix+"_LINKER"]=str(toolchain/"clang.exe")
         build_env[prefix+"_RUSTFLAGS"]=f"-Clink-arg=--target={clang_target} -Clink-arg=-Wl,-z,max-page-size=16384"
+        # Native dependencies (QuickJS and the JS parser's stack guard) use cc-rs.
+        # Explicit target flags prevent it selecting the host MSVC compiler.
+        cc_target=target.replace("-","_")
+        build_env["CC_"+cc_target]=str(toolchain/"clang.exe")
+        build_env["AR_"+cc_target]=str(toolchain/"llvm-ar.exe")
+        build_env["CFLAGS_"+cc_target]=f"--target={clang_target}"
+        build_env["LIBCLANG_PATH"]=str(libclang)
+        sysroot=(toolchain.parent/"sysroot").as_posix()
+        build_env["BINDGEN_EXTRA_CLANG_ARGS"]=f'--target={clang_target} --sysroot="{sysroot}"'
         print(f"Building native runtime for {abi}",flush=True)
         features=["--features","diagnostics"] if diagnostics else []
         subprocess.run(["cargo","build","--locked","-p","aem-android","--target",target,"--release",*features],cwd=ROOT,env=build_env,check=True)

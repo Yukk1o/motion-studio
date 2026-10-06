@@ -6,6 +6,7 @@ mod compositor;
 mod curve;
 mod editor;
 mod effects;
+mod expressions;
 mod hierarchy;
 mod model;
 mod scene;
@@ -25,6 +26,9 @@ pub use effects::{
     CurveLut, CurveObject, CurveTrack, EffectAction, EffectInstance, EffectParam, PluginDependency,
     SampledEffect,
 };
+pub use expressions::{
+    ExpressionTarget, ExpressionValue, PropertyExpression, EXPRESSION_PROFILE, MAX_EXPRESSIONS,
+};
 pub use model::{
     Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS,
 };
@@ -37,7 +41,8 @@ pub fn scene_prefix_delta(
     frame: f64,
     delta: [f32; 3],
 ) -> Result<[f32; 3]> {
-    let mut prefix = hierarchy::prefix(p, object, frame)?;
+    let evaluated = p.evaluated_at(frame)?;
+    let mut prefix = hierarchy::prefix(&evaluated, object, frame)?;
     if p.layers.iter().any(|l| l.id == object && !l.three_d) {
         prefix = scene::flat_matrix(prefix);
     }
@@ -53,6 +58,12 @@ pub fn scene_prefix_delta(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("expression {target} at frame {frame}: {message}")]
+    Expression {
+        target: String,
+        frame: f64,
+        message: String,
+    },
     #[error("{0}")]
     Invalid(String),
     #[error("object {0} does not exist")]

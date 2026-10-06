@@ -206,6 +206,8 @@ pub struct Project {
     pub layers: Vec<Layer>,
     #[serde(default)]
     pub plugin_dependencies: Vec<crate::PluginDependency>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub expressions: Vec<crate::PropertyExpression>,
 }
 impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
@@ -224,6 +226,7 @@ impl Project {
             camera: Camera::new(width, height),
             layers: Vec::new(),
             plugin_dependencies: Vec::new(),
+            expressions: Vec::new(),
         };
         project.camera.created = false;
         project.validate()?;
@@ -476,6 +479,7 @@ impl Project {
             }
         }
         crate::hierarchy::validate(self)?;
+        crate::expressions::validate(self)?;
         Ok(())
     }
     pub fn frame_pts_us(&self, frame: u32) -> Result<i64> {
