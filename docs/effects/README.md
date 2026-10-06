@@ -1,6 +1,6 @@
 # motion-studio 效果系统交接
 
-本分支提供 `.msfx`（Motion Studio Effects）插件包、工程与命令模型、wgpu/JNI/GLES执行链、36项核心效果、SDK和回归工具。核心库包含原有20项AE近似效果及16项参考Sapphire视觉行为的独立实现。效果编辑界面由前端开发接入，当前没有新增面板或ViewModel。原有内部 `aem-*` crate 名与工程扩展名保持兼容。
+本分支提供 `.msfx`（Motion Studio Effects）插件包、工程与命令模型、wgpu/JNI/GLES执行链、52项核心效果、SDK和回归工具。核心库包含原有20项AE近似效果、16项参考Sapphire视觉行为的独立实现，以及16项常用AE效果近似实现。效果编辑界面由前端开发接入，当前没有新增面板或ViewModel。原有内部 `aem-*` crate 名与工程扩展名保持兼容。
 
 另有 [SDK 2 场景效果与插件专用编辑器](../scene-effects/README.md)，预装6项镜头/粒子生成器。当前JNI渲染计划为版本2；旧SDK 1包与已有精确哈希继续保留。
 
@@ -11,11 +11,11 @@
 | 平台渲染开发 | [render-plan.md](render-plan.md) | 版本化JNI二进制计划、参数布局、GLSL反射、GLES纹理与坐标 |
 | 工程与验收开发 | [migration.md](migration.md)、[validation.md](validation.md) | v1→v2、版本并存、冻结导出、参考采集与测试 |
 | AE还原开发 | [compatibility.md](compatibility.md) | 逐项matchName、静态对照覆盖、已知差异与验收缺口 |
-| 核心效果开发 | [core-library.md](core-library.md) | 六类效果、16项新增算法与限制、1.1.0版本接入 |
+| 核心效果开发 | [common-library.md](common-library.md)、[core-library.md](core-library.md) | 52项核心效果、范围复核、1.2.0接入与纹理优化 |
 
 实现入口：`crates/aem-effects` 管描述/校验/注册表/编译；`aem-core/src/effects.rs` 管实例/曲线/命令；`aem-render/src/effect_plan.rs` 管共享计划；`effect_gpu.rs` 管wgpu资源；Android的NativeBridge/GlEffects/VideoExporter提供平台后端。SDK模板在 `sdk/effect-template`。内置包为 `crates/aem-effects/library/core-effects.msfx`；AE参数采集、输入、输出与原始报告仅保存在本地 `crates/aem-effects/reference`，不随源码分发。
 
-36项效果均标记 approximate；已还原并验收数量以兼容矩阵为准，当前为0。新增16项没有Sapphire原版渲染对照，不能显示为已还原。静态样本达标不能代替参数边界、动画、叠加、摄影机和物理设备验收。禁用的效果不阻止导出；启用效果缺失、未支持参数或执行错误会阻止PNG/MP4。预览保留输入继续处理并提供实例定位。
+52项核心效果均标记 approximate；已还原并验收数量以兼容矩阵为准，当前为0。新增16项没有Sapphire原版渲染对照，不能显示为已还原。静态样本达标不能代替参数边界、动画、叠加、摄影机和物理设备验收。禁用的效果不阻止导出；启用效果缺失、未支持参数或执行错误会阻止PNG/MP4。预览保留输入继续处理并提供实例定位。
 
 后续宿主能力按以下次序增加：
 

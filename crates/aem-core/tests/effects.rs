@@ -35,6 +35,58 @@ fn fixture(effect: &str) -> (Engine, u64) {
 fn apply(engine: &mut Engine, action: EffectAction) {
     engine.apply(Command::Effect { object: 1, action }).unwrap();
 }
+
+#[test]
+fn common_controls_reject_invalid_edits_atomically_and_validate_saved_keys() {
+    let (mut engine, id) = fixture("posterize");
+    for value in [1., 256., f32::NAN] {
+        let before = engine.project().clone();
+        assert!(engine
+            .apply(Command::Effect {
+                object: 1,
+                action: EffectAction::Set {
+                    effect: id,
+                    param: "levels".into(),
+                    frame: 0,
+                    value: [value, 0., 0., 0.],
+                }
+            })
+            .is_err());
+        assert_eq!(engine.project(), &before);
+    }
+    apply(
+        &mut engine,
+        EffectAction::Animate {
+            effect: id,
+            param: "levels".into(),
+            frame: 0,
+            enabled: true,
+        },
+    );
+    apply(
+        &mut engine,
+        EffectAction::Set {
+            effect: id,
+            param: "levels".into(),
+            frame: 30,
+            value: [255., 0., 0., 0.],
+        },
+    );
+    let mut invalid = engine.project().clone();
+    invalid.layers[0].effects[0]
+        .params
+        .get_mut("levels")
+        .unwrap()
+        .track
+        .keys[1]
+        .value[0] = 256.;
+    assert!(invalid.validate().is_err());
+    engine.project().validate().unwrap();
+    let before = engine.project().clone();
+    engine.undo().unwrap();
+    engine.redo().unwrap();
+    assert_eq!(engine.project(), &before);
+}
 #[test]
 fn ordered_instances_dependencies_and_gesture_undo_survive_storage() {
     let (mut engine, id) = fixture("tint");

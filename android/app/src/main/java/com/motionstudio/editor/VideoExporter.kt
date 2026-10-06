@@ -24,9 +24,9 @@ class VideoExporter(private val root:File,private val projectJson:String) {
                 runCatching{info.getCapabilitiesForType("video/avc").videoCapabilities.areSizeAndRateSupported(width,height,fps.toDouble())}.getOrDefault(false)
         }.sortedByDescending{it.isHardwareAccelerated}
         val info=codecs.firstOrNull()?:error("当前编码器不支持所选尺寸和帧率")
-        // The legacy platform software encoder converts Surface RGB with the
-        // 601 matrix. Tagging that result as 709 shifts saturated colours.
-        val colorStandard=if(info.name=="OMX.google.h264.encoder")MediaFormat.COLOR_STANDARD_BT601_NTSC else MediaFormat.COLOR_STANDARD_BT709
+        // Legacy Google OMX's RGB Surface conversion is fixed to BT.601. Labeling
+        // its samples BT.709 causes visible hue shifts. Codec2/hardware retain 709.
+        val colorStandard=if(info.name.equals("OMX.google.h264.encoder",true))MediaFormat.COLOR_STANDARD_BT601_NTSC else MediaFormat.COLOR_STANDARD_BT709
         val file=File(root,"exports/motion-"+System.currentTimeMillis()+".mp4").apply{parentFile!!.mkdirs()}
         var codec:MediaCodec?=null;var muxer:MediaMuxer?=null;var input:Surface?=null
         var gpu:EglMovieRenderer?=null;var native=0L;var muxStarted=false

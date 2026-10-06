@@ -11,7 +11,7 @@ Header 为16个u32，共64字节：
 | 0 / 1 | magic=0x46584d53 / version=2 |
 | 2 / 3 | draw数 / pass数 |
 | 4 / 5 / 6 / 7 | draw字节offset / pass字节offset / uniform字节offset / 总字节数 |
-| 8 / 9 / 10 | 纹理池宽 / 高 / slot位图 |
+| 8 / 9 / 10 | 纹理尺寸上界宽 / 高 / slot位图 |
 | 11 / 12 | LUT字节offset / LUT数 |
 | 13 / 14 / 15 | 实例区字节offset / 实例数量 / 实例大小48 |
 
@@ -21,8 +21,10 @@ Pass 为10个u32，共40字节：programIndex、input（按i32解释）、source
 
 实例位于LUT区之后，每项12个f32，共48字节：rect（NDC中心和完整宽高）、color（线性预乘）、style，各4个数字。仅sprite程序读取实例范围，普通图像程序使用全屏三角形。场景行为和style约定见 [场景运行时](../scene-effects/runtime.md) 与 [SDK 2](../scene-effects/sdk.md)。
 
-池有slot0～7，slot0及4～6为RGBA8 sRGB目标，1～3为RGBA8 UNORM，7为RGBA16F线性累积；同尺寸高水位池受64 MiB限制，slot7按每像素8字节计费。pass按实际尺寸设置viewport、清空全目标；普通pass禁用blend，sprite pass按程序的alpha/additive模式混合。输入不能与当前输出相同。输出slot0最后由线性预乘合成器绘制，按draw[23]选alpha/additive，UV比例限制到有效区域。参数块布局见SDK；LUT固定256×1 RGBA8、1024字节。
+池有slot0～7，slot0及4～6为RGBA8 sRGB目标，1～3为RGBA8 UNORM，7为RGBA16F线性累积；每个slot的容量分别取所有写入该slot的pass宽、高最大值，不作128像素凑整；总和受64 MiB限制，slot7按每像素8字节计费。仅分配实际输出过的slot，容量可从现有pass表推导，无新增二进制字段。pass按实际尺寸设置viewport、清空全目标；普通pass禁用blend，sprite pass按程序的alpha/additive模式混合。输入不能与当前输出相同。输出slot0最后由线性预乘合成器绘制，按draw[23]选alpha/additive，UV比例限制到有效区域。参数块布局见SDK；LUT固定256×1 RGBA8、1024字节。
 
 GLSL 的 blocks 名称由反射返回，绑定到一个624字节UBO；sampler名称映射为[group,binding]，group1的texture bindings0/2/4是input/source/LUT，group2的0/2/4/6是四个PNG。宿主布局允许资源未使用；不要猜测Naga变量名称。Naga顶点代码包含GL坐标修正，不要额外翻转效果纹理；素材首行与处理纹理的logical Y=0一致。
 
-`GlEffects.kt` 和 `VideoExporter.kt` 使用此协议完成效果、几何和动态视频的统一导出。参数界面在 `EffectsPanel.kt`，沿用 `CurveEditor.kt` 的缓动曲线编辑。原sampleInto保留供无效果旧调用方使用，启用效果时明确失败。新增协议为后续可变数量参数和pass预留了版本检查。
+已提供 `GlEffects.kt` 和更新后的 `VideoExporter.kt` 渲染适配，供前端复用；这两个文件负责GPU导出，不包含效果编辑界面。原sampleInto保留供无效果旧调用方使用，启用效果时明确失败。新增协议为后续可变数量参数和pass预留了版本检查。
+
+核心1.2.0与后端纹理预算修正见 [common-library.md](common-library.md)。单pass只使用两张工作纹理；不透明度0的效果省去执行，但依赖/参数预检不省略。不能用header最大尺寸乘全部slot数量估计真实容量，否则混合色彩空间的普通效果链会被错误拒绝。
