@@ -11,6 +11,7 @@
 | Android Kotlin / 安装包 | `assembleDebug` / `assembleDebugAndroidTest` 通过；现有弃用和 SDK XML 告警保留 |
 | GLES 全屏回归 | `fullscreenTriangleArithmeticCoversPbuffer` 通过；软件 GLES 3.0 上常量数组动态索引产生空白且 GL 错误码为 0，算术生成同坐标能输出红色；测试保存两种结果并要求算术路径通过 |
 | 预览 / MP4 | `shapesAdjustmentAndEncodedOutputMatchPreview` 通过：全图 RGB MAE **1.1773**，前景 **1.2927**，前景通道样本 **9309**；阈值分别为 < 6 / < 8，另要求形状实际可见 |
+| 既有效果 / 粒子导出 | Tint / Gaussian Blur / Curves / Wave Warp 冻结导出对照通过（全图 MAE 0.7869，前景 0.6100）；火花粒子冻结导出及容量失败清理通过（全图 0.9480，前景 5.1200，前景像素 2119）；共计 4 项 Android 用例通过 |
 | 新增 Rust 文件格式 / Git diff | 新增 Rust 文件 `rustfmt --check` 通过，Git diff 检查通过；工作区全量格式检查存在既有格式差异，不在此分支批量重排 |
 | 文件范围 | 独立分支 / 工作树，未包含研究资料、reference/refer、安装包、构建输出、模拟器镜像或日志 |
 
