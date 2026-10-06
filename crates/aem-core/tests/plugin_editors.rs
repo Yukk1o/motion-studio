@@ -34,6 +34,42 @@ fn setup() -> (Engine, Registry) {
         .unwrap();
     (engine, registry)
 }
+
+#[test]
+fn editor_transform_values_use_sampled_local_keyframe_time() {
+    let (engine, registry) = setup();
+    let mut project = engine.snapshot();
+    project.layers[0].timeline = Some(aem_core::LayerTimeline {
+        in_frame: 0,
+        out_frame: 120,
+        offset_frame: 10,
+    });
+    project.layers[0].transform.position.keys = vec![
+        aem_core::Keyframe {
+            frame: 0,
+            value: [20., 64., 0.],
+            ease: aem_core::Ease::Linear,
+            curve: None,
+        },
+        aem_core::Keyframe {
+            frame: 40,
+            value: [100., 64., 0.],
+            ease: aem_core::Ease::Linear,
+            curve: None,
+        },
+    ];
+    let engine = Engine::new(project).unwrap();
+    let editor = PluginEditorSession::open(engine.project(), &registry, 1, 1).unwrap();
+    let state = editor.state(&engine, 30).unwrap();
+    assert_eq!(
+        state["transform_values"]["position"],
+        serde_json::json!([60., 64., 0.])
+    );
+    assert_eq!(
+        state["transform"]["position"]["value"],
+        serde_json::json!([64., 64., 0.])
+    );
+}
 #[test]
 fn custom_editor_gesture_commit_cancel_and_storage_preserve_components() {
     let (mut engine, registry) = setup();

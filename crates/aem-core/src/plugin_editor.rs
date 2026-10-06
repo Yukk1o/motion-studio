@@ -120,7 +120,11 @@ impl PluginEditorSession {
             json!({"revision":engine.revision(),"frame":frame,"object":self.object,"instance":self.instance,
             "plugin":self.dependency,"effect":self.effect,"values":values,"params":e.params,"scene":e.scene,"seed":e.seed,
             "expressions":engine.project().expressions.iter().filter(|e|matches!(&e.target,crate::ExpressionTarget::Effect {object,effect,..} if *object==self.object && *effect==self.instance)).collect::<Vec<_>>(),
-            "transform":layer.transform,"dimensions":[engine.project().width,engine.project().height],"camera":engine.project().camera,
+            "transform":layer.transform,
+            "transform_values":{"position":layer.transform.position.sample(layer.local_frame(frame as f64)),
+                "rotation":layer.transform.rotation.sample(layer.local_frame(frame as f64)),
+                "scale":layer.transform.scale.sample(layer.local_frame(frame as f64))},
+            "dimensions":[engine.project().width,engine.project().height],"camera":engine.project().camera,
             "locked":layer.locked,"gesture":self.gesture,
             "layers":engine.project().layers.iter().map(|l|json!({"id":l.id,"name":l.name})).collect::<Vec<_>>()}),
         )
