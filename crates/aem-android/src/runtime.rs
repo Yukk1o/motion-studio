@@ -716,6 +716,18 @@ impl Session {
         } else {
             vec!["target"]
         };
+        let video_capabilities = json!({
+            "container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR",
+            "containers":["MP4","MOV","3GP","Matroska","WebM"],
+            "codecs":["H.264","H.265 Main","VP8","VP9 profile 0"],
+            "profile":"8-bit 4:2:0 SDR","device_query":"media_capabilities",
+            "max_pixels":aem_core::MAX_VIDEO_PIXELS,"max_dimension":aem_core::MAX_VIDEO_DIMENSION,
+            "max_fps":aem_core::MAX_VIDEO_FPS,"max_index_frames":aem_core::MAX_VIDEO_FRAMES,
+            "preserves_source_aspect_ratio":true,"arbitrary_aspect_ratio":true,"square_pixels_only":true,
+            "input_is_independent_of_composition":true,"max_duration_seconds":3600,
+            "async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
+            "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true
+        });
         json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "main_composition":"comp-main","composition":p.composition_id,"compositions":p.composition_list(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),
             "composition_context":self.composition_context_snapshot(),
@@ -723,10 +735,9 @@ impl Session {
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
+                "composition":{"fps_range":[1,aem_core::MAX_COMPOSITION_FPS],"fps_presets":[24,25,30,50,60,90,120,144,240],"fps_type":"integer"},
                 "multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":7,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
-                "video":{"container":"MP4","codec":"H.264 baseline/main/high, 8-bit 4:2:0 SDR","containers":["MP4","MOV","3GP","Matroska","WebM"],"codecs":["H.264","H.265 Main","VP8","VP9 profile 0"],"profile":"8-bit 4:2:0 SDR","device_query":"media_capabilities","max_pixels":2073600,"max_fps":120,
-                "max_duration_seconds":3600,"async_frames":true,"frame_format":"rgba8","decoder":"Android MediaCodec",
-                "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true},
+                "video":video_capabilities,
                 "audio":{"supported_formats":["M4A/AAC-LC/ALAC","MP3","FLAC","Ogg/Vorbis/Opus","ADTS/AAC","WAV/PCM8/16/24/32/float","AIFF"],"sample_rates":[8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000],"sample_rate_range":[8000,192000],"channels":[1,2],"device_query":"media_capabilities",
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
                 "source_limit_bytes":aem_core::storage::MAX_MEDIA_ASSET,"source_duration_limit_seconds":3600,
@@ -884,7 +895,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                     } else {
                         layer.effects.len()
                     };
-                    let effect = aem_core::EffectInstance::new(
+                    let mut effect = aem_core::EffectInstance::new(
                         instance,
                         &p.manifest.id,
                         &p.manifest.version,
@@ -892,6 +903,24 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                         def,
                         layer.size,
                     );
+                    let preserve = v.get("preserve_parameters")
+                        .map(|v|v.as_bool().ok_or("preserve_parameters must be a boolean"))
+                        .transpose()?.unwrap_or(false);
+                    if upgrading && preserve {
+                        let old = &layer.effects[index];
+                        let old_package = registry.resolve(&old.plugin,&old.version,&old.hash)
+                            .map_err(|e|e.to_string())?;
+                        let old_def = old_package.manifest.effects.iter().find(|d|d.id==old.effect)
+                            .ok_or("old effect definition is missing")?;
+                        if old.plugin != p.manifest.id || old.effect != def.id
+                            || old_def.params != def.params || old_def.renderer != def.renderer {
+                            return Err("effect parameter contract differs; preserving parameters requires an explicit migration".into());
+                        }
+                        effect.params = old.params.clone();
+                        effect.seed = old.seed;
+                        effect.enabled = old.enabled;
+                        effect.scene = old.scene.clone();
+                    }
                     let mut cmds = Vec::new();
                     if upgrading {
                         cmds.push(Command::Effect {

@@ -33,11 +33,15 @@ pub use expressions::{
     ExpressionTarget, ExpressionValue, PropertyExpression, EXPRESSION_PROFILE, MAX_EXPRESSIONS,
 };
 pub use model::{
-    Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_FRAMES, MAX_LAYERS,
+    Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_COMPOSITION_FPS,
+    MAX_FRAMES, MAX_LAYERS,
 };
 pub use scene::{DrawLayer, HitCandidate, Scene};
 pub use timeline::{TimelineKey, TimelineLayer, TimelineProperties, TimelineTrack};
-pub use video::{VideoAsset, VideoClip, VideoSample};
+pub use video::{
+    VideoAsset, VideoClip, VideoSample, MAX_VIDEO_DIMENSION, MAX_VIDEO_FPS, MAX_VIDEO_FRAMES,
+    MAX_VIDEO_PIXELS,
+};
 pub fn scene_prefix_delta(
     p: &Project,
     object: u64,

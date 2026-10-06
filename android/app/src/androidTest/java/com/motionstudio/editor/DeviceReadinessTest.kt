@@ -127,7 +127,7 @@ class DeviceReadinessTest {
         photo("layout-profile")
         compose.onNodeWithContentDescription("关闭属性面板").performTouchInput{click()};compose.waitForIdle()
         stableTags.forEach{assertEquals("Closing properties moved "+it,originalBounds[it],compose.onNodeWithTag(it).fetchSemanticsNode().boundsInRoot)}
-        usable(compose.onNodeWithContentDescription("添加图层"));usable(compose.onNodeWithText("移动"))
+        usable(compose.onNodeWithContentDescription("添加图层"));usable(compose.onNodeWithTag("footer-transform"))
         compose.onNodeWithContentDescription("工程列表").performTouchInput{click()}
         compose.onNodeWithText("打开工程").assertIsDisplayed()
         compose.onNodeWithText("关闭").performClick()
@@ -146,7 +146,7 @@ class DeviceReadinessTest {
         compose.onNode(hasSetTextAction()).performTextReplacement("验收主体")
         compose.onNodeWithText("确定").performClick()
         compose.waitUntil(10000){vm.layer(2)!!.getString("name")=="验收主体"}
-        clickMenu("复制图层")
+        clickMenu("创建副本")
         compose.waitUntil(10000){vm.state.project!!.getJSONArray("layers").length()==4}
         scenario.onActivity{vm.undo()};compose.waitUntil(10000){vm.state.project!!.getJSONArray("layers").length()==3}
         compose.onNodeWithContentDescription("关闭属性面板").performClick();compose.waitForIdle()

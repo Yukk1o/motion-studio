@@ -520,7 +520,9 @@ pub fn load_video_index(root: &Path, asset: &VideoAsset) -> Result<Vec<u64>> {
     }
     let mut f = File::open(path).map_err(|e| e.to_string())?;
     let size = f.metadata().map_err(|e| e.to_string())?.len();
-    if size != 16 + u64::from(asset.frame_count) * 8 || size > 4_000_016 {
+    if size != 16 + u64::from(asset.frame_count) * 8
+        || size > 16 + u64::from(aem_core::MAX_VIDEO_FRAMES) * 8
+    {
         return Err("video cache invalid; call prepare_video".into());
     }
     let mut bytes = vec![0; size as usize];

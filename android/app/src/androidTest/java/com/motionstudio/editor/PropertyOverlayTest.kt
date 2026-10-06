@@ -89,7 +89,7 @@ class PropertyOverlayTest {
         val project=vm.state.project!!.toString()
         val scale=vm.timelineScale
         snapshot(name+"-closed")
-        compose.onNodeWithText("移动").performClick()
+        compose.onNodeWithTag("footer-transform").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("properties-panel").assertIsDisplayed()
         for(tag in tags)assertEquals("Opening properties moved "+tag,bounds[tag],compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot)
@@ -138,7 +138,7 @@ class PropertyOverlayTest {
         verifyStableOverlay("landscape")
     }
     @Test fun systemBackClosesPropertiesAndKeepsEditorOpen() {
-        compose.onNodeWithText("移动").performClick()
+        compose.onNodeWithTag("footer-transform").performScrollTo().performClick()
         compose.waitForIdle()
         InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
         compose.waitUntil(10000){!vm.panelOpen}

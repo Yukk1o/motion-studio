@@ -10,6 +10,19 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 
 
+def tool_config():
+    shared=next((p for p in [ROOT,*ROOT.parents] if (p/".tools/environment.json").exists()),None)
+    if shared is not None:
+        return shared,json.loads((shared/".tools/environment.json").read_text(encoding="utf-8"))
+    sdk=os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    java=os.environ.get("JAVA_HOME")
+    gradle=shutil.which("gradle")
+    if not (sdk and java and gradle):
+        raise RuntimeError("Run tools/bootstrap_android.py, or configure JAVA_HOME, ANDROID_HOME and Gradle")
+    ndk=os.environ.get("ANDROID_NDK_HOME") or str(Path(sdk)/"ndk/27.0.12077973")
+    return ROOT,{"java_home":java,"sdk":sdk,"gradle":gradle,"ndk":ndk}
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     parser=argparse.ArgumentParser()
@@ -25,39 +38,45 @@ def main():
     diagnostics=args.diagnostics or any(task.endswith("AndroidTest") and "Benchmark" not in task for task in args.task)
     if diagnostics and any(any(kind in task for kind in ("Release","Benchmark","Preview")) for task in args.task):
         raise RuntimeError("Release/Benchmark/Preview tasks must be built without GPU diagnostic injection")
-    shared=next((p for p in [ROOT,*ROOT.parents] if (p/".tools/environment.json").exists()),None)
-    if shared is None:
-        raise RuntimeError("Run tools/bootstrap_android.py in the main worktree first")
-    config=json.loads((shared/".tools/environment.json").read_text(encoding="utf-8"))
+    targets={"arm64-v8a":("aarch64-linux-android","aarch64-linux-android29"),
+        "x86_64":("x86_64-linux-android","x86_64-linux-android29")}
+    abis=args.abis.split(",")
+    if not abis or any(abi not in targets for abi in abis):
+        raise RuntimeError("Supported ABIs: arm64-v8a,x86_64")
+    shared,config=tool_config()
     target_dir=args.target_dir.resolve() if args.target_dir else shared/"target"/("main" if ROOT==shared else ROOT.name)
-    toolchain=Path(config["ndk"])/"toolchains/llvm/prebuilt/windows-x86_64/bin"
+    host={"win32":"windows-x86_64","linux":"linux-x86_64","darwin":"darwin-x86_64"}.get(sys.platform)
+    if host is None: raise RuntimeError("Unsupported NDK host platform")
+    extension=".exe" if sys.platform=="win32" else ""
+    toolchain=Path(config["ndk"])/"toolchains/llvm/prebuilt"/host/"bin"
     # Windows NDK distributions do not always include libclang for bindgen.
     # Keep the pinned build-only wheel in the shared private tool directory.
-    libclang=shared/".tools/python-libclang/clang/native"
-    if not (libclang/"libclang.dll").exists():
-        subprocess.run([sys.executable,"-m","pip","install","--no-cache-dir","--target",str(shared/".tools/python-libclang"),"libclang==18.1.1"],check=True)
+    if sys.platform=="win32":
+        libclang=shared/".tools/python-libclang/clang/native"
+        if not (libclang/"libclang.dll").exists():
+            subprocess.run([sys.executable,"-m","pip","install","--no-cache-dir","--target",str(shared/".tools/python-libclang"),"libclang==18.1.1"],check=True)
+    else:
+        libclang=Path(os.environ.get("LIBCLANG_PATH",str(toolchain.parent/"lib")))
     env=os.environ.copy()
     env["JAVA_HOME"]=config["java_home"]
     env["ANDROID_HOME"]=config["sdk"]
-    env["GRADLE_USER_HOME"]=str(shared/".tools/gradle-cache")
+    env["GRADLE_USER_HOME"]=os.environ.get("GRADLE_USER_HOME",str(shared/".tools/gradle-cache"))
     env["CARGO_TARGET_DIR"]=str(target_dir)
     env["PATH"]=str(Path(config["java_home"])/"bin")+os.pathsep+str(toolchain)+os.pathsep+env["PATH"]
     installed=subprocess.check_output(["rustup","target","list","--installed"],text=True)
-    targets={"arm64-v8a":("aarch64-linux-android","aarch64-linux-android29"),
-        "x86_64":("x86_64-linux-android","x86_64-linux-android29")}
-    for abi in args.abis.split(","):
+    for abi in abis:
         target,clang_target=targets[abi]
         if target not in installed:
             subprocess.run(["rustup","target","add",target],check=True,env=env)
         prefix="CARGO_TARGET_"+target.replace("-","_").upper()
         build_env=env.copy()
-        build_env[prefix+"_LINKER"]=str(toolchain/"clang.exe")
+        build_env[prefix+"_LINKER"]=str(toolchain/("clang"+extension))
         build_env[prefix+"_RUSTFLAGS"]=f"-Clink-arg=--target={clang_target} -Clink-arg=-Wl,-z,max-page-size=16384"
         # Native dependencies (QuickJS and the JS parser's stack guard) use cc-rs.
         # Explicit target flags prevent it selecting the host MSVC compiler.
         cc_target=target.replace("-","_")
-        build_env["CC_"+cc_target]=str(toolchain/"clang.exe")
-        build_env["AR_"+cc_target]=str(toolchain/"llvm-ar.exe")
+        build_env["CC_"+cc_target]=str(toolchain/("clang"+extension))
+        build_env["AR_"+cc_target]=str(toolchain/("llvm-ar"+extension))
         build_env["CFLAGS_"+cc_target]=f"--target={clang_target}"
         build_env["LIBCLANG_PATH"]=str(libclang)
         sysroot=(toolchain.parent/"sysroot").as_posix()

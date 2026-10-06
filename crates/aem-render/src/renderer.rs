@@ -146,8 +146,10 @@ impl Renderer {
             .await
             .ok_or(RenderError::Adapter)?;
         let adapter_info = adapter.get_info();
-        let supported=adapter.limits();
-        let base=if supported.max_compute_workgroups_per_dimension==0{wgpu::Limits::downlevel_webgl2_defaults()}else{wgpu::Limits::downlevel_defaults()};
+        let supported = adapter.limits();
+        let base = if supported.max_compute_workgroups_per_dimension == 0 {
+            wgpu::Limits::downlevel_webgl2_defaults()
+        } else { wgpu::Limits::downlevel_defaults() };
         let limits = base.using_resolution(supported);
         let (device, queue) = adapter
             .request_device(

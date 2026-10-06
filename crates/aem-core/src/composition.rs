@@ -210,9 +210,34 @@ impl Project {
         })
     }
     pub fn audio_voices(&self) -> Result<Vec<AudioVoice>> {
+        // Preserve fractions until each absolute sample boundary is evaluated.
+        // Dividing 48 kHz by fps first loses samples at e.g. 59 or 144 fps.
+        #[derive(Clone, Copy)]
+        struct Time {
+            numerator: i128,
+            denominator: i128,
+        }
+        impl Time {
+            fn add_frames(self, frames: i64, fps: u32) -> Self {
+                let mut a = self.denominator;
+                let mut b = i128::from(fps);
+                while b != 0 {
+                    (a, b) = (b, a % b);
+                }
+                let multiplier = i128::from(fps) / a;
+                Self {
+                    numerator: self.numerator * multiplier
+                        + i128::from(frames) * 48_000 * (self.denominator / a),
+                    denominator: self.denominator * multiplier,
+                }
+            }
+            fn sample(self) -> i64 {
+                self.numerator.div_euclid(self.denominator) as i64
+            }
+        }
         fn visit(
             p: &Project,
-            origin: i64,
+            origin: Time,
             begin: i64,
             end: i64,
             volume: f32,
@@ -223,27 +248,32 @@ impl Project {
                 depth < MAX_COMPOSITION_DEPTH,
                 "audio composition nesting too deep",
             )?;
-            let unit = 48_000 / i64::from(p.fps);
             for l in &p.layers {
                 let clip = l.clip(p.frames);
-                let first = begin.max(origin + i64::from(clip.in_frame) * unit).max(0);
-                let last = end.min(origin + i64::from(clip.out_frame) * unit);
+                let first = begin
+                    .max(origin.add_frames(i64::from(clip.in_frame), p.fps).sample())
+                    .max(0);
+                let last = end.min(origin.add_frames(i64::from(clip.out_frame), p.fps).sample());
                 if first >= last {
                     continue;
                 }
-                let offset = origin + i64::from(clip.offset_frame) * unit;
+                let offset = origin.add_frames(i64::from(clip.offset_frame), p.fps);
                 if let Content::Composition { clip } = &l.content {
                     if clip.muted || clip.volume == 0. {
                         continue;
                     }
                     let child = p.composition(&clip.composition)?;
-                    let child_unit = 48_000 / i64::from(child.fps);
-                    let child_origin = offset - i64::from(clip.source_start_frame) * child_unit;
+                    let child_origin =
+                        offset.add_frames(-i64::from(clip.source_start_frame), child.fps);
                     visit(
                         &child,
                         child_origin,
-                        first.max(child_origin),
-                        last.min(child_origin + i64::from(child.frames) * child_unit),
+                        first.max(child_origin.sample()),
+                        last.min(
+                            child_origin
+                                .add_frames(i64::from(child.frames), child.fps)
+                                .sample(),
+                        ),
                         volume * clip.volume,
                         depth + 1,
                         out,
@@ -256,7 +286,7 @@ impl Project {
                         asset: audio.asset,
                         begin_sample: first as u64,
                         end_sample: last as u64,
-                        offset_sample: offset,
+                        offset_sample: offset.sample(),
                         source_offset_us: audio.source_offset_us,
                         volume: volume * audio.volume,
                     });
@@ -267,7 +297,10 @@ impl Project {
         let mut out = Vec::new();
         visit(
             self,
-            0,
+            Time {
+                numerator: 0,
+                denominator: 1,
+            },
             0,
             i64::from(self.frames) * 48_000 / i64::from(self.fps),
             1.,
@@ -714,7 +747,7 @@ impl Project {
         let id = self.composition_id.clone();
         if !(1..=8192).contains(&s.width)
             || !(1..=8192).contains(&s.height)
-            || !matches!(s.fps, 30 | 60)
+            || !(1..=crate::MAX_COMPOSITION_FPS).contains(&s.fps)
             || !(1..=crate::MAX_FRAMES).contains(&s.frames)
             || s.name.len() > 1024
         {

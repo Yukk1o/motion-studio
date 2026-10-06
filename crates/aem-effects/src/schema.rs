@@ -2,7 +2,7 @@ use crate::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const SDK_VERSION: u32 = 3;
+pub const SDK_VERSION: u32 = 4;
 pub const MAX_PARAMS: usize = 32;
 pub const MAX_PASSES: usize = 8;
 pub const MAX_EFFECTS_PER_LAYER: usize = 16;
@@ -132,6 +132,29 @@ pub enum BoundsExpr {
         a: Box<Self>,
         b: Box<Self>,
     },
+    Min {
+        a: Box<Self>,
+        b: Box<Self>,
+    },
+    Divide {
+        a: Box<Self>,
+        b: Box<Self>,
+    },
+    Hypot {
+        a: Box<Self>,
+        b: Box<Self>,
+    },
+    Sqrt {
+        value: Box<Self>,
+    },
+    Sin {
+        value: Box<Self>,
+    },
+    Select {
+        condition: Box<Self>,
+        a: Box<Self>,
+        b: Box<Self>,
+    },
     Abs {
         value: Box<Self>,
     },
@@ -145,6 +168,21 @@ impl Default for BoundsExpr {
     }
 }
 impl BoundsExpr {
+    pub fn requires_sdk4(&self) -> bool {
+        match self {
+            Self::Min { .. }
+            | Self::Divide { .. }
+            | Self::Hypot { .. }
+            | Self::Sqrt { .. }
+            | Self::Sin { .. }
+            | Self::Select { .. } => true,
+            Self::Add { a, b } | Self::Multiply { a, b } | Self::Max { a, b } => {
+                a.requires_sdk4() || b.requires_sdk4()
+            }
+            Self::Abs { value } | Self::Ceil { value } => value.requires_sdk4(),
+            _ => false,
+        }
+    }
     pub fn evaluate(&self, params: &BTreeMap<String, [f32; 4]>) -> Result<f32> {
         self.evaluate_with(
             |id, component| params.get(id)?.get(component).copied(),
@@ -154,10 +192,19 @@ impl BoundsExpr {
     pub fn uses_geometry(&self) -> bool {
         match self {
             Self::InputSize { .. } | Self::InputOrigin { .. } => true,
-            Self::Add { a, b } | Self::Multiply { a, b } | Self::Max { a, b } => {
-                a.uses_geometry() || b.uses_geometry()
+            Self::Add { a, b }
+            | Self::Multiply { a, b }
+            | Self::Max { a, b }
+            | Self::Min { a, b }
+            | Self::Divide { a, b }
+            | Self::Hypot { a, b } => a.uses_geometry() || b.uses_geometry(),
+            Self::Abs { value }
+            | Self::Ceil { value }
+            | Self::Sqrt { value }
+            | Self::Sin { value } => value.uses_geometry(),
+            Self::Select { condition, a, b } => {
+                condition.uses_geometry() || a.uses_geometry() || b.uses_geometry()
             }
-            Self::Abs { value } | Self::Ceil { value } => value.uses_geometry(),
             _ => false,
         }
     }
@@ -198,6 +245,32 @@ impl BoundsExpr {
             Self::Max { a, b } => {
                 a.eval(lookup, input, depth + 1)?
                     .max(b.eval(lookup, input, depth + 1)?)
+            }
+            Self::Min { a, b } => {
+                a.eval(lookup, input, depth + 1)?
+                    .min(b.eval(lookup, input, depth + 1)?)
+            }
+            Self::Divide { a, b } => {
+                let denominator = b.eval(lookup, input, depth + 1)?;
+                ensure(denominator != 0., "division by zero in bounds expression")?;
+                a.eval(lookup, input, depth + 1)? / denominator
+            }
+            Self::Hypot { a, b } => {
+                a.eval(lookup, input, depth + 1)?
+                    .hypot(b.eval(lookup, input, depth + 1)?)
+            }
+            Self::Sqrt { value } => {
+                let value = value.eval(lookup, input, depth + 1)?;
+                ensure(value >= 0., "negative square root in bounds expression")?;
+                value.sqrt()
+            }
+            Self::Sin { value } => value.eval(lookup, input, depth + 1)?.sin(),
+            Self::Select { condition, a, b } => {
+                if condition.eval(lookup, input, depth + 1)? > 0. {
+                    a.eval(lookup, input, depth + 1)?
+                } else {
+                    b.eval(lookup, input, depth + 1)?
+                }
             }
             Self::Abs { value } => value.eval(lookup, input, depth + 1)?.abs(),
             Self::Ceil { value } => value.eval(lookup, input, depth + 1)?.ceil(),
@@ -467,6 +540,18 @@ impl PluginManifest {
             if e.padding.uses_geometry() || e.output_bounds.is_some() {
                 ensure(self.sdk_version >= 3, "geometry bounds require SDK 3")?;
             }
+            if e.padding.requires_sdk4()
+                || e.output_bounds.as_ref().is_some_and(|r| {
+                    [&r.x, &r.y, &r.width, &r.height]
+                        .iter()
+                        .any(|expr| expr.requires_sdk4())
+                })
+            {
+                ensure(
+                    self.sdk_version >= 4,
+                    "spatial bounds arithmetic requires SDK 4",
+                )?;
+            }
             if let Some(rect) = &e.output_bounds {
                 ensure(
                     e.renderer == crate::RendererKind::Image,
@@ -508,6 +593,7 @@ impl PluginManifest {
                         "param_lut",
                         "dynamic_bounds",
                         "rect_bounds",
+                        "spatial_bounds",
                         "color_profile",
                         "scene_projection",
                         "sprite_instances",
