@@ -46,6 +46,8 @@ private fun activeProjectDirectory(app:Application):File {
 }
 
 class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null,initialProjectJson:String="") : AndroidViewModel(app) {
+    internal val layoutPreferences=app.getSharedPreferences("motion-studio-layout"+
+        (if(projectDirectory==null)""else"-"+projectDirectory.canonicalPath.hashCode()),0)
     var state by mutableStateOf(StudioState()); private set
     var frame by mutableDoubleStateOf(0.0); private set
     var playing by mutableStateOf(false); private set
@@ -87,6 +89,12 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private val workerThread = HandlerThread("motion-render").apply { start() }
     private val worker = Handler(workerThread.looper)
     private val main = Handler(app.mainLooper)
+    private class GestureUpdates {
+        val pending=LinkedHashMap<String,String>()
+        var queued=false
+        fun take():List<String> = synchronized(this){pending.values.toList().also{pending.clear()}}
+    }
+    private var gestureUpdates:GestureUpdates?=null
     private var id = 0L
     private val closed = AtomicBoolean(false)
     private val queued = AtomicBoolean(false)
@@ -102,6 +110,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private var startFrame = 0.0
     private var nextPreviewNanos=0L
     private var lastPreviewInfoNanos=0L
+    // Owned by the render worker. Let an asynchronous video request finish
+    // before advancing its target; changing it every tick cancels decoding.
+    private var pendingPlaybackFrame:Double?=null
+    private var pendingPlaybackGeneration=-1L
     private val thermalMonitor=app.getSystemService(PowerManager::class.java)
     private var thermalStatus=thermalMonitor.currentThermalStatus
     private val thermalListener=PowerManager.OnThermalStatusChangedListener {status->thermalStatus=status;applyPreviewMode()}
@@ -117,15 +129,27 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             if (due && foreground.get() && dirty.get() && surfaceReady.get() && queued.compareAndSet(false,true)) {
                 dirty.set(false)
                 val target=frame
+                val playback=playing
+                val playbackGeneration=playGeneration.get()
                 nextPreviewNanos=time+1_000_000_000L/(previewInfo?.optInt("fps",60)?:60)
                 val refreshPreview=time-lastPreviewInfoNanos>=1_000_000_000L
                 if(refreshPreview)lastPreviewInfoNanos=time
                 worker.post {
                     try {
-                        if(id!=0L && foreground.get() && surfaceReady.get() && !NativeBridge.render(id,target)) {
-                        val envelope=JSONObject(NativeBridge.state(id))
-                        val error=envelope.optJSONObject("data")?.optString("renderError","")?.takeIf{it!="null"&&it.isNotBlank()}
-                        if(error!=null){surfaceReady.set(false);main.post{lastGpuFailure=error};fail("预览暂不可用，请重试预览。工程数据已保留。")}else dirty.set(true)
+                        if(playback&&playbackGeneration!=playGeneration.get()) {
+                            pendingPlaybackFrame=null;dirty.set(true);return@post
+                        }
+                        if(!playback||pendingPlaybackGeneration!=playbackGeneration)pendingPlaybackFrame=null
+                        if(id!=0L && foreground.get() && surfaceReady.get()) {
+                            val renderTarget=if(playback)pendingPlaybackFrame?:target else target
+                            val rendered=NativeBridge.render(id,renderTarget)
+                            pendingPlaybackGeneration=playbackGeneration
+                            pendingPlaybackFrame=if(playback&&!rendered)renderTarget else null
+                            if(!rendered) {
+                                val envelope=JSONObject(NativeBridge.state(id))
+                                val error=envelope.optJSONObject("data")?.optString("renderError","")?.takeIf{it!="null"&&it.isNotBlank()}
+                                if(error!=null){surfaceReady.set(false);main.post{lastGpuFailure=error};fail("预览暂不可用，请重试预览。工程数据已保留。")}else dirty.set(true)
+                            }
                         }
                         if(refreshPreview&&id!=0L)updatePreviewInfo(NativeBridge.previewInfo(id))
                     }
@@ -235,7 +259,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }
         } catch(e:Throwable){fail(e.message?:"状态读取失败")}
     }
-    private fun invoke(save:Boolean=false,repaint:Boolean=true,operation:()->String) {
+    private fun invoke(save:Boolean=false,repaint:Boolean=true,onComplete:(()->Unit)?=null,operation:()->String) {
         if(closed.get())return
         worker.post {
             if(id==0L||closed.get())return@post
@@ -249,7 +273,34 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 }
                 else publish(result,repaint=repaint)
             } catch(e:Throwable){fail(e.message?:"操作失败")}
+            finally {if(onComplete!=null)main.post{if(!closed.get())onComplete()}}
         }
+    }
+    /** Only absolute assignments can replace earlier updates in one gesture. */
+    private fun gestureKey(command:JSONObject):String? {
+        val op=command.optString("op")
+        if(op=="effect") {
+            val action=command.getJSONObject("action")
+            if(action.optString("kind") !in listOf("set","curve","set_curve_object"))return null
+            return "effect:${command.getLong("object")}:${action.getLong("effect")}:${action.getString("param")}:${action.optInt("frame")}:${action.getString("kind")}"
+        }
+        if(op !in listOf("set_vector","set_scalar","set_component","set_audio"))return null
+        return "$op:${command.getLong("object")}:${command.optString("property")}:${command.optString("axis")}:${command.optInt("frame")}:${command.has("volume")}:${command.has("muted")}"
+    }
+    private fun queueGesture(commands:List<JSONObject>):Boolean {
+        val updates=gestureUpdates?:return false
+        val keys=commands.map{gestureKey(it)?:return false}
+        val schedule=synchronized(updates) {
+            commands.forEachIndexed{i,command->updates.pending[keys[i]]=command.toString()}
+            if(updates.queued)false else {updates.queued=true;true}
+        }
+        if(schedule)worker.post {
+            val pending=synchronized(updates){updates.queued=false;updates.take()}
+            if(pending.isNotEmpty()&&id!=0L&&!closed.get())try {
+                publish(NativeBridge.command(id,JSONArray(pending.map{JSONObject(it)}).toString()))
+            }catch(e:Throwable){fail(e.message?:"参数更新失败")}
+        }
+        return true
     }
     fun attach(surface:Surface,width:Int,height:Int) {
         currentSurface=surface;surfaceWidth=width;surfaceHeight=height
@@ -379,14 +430,29 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun hasCamera()=state.project?.optJSONObject("camera")?.optBoolean("created",true)==true
     fun editable():Boolean=if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false
     fun edit(command:JSONObject,save:Boolean=true) {
-        pause();val routed=routeEffectCommand(command);invoke(save){NativeBridge.command(id,routed.toString())}
+        pause();val routed=routeEffectCommand(command)
+        if(!save&&queueGesture(listOf(routed)))return
+        invoke(save){NativeBridge.command(id,routed.toString())}
     }
-    fun editBatch(commands:JSONArray,save:Boolean=true) {pause();val routed=JSONArray(commands.objects().map(::routeEffectCommand));invoke(save){NativeBridge.command(id,routed.toString())}}
+    fun editBatch(commands:JSONArray,save:Boolean=true) {
+        pause();val routed=commands.objects().map(::routeEffectCommand)
+        if(!save&&queueGesture(routed))return
+        invoke(save){NativeBridge.command(id,JSONArray(routed).toString())}
+    }
     fun undo() {pause();invoke(true){NativeBridge.history(id,0)}}
     fun redo() {pause();invoke(true){NativeBridge.history(id,1)}}
-    fun beginGesture() {pause();invoke{NativeBridge.history(id,2)}}
-    fun endGesture() {invoke(true){NativeBridge.history(id,3)}}
-    fun cancelGesture() {invoke{NativeBridge.history(id,4)}}
+    fun beginGesture() {pause();gestureUpdates=GestureUpdates();invoke{NativeBridge.history(id,2)}}
+    fun endGesture(onComplete:()->Unit={}) {
+        val pending=gestureUpdates?.take().orEmpty();gestureUpdates=null
+        invoke(true,onComplete=onComplete) {
+            if(pending.isNotEmpty()) {
+                val result=NativeBridge.command(id,JSONArray(pending.map{JSONObject(it)}).toString())
+                if(!JSONObject(result).optBoolean("ok")){NativeBridge.history(id,4);return@invoke result}
+            }
+            NativeBridge.history(id,3)
+        }
+    }
+    fun cancelGesture() {gestureUpdates?.take();gestureUpdates=null;invoke{NativeBridge.history(id,4)}}
     fun moveLayer(dx:Float,dy:Float,width:Int,height:Int) {
         val objectId=selected
         if(objectId==0L)return

@@ -25,6 +25,9 @@ class FrontendLayerControlsTest {
     private lateinit var vm:EditorViewModel
     private lateinit var root:File
     private var density=1f
+    private val rowHeight get()=timelineRowHeightDp(InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration.fontScale)*density
+    private val firstRowMiddle get()=44*density+rowHeight/2
+    private val secondRowMiddle get()=44*density+rowHeight*1.5f
     @Before fun setup() {
         val app=InstrumentationRegistry.getInstrumentation().targetContext
         density=app.resources.displayMetrics.density
@@ -95,20 +98,20 @@ class FrontendLayerControlsTest {
     @Test fun longPressMovesClipAndEdgeTrimKeepsLocalKeysWithSingleUndoAndCancellation() {
         val before=vm.state.project!!.toString();val tracks=vm.layer(2)!!.getJSONObject("transform").toString()
         compose.onNodeWithTag("timeline").performTouchInput {
-            down(Offset(center.x+10*density,69*density));advanceEventTime(650)
+            down(Offset(center.x+10*density,firstRowMiddle));advanceEventTime(650)
             moveBy(Offset(30*density,0f),100);up()
         }
         compose.waitUntil(10000){clip().getInt("in_frame")==30&&vm.state.saved}
         assertEquals(110,clip().getInt("out_frame"));assertEquals(30,clip().getInt("offset_frame"))
         assertEquals(tracks,vm.layer(2)!!.getJSONObject("transform").toString());photo("clip-moved");undo(before)
         compose.onNodeWithTag("timeline").performTouchInput {
-            down(Offset(center.x-60*density,69*density));moveBy(Offset(30*density,0f),100);up()
+            down(Offset(center.x-60*density,firstRowMiddle));moveBy(Offset(30*density,0f),100);up()
         }
         compose.waitUntil(10000){clip().getInt("in_frame")==30&&vm.state.saved}
         assertEquals(100,clip().getInt("out_frame"));assertEquals(20,clip().getInt("offset_frame"))
         assertEquals(tracks,vm.layer(2)!!.getJSONObject("transform").toString());photo("clip-trimmed");undo(before)
         compose.onNodeWithTag("timeline").performTouchInput {
-            down(Offset(center.x-60*density,69*density));moveBy(Offset(36*density,0f),100);cancel()
+            down(Offset(center.x-60*density,firstRowMiddle));moveBy(Offset(36*density,0f),100);cancel()
         }
         compose.waitUntil(10000){vm.state.project!!.toString()==before}
         assertNull(vm.state.error)
@@ -188,7 +191,7 @@ class FrontendLayerControlsTest {
 
     @Test fun preciseTrimValidatesRangeAndLockedTimelineRejectsClipMotion() {
         val before=vm.state.project!!.toString();val tracks=vm.layer(2)!!.getJSONObject("transform").toString()
-        compose.onNodeWithTag("timeline").performTouchInput{longClick(Offset(center.x,69*density))}
+        compose.onNodeWithTag("timeline").performTouchInput{longClick(Offset(center.x,firstRowMiddle))}
         compose.onNodeWithText("精确裁剪片段").performClick()
         compose.onNodeWithTag("clip-in").performTextReplacement("-1")
         compose.onNodeWithText("应用裁剪").assertIsNotEnabled()
@@ -201,7 +204,7 @@ class FrontendLayerControlsTest {
         compose.waitUntil(10000){!vm.editable()&&vm.state.saved}
         val locked=vm.state.project!!.toString()
         compose.onNodeWithTag("timeline").performTouchInput {
-            down(Offset(center.x,69*density));advanceEventTime(650);moveBy(Offset(30*density,0f),100);up()
+            down(Offset(center.x,firstRowMiddle));advanceEventTime(650);moveBy(Offset(30*density,0f),100);up()
         }
         compose.waitForIdle();assertEquals(locked,vm.state.project!!.toString());assertNull(vm.state.error)
     }
@@ -212,12 +215,12 @@ class FrontendLayerControlsTest {
         assertFalse(vm.threeD(3))
         val before=vm.state.project!!.toString()
         compose.onNodeWithTag("timeline").performTouchInput {
-            down(Offset(center.x,121*density));advanceEventTime(650);moveBy(Offset(0f,-52*density),100);up()
+            down(Offset(center.x,secondRowMiddle));advanceEventTime(650);moveBy(Offset(0f,-rowHeight),100);up()
         }
         compose.waitUntil(10000){vm.state.project!!.getJSONArray("layers").getJSONObject(1).getLong("id")==2L&&vm.state.saved}
         undo(before);scenario.onActivity{vm.select(2,false);vm.seek(60.0)}
         compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==60.0}
-        compose.onNodeWithTag("timeline").performTouchInput{longClick(Offset(center.x,121*density))}
+        compose.onNodeWithTag("timeline").performTouchInput{longClick(Offset(center.x,secondRowMiddle))}
         compose.onNodeWithText("在当前帧分割").performClick()
         compose.waitUntil(10000){vm.state.project!!.getJSONArray("layers").length()==3&&vm.state.saved}
         assertEquals(4L,vm.selected);assertEquals(60,vm.timelineLayer(4)!!.getInt("in_frame"))
