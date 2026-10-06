@@ -17,6 +17,10 @@ pub struct Asset {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Content {
+    Adjustment,
+    Vector {
+        vector: crate::vector::VectorContent,
+    },
     Video {
         video: crate::VideoClip,
     },
@@ -213,7 +217,7 @@ impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 5,
+            version: 6,
             name: "空间练习 01".into(),
             width,
             height,
@@ -266,7 +270,7 @@ impl Project {
     }
     pub fn validate(&self) -> Result<()> {
         ensure(
-            matches!(self.version, 1 | 2 | 3 | 4 | 5),
+            (1..=6).contains(&self.version),
             "unsupported project format",
         )?;
         ensure(
@@ -416,6 +420,20 @@ impl Project {
                 e.validate(self.frames)?;
             }
             match &layer.content {
+                Content::Adjustment => {
+                    ensure(self.version >= 6, "adjustment layers require format six")?;
+                    ensure(!layer.three_d, "adjustment layers must be 2D")?;
+                    ensure(
+                        layer.effects.iter().all(|e| e.scene.is_none()),
+                        "adjustment layers cannot contain scene generators",
+                    )?;
+                }
+                Content::Vector { vector } => {
+                    ensure(self.version >= 6, "vector layers require format six")?;
+                    vector.validate().map_err(|e| {
+                        crate::Error::Invalid(format!("layer {} vector: {e}", layer.id))
+                    })?;
+                }
                 Content::Video { video } => {
                     video.validate()?;
                     let asset = self
@@ -528,7 +546,7 @@ impl Project {
             }
             self.version = 3;
         }
-        self.version = 5;
+        self.version = 6;
         Ok(self)
     }
     pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {

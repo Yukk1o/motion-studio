@@ -14,6 +14,7 @@ mod scene;
 pub mod storage;
 mod timeline;
 mod video;
+pub mod vector;
 
 pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
 pub use audio::{AudioAsset, AudioClip};

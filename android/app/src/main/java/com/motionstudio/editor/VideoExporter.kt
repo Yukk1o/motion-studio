@@ -200,6 +200,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
     private var imageBytes=4L
     val skippedSlots=HashSet<Int>()
     private var effects:GlEffects?=null
+    private var layerSources:GlLayerSources?=null
     init {
         try {
         val version=IntArray(2);check(EGL14.eglInitialize(display,version,0,version,1)){"EGL 初始化失败"}
@@ -233,7 +234,8 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
             textures.add(texture(w,h,ByteBuffer.allocateDirect(data.size).put(data).apply{flip()}))
         }
         imageBytes=bytes
-        if(planInfo.getJSONArray("programs").length()>2)effects=GlEffects(planInfo,native,textures)
+        effects=GlEffects(planInfo,native,textures)
+        layerSources=GlLayerSources()
         frameTexture=texture(width,height,null)
         val fbo=IntArray(1);GLES30.glGenFramebuffers(1,fbo,0);framebuffer=fbo[0]
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer)
@@ -253,42 +255,64 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         }
     }
     fun draw(buffer:ByteBuffer) {
-        check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==3){"不兼容的帧计划"}
-        val total=buffer.getInt(28);val vertexOffset=buffer.getInt(60);val bytes=total-vertexOffset
-        check(total in 80..buffer.capacity()&&vertexOffset>=80&&bytes>=0&&bytes%20==0&&bytes<=65536*20){"几何计划范围失效"}
+        check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==4){"不兼容的帧计划"}
+        val total=buffer.getInt(28);val vertexOffset=buffer.getInt(60);val bytes=buffer.getInt(80)*20
+        check(total in 80..buffer.capacity()&&vertexOffset>=112&&vertexOffset.toLong()+bytes<=total&&bytes>=0&&bytes%20==0&&bytes<=65536*20){"几何计划范围失效"}
         effects?.prepare(buffer)
+        val values=buffer.asFloatBuffer()
+        val hasAdjustment=(0 until buffer.getInt(8)).any{values.get(buffer.getInt(16)/4+it*32+31)==2f&&values.get(buffer.getInt(16)/4+it*32+28)<values.get(buffer.getInt(16)/4+it*32+29)}
+        layerSources!!.prepare(buffer,hasAdjustment,width,height,imageBytes+effects!!.resourceBytes(),effects!!.scratchBytes())
+        var accumulator=0
+        if(hasAdjustment)layerSources!!.target(layerSources!!.accumulator(0),width,height,true)
         GLES30.glBindVertexArray(vertexArray);GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
-        val vertices=buffer.duplicate().apply{position(vertexOffset);limit(total)}.slice()
+        val vertices=buffer.duplicate().apply{position(vertexOffset);limit(vertexOffset+bytes)}.slice()
         if(bytes>0)GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER,0,bytes,vertices)
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
-        GLES30.glClearColor(clear[0],clear[1],clear[2],clear[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        if(!hasAdjustment) {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
+            GLES30.glClearColor(clear[0],clear[1],clear[2],clear[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        }
         GLES30.glDisable(GLES30.GL_DEPTH_TEST);GLES30.glDisable(GLES30.GL_CULL_FACE)
-        val values=buffer.asFloatBuffer();var materialized=-1
+        var materialized=-1
         val batchOffset=buffer.getInt(52);val count=buffer.getInt(56)
         check(batchOffset>=80&&count in 0..8192&&batchOffset.toLong()+count*12<=vertexOffset){"几何批次范围失效"}
         for(i in 0 until count) {
             val batch=batchOffset+i*12;val layer=buffer.getInt(batch)
             check(layer in 0 until buffer.getInt(8)){"图层计划索引失效"}
             val base=buffer.getInt(16)/4+layer*32
-            val asset=values.get(base+24).toInt();if(asset in skippedSlots)continue
+            val sourceKind=values.get(base+31).toInt()
+            val asset=values.get(base+24).toInt();if(sourceKind==0&&asset in skippedSlots)continue
             val passStart=values.get(base+28).toInt();val passEnd=values.get(base+29).toInt()
             if(passStart<passEnd&&materialized!=layer) {
-                val video=if(asset<0)videoTextures[asset]?:error("视频画面未就绪")else null
+                val video=when(sourceKind){
+                    2->layerSources!!.input(accumulator)
+                    1->layerSources!!.vector(layer)
+                    else->if(asset<0)videoTextures[asset]?:error("视频画面未就绪")else null
+                }
                 effects!!.passes(buffer,passStart,passEnd,video);materialized=layer
             }
-            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
+            if(sourceKind==2) {
+                if(passStart<passEnd&&values.get(base+22)>0f)accumulator=layerSources!!.adjust(accumulator,effects!!.texture(0),buffer,base)
+                continue
+            }
+            if(hasAdjustment)layerSources!!.target(layerSources!!.accumulator(accumulator),width,height)
+            else {GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)}
             GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
             GLES30.glBindVertexArray(vertexArray);GLES30.glUseProgram(plane);GLES30.glUniform1i(imageLocation,0)
             GLES30.glUniform2f(uvLocation,values.get(base+25),values.get(base+26))
             values.position(base);values.get(matrix);values.get(color)
             GLES30.glUniformMatrix4fv(mvpLocation,1,false,matrix,0);GLES30.glUniform4fv(colorLocation,1,color,0)
             GLES30.glUniform3f(extentLocation,values.get(base+20),values.get(base+21),values.get(base+22))
-            val image=if(values.get(base+27)>=0f)effects!!.texture(values.get(base+27).toInt()) else if(asset<0)videoTextures[asset]?:error("视频画面未就绪") else textures.getOrNull(asset)?:error("图片资源失效")
+            val image=if(values.get(base+27)>=0f)effects!!.texture(values.get(base+27).toInt()) else if(sourceKind==1)layerSources!!.vector(layer) else if(asset<0)videoTextures[asset]?:error("视频画面未就绪") else textures.getOrNull(asset)?:error("图片资源失效")
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,image)
             val first=buffer.getInt(batch+4);val size=buffer.getInt(batch+8)
             check(first>=0&&size>=0&&(first.toLong()+size)*20<=bytes){"几何顶点范围失效"}
             GLES30.glBlendFuncSeparate(GLES30.GL_ONE,if(values.get(base+23)>0.5f)GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA,GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
             GLES30.glDrawArrays(GLES30.GL_TRIANGLES,first,size)
+        }
+        if(hasAdjustment) {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,width,height)
+            GLES30.glClearColor(clear[0],clear[1],clear[2],clear[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+            layerSources!!.composite(accumulator)
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0);GLES30.glDisable(GLES30.GL_BLEND)
         GLES30.glUseProgram(presentProgram);GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,frameTexture)
@@ -303,6 +327,7 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         if(context!=EGL14.EGL_NO_CONTEXT&&window!=EGL14.EGL_NO_SURFACE) {
             EGL14.eglMakeCurrent(display,window,window,context)
             effects?.close();effects=null
+            layerSources?.close();layerSources=null
             GLES30.glDeleteProgram(plane);GLES30.glDeleteProgram(presentProgram)
             GLES30.glDeleteBuffers(1,intArrayOf(vertexBuffer),0);GLES30.glDeleteVertexArrays(1,intArrayOf(vertexArray),0)
             GLES30.glDeleteTextures(videoTextures.size,videoTextures.values.toIntArray(),0);videoTextures.clear()
@@ -345,8 +370,8 @@ private class EglMovieRenderer(surface:Surface,private val width:Int,private val
         precision highp float; uniform sampler2D image; uniform vec4 color; uniform vec3 extent; in vec2 uv; out vec4 result;
         void main(){vec4 s=texture(image,uv);float a=color.a*extent.z;result=vec4(s.rgb*color.rgb*a,s.a*a);}"""
         private const val PRESENT_VERTEX="""#version 300 es
-        out vec2 uv;const vec2 p[3]=vec2[3](vec2(-1.,-1.),vec2(3.,-1.),vec2(-1.,3.));
-        void main(){vec2 v=p[gl_VertexID];gl_Position=vec4(v,0.,1.);uv=v*.5+.5;}"""
+        out vec2 uv;
+        void main(){vec2 v=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2))*2.-1.;gl_Position=vec4(v,0.,1.);uv=v*.5+.5;}"""
         private const val PRESENT_FRAGMENT="""#version 300 es
         precision highp float;uniform sampler2D image;in vec2 uv;out vec4 result;
         vec3 encode(vec3 v){return mix(1.055*pow(max(v,vec3(0.)),vec3(1./2.4))-.055,12.92*v,lessThanEqual(v,vec3(.0031308)));}

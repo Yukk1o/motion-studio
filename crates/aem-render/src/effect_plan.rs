@@ -7,8 +7,8 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 3;
-pub const HEADER_BYTES: usize = 80;
+pub const PLAN_VERSION: u32 = 4;
+pub const HEADER_BYTES: usize = 112;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 10;
 pub fn scratch_bytes(width: u32, height: u32, slots: u32) -> u64 {
@@ -82,6 +82,7 @@ pub struct EffectFramePlan {
     pub batches: Vec<aem_core::PlaneBatch>,
     pub sprites: Vec<crate::scene_generator::Sprite>,
     pub generator_stats: crate::scene_generator::GeneratorStats,
+    pub vectors: Vec<crate::vector_mesh::VectorMesh>,
 }
 impl EffectFramePlan {
     pub fn buffer_bytes(&self, scene: &Scene) -> usize {
@@ -93,6 +94,12 @@ impl EffectFramePlan {
             + self.batches.len() * 12
             + self.vertices.len() * 20
             + self.sprites.len() * 48
+            + self.vectors.len() * 28
+            + self
+                .vectors
+                .iter()
+                .map(|v| v.vertices.len() * 24)
+                .sum::<usize>()
     }
     pub fn write(&self, scene: &Scene, out: &mut [u8]) -> Result<usize, String> {
         let size = self.buffer_bytes(scene);
@@ -106,6 +113,8 @@ impl EffectFramePlan {
         let sprite_offset = lut_offset + scene.curve_luts.len() * 1024;
         let batch_offset = sprite_offset + self.sprites.len() * 48;
         let vertex_offset = batch_offset + self.batches.len() * 12;
+        let vector_offset = vertex_offset + self.vertices.len() * 20;
+        let vector_data_offset = vector_offset + self.vectors.len() * 28;
         let header = [
             PLAN_MAGIC,
             PLAN_VERSION,
@@ -127,6 +136,14 @@ impl EffectFramePlan {
             self.sprites.len() as u32,
             48,
             0,
+            self.vertices.len() as u32,
+            vector_offset as u32,
+            self.vectors.len() as u32,
+            vector_data_offset as u32,
+            24,
+            scene.width,
+            scene.height,
+            28,
         ];
         out[..HEADER_BYTES].copy_from_slice(bytemuck::cast_slice(&header));
         for (i, d) in self.draws.iter().enumerate() {
@@ -185,6 +202,23 @@ impl EffectFramePlan {
             out[vertex_offset + i * 20..vertex_offset + (i + 1) * 20]
                 .copy_from_slice(bytemuck::cast_slice(&data));
         }
+        let mut offset = vector_data_offset;
+        for (i, v) in self.vectors.iter().enumerate() {
+            let record = [
+                v.layer as u32,
+                v.width,
+                v.height,
+                offset as u32,
+                v.vertices.len() as u32,
+                v.fingerprint as u32,
+                (v.fingerprint >> 32) as u32,
+            ];
+            out[vector_offset + i * 28..vector_offset + (i + 1) * 28]
+                .copy_from_slice(bytemuck::cast_slice(&record));
+            let end = offset + v.vertices.len() * 24;
+            out[offset..end].copy_from_slice(bytemuck::cast_slice(&v.vertices));
+            offset = end;
+        }
         Ok(size)
     }
 }
@@ -207,6 +241,15 @@ pub struct PlanBuilder {
     overlays: Vec<bool>,
     pub generator_scratch: crate::scene_generator::GeneratorScratch,
     pub alpha_images: std::collections::HashMap<u64, crate::scene_generator::AlphaImage>,
+    vector_cache: std::collections::HashMap<
+        u64,
+        (
+            Arc<aem_core::vector::SampledVector>,
+            [f32; 2],
+            f32,
+            crate::vector_mesh::VectorMesh,
+        ),
+    >,
 }
 fn utility(code: &str) -> Result<Arc<shader::CompiledShader>, String> {
     shader::compile(code, "main_fx")
@@ -313,6 +356,13 @@ impl PlanBuilder {
                     .iter()
                     .find(|d| d.id == e.effect)
                     .ok_or_else(|| format!("{location}: effect definition missing"))?;
+                if matches!(layer.content, aem_core::Content::Adjustment)
+                    && definition.renderer != aem_effects::RendererKind::Image
+                {
+                    return Err(format!(
+                        "{location}: adjustment layers support image effects only"
+                    ));
+                }
                 if definition.renderer != aem_effects::RendererKind::Image && chain_index != 0 {
                     return Err(format!(
                         "{location}: scene generator must be first enabled effect"
@@ -391,6 +441,7 @@ impl PlanBuilder {
             overlays: Vec::with_capacity(aem_core::MAX_LAYERS),
             alpha_images: Default::default(),
             generator_scratch: Default::default(),
+            vector_cache: Default::default(),
         })
     }
     pub fn set_registry(&mut self, registry: Registry) {
@@ -502,6 +553,13 @@ impl PlanBuilder {
         self.frame.slots = 0;
         self.frame.scratch_sizes = [[0; 2]; 8];
         self.frame.draws.clear();
+        self.frame.vectors.clear();
+        self.vector_cache.retain(|id, _| {
+            scene
+                .layers
+                .iter()
+                .any(|l| l.id == *id && l.vector.is_some())
+        });
         self.overlays.clear();
         self.frame.passes.clear();
         self.frame.diagnostics.clear();
@@ -563,13 +621,59 @@ impl PlanBuilder {
             .min(height as f32 / scene.height as f32)
             .min(1.0)
             .max(0.001);
-        for layer in &scene.layers {
+        for (layer_index, layer) in scene.layers.iter().enumerate() {
+            if let Some(vector) = &layer.vector {
+                let dirty = self
+                    .vector_cache
+                    .get(&layer.id)
+                    .is_none_or(|(v, s, r, _)| v != vector || *s != layer.size || *r != scale);
+                if dirty {
+                    let vertices = crate::vector_mesh::tessellate(vector, layer.size, scale)
+                        .map_err(|e| format!("layer {}: {e}", layer.id))?;
+                    let (w, h) = (
+                        (layer.size[0] * scale).ceil() as u32,
+                        (layer.size[1] * scale).ceil() as u32,
+                    );
+                    if w > self.device_dimension || h > self.device_dimension {
+                        return Err(format!(
+                            "layer {}: vector raster exceeds device dimensions",
+                            layer.id
+                        ));
+                    }
+                    use std::hash::{Hash, Hasher};
+                    let mut hash = std::collections::hash_map::DefaultHasher::new();
+                    bytemuck::cast_slice::<_, u8>(&vertices).hash(&mut hash);
+                    w.hash(&mut hash);
+                    h.hash(&mut hash);
+                    let mesh = crate::vector_mesh::VectorMesh {
+                        layer: layer_index,
+                        width: w,
+                        height: h,
+                        fingerprint: hash.finish(),
+                        vertices: Arc::new(vertices),
+                    };
+                    self.vector_cache
+                        .insert(layer.id, (vector.clone(), layer.size, scale, mesh));
+                }
+                let mut mesh = self.vector_cache[&layer.id].3.clone();
+                mesh.layer = layer_index;
+                self.frame.vectors.push(mesh);
+            }
             let asset = assets
                 .iter()
                 .position(|id| *id == layer.asset.unwrap_or(0))
                 .ok_or("image asset is not loaded")?;
             let pass_start = self.frame.passes.len();
-            let mut region = [0.0, 0.0, layer.size[0], layer.size[1]];
+            let source_size = if layer.adjustment {
+                [scene.width as f32, scene.height as f32]
+            } else {
+                layer.source_size
+            };
+            let mut region = if layer.adjustment {
+                [0.0, 0.0, source_size[0], source_size[1]]
+            } else {
+                layer.source_rect
+            };
             let mut materialized = false;
             let mut overlay = false;
             let mut additive = false;
@@ -590,6 +694,9 @@ impl PlanBuilder {
                         }
                     }
                     let def = &resolved.definition;
+                    if layer.adjustment && def.renderer != aem_effects::RendererKind::Image {
+                        return Err("adjustment layers support image effects only".into());
+                    }
                     let mut params = [[0.0; 4]; 32];
                     for (i, p) in def.params.iter().enumerate() {
                         let v = e.values[resolved.mapping[i]];
@@ -793,8 +900,8 @@ impl PlanBuilder {
                     let uniform = |out: [f32; 4], input: [f32; 4], source: [f32; 4], pass: f32| {
                         EffectUniform {
                             size: [
-                                layer.size[0],
-                                layer.size[1],
+                                source_size[0],
+                                source_size[1],
                                 (out[2] * scale).ceil(),
                                 (out[3] * scale).ceil(),
                             ],
@@ -949,6 +1056,26 @@ impl PlanBuilder {
             words[27] = if materialized { 0.0 } else { -1.0 };
             words[28] = pass_start as f32;
             words[29] = self.frame.passes.len() as f32;
+            words[31] = if layer.adjustment {
+                2.
+            } else if layer.vector.is_some() {
+                1.
+            } else {
+                0.
+            };
+            if layer.adjustment {
+                let inverse = if layer.model.determinant().abs() > 1e-8 {
+                    layer.model.inverse()
+                } else {
+                    words[22] = 0.;
+                    glam::Mat4::IDENTITY
+                };
+                words[..16].copy_from_slice(&inverse.to_cols_array());
+                words[16..20].copy_from_slice(&region);
+                words[20] = layer.size[0];
+                words[21] = layer.size[1];
+                words[30] = scene.width as f32;
+            }
             self.frame.draws.push(PlannedDraw {
                 layer: layer.id,
                 words,
@@ -959,10 +1086,15 @@ impl PlanBuilder {
         if self.frame.width > 0 {
             for d in &mut self.frame.draws {
                 if d.words[27] >= 0.0 {
+                    let extent = if d.words[31] == 2. {
+                        [d.words[18], d.words[19]]
+                    } else {
+                        [d.words[20], d.words[21]]
+                    };
                     d.words[25] =
-                        (d.words[20] * scale).ceil() / self.frame.scratch_sizes[0][0] as f32;
+                        (extent[0] * scale).ceil() / self.frame.scratch_sizes[0][0] as f32;
                     d.words[26] =
-                        (d.words[21] * scale).ceil() / self.frame.scratch_sizes[0][1] as f32;
+                        (extent[1] * scale).ceil() / self.frame.scratch_sizes[0][1] as f32;
                 }
             }
         }
@@ -974,6 +1106,43 @@ impl PlanBuilder {
             .map_err(|e| e.to_string())?;
         self.frame.vertices.clone_from(&self.geometry.vertices);
         self.frame.batches.clone_from(&self.geometry.batches);
+        let vector_bytes = self
+            .frame
+            .vectors
+            .iter()
+            .map(|v| u64::from(v.width) * u64::from(v.height) * 4)
+            .sum::<u64>();
+        if self
+            .frame
+            .vectors
+            .iter()
+            .map(|v| v.vertices.len())
+            .sum::<usize>()
+            > 262144
+        {
+            return Err("frame vector vertex limit exceeded (262144)".into());
+        }
+        if vector_bytes > 128 * 1024 * 1024 {
+            return Err("vector sources exceed 128 MiB".into());
+        }
+        if self
+            .frame
+            .draws
+            .iter()
+            .any(|d| d.words[31] == 2. && d.pass_start < d.pass_end)
+        {
+            let accumulator = 2
+                * u64::from((scene.width as f32 * scale).ceil() as u32)
+                * u64::from((scene.height as f32 * scale).ceil() as u32)
+                * 4;
+            if scratch_capacity_bytes(&self.frame.scratch_sizes) + accumulator
+                > aem_effects::SCRATCH_BUDGET
+            {
+                return Err(
+                    "adjustment accumulators and effect scratch textures exceed 64 MiB".into(),
+                );
+            }
+        }
         Ok(&self.frame)
     }
 }

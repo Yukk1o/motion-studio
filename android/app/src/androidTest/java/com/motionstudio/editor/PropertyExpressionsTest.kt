@@ -35,7 +35,7 @@ class PropertyExpressionsTest {
         try {
             val e=expression("var d=[time*60,0,0]; value+d;",target("position"))
             set(native,e);val state=data(NativeBridge.seek(native,7.0))
-            assertEquals(5,state.getJSONObject("project").getInt("version"));assertEquals(62.0,state.getJSONArray("sampledLayers").getJSONObject(0).getJSONArray("position").getDouble(0),1e-5)
+            assertEquals(6,state.getJSONObject("project").getInt("version"));assertEquals(62.0,state.getJSONArray("sampledLayers").getJSONObject(0).getJSONArray("position").getDouble(0),1e-5)
             assertEquals(48.0,state.getJSONObject("project").getJSONArray("layers").getJSONObject(0).getJSONObject("transform").getJSONObject("position").getJSONArray("value").getDouble(0),0.0)
             assertEquals("QuickJS-NG",state.getJSONObject("capabilities").getJSONObject("property_expressions").getString("engine"))
             val frozen=state.getJSONObject("project").toString()

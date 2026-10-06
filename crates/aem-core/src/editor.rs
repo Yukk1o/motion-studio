@@ -23,6 +23,21 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    AddAdjustment {
+        id: u64,
+        name: String,
+    },
+    AddShape {
+        id: u64,
+        name: String,
+        shape: crate::vector::ShapeKind,
+        size: [f32; 2],
+        position: [f32; 3],
+    },
+    Vector {
+        object: u64,
+        action: crate::vector::VectorAction,
+    },
     RegisterAudioAsset {
         asset: crate::AudioAsset,
     },
@@ -634,6 +649,53 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             valid_frame(frame)?;
             let frame = project.edit_frame(object, frame)?;
             axis_channel(project, object, property, axis)?.ease(frame, ease)?;
+        }
+        Command::AddAdjustment { id, name } => {
+            let mut layer = Layer::solid(
+                id,
+                &name,
+                [project.width as f32, project.height as f32],
+                [project.width as f32 * 0.5, project.height as f32 * 0.5, 0.],
+                [1.; 4],
+            );
+            layer.content = Content::Adjustment;
+            project.layers.push(layer);
+        }
+        Command::AddShape {
+            id,
+            name,
+            shape,
+            size,
+            position,
+        } => {
+            let mut layer = Layer::solid(id, &name, size, position, [1.; 4]);
+            layer.content = Content::Vector {
+                vector: crate::vector::VectorContent::shape(shape),
+            };
+            project.layers.push(layer);
+        }
+        Command::Vector { object, action } => {
+            let edit_frame = match &action {
+                crate::vector::VectorAction::SetNode { frame, .. }
+                | crate::vector::VectorAction::SetParameter { frame, .. }
+                | crate::vector::VectorAction::ConvertToPath { frame } => Some(*frame),
+                _ => None,
+            };
+            if let Some(frame) = edit_frame {
+                valid_frame(frame)?;
+            }
+            let layer = project.layer_mut(object)?;
+            if layer.locked {
+                return Err(Error::Locked(object));
+            }
+            let Content::Vector { vector } = &mut layer.content else {
+                return Err(Error::Invalid("not a vector layer".into()));
+            };
+            vector.edit(
+                action,
+                layer.size,
+                layer.timeline.map_or(0, |t| t.offset_frame),
+            )?;
         }
         Command::RegisterAsset { asset } => project.assets.push(asset),
         Command::Content {

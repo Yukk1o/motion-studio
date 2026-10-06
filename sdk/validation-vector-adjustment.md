@@ -1,0 +1,46 @@
+# 矢量与调整图层验收记录（2026-10-06）
+
+本分支不自动合并。前端界面由前端开发接入，接口见 `host-vector-adjustment.md`。
+
+## 已完成检查
+
+| 检查 | 结果及边界 |
+| --- | --- |
+| Rust 工作区运行回归 | `cargo test --workspace --offline --locked`，D3D12、单线程：159 项通过，1 项按既有配置跳过的大文件验收；包含 4 个新增核心用例和 4 个新增 GPU 用例 |
+| Android 原生 | ARM64 / x86_64 release 编译通过；JNI 新能力、矢量采样和帧计划字段经原生构建检查 |
+| Android Kotlin / 安装包 | `assembleDebug` / `assembleDebugAndroidTest` 通过；现有弃用和 SDK XML 告警保留 |
+| GLES 全屏回归 | `fullscreenTriangleArithmeticCoversPbuffer` 通过；软件 GLES 3.0 上常量数组动态索引产生空白且 GL 错误码为 0，算术生成同坐标能输出红色；测试保存两种结果并要求算术路径通过 |
+| 预览 / MP4 | `shapesAdjustmentAndEncodedOutputMatchPreview` 通过：全图 RGB MAE **1.1773**，前景 **1.2927**，前景通道样本 **9309**；阈值分别为 < 6 / < 8，另要求形状实际可见 |
+| 新增 Rust 文件格式 / Git diff | 新增 Rust 文件 `rustfmt --check` 通过，Git diff 检查通过；工作区全量格式检查存在既有格式差异，不在此分支批量重排 |
+| 文件范围 | 独立分支 / 工作树，未包含研究资料、reference/refer、安装包、构建输出、模拟器镜像或日志 |
+
+核心用例覆盖：25 项目录与合法默认值、参数越界拒绝、一次手势一次撤销、失败原子回滚、形状转换、局部时间关键帧、保存恢复、调整层创建、3D 禁用、旧工程升级和非法闭合路径。
+
+GPU 用例覆盖：圆环镂空、开放路径描边、全部形状产生像素、重复渲染复用、调整层处理下方合成、上方及背景保留、透明度混合、跨图层模糊、矩形范围、v4 二进制资源表。既有工作区回归还覆盖效果、粒子、光效、YUV、素材时间实例和交叉平面。
+
+Android 对照覆盖圆环、爱心、半透明填充与 Tint 调整层，采集首个编码帧；保存工程、采样状态、二进制帧计划、PNG、解码 PNG 和误差报告便于复核。该用例不能代表所有效果组合、未编码 Alpha 一致性或真实手机性能。
+
+## 测试设备与修复
+
+新建独立官方 AVD `motion-studio-api35-software`，Android 15 / API 35 x86_64，720×1280、2048 MiB RAM、4 vCPU，ADB `emulator-5554`；使用 WHPX 加速、ANGLE / SwiftShader 软件 GLES，并关闭模拟器 Vulkan。所有镜像与 AVD 数据保存在项目 E 盘工具目录。
+
+默认 Windows GPU 探测曾在 `nvoglv64.dll` 崩溃，桌面验证改用 D3D12。MuMu 在此前测试时退出，未计为通过。新的模拟器 Vulkan / Lavapipe 试验返回 device lost，未计为通过；最终通过的 Android 对照使用 GLES 软件后端。软件编码器为 `c2.android.avc.encoder`，这些耗时不用于推断 ARM 手机性能。
+
+修正了 GLES 3.0 无计算着色器时的设备能力申请，并将宿主全屏三角形、呈现三角形及精灵角点改成算术 / 条件表达式，避免常量数组动态索引的驱动兼容问题。坐标与渲染契约保持一致，效果包 ID、版本和参数不变。
+
+缺失的 Windows C++ 链接工具和 SDK 库已恢复为 E 盘隔离工具，用于上述构建；无需改变项目工程格式以适配工具环境。
+
+## 后续专项验收
+
+真实 ARM 手机仍需记录预览、导出耗时与内存；再扩展多调整层、旋转 / 父级范围、摄影机与相交 3D 平面、矢量几何 / 样式动画随机寻帧、资源释放、预算超限和取消导出。未编码输出及 Alpha 对照另行采集。
+
+```powershell
+$env:CARGO_TARGET_DIR='E:/Dev/aem/target/video-host'
+$env:WGPU_BACKEND='dx12'
+cargo test --workspace --offline --locked --config profile.test.debug=0 --config profile.test.incremental=false -j1 -- --test-threads=1
+
+py -3.14 -X utf8 tools/build_android.py --abis arm64-v8a,x86_64 --rust-only --codegen-units 8
+adb -s emulator-5554 shell am instrument -w -e class com.motionstudio.editor.VectorAdjustmentTest com.motionstudio.editor.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+PR 保留草稿状态供审核，前端可根据接口文档开始接入；真机专项结果须继续补入本记录。
