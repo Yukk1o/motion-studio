@@ -297,7 +297,7 @@ class IntegratedFrontendTest {
         val distance=15*vm.timelineScale*context.resources.displayMetrics.density
         compose.onNodeWithTag("timeline").performTouchInput {
             down(androidx.compose.ui.geometry.Offset(centerX,24*context.resources.displayMetrics.density))
-            moveBy(androidx.compose.ui.geometry.Offset(-distance,0f),300);up()
+            moveBy(androidx.compose.ui.geometry.Offset(-distance,0f),300);advanceEventTime(150);up()
         }
         compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==15.0}
         assertEquals(property,vm.property);assertEquals(objectId,vm.selected)

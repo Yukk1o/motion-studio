@@ -40,12 +40,14 @@ import java.util.Locale
 import kotlin.math.*
 
 @Composable internal fun EditorFooter(vm:EditorViewModel) {
+    if(vm.layerSelectionMode){LayerSelectionBar(vm);return}
     if(vm.contentKind()=="audio") {
         Row(Modifier.fillMaxWidth().heightIn(min=52.dp).background(Panel).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
             Text(objectName(vm,vm.selected),Modifier.weight(1f),color=Ink,maxLines=1,overflow=TextOverflow.Ellipsis)
             TextButton(onClick={vm.openProperty("audio")},modifier=Modifier.height(48.dp)){Text("声音")}
             TextButton(onClick=vm::duplicate,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("复制")}
             TextButton(onClick=vm::deleteLayer,enabled=vm.editable(),modifier=Modifier.height(48.dp)){Text("删除")}
+            Tool(Icons.Default.Check,"多选图层"){vm.startLayerSelection()}
         }
         return
     }
@@ -73,6 +75,7 @@ import kotlin.math.*
         Box {
             Tool(Icons.Default.MoreHoriz,"图层快捷操作"){more=true}
             DropdownMenu(more,{more=false}) {
+                DropdownMenuItem(text={Text("多选图层")},modifier=Modifier.testTag("start-layer-selection"),enabled=vm.state.project?.optJSONArray("layers")?.length()?.let{it>0}==true,onClick={more=false;vm.startLayerSelection()})
                 if(vm.selected!=0L) {
                     if(vm.contentKind() in listOf("solid","image","text","video"))DropdownMenuItem(text={Text("效果")},modifier=Modifier.testTag("open-effects"),onClick={more=false;vm.openEffects()})
                     if(vm.audioClip()!=null)DropdownMenuItem(text={Text("原声")},onClick={more=false;vm.openProperty("audio")})
