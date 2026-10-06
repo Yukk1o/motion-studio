@@ -12,7 +12,12 @@ fn hsl_rgb(hsl:vec3<f32>)->vec3<f32>{
     return (base-0.5)*c+l;
 }
 fn rotate(p:vec2<f32>,a:f32)->vec2<f32>{return vec2(cos(a)*p.x-sin(a)*p.y,sin(a)*p.x+cos(a)*p.y);}
-fn main_fx(p:vec2<f32>)->vec4<f32>{let c=sample_input(p);
-let uv=p/fx.size.xy;let center=fx.size.xy*0.5;let v=(p-center)/max(min(fx.size.x,fx.size.y)*0.5,0.0001);var q=vec2((atan2(v.y,v.x)/6.28318530718+0.5)*fx.size.x,length(v)*fx.size.y);
- if fx.params[2].x>1.5{let angle=(uv.x-0.5)*6.28318530718;q=center+vec2(cos(angle),sin(angle))*uv.y*min(fx.size.x,fx.size.y)*0.5;}return sample_input(mix(p,q,fx.params[1].x));
+fn main_fx(p:vec2<f32>)->vec4<f32>{
+let uv=(p-fx.input_region.xy)/fx.input_region.zw;
+let center=fx.input_region.xy+fx.input_region.zw*0.5;
+let radius=max(min(fx.input_region.z,fx.input_region.w)*0.5,0.0001);
+let v=(p-center)/radius;
+var q=fx.input_region.xy+vec2((atan2(v.y,v.x)/6.28318530718+0.5)*fx.input_region.z,length(v)*fx.input_region.w);
+if fx.params[2].x>1.5{let angle=(uv.x-0.5)*6.28318530718;q=center+vec2(cos(angle),sin(angle))*uv.y*radius;}
+return sample_input(mix(p,q,fx.params[1].x));
 }

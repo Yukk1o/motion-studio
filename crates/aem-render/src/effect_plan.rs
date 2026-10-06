@@ -204,6 +204,7 @@ pub struct PlanBuilder {
     pub frame: EffectFramePlan,
     geometry: aem_core::PlaneCompositor,
     sizes: Vec<[f32; 2]>,
+    origins: Vec<[f32; 2]>,
     overlays: Vec<bool>,
     pub generator_scratch: crate::scene_generator::GeneratorScratch,
     pub alpha_images: std::collections::HashMap<u64, crate::scene_generator::AlphaImage>,
@@ -387,6 +388,7 @@ impl PlanBuilder {
             resolved: Vec::new(),
             frame: EffectFramePlan::default(),
             geometry: aem_core::PlaneCompositor::new(),
+            origins: Vec::with_capacity(aem_core::MAX_LAYERS),
             sizes: Vec::with_capacity(aem_core::MAX_LAYERS),
             overlays: Vec::with_capacity(aem_core::MAX_LAYERS),
             alpha_images: Default::default(),
@@ -788,7 +790,9 @@ impl PlanBuilder {
                             .iter()
                             .position(|p| p == id)
                             .ok_or("unknown edge parameter")?;
-                        edge = if e.values[i][0] > 0.5 { 1.0 } else { 0.0 };
+                        edge = if def.params[i].kind == aem_effects::ParamKind::Enum {
+                            e.values[i][0]
+                        } else if e.values[i][0] > 0.5 { 1.0 } else { 0.0 };
                     }
                     let uniform = |out: [f32; 4], input: [f32; 4], source: [f32; 4], pass: f32| {
                         EffectUniform {
@@ -969,8 +973,14 @@ impl PlanBuilder {
         self.sizes.clear();
         self.sizes
             .extend(self.frame.draws.iter().map(|d| [d.words[20], d.words[21]]));
+        self.origins.clear();
+        self.origins.extend(self.frame.draws.iter().map(|draw| {
+            self.frame.passes.get(draw.pass_end.wrapping_sub(1))
+                .filter(|_| draw.pass_end > draw.pass_start)
+                .map_or([0.; 2], |pass| [pass.uniform.region[0], pass.uniform.region[1]])
+        }));
         self.geometry
-            .prepare_with_sizes_and_overlays(scene, &self.sizes, &self.overlays)
+            .prepare_with_bounds_and_overlays(scene, &self.sizes, &self.origins, &self.overlays)
             .map_err(|e| e.to_string())?;
         self.frame.vertices.clone_from(&self.geometry.vertices);
         self.frame.batches.clone_from(&self.geometry.batches);

@@ -131,7 +131,11 @@ impl Renderer {
             .await
             .ok_or(RenderError::Adapter)?;
         let adapter_info = adapter.get_info();
-        let limits = wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits());
+        let supported = adapter.limits();
+        let base = if supported.max_compute_workgroups_per_dimension == 0 {
+            wgpu::Limits::downlevel_webgl2_defaults()
+        } else { wgpu::Limits::downlevel_defaults() };
+        let limits = base.using_resolution(supported);
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -316,7 +320,7 @@ impl Renderer {
         Ok(renderer)
     }
     pub async fn headless() -> Result<Self> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
         Self::new(&instance, None, TARGET_FORMAT).await
     }
     pub fn texture_bytes(&self) -> u64 {

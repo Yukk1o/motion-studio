@@ -45,7 +45,8 @@ for(var i:i32=0;i<32;i=i+1) {
     let shift = fx.params[1].xy+fx.params[4].xy*t;
     let angle = radians(fx.params[2].x+fx.params[5].x*t);
     let zoom = max(.05,fx.params[3].x*(1.0+fx.params[6].x*t));
-    sum += sample_input(fx.params[0].xy+turn(p-fx.params[0].xy-shift,-angle)/zoom);
+    let q = fx.params[0].xy+turn(p-fx.params[0].xy-shift,-angle)/zoom;
+    if all(q>=fx.input_region.xy)&&all(q<=fx.input_region.xy+fx.input_region.zw) {sum += sample_input(q);}
 }
 return sum/32.0;
 
