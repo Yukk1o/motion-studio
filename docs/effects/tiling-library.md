@@ -51,3 +51,5 @@ py -3.14 tools/compare_tiling_effects.py artifacts/ae-tiling/18.0.1 --publish-re
 ```
 
 对照报告只跟踪数值、参数快照和 SHA-256；AE 工程、参考/输出图和 gallery 都保留在 Git 忽略的 artifacts/。静态用例的阈值通过不代表完成效果验收；更广泛的动画/参数/变换/设备验收未完成时不计入已还原数量。
+
+最终构建、115 项 Rust 测试、59 项 Android 双端对照与验收边界见 [验证记录](tiling-runtime-validation.md)。简单阻塞工具目前在半透明区域与 AE 差异明显，保留近似状态。
