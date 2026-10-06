@@ -114,11 +114,14 @@ open class MainActivity:ComponentActivity() {
 }
 @Composable internal fun Editor(vm:EditorViewModel,startAtHome:Boolean=false) {
     val context=LocalContext.current
+    val diagnosticSave=rememberLauncherForActivityResult(CreateOutputDocument("application/json"),vm::saveErrorReport)
+    fun exportDiagnostic(){vm.prepareErrorReport{diagnosticSave.launch("MotionStudio-error-${System.currentTimeMillis()}.json")}}
     val scope=rememberCoroutineScope()
     var home by rememberSaveable{mutableStateOf(startAtHome)}
     var homePage by rememberSaveable{mutableStateOf("projects")}
     val homeState=rememberSaveableStateHolder()
     var addMenu by remember{mutableStateOf(false)}
+    var shapeMenu by remember{mutableStateOf(false)}
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
     var creating by remember{mutableStateOf(false)}
@@ -151,15 +154,15 @@ open class MainActivity:ComponentActivity() {
         BackHandler(enabled=homePage!="projects",onBack=::backHomePage)
         homeState.SaveableStateProvider(homePage) {
             when(homePage) {
-                "settings"->HomeSettings(vm,editorLayout,onBack=::backHomePage,onPackages={homePage="plugins"},onAdjustLayout={
+                "settings"->HomeSettings(vm,editorLayout,onBack=::backHomePage,onPackages={homePage="plugins"},onReport=::exportDiagnostic,onAdjustLayout={
                     vm.gestureInertia.stop();vm.pause();vm.finishLayerSelection();layoutEditing=true;home=false
                 })
                 "plugins"->PluginSettings(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onBack=::backHomePage)
                 else->ProjectHome(vm,onOpen={project->if(project.directory!=vm.root.name||vm.state.project==null)vm.openProject(project.directory);home=false},
-                    onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onSettings={homePage="settings"})
+                    onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onSettings={homePage="settings"},onReport=::exportDiagnostic)
             }
         }
-        if(homePage!="projects")vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
+        if(homePage!="projects")vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Column{Text(message);TextButton(onClick=::exportDiagnostic){Text("导出错误报告")}}},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
         return
     }
     BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.closeWorkspace()}
@@ -176,7 +179,7 @@ open class MainActivity:ComponentActivity() {
             val split=wide&&availableWidth>=552.dp
             val sideWidth=if(split)editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.48f).coerceIn(248.dp,320.dp).value,248f,(availableWidth-304.dp).value).dp else 0.dp
-            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
+            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.vectorOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
             val effectWidth=if(split)sideWidth else editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.5f).coerceAtMost(320.dp).value,200f,(availableWidth-256.dp).value).dp
             val dragDensity=LocalDensity.current.density
@@ -222,6 +225,7 @@ open class MainActivity:ComponentActivity() {
                     Column(Modifier.width(if(effectEditing)effectWidth else sideWidth).fillMaxHeight()) {
                         if(effectEditing) {
                             if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing)
+                            else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it})
                             else EffectsPanel(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
                         }
                         else {
@@ -235,6 +239,7 @@ open class MainActivity:ComponentActivity() {
                     Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)focusedTimelineHeight else timelineHeight),focused=effectEditing)
                     if(effectEditing) {
                         if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing)
+                        else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it})
                         else EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
                     }
                     else EditorFooter(vm)
@@ -302,18 +307,22 @@ open class MainActivity:ComponentActivity() {
             "video"->videoImport=true
             "text"->textDialog=true
             "solid"->vm.addRectangle()
+            "shapes"->shapeMenu=true
+            "pen"->vm.addPenLayer()
+            "adjustment"->vm.addAdjustment()
             "null"->vm.addNull()
             "camera"->vm.addCamera()
         }
     })
+    if(shapeMenu)ShapeCatalogue(vm){shapeMenu=false}
     vm.state.error?.takeUnless{it.startsWith("expression ")}?.let{message->AlertDialog(onDismissRequest=vm::clearError,
-        title={Text("操作未完成")},text={Text(message)},
+        title={Text("操作未完成")},text={Column{Text(message);TextButton(onClick=::exportDiagnostic,modifier=Modifier.testTag("export-error-report")){Text("导出错误报告")};Text("包含设备信息和近期操作，不包含项目与素材。",color=Muted,fontSize=12.sp)}},
         confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}},
         dismissButton={if(vm.pendingOutput!=null&&vm.outputPhase.startsWith("failed"))TextButton(onClick={vm.clearError()
             when(vm.pendingOutputKind){"video"->videoSave.launch("MotionStudio.mp4");"project"->projectSave.launch("MotionStudio.motion");else->pngSave.launch("motion-frame.png")}
         }){Text("重新选择位置")}else if(vm.state.project!=null)TextButton(onClick=vm::retryPreview){Text("重试预览")}})}
     if(textDialog)InputDialog("添加文字","Motion Studio",onDismiss={textDialog=false}){vm.addText(it);textDialog=false}
-    if(videoImport)AlertDialog(onDismissRequest={videoImport=false},title={Text("导入视频")},text={Column{Text("支持 MP4、MOV、MKV、WebM、3GP 等容器，最多 1080p、8 位 SDR。编码支持取决于设备，导入时会检查。",color=Muted)
+    if(videoImport)AlertDialog(onDismissRequest={videoImport=false},title={Text("导入视频")},text={Column{Text("支持 4K、最高 240 fps 与任意画幅导入，可选择 MP4、MOV、MKV、WebM、3GP 等视频。",color=Ink,modifier=Modifier.testTag("video-import-support"));Spacer(Modifier.height(8.dp));Text("横竖屏与宽高比不限；单边不超过 4096 像素，总像素不超过 4096 × 2160。当前支持 8 位 SDR，编码与解码能力取决于设备，选择后会检查。",color=Muted,fontSize=12.sp)
         Row(verticalAlignment=Alignment.CenterVertically){Checkbox(keepSound,{keepSound=it});Text("保留原声")}}},confirmButton={TextButton(onClick={videoImport=false;videoPicker.launch(arrayOf("video/*","application/octet-stream"))}){Text("选择视频")}},dismissButton={TextButton(onClick={videoImport=false}){Text("取消")}})
     vm.importTask?.let{task->AlertDialog(onDismissRequest={},title={Text("导入媒体")},text={Column {
         val phase=when(task.optString("phase")){"opening"->"打开文件";"copying"->"保存素材";"probing"->"检查画面";"decoding","decoding_audio"->"解码声音";"waveform"->"生成波形";"awaiting_commit"->"保存片段";else->"准备素材"}
@@ -341,6 +350,7 @@ open class MainActivity:ComponentActivity() {
             }
             vm.previewInfo?.let{info->Text("预览 "+info.optInt("width")+" × "+info.optInt("height")+" · "+info.optInt("fps")+" fps",fontSize=11.sp,lineHeight=15.sp,color=Muted)}
             TextButton(onClick={settings=false;creating=true},modifier=Modifier.testTag("open-new-composition")){Text("自定义新建合成")}
+            TextButton(onClick=::exportDiagnostic){Text("导出最近的错误报告")}
             Text("快速新建 6 秒合成",fontSize=12.sp,color=Muted)
             listOf(1080 to 1920,1920 to 1080,1080 to 1080).forEach{(w,h)->
                 Row {
@@ -399,7 +409,7 @@ open class MainActivity:ComponentActivity() {
                 color=MaterialTheme.colorScheme.error,fontSize=12.sp,maxLines=3,overflow=TextOverflow.Ellipsis)
         }
         Canvas(Modifier.fillMaxSize()) {
-            if(!vm.playing&&vm.selected!=0L) {
+            if(!vm.playing&&vm.selected!=0L&&!vm.vectorOpen) {
                 previewPolygons(vm,size.width,size.height).filter{if(vm.layerSelectionMode)it.first in vm.selectedLayerIds else it.first==vm.selected}.forEach{(_,points)->
                     val outline=Path().apply{moveTo(points[0].x,points[0].y);points.drop(1).forEach{lineTo(it.x,it.y)};close()}
                     drawPath(outline,Accent,style=androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
@@ -509,6 +519,7 @@ open class MainActivity:ComponentActivity() {
                 if(!active&&!observing)picked?.let{vm.select(it,false)}
             }
         })
+        if(vm.vectorOpen&&!vm.playing&&!vm.state.observing&&vm.vectorData()?.getJSONObject("source")?.optString("kind")=="paths")VectorPreviewOverlay(vm)
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
             TextButton(onClick={menu=true},modifier=Modifier.heightIn(min=48.dp).background(Background.copy(alpha=.8f),RoundedCornerShape(10.dp))) {
                 Text(if(vm.state.observing)"空间观察" else if(vm.hasCamera())"成片摄影机"else"合成视图",color=Ink,fontSize=12.sp)
