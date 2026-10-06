@@ -1,5 +1,7 @@
-//! One pending target and one decoded frame per instance. Latest target wins.
-use super::video_decode::{DecodedFrame, Decoder};
+//! Exact PTS lookup with bounded forward prefetch, independent of render ticks.
+use super::video_decode::Decoder;
+use crate::video_cache::{FrameCache, LOOKAHEAD};
+use crate::video_frame::DecodedFrame;
 use aem_core::{Content, Project, Scene, VideoAsset};
 use aem_media::Result;
 use serde_json::{json, Value};
@@ -11,54 +13,91 @@ use std::{
 #[derive(Clone, Copy)]
 struct Request {
     time: u64,
+    source_time: u64,
+    index: usize,
     sequence: u64,
 }
 struct State {
     desired: Option<Request>,
-    frame: Option<Arc<DecodedFrame>>,
+    cache: FrameCache,
     error: Option<String>,
-    done: u64,
     stop: bool,
+    prefetch: bool,
+    failed_prefetch: Option<u64>,
+    hits: u64,
+    misses: u64,
+    decoded: u64,
+    cancelled: u64,
 }
 struct Stream {
-    asset: u64,
+    asset: VideoAsset,
+    pts: Arc<Vec<u64>>,
     shared: Arc<(Mutex<State>, Condvar)>,
+}
+fn job(s: &State, pts: &[u64]) -> Option<(u64, bool)> {
+    let r = s.desired?;
+    if s.cache.find(r.time).is_none() {
+        return s.error.is_none().then_some((r.time, false));
+    }
+    if !s.prefetch || s.failed_prefetch.is_some() {
+        return None;
+    }
+    let expected = s.cache.find(r.time)?.bytes();
+    if !s.cache.can_prefetch(expected) {
+        return None;
+    }
+    pts.iter()
+        .skip(r.index + 1)
+        .take(LOOKAHEAD)
+        .find(|t| s.failed_prefetch != Some(**t) && s.cache.find(**t).is_none())
+        .map(|t| (*t, true))
 }
 impl Stream {
     fn new(root: PathBuf, asset: VideoAsset) -> Result<Self> {
+        let pts = Arc::new(aem_media::load_video_index(&root, &asset)?);
         let shared = Arc::new((
             Mutex::new(State {
                 desired: None,
-                frame: None,
+                cache: FrameCache::new(),
                 error: None,
-                done: 0,
                 stop: false,
+                prefetch: false,
+                failed_prefetch: None,
+                hits: 0,
+                misses: 0,
+                decoded: 0,
+                cancelled: 0,
             }),
             Condvar::new(),
         ));
         let copy = shared.clone();
-        let id = asset.id;
+        let times = pts.clone();
+        let media = asset.clone();
         std::thread::Builder::new()
             .name("motion-video-frames".into())
             .spawn(move || {
                 let mut decoder = None;
                 loop {
-                    let req = {
+                    let (target, speculative) = {
                         let (lock, cv) = &*copy;
                         let s = lock.lock().unwrap_or_else(|e| e.into_inner());
                         let s = cv
-                            .wait_while(s, |s| {
-                                !s.stop && s.desired.is_none_or(|r| r.sequence == s.done)
-                            })
+                            .wait_while(s, |s| !s.stop && job(s, &times).is_none())
                             .unwrap_or_else(|e| e.into_inner());
                         if s.stop {
                             return;
                         }
-                        s.desired.unwrap()
+                        job(&s, &times).unwrap()
                     };
                     let check = || {
                         let s = copy.0.lock().map_err(|_| "video frame state poisoned")?;
-                        if s.stop || s.desired.is_none_or(|r| r.sequence != req.sequence) {
+                        let valid = s.desired.is_some_and(|r| {
+                            target == r.time
+                                || (s.prefetch
+                                    && target > r.time
+                                    && target <= times[(r.index + LOOKAHEAD).min(times.len() - 1)])
+                        });
+                        if s.stop || !valid {
                             Err("video target superseded".into())
                         } else {
                             Ok(())
@@ -70,62 +109,83 @@ impl Stream {
                             if decoder.is_none() {
                                 let base = root.canonicalize().map_err(|e| e.to_string())?;
                                 let source = root
-                                    .join(&asset.path)
+                                    .join(&media.path)
                                     .canonicalize()
                                     .map_err(|e| e.to_string())?;
                                 if !source.starts_with(base)
                                     || source.metadata().map_err(|e| e.to_string())?.len()
-                                        != asset.bytes
+                                        != media.bytes
                                 {
                                     return Err("owned video source missing or changed".into());
                                 }
                                 decoder = Some(Decoder::new(
                                     &source,
-                                    asset.clone(),
-                                    aem_media::load_video_index(&root, &asset)?,
+                                    media.clone(),
+                                    times.as_ref().clone(),
                                 )?);
                             }
-                            Ok(Arc::new(decoder.as_mut().unwrap().frame(req.time, &check)?))
+                            Ok(Arc::new(decoder.as_mut().unwrap().frame(target, &check)?))
                         },
                     ))
                     .unwrap_or_else(|_| Err("video decoder worker failed".into()));
-                    let mut state = copy.0.lock().unwrap_or_else(|e| e.into_inner());
-                    if state.stop {
+                    let mut s = copy.0.lock().unwrap_or_else(|e| e.into_inner());
+                    if s.stop {
                         return;
                     }
-                    if state.desired.is_none_or(|r| r.sequence != req.sequence) {
-                        drop(state);
-                        // Superseding a target does not invalidate MediaCodec. Resume or
-                        // seek on the next request instead of recreating it during scrubbing.
-                        if result
-                            .as_ref()
-                            .is_err_and(|e| e != "video target superseded")
-                        {
-                            decoder = None;
-                        }
-                        continue;
-                    }
-                    state.done = req.sequence;
+                    let desired = s.desired.unwrap();
+                    let last = times[(desired.index + LOOKAHEAD).min(times.len() - 1)];
                     match result {
                         Ok(frame) => {
-                            state.frame = Some(frame);
-                            state.error = None;
+                            s.decoded += 1;
+                            if frame.pts >= desired.time && frame.pts <= last {
+                                if !s.cache.insert(frame, desired.time) {
+                                    if target == desired.time {
+                                        s.error = Some(
+                                            "video source frame exceeds 8 MiB stream cache".into(),
+                                        );
+                                    } else {
+                                        s.failed_prefetch = Some(target);
+                                    }
+                                }
+                            } else {
+                                s.cancelled += 1;
+                            }
+                        }
+                        Err(e) if e == "video target superseded" => {
+                            s.cancelled += 1;
                         }
                         Err(e) => {
-                            state.frame = None;
-                            state.error = Some(e);
                             decoder = None;
+                            if target == desired.time {
+                                s.error = Some(e);
+                            } else if speculative {
+                                s.failed_prefetch = Some(target);
+                            }
                         }
                     }
+                    // Do not await another VSync: fill the next available cache slot.
                 }
             })
             .map_err(|e| e.to_string())?;
-        Ok(Self { asset: id, shared })
+        Ok(Self { asset, pts, shared })
     }
-    fn request(&self, time: u64, sequence: u64) -> Result<Value> {
+    fn key(&self, time: u64) -> Result<(u64, usize)> {
+        if time < self.asset.video_start_us || time >= self.asset.video_end_us {
+            return Err("source time outside visible video".into());
+        }
+        let index = self
+            .pts
+            .partition_point(|p| *p <= time)
+            .checked_sub(1)
+            .ok_or("video PTS index missing")?;
+        Ok((self.pts[index], index))
+    }
+    fn request(&self, time: u64, sequence: u64, prefetch: bool) -> Result<Value> {
         if sequence == 0 || sequence > i64::MAX as u64 {
             return Err("video sequence must be a positive signed 64-bit value".into());
         }
+        let source_time = time;
+        let (time, index) = self.key(time)?;
         let mut s = self
             .shared
             .0
@@ -140,16 +200,27 @@ impl Stream {
             }
         }
         if s.desired.is_none_or(|r| r.sequence != sequence) {
-            s.desired = Some(Request { time, sequence });
+            s.desired = Some(Request {
+                time,
+                source_time,
+                index,
+                sequence,
+            });
             s.error = None;
-            if s.frame
-                .as_ref()
-                .is_some_and(|f| f.pts <= time && time < f.end)
-            {
-                s.done = sequence;
+            s.failed_prefetch = None;
+            s.cache
+                .retain_window(time, self.pts[(index + LOOKAHEAD).min(self.pts.len() - 1)]);
+            if s.cache.find(time).is_some() {
+                s.hits += 1;
+            } else {
+                s.misses += 1;
             }
-            self.shared.1.notify_one();
         }
+        if let Some(r) = &mut s.desired {
+            r.source_time = source_time;
+        }
+        s.prefetch = prefetch;
+        self.shared.1.notify_one();
         Ok(status(&s))
     }
     fn ready(&self, sequence: u64) -> Result<Arc<DecodedFrame>> {
@@ -158,34 +229,39 @@ impl Stream {
             .0
             .lock()
             .map_err(|_| "video frame state poisoned")?;
-        if s.desired.is_none_or(|r| r.sequence != sequence) || s.done != sequence {
-            return Err("video frame pending or superseded".into());
-        }
+        let r = s
+            .desired
+            .filter(|r| r.sequence == sequence)
+            .ok_or("video frame superseded")?;
         if let Some(e) = &s.error {
             return Err(e.clone());
         }
-        s.frame.clone().ok_or("video frame unavailable".into())
+        s.cache.find(r.time).ok_or("video frame pending".into())
     }
 }
 impl Drop for Stream {
     fn drop(&mut self) {
         let mut s = self.shared.0.lock().unwrap_or_else(|e| e.into_inner());
         s.stop = true;
-        s.frame = None;
+        s.cache = FrameCache::new();
         self.shared.1.notify_one();
     }
 }
 fn status(s: &State) -> Value {
     let r = s.desired.unwrap();
-    let state = if s.done != r.sequence {
-        "pending"
-    } else if s.error.is_some() {
+    let frame = s.cache.find(r.time);
+    let state = if s.error.is_some() {
         "failed"
-    } else {
+    } else if frame.is_some() {
         "ready"
+    } else {
+        "pending"
     };
-    json!({"state":state,"sequence":r.sequence,"source_time_us":r.time,"pts_us":s.frame.as_ref().filter(|_|state=="ready").map(|f|f.pts),
-        "end_us":s.frame.as_ref().filter(|_|state=="ready").map(|f|f.end),"decode_us":s.frame.as_ref().filter(|_|state=="ready").map(|f|f.decode_us),"error":s.error})
+    json!({"state":state,"sequence":r.sequence,"source_time_us":r.source_time,
+        "pts_us":frame.as_ref().map(|f|f.pts),"end_us":frame.as_ref().map(|f|f.end),
+        "decode_us":frame.as_ref().map(|f|f.decode_us),"codec_us":frame.as_ref().map(|f|f.codec_us),
+        "transfer_us":frame.as_ref().map(|f|f.transfer_us),"pack_us":frame.as_ref().map(|f|f.pack_us),
+        "cache_bytes":s.cache.bytes(),"cache_frames":s.cache.len(),"cache_hits":s.hits,"cache_misses":s.misses,"error":s.error})
 }
 #[derive(Default)]
 pub struct VideoFrames {
@@ -248,7 +324,8 @@ impl VideoFrames {
             );
         }
         let generation = self.generation(object, source as u64)?;
-        let mut result = self.request_source(root, asset, object, source as u64, generation)?;
+        let mut result =
+            self.request_source(root, asset, object, source as u64, generation, false)?;
         self.sequences.insert(object, (sequence, frame, generation));
         result["sequence"] = json!(sequence);
         Ok(result)
@@ -258,7 +335,11 @@ impl VideoFrames {
             .streams
             .get(&object)
             .and_then(|s| s.shared.0.lock().ok()?.desired)
-            .filter(|r| r.time == time)
+            .filter(|r| {
+                self.streams[&object]
+                    .key(time)
+                    .is_ok_and(|(t, _)| r.time == t)
+            })
         {
             return Ok(r.sequence);
         }
@@ -275,12 +356,9 @@ impl VideoFrames {
         object: u64,
         source: u64,
         generation: u64,
+        prefetch: bool,
     ) -> Result<Value> {
-        if self
-            .streams
-            .get(&object)
-            .is_some_and(|s| s.asset != asset.id)
-        {
+        if self.streams.get(&object).is_some_and(|s| s.asset != *asset) {
             self.streams.remove(&object);
         }
         if !self.streams.contains_key(&object) {
@@ -290,7 +368,7 @@ impl VideoFrames {
             self.streams
                 .insert(object, Stream::new(root.into(), asset.clone())?);
         }
-        let mut result = self.streams[&object].request(source, generation)?;
+        let mut result = self.streams[&object].request(source, generation, prefetch)?;
         result["object"] = json!(object);
         result["width"] = json!(asset.display_width);
         result["height"] = json!(asset.display_height);
@@ -324,8 +402,11 @@ impl VideoFrames {
             .desired
             .ok_or("video target missing")?;
         if !layer.active(*time, project.frames)
-            || stream.asset != video.asset
-            || video.source_time_us(layer.local_frame(*time), project.fps) != desired.time as i64
+            || stream.asset.id != video.asset
+            || stream
+                .key(video.source_time_us(layer.local_frame(*time), project.fps) as u64)?
+                .0
+                != desired.time
         {
             return Err("video clip changed; request its current source time".into());
         }
@@ -337,6 +418,23 @@ impl VideoFrames {
         root: &Path,
         scene: &Scene,
         _frame: f64,
+    ) -> Result<Option<Vec<(u64, Arc<DecodedFrame>)>>> {
+        self.prepare(project, root, scene, true)
+    }
+    pub fn prepare_scene_exact(
+        &mut self,
+        project: &Project,
+        root: &Path,
+        scene: &Scene,
+    ) -> Result<Option<Vec<(u64, Arc<DecodedFrame>)>>> {
+        self.prepare(project, root, scene, false)
+    }
+    fn prepare(
+        &mut self,
+        project: &Project,
+        root: &Path,
+        scene: &Scene,
+        prefetch: bool,
     ) -> Result<Option<Vec<(u64, Arc<DecodedFrame>)>>> {
         self.streams.retain(|object, _| {
             scene
@@ -357,8 +455,14 @@ impl VideoFrames {
                 .find(|a| a.id == source.asset)
                 .ok_or("video asset missing")?;
             let generation = self.generation(layer.id, source.source_time_us)?;
-            let r =
-                self.request_source(root, asset, layer.id, source.source_time_us, generation)?;
+            let r = self.request_source(
+                root,
+                asset,
+                layer.id,
+                source.source_time_us,
+                generation,
+                prefetch,
+            )?;
             match r["state"].as_str() {
                 Some("ready") => {
                     frames.push((layer.id, self.streams[&layer.id].ready(generation)?))
@@ -374,5 +478,24 @@ impl VideoFrames {
         } else {
             Ok(Some(frames))
         }
+    }
+    pub fn metrics(&self) -> Value {
+        let mut bytes = 0;
+        let mut frames = 0;
+        let mut hits = 0;
+        let mut misses = 0;
+        let mut decoded = 0;
+        let mut cancelled = 0;
+        for stream in self.streams.values() {
+            let s = stream.shared.0.lock().unwrap_or_else(|e| e.into_inner());
+            bytes += s.cache.bytes();
+            frames += s.cache.len();
+            hits += s.hits;
+            misses += s.misses;
+            decoded += s.decoded;
+            cancelled += s.cancelled;
+        }
+        json!({"cacheBytes":bytes,"cacheFrames":frames,"cacheBudgetBytes":4 * crate::video_cache::CACHE_BYTES,
+            "cacheHits":hits,"cacheMisses":misses,"decodedFrames":decoded,"cancelledFrames":cancelled,"streams":self.streams.len()})
     }
 }

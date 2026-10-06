@@ -1,6 +1,8 @@
 //! Android MediaExtractor / MediaCodec. Every native object stays on its worker.
 use aem_core::VideoAsset;
 use aem_media::{Result, VideoProbe};
+use crate::video_frame::{DecodedFrame, VideoPixels};
+use aem_render::{VideoPlane, Yuv420Frame};
 use ndk::media::{
     image_reader::{AcquireResult, Image, ImageFormat, ImageReader},
     media_codec::{
@@ -326,21 +328,11 @@ pub fn probe(
         } else {
             chosen_audio
         },
-        first_rgba: first.rgba,
+        first_rgba: first.rgba()?.into_owned(),
         tracks: json!(tracks),
     })
 }
 
-pub struct DecodedFrame {
-    pub rgba: Vec<u8>,
-    pub pts: u64,
-    pub end: u64,
-    pub width: u32,
-    pub height: u32,
-    pub decode_us: u64,
-    pub source_transfer: &'static str,
-    pub decoder_name: String,
-}
 pub struct Decoder {
     codec: MediaCodec,
     reader: Option<ImageReader>,
@@ -475,7 +467,11 @@ impl Decoder {
             if started.elapsed() > Duration::from_secs(10) {
                 return Err("video decoder timed out".into());
             }
-            if !self.input_eos {
+            // Fill currently available input buffers before waiting for output.
+            // Bound each pump so output draining and cancellation cannot starve.
+            for _ in 0..8 {
+                check()?;
+                if self.input_eos { break; }
                 if let Input::Buffer(mut input) =
                     ndk(self.codec.dequeue_input_buffer(Duration::ZERO))?
                 {
@@ -509,6 +505,8 @@ impl Decoder {
                     } else {
                         self.extractor.advance();
                     }
+                } else {
+                    break;
                 }
             }
             match ndk(self.codec.dequeue_output_buffer(Duration::from_millis(2)))? {
@@ -517,7 +515,9 @@ impl Decoder {
                     let pts = info.presentation_time_us();
                     let eos = info.flags() & 4 != 0;
                     let matches = pts >= 0 && pts as u64 == wanted && !(eos && info.size() == 0);
+                    let codec_us = started.elapsed().as_micros() as u64;
                     if matches && self.reader.is_none() {
+                        let packing = Instant::now();
                         let converted = (|| {
                             let format = output.format();
                             if info.offset() < 0 || info.size() <= 0 {
@@ -536,12 +536,14 @@ impl Decoder {
                         ndk(self.codec.release_output_buffer(output, false))?;
                         self.last_output = Some(pts);
                         return Ok(DecodedFrame {
-                            rgba: converted?,
+                            pixels: converted?,
                             pts: wanted,
                             end,
                             width: self.asset.display_width,
                             height: self.asset.display_height,
                             decode_us: started.elapsed().as_micros() as u64,
+                            codec_us, transfer_us: 0,
+                            pack_us: packing.elapsed().as_micros() as u64,
                             source_transfer: "yuv420_buffer",
                             decoder_name: self.decoder_name.clone(),
                         });
@@ -549,6 +551,7 @@ impl Decoder {
                     ndk(self.codec.release_output_buffer(output, matches))?;
                     self.last_output = Some(pts);
                     if matches {
+                        let transferring = Instant::now();
                         loop {
                             check()?;
                             if started.elapsed() > Duration::from_secs(10) {
@@ -573,14 +576,18 @@ impl Decoder {
                                         .filter(|v| matches!(v, 1 | 2))
                                         .unwrap_or(self.asset.color_range as i32)
                                         as u32;
-                                    let rgba = convert(&image, &self.asset, standard, range)?;
+                                    let transfer_us = transferring.elapsed().as_micros() as u64;
+                                    let packing = Instant::now();
+                                    let pixels = convert(&image, &self.asset, standard, range)?;
                                     return Ok(DecodedFrame {
-                                        rgba,
+                                        pixels,
                                         pts: wanted,
                                         end,
                                         width: self.asset.display_width,
                                         height: self.asset.display_height,
                                         decode_us: started.elapsed().as_micros() as u64,
+                                        codec_us, transfer_us,
+                                        pack_us: packing.elapsed().as_micros() as u64,
                                         source_transfer: [
                                             "yuv420_888",
                                             "yuv420_buffer",
@@ -615,7 +622,7 @@ impl Drop for Decoder {
         let _ = self.codec.stop();
     }
 }
-fn convert(image: &Image, a: &VideoAsset, standard: u32, range: u32) -> Result<Vec<u8>> {
+fn convert(image: &Image, a: &VideoAsset, standard: u32, range: u32) -> Result<VideoPixels> {
     let format = ndk(image.format())?;
     if matches!(format, ImageFormat::RGBA_8888 | ImageFormat::RGB_565) {
         let crop = ndk(image.crop_rect())?;
@@ -660,7 +667,7 @@ fn convert(image: &Image, a: &VideoAsset, standard: u32, range: u32) -> Result<V
                 rgba[to..to + 4].copy_from_slice(&rgb);
             }
         }
-        return Ok(rgba);
+        return Ok(VideoPixels::Rgba(rgba));
     }
     if ndk(image.format())? != ImageFormat::YUV_420_888 || ndk(image.number_of_planes())? != 3 {
         return Err("device did not provide 8-bit YUV420 video".into());
@@ -689,17 +696,11 @@ fn convert(image: &Image, a: &VideoAsset, standard: u32, range: u32) -> Result<V
     if rows.iter().chain(pixels.iter()).any(|s| *s <= 0) {
         return Err("invalid YUV plane stride".into());
     }
-    let sample = |p: usize, x: i32, y: i32| -> Result<i32> {
-        let at = y as usize * rows[p] as usize + x as usize * pixels[p] as usize;
-        planes[p]
-            .get(at)
-            .copied()
-            .map(i32::from)
-            .ok_or("YUV plane buffer too short".into())
-    };
-    convert_samples(a, crop.left, crop.top, standard, range, sample)
+    Yuv420Frame::pack(a.width, a.height, [crop.left as u32, crop.top as u32], a.rotation, standard, range,
+        std::array::from_fn(|i| VideoPlane { data: planes[i], row_stride: rows[i] as usize, pixel_stride: pixels[i] as usize }))
+        .map(VideoPixels::Yuv).map_err(|e| e.to_string())
 }
-fn convert_buffer(bytes: &[u8], format: &MediaFormat, a: &VideoAsset) -> Result<Vec<u8>> {
+fn convert_buffer(bytes: &[u8], format: &MediaFormat, a: &VideoAsset) -> Result<VideoPixels> {
     let kind = format
         .i32("color-format")
         .ok_or("missing buffer colour format")?;
@@ -736,25 +737,6 @@ fn convert_buffer(bytes: &[u8], format: &MediaFormat, a: &VideoAsset) -> Result<
         stride
     };
     let chroma_plane = chroma_stride * slice.div_ceil(2);
-    let sample = |p: usize, x: i32, y: i32| -> Result<i32> {
-        let (x, y) = (x as usize, y as usize);
-        let at = match p {
-            0 => y * stride + x,
-            1 => uv + y * chroma_stride + x * if kind == 19 { 1 } else { 2 },
-            _ => {
-                if kind == 19 {
-                    uv + chroma_plane + y * chroma_stride + x
-                } else {
-                    uv + y * chroma_stride + x * 2 + 1
-                }
-            }
-        };
-        bytes
-            .get(at)
-            .copied()
-            .map(i32::from)
-            .ok_or("YUV buffer too short".into())
-    };
     let standard = format
         .i32("color-standard")
         .filter(|v| matches!(v, 1 | 2 | 4))
@@ -763,61 +745,13 @@ fn convert_buffer(bytes: &[u8], format: &MediaFormat, a: &VideoAsset) -> Result<
         .i32("color-range")
         .filter(|v| matches!(v, 1 | 2))
         .unwrap_or(a.color_range as i32) as u32;
-    convert_samples(a, left, top, standard, range, sample)
-}
-fn convert_samples(
-    a: &VideoAsset,
-    left: i32,
-    top: i32,
-    standard: u32,
-    range: u32,
-    sample: impl Fn(usize, i32, i32) -> Result<i32>,
-) -> Result<Vec<u8>> {
-    let (w, h) = (a.width as i32, a.height as i32);
-    let mut rgba = vec![0; (a.display_width * a.display_height * 4) as usize];
-    for y in 0..h {
-        for x in 0..w {
-            let sx = x + left;
-            let sy = y + top;
-            let yy = sample(0, sx, sy)?;
-            let u = sample(1, sx / 2, sy / 2)? - 128;
-            let v = sample(2, sx / 2, sy / 2)? - 128;
-            let (r, g, b) = if range == 1 {
-                if standard == 1 {
-                    (
-                        256 * yy + 403 * v,
-                        256 * yy - 48 * u - 120 * v,
-                        256 * yy + 475 * u,
-                    )
-                } else {
-                    (
-                        256 * yy + 359 * v,
-                        256 * yy - 88 * u - 183 * v,
-                        256 * yy + 454 * u,
-                    )
-                }
-            } else {
-                let c = 298 * (yy - 16);
-                if standard == 1 {
-                    (c + 459 * v, c - 55 * u - 136 * v, c + 541 * u)
-                } else {
-                    (c + 409 * v, c - 100 * u - 208 * v, c + 516 * u)
-                }
-            };
-            let (dx, dy) = match a.rotation {
-                90 => (h - 1 - y, x),
-                180 => (w - 1 - x, h - 1 - y),
-                270 => (y, w - 1 - x),
-                _ => (x, y),
-            };
-            let at = (dy as u32 * a.display_width + dx as u32) as usize * 4;
-            rgba[at..at + 4].copy_from_slice(&[
-                ((r + 128) >> 8).clamp(0, 255) as u8,
-                ((g + 128) >> 8).clamp(0, 255) as u8,
-                ((b + 128) >> 8).clamp(0, 255) as u8,
-                255,
-            ]);
-        }
-    }
-    Ok(rgba)
+    let y = bytes.get(..uv).ok_or("YUV luma buffer too short")?;
+    let u = bytes.get(uv..).ok_or("YUV chroma buffer too short")?;
+    let v = bytes.get(if kind == 19 { uv + chroma_plane } else { uv + 1 }..)
+        .ok_or("YUV chroma buffer too short")?;
+    Yuv420Frame::pack(a.width, a.height, [left as u32, top as u32], a.rotation, standard, range,
+        [VideoPlane { data: y, row_stride: stride, pixel_stride: 1 },
+         VideoPlane { data: u, row_stride: chroma_stride, pixel_stride: if kind == 19 { 1 } else { 2 } },
+         VideoPlane { data: v, row_stride: chroma_stride, pixel_stride: if kind == 19 { 1 } else { 2 } }])
+         .map(VideoPixels::Yuv).map_err(|e| e.to_string())
 }
