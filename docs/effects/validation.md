@@ -62,3 +62,28 @@ effects-acceptance只为debug增加applicationIdSuffix，安装为com.motionstud
 本次原始JSON、仪器日志及APK来源位于本地、Git忽略的 `artifacts/core-effects-device-final`，程序生成图集位于 `artifacts/gallery`。没有提交reference/refer资料。新增16项没有Sapphire原版参考输出，仍为approximate；没有物理设备性能报告。上述结果是指定输入和模拟器的双端执行验证，不能代替AE/Sapphire还原验收，也没有重跑或改写前文13项完整集合的性能结论。
 
 四项最终设备测试通过后，共享ADB服务在回收APK来源时中断；通过独立5038端口恢复报告和测试后hash检查，未重新安装或重跑测试。回收记录包含在core-effects-device-final/run.json，原始仪器日志保留。
+
+## 核心1.2.0、范围与纹理容量验证（2026-10-06）
+
+核心1.2.0共52项、八个一级分类，新增16项见 [common-library.md](common-library.md)。本轮使用独立AE 18.0.1x1实例重新采集原20项及新增16项参数；76个新增宿主控件的范围审计在 [common-range-audit.json](common-range-audit.json)，可重建的数值快照在 `tools/effect_metadata/ae18-ranges.json`。这次完成的是参数核对与双端算法执行验证，没有采集新增16项的AE参考输出；52项均保持approximate，不能计为已还原。
+
+代码来源为 `ded64e9ab3f0990e02199a6a230a85dc05d494f4`。1.2.0包SHA-256为 `14ef270c1199166fdc12e0d0ad43f7789256086fd24aaa76721e7bd31565adf6`；重复生成及打包得到相同hash。1.0.0、1.1.0原包按精确版本/hash继续预装，没有改写旧包内容。本记录后续只修改文档，不改变受测算法。
+
+- Rust工作区106项通过，包含真实GPU输出、有效范围与非法命令原子性、原版本兼容、全高清纹理容量、零效果不透明度，以及原有表达式/场景效果回归。`cargo clippy --workspace --all-targets`通过，保留已有代码警告。
+- ARM64/x86_64原生库、debug与AndroidTest APK最终构建通过。MuMu独立验收应用（Android 15/API 35、x86_64，报告的GL_RENDERER为Adreno (TM) 640）最终选定7项仪器测试全部通过，用时14.108秒；涵盖52项GLES/wgpu对照、缺失依赖阻止输出、禁用Curves保留数据、全高清旧版效果链输出、表达式ABI/错误与持久化、插件编辑资产/取消、六种场景生成器双端对照。
+- 52项未编码GLES/wgpu对照最大RGB MAE为0.143376/255、Alpha MAE为0；六种场景生成器最大RGB MAE为0.190917/255、Alpha MAE为0。这些误差衡量宿主两端一致性，不是AE还原误差。
+- 1080×1920、固定核心1.1.0、极坐标+边缘发光半径48px的回归用例：旧分配73,400,320字节（70 MiB），新分配53,332,992字节（50.8623 MiB），没有缩小参数、降低分辨率或裁切外扩；完整导出2帧MP4。报告中的111毫秒为一次短模拟器任务耗时，不能作为持续帧率或物理设备性能指标。
+- 本轮修正旧版 `OMX.google.h264.encoder` 的BT.601转换与BT.709标记不一致，保留其他编码器的BT.709配置。最终全高清MP4按文件声明的smpte170m矩阵由宿主FFmpeg解码，与不透明PNG基准对照，第0帧RGB全画面/前景MAE均为0.333333/255，原阈值分别小于6/8；没有覆盖解码矩阵或降低阈值。具体工具与限定依据见 [common-library.md](common-library.md#导出色彩复核)。
+
+完整10项仪器集合以及单独EffectsRuntimeTest集合曾在旧版模拟器的MediaMetadataRetriever解码步骤停滞；停止独立验收应用后改为上述7项可完成的仪器测试及宿主FFmpeg对照。保留两次中断日志，不能将最终7项通过写成完整10项通过；原Tint/Blur/Curves/Wave Warp和冻结表达式MP4用例的Android解码步骤仍待复核。未完成物理设备持续性能、峰值内存及全部效果组合/边界动画验收，没有替代或改写前文吞吐检查结论。
+
+原始记录保存在Git忽略的 `artifacts/`：`rust-tests.log`、`clippy.log`、`android-final-build.log`、`android-final-targeted-tests.log`、`android-tests-interrupted.log`、`android-effects-interrupted.log`；最终设备输出在 `artifacts/device-final/`，包含52项及场景JSON、全高清容量报告、MP4/PNG、`full-hd-host-parity.json`和`provenance.json`。不提交reference/refer、设备输出或AE工程。最终安装APK的hash与本地最终APK一致：
+
+| 产物 | SHA-256 |
+|---|---|
+| debug APK | `c23f38476f3a30b0b7dcdbe37b13485a9aef1510ccb0ad3e8c5edc831fa2a98c` |
+| AndroidTest APK | `09851ccc8cbc22c133b09e33b4d6d6cf3941f0df501c1c251ff936e55e278f9b` |
+| ARM64原生库 | `b0465ee00c99a5283cf2bd11c2a17780e84560679de63ba82551215b8aabb7f8` |
+| x86_64原生库 | `444f5bd8157d1adfe0c44c068f41f26dc09db621d74c0d6278439e3ecccdbe69` |
+
+前端交接见 [frontend-integration.md](frontend-integration.md)：按精确包读取category/min/max/default，展示后端资源错误，两端适配器同步更新。此次分支没有实现App前端界面。
