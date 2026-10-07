@@ -19,7 +19,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
-import androidx.test.uiautomator.UiDevice
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -146,7 +145,7 @@ class PropertyOverlayTest {
             compose.runOnUiThread{focused=ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).any{it.hasWindowFocus()}}
             focused
         }
-        assertTrue("System back could not be sent",UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).pressBack())
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10000){!vm.panelOpen}
         compose.waitForIdle()
         compose.onNodeWithTag("properties-panel").assertDoesNotExist()
