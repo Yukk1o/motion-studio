@@ -9,6 +9,7 @@ mod effects;
 mod expressions;
 mod hierarchy;
 mod model;
+pub mod particle_history;
 pub mod plugin_editor;
 mod scene;
 pub mod storage;

@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EditorRequest {
     State,
+    Key { revision: u64, param: String },
     Transform {
         revision: u64,
         property: crate::Property,
@@ -74,7 +75,7 @@ impl PluginEditorSession {
                 .manifest
                 .effects
                 .iter()
-                .any(|d| d.id == e.effect && d.editor.is_some()),
+                .any(|d| d.id == e.effect && (d.editor.is_some() || d.native_editor.is_some())),
             "effect has no custom editor",
         )?;
         Ok(Self {
@@ -125,8 +126,10 @@ impl PluginEditorSession {
                 "rotation":layer.transform.rotation.sample(layer.local_frame(frame as f64)),
                 "scale":layer.transform.scale.sample(layer.local_frame(frame as f64))},
             "dimensions":[engine.project().width,engine.project().height],"camera":engine.project().camera,
+            "fps":engine.project().fps,"frames":engine.project().frames,"timeline_offset":layer.timeline.map_or(0,|t|t.offset_frame),
+            "images":engine.project().assets.iter().map(|a|json!({"id":a.id,"width":a.width,"height":a.height})).collect::<Vec<_>>(),
             "locked":layer.locked,"gesture":self.gesture,
-            "layers":engine.project().layers.iter().map(|l|json!({"id":l.id,"name":l.name})).collect::<Vec<_>>()}),
+            "layers":engine.project().layers.iter().map(|l|json!({"id":l.id,"name":l.name,"particle_source":!matches!(l.content,crate::Content::Audio { .. })})).collect::<Vec<_>>()}),
         )
     }
     pub fn request(
@@ -150,6 +153,7 @@ impl PluginEditorSession {
             | EditorRequest::Animate { revision, .. }
             | EditorRequest::Curve { revision, .. }
             | EditorRequest::Scene { revision, .. }
+            | EditorRequest::Key { revision, .. }
             | EditorRequest::Seed { revision, .. } => *revision,
         };
         ensure(
@@ -197,6 +201,15 @@ impl PluginEditorSession {
                 param,
                 frame,
                 value,
+            },
+            EditorRequest::Key { param, .. } => {
+                let (layer, instance) = self.check(engine.project())?;
+                let p=instance.params.get(&param).ok_or_else(||Error::Invalid("editor parameter missing".into()))?;
+                ensure(p.animatable && p.curve.is_none(),"parameter does not support numeric keys")?;
+                let local=layer.clip(engine.project().frames).edit_frame(frame)?;
+                if p.track.keys.is_empty() { EffectAction::Animate {effect,param,frame,enabled:true} }
+                else if p.track.keys.iter().any(|k|k.frame==local) {EffectAction::DeleteKey {effect,param,frame}}
+                else {EffectAction::Set {effect,param,frame,value:p.sample(local as f64)}}
             },
             EditorRequest::Animate { param, enabled, .. } => EffectAction::Animate {
                 effect,

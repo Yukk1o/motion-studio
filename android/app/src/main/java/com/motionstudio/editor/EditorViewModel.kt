@@ -377,7 +377,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }catch(error:Throwable){if(request==surfaceRequest.get())fail(error.message?:"预览初始化失败",request)}
         }
     }
-    fun detach() {
+    fun detach(surface:Surface?=null) {
+        if(surface!=null&&currentSurface!==surface)return
         val request=surfaceRequest.incrementAndGet()
         currentSurface=null
         surfaceReady.set(false)
@@ -451,9 +452,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }catch(e:Throwable){fail(e.message?:"打开工程失败")}
         }
     }
-    fun togglePlay() {
+    fun togglePlay()=togglePlay(false)
+    fun togglePlay(fromNativePlugin:Boolean) {
         gestureInertia.stop()
-        if(pluginEditor.gesture)return
+        if(pluginEditor.gesture&&!(fromNativePlugin&&pluginEditor.session?.definition?.optJSONObject("native_editor")!=null))return
         if(playing)pause() else if(state.project!=null) {
             val p=state.project!!
             val hasSound=p.optJSONArray("layers").objects().any{audioClip(it.getLong("id"))!=null}
@@ -469,8 +471,9 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }catch(e:Throwable){fail(e.message?:"声音播放失败")}}
         }
     }
-    fun seek(value:Double) {
-        if(pluginEditor.gesture)return
+    fun seek(value:Double)=seek(value,false)
+    fun seek(value:Double,fromNativePlugin:Boolean) {
+        if(pluginEditor.gesture&&!(fromNativePlugin&&pluginEditor.session?.definition?.optJSONObject("native_editor")!=null))return
         if(!value.isFinite()){fail("帧位置无效");return}
         pause();val p=state.project?:return
         frame=value.coerceIn(0.0,p.getInt("frames")-1.0)

@@ -667,6 +667,8 @@ pub struct SampledEffect {
     pub values: [[f32; 4]; MAX_PARAMS],
     pub lut: Option<usize>,
     pub scene: Option<aem_effects::SceneSettings>,
+    pub particle_history: Option<std::sync::Arc<crate::particle_history::ParticleHistory>>,
+    pub particle_history_error: Option<String>,
 }
 impl SampledEffect {
     pub(crate) fn new(layer: u64, e: &EffectInstance) -> Self {
@@ -684,6 +686,8 @@ impl SampledEffect {
             values: [[0.0; 4]; MAX_PARAMS],
             lut: None,
             scene: e.scene.clone(),
+            particle_history: None,
+            particle_history_error: None,
         }
     }
     pub(crate) fn matches(&self, layer: u64, e: &EffectInstance) -> bool {
