@@ -82,8 +82,8 @@ fn format_four_migrates_in_memory_and_unknown_future_versions_are_rejected() {
     old.version = 4;
     let bytes = serde_json::to_string(&old).unwrap();
     let migrated: Project = serde_json::from_str(&bytes).unwrap();
-    assert_eq!(migrated.migrate().unwrap().version, 6);
+    assert_eq!(migrated.migrate().unwrap().version, 7);
     assert!(old.video_assets.is_empty());
-    old.version = 7;
+    old.version = 8;
     assert!(old.validate().is_err());
 }

@@ -437,15 +437,11 @@ impl VideoFrames {
         scene: &Scene,
         prefetch: bool,
     ) -> Result<Option<Vec<(u64, Arc<DecodedFrame>)>>> {
-        self.streams.retain(|object, _| {
-            scene
-                .layers
-                .iter()
-                .any(|l| l.id == *object && l.video.is_some())
-        });
+        let layers=scene.video_layers();
+        self.streams.retain(|object,_|layers.iter().any(|l|l.id==*object));
         let mut frames = Vec::new();
         let mut pending = false;
-        for layer in &scene.layers {
+        for layer in layers {
             if layer.video.is_none() {
                 continue;
             }

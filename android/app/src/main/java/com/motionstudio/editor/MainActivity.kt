@@ -122,6 +122,9 @@ open class MainActivity:ComponentActivity() {
     val homeState=rememberSaveableStateHolder()
     var addMenu by remember{mutableStateOf(false)}
     var shapeMenu by remember{mutableStateOf(false)}
+    var compositionMenu by remember{mutableStateOf(false)}
+    var compositionSettings by remember{mutableStateOf(false)}
+    var releaseNotes by remember{mutableStateOf(false)}
     var outputMenu by remember{mutableStateOf(false)}
     var settings by remember{mutableStateOf(false)}
     var creating by remember{mutableStateOf(false)}
@@ -152,19 +155,21 @@ open class MainActivity:ComponentActivity() {
     if(home) {
         fun backHomePage(){homePage=if(homePage=="plugins")"settings"else"projects"}
         BackHandler(enabled=homePage!="projects",onBack=::backHomePage)
+        if(releaseNotes)ReleaseNotes(vm.updates){releaseNotes=false}
         homeState.SaveableStateProvider(homePage) {
             when(homePage) {
-                "settings"->HomeSettings(vm,editorLayout,onBack=::backHomePage,onPackages={homePage="plugins"},onReport=::exportDiagnostic,onAdjustLayout={
+                "settings"->HomeSettings(vm,editorLayout,onBack=::backHomePage,onPackages={homePage="plugins"},onReport=::exportDiagnostic,onUpdates={releaseNotes=true},onAdjustLayout={
                     vm.gestureInertia.stop();vm.pause();vm.finishLayerSelection();layoutEditing=true;home=false
                 })
                 "plugins"->PluginSettings(vm,onInstall={pluginPicker.launch(arrayOf("application/zip","application/octet-stream","*/*"))},onBack=::backHomePage)
                 else->ProjectHome(vm,onOpen={project->if(project.directory!=vm.root.name||vm.state.project==null)vm.openProject(project.directory);home=false},
-                    onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onSettings={homePage="settings"},onReport=::exportDiagnostic)
+                    onNew={w,h,fps,name,frames->vm.newProject(w,h,fps,name,frames);home=false},onImport={projectPicker.launch(arrayOf("application/zip","application/octet-stream"))},onSettings={homePage="settings"},onReport=::exportDiagnostic,onUpdates={releaseNotes=true})
             }
         }
         if(homePage!="projects")vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Column{Text(message);TextButton(onClick=::exportDiagnostic){Text("导出错误报告")}}},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
         return
     }
+    if(releaseNotes)ReleaseNotes(vm.updates){releaseNotes=false}
     BackHandler(enabled=vm.panelOpen&&!layoutEditing){vm.closeWorkspace()}
     BackHandler(enabled=!vm.panelOpen&&!vm.layerSelectionMode&&!layoutEditing){vm.pause();home=true}
     Surface(color=Background,modifier=Modifier.fillMaxSize().pointerInput(vm) {
@@ -179,7 +184,7 @@ open class MainActivity:ComponentActivity() {
             val split=wide&&availableWidth>=552.dp
             val sideWidth=if(split)editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.48f).coerceIn(248.dp,320.dp).value,248f,(availableWidth-304.dp).value).dp else 0.dp
-            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.vectorOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
+            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.vectorOpen||vm.compositionClipOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
             val effectWidth=if(split)sideWidth else editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.5f).coerceAtMost(320.dp).value,200f,(availableWidth-256.dp).value).dp
             val dragDensity=LocalDensity.current.density
@@ -200,7 +205,8 @@ open class MainActivity:ComponentActivity() {
                     Tool(Icons.AutoMirrored.Filled.ArrowBack,if(layoutEditing)"完成布局调整" else if(vm.layerSelectionMode)"退出多选" else if(vm.panelOpen)"收起属性" else "工程列表") {
                         if(layoutEditing)finishLayout() else if(vm.layerSelectionMode)vm.finishLayerSelection() else if(vm.panelOpen)vm.closeWorkspace() else {vm.pause();home=true}
                     }
-                    Text(if(layoutEditing)"调整布局" else if(vm.layerSelectionMode)"选择图层"else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                    if(vm.compositionPath.size>1&&!layoutEditing&&!vm.layerSelectionMode)CompositionBreadcrumbs(vm,Modifier.weight(1f))
+                    else Text(if(layoutEditing)"调整布局" else if(vm.layerSelectionMode)"选择图层"else vm.state.project?.optString("name")?:"Motion Studio",modifier=Modifier.weight(1f),fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                     if(layoutEditing)TextButton(onClick=::finishLayout,modifier=Modifier.height(48.dp).testTag("finish-layout")){Text("完成")}
                     else {
                         Tool(Icons.Default.Tune,"合成设置"){settings=true}
@@ -225,6 +231,7 @@ open class MainActivity:ComponentActivity() {
                     Column(Modifier.width(if(effectEditing)effectWidth else sideWidth).fillMaxHeight()) {
                         if(effectEditing) {
                             if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing)
+                            else if(vm.compositionClipOpen)CompositionClipPanel(vm,Modifier.fillMaxSize())
                             else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it})
                             else EffectsPanel(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
                         }
@@ -239,6 +246,7 @@ open class MainActivity:ComponentActivity() {
                     Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)focusedTimelineHeight else timelineHeight),focused=effectEditing)
                     if(effectEditing) {
                         if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing)
+                        else if(vm.compositionClipOpen)CompositionClipPanel(vm,Modifier.fillMaxWidth().height(effectHeight))
                         else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it})
                         else EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
                     }
@@ -310,11 +318,14 @@ open class MainActivity:ComponentActivity() {
             "shapes"->shapeMenu=true
             "pen"->vm.addPenLayer()
             "adjustment"->vm.addAdjustment()
+            "composition"->compositionMenu=true
             "null"->vm.addNull()
             "camera"->vm.addCamera()
         }
     })
     if(shapeMenu)ShapeCatalogue(vm){shapeMenu=false}
+    if(compositionMenu)CompositionLibrary(vm){compositionMenu=false}
+    if(compositionSettings)CompositionSettings(vm){compositionSettings=false}
     vm.state.error?.takeUnless{it.startsWith("expression ")}?.let{message->AlertDialog(onDismissRequest=vm::clearError,
         title={Text("操作未完成")},text={Column{Text(message);TextButton(onClick=::exportDiagnostic,modifier=Modifier.testTag("export-error-report")){Text("导出错误报告")};Text("包含设备信息和近期操作，不包含项目与素材。",color=Muted,fontSize=12.sp)}},
         confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}},
@@ -338,6 +349,8 @@ open class MainActivity:ComponentActivity() {
             Text(vm.state.project?.let{it.getInt("width").toString()+" × "+it.getInt("height")+"\n"+
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
             TextButton(onClick={settings=false;vm.pause();vm.finishLayerSelection();home=true}){Text("打开工程")}
+            TextButton(onClick={settings=false;compositionSettings=true},modifier=Modifier.testTag("edit-composition-settings")){Text("修改当前合成")}
+            TextButton(onClick={settings=false;compositionMenu=true},modifier=Modifier.testTag("open-composition-library")){Text("管理子合成")}
             TextButton(onClick={settings=false;projectPicker.launch(arrayOf("application/zip","application/octet-stream"))}){Text("导入工程")}
             if(vm.state.project?.optJSONArray("audio_assets")?.length()?.let{it>0}==true||vm.state.project?.optJSONArray("video_assets")?.length()?.let{it>0}==true)TextButton(onClick={settings=false;vm.prepareMediaCaches(true)}){Text("重建媒体缓存")}
             Text("预览清晰度",fontSize=12.sp,color=Muted)
