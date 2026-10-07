@@ -19,6 +19,7 @@ import java.io.File
 import java.util.UUID
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
+import kotlin.math.abs
 
 @RunWith(AndroidJUnit4::class)
 class PreviewPerformanceTest {
@@ -36,9 +37,8 @@ class PreviewPerformanceTest {
     }
     @After fun teardown(){if(::scenario.isInitialized)scenario.close()}
     private fun awaitPresented(mode:Int?=null){compose.waitUntil(15000){scenario.onActivity{vm.refreshDiagnostics()};val d=vm.state.sample
-        val expectedWidth=if(mode==1)1080 else 720
         val tierMatches=mode==null||(d?.optJSONObject("preview")?.optString("mode")==listOf("", "high","balanced","economy")[mode]&&
-            d.optJSONObject("graphics")?.optInt("renderWidth")==expectedWidth)
+            d.optJSONObject("graphics")?.optInt("renderWidth")==d.optJSONObject("preview")?.optInt("width"))
         d!=null&&tierMatches&&!d.isNull("lastPresentedFrame")&&d.getDouble("lastPresentedFrame")==vm.frame&&d.getLong("lastPresentedRevision")==d.getLong("revision")&&
             d.getLong("lastPresentedViewRevision")==d.getLong("viewRevision")}}
     @Test fun previewTiersKeepTheCameraProjectAndFullResolutionPng() {
@@ -48,7 +48,12 @@ class PreviewPerformanceTest {
             scenario.onActivity{vm.choosePreviewMode(mode)}
             compose.waitUntil(10000){vm.previewInfo?.optString("mode")==listOf("", "high","balanced","economy")[mode]};awaitPresented(mode)
             val g=vm.state.sample!!.getJSONObject("graphics")
-            assertEquals(if(mode==1)1080 else 720,g.getInt("renderWidth"));assertEquals(if(mode==1)1920 else 1280,g.getInt("renderHeight"))
+            if(mode==1){assertEquals(1080,g.getInt("renderWidth"));assertEquals(1920,g.getInt("renderHeight"))}
+            else {
+                assertTrue(g.getInt("renderWidth")<=720&&g.getInt("renderWidth")<=g.getInt("width"))
+                assertTrue(g.getInt("renderHeight")<=1280&&g.getInt("renderHeight")<=g.getInt("height"))
+                assertTrue(abs(g.getInt("renderWidth")/g.getInt("renderHeight").toDouble()-1080.0/1920.0)<0.005)
+            }
             assertEquals(0,g.getInt("previewImageReadbackBytes"));assertEquals(project,vm.state.project!!.toString());assertArrayEquals(file,File(root,"project.json").readBytes())
             var png:File?=null;scenario.onActivity{vm.output(true){png=it}};compose.waitUntil(15000){png!=null}
             val bitmap=BitmapFactory.decodeFile(png!!.absolutePath);assertEquals(1080,bitmap.width);assertEquals(1920,bitmap.height);bitmap.recycle()

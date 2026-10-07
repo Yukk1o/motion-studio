@@ -69,6 +69,26 @@ pub struct PreviewPolicy {
     stable_windows: u32,
 }
 impl PreviewPolicy {
+    /// Fit automatic preview work to the physical canvas. Explicit High keeps
+    /// the full composition resolution; this policy is never used by export.
+    pub fn render_dimensions(
+        &self,
+        width: u32,
+        height: u32,
+        surface_width: u32,
+        surface_height: u32,
+    ) -> (u32, u32) {
+        if self.mode == PreviewMode::High || surface_width == 0 || surface_height == 0 {
+            return self.tier().dimensions(width, height);
+        }
+        let scale = (f64::from(surface_width) / f64::from(width))
+            .min(f64::from(surface_height) / f64::from(height))
+            .min(1.0);
+        self.tier().dimensions(
+            (f64::from(width) * scale).ceil().max(1.0) as u32,
+            (f64::from(height) * scale).ceil().max(1.0) as u32,
+        )
+    }
     pub fn set_mode(&mut self, mode: PreviewMode) {
         self.mode = mode;
         self.tier = PreviewTier::High;
@@ -127,9 +147,53 @@ impl PreviewPolicy {
             self.reset_window();
         }
     }
+    /// Ignore an ordinary FIFO/vsync wait, but include excess queue pressure on
+    /// devices without GPU timestamp queries. CPU reporting remains separate.
+    pub fn observe_render(&mut self, cpu_us: u64, gpu_us: Option<f64>, surface_wait_us: u64) {
+        let frame_budget_us = 1_000_000 / u64::from(self.tier().fps());
+        self.observe(
+            cpu_us.saturating_add(surface_wait_us.saturating_sub(frame_budget_us)),
+            gpu_us,
+        );
+    }
     fn reset_window(&mut self) {
         self.frames = 0;
         self.slow = 0;
         self.healthy = 0;
     }
+}
+
+pub(crate) fn preview_layer_scale(
+    layer: &aem_core::DrawLayer,
+    width: u32,
+    height: u32,
+    scale: f32,
+) -> f32 {
+    if layer.three_d {
+        return scale;
+    }
+    let m = layer.view_projection * layer.model;
+    let w = m.w_axis.w;
+    if !m.is_finite() || w <= 0.0 || m.x_axis.w != 0.0 || m.y_axis.w != 0.0 {
+        return scale;
+    }
+    let screen = glam::Vec2::new(width as f32, height as f32) / (2.0 * w);
+    let x = glam::Vec2::new(m.x_axis.x, m.x_axis.y) * screen;
+    let y = glam::Vec2::new(m.y_axis.x, m.y_axis.y) * screen;
+    // Largest singular value also handles rotation, shear, and parent scaling.
+    let a = x.length_squared();
+    let d = y.length_squared();
+    let b = x.dot(y);
+    let density = ((a + d + ((a - d) * (a - d) + 4.0 * b * b).sqrt()) * 0.5).sqrt();
+    if !density.is_finite() || density <= 0.0 {
+        return scale;
+    }
+    let mut factor = 1.0;
+    for candidate in [0.5, 0.25, 0.125, 0.0625] {
+        // Do not oscillate between buckets due to rotation-rounding noise.
+        if candidate >= density * (1.0 - 1e-5) {
+            factor = candidate;
+        }
+    }
+    scale * factor
 }
