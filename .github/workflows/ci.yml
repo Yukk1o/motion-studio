@@ -39,7 +39,7 @@ jobs:
       - name: Install headless Vulkan and native build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev nodejs
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
           rustup toolchain install 1.97.1 --profile minimal
@@ -53,6 +53,8 @@ jobs:
           python -m compileall -q tools
           python tools/generate_editor_icons.py --check
           python -m unittest discover -s tools -p 'test_ci_*.py' -v
+          python -m unittest discover -s tools -p 'test_ae_project_audit.py' -v
+          node tools/test_ae_export_project.js
           test -z "$(git ls-files docs)"
       - name: Run Rust and software Vulkan tests
         run: cargo test --workspace --locked --features aem-android/diagnostics -- --test-threads=1
