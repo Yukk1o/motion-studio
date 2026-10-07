@@ -32,12 +32,20 @@ class VectorFrontendTest {
     }
     @After fun teardown(){if(::scenario.isInitialized)scenario.close()}
     private fun settled(predicate:()->Boolean){compose.waitUntil(15000){vm.state.error!=null||predicate()};assertNull(vm.state.error);assertTrue(predicate())}
-    private fun photo(name:String) {
+    private fun photo(name:String,expectWhiteCenter:Boolean=false) {
         compose.waitForIdle();val before=vm.state.sample?.optLong("presented")?:0
         scenario.onActivity{vm.refreshDiagnostics(repaint=true)}
         compose.waitUntil(15000){vm.refreshDiagnostics();(vm.state.sample?.optLong("presented")?:0)>before&&vm.state.sample?.optLong("lastPresentedRevision")==vm.state.sample?.optLong("revision")&&vm.state.sample?.optDouble("lastPresentedFrame")==vm.frame}
         compose.waitForIdle();InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         android.os.SystemClock.sleep(150)
+        if(expectWhiteCenter) {
+            val center=compose.onNodeWithTag("preview-gesture").fetchSemanticsNode().boundsInWindow.center
+            compose.waitUntil(10000){
+                val shot=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                val color=shot.getPixel(center.x.toInt(),center.y.toInt());shot.recycle()
+                android.graphics.Color.red(color)>200&&android.graphics.Color.green(color)>200&&android.graphics.Color.blue(color)>200
+            }
+        }
         val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         File(root,"$name.png").outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
     }
@@ -64,8 +72,8 @@ class VectorFrontendTest {
         assertEquals(2,disk.getJSONArray("layers").getJSONObject(0).getJSONObject("content").getJSONObject("vector").getJSONObject("source").getJSONObject("parameters").getJSONObject("inner_ratio").getJSONArray("keys").length())
     }
     @Test fun shapeConversionRequiresConfirmationAndStyleIsUndoable() {
-        scenario.onActivity{vm.addVectorShape("ellipse","椭圆")};settled{vm.vectorData()!=null}
-        compose.onNodeWithTag("footer-vector-style").performScrollTo().performClick();compose.onNodeWithTag("vector-panel").assertIsDisplayed();photo("vector-style")
+        scenario.onActivity{vm.addVectorShape("ellipse","椭圆")};settled{vm.state.saved&&vm.vectorData()!=null}
+        compose.onNodeWithTag("footer-vector-style").performScrollTo().performClick();compose.onNodeWithTag("vector-panel").assertIsDisplayed();photo("vector-style",expectWhiteCenter=true)
         compose.onNodeWithTag("vector-stroke-toggle").performScrollTo().performClick();settled{vm.vectorData()?.optJSONObject("stroke")!=null}
         scenario.onActivity{vm.undo()};settled{vm.vectorData()?.optJSONObject("stroke")==null}
         compose.onNodeWithTag("vector-tab-geometry").performClick();compose.onNodeWithTag("vector-convert").performScrollTo().performClick()
