@@ -831,12 +831,15 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> Result<RenderStats> {
+        self.draw_internal(scene,view,width,height,false)
+    }
+    fn draw_internal(&mut self,scene:&Scene,view:&wgpu::TextureView,width:u32,height:u32,preview:bool)->Result<RenderStats> {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Motion Studio frame"),
             });
-        let mut stats = self.encode(scene, view, width, height, &mut encoder, None)?;
+        let mut stats = self.encode_internal(scene, view, width, height, &mut encoder, None, preview)?;
         let submitted = Instant::now();
         self.queue.submit(Some(encoder.finish()));
         stats.cpu_prepare_us += submitted.elapsed().as_micros() as u64;
@@ -851,6 +854,31 @@ impl Renderer {
         height: u32,
         encoder: &mut wgpu::CommandEncoder,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<RenderStats> {
+        self.encode_internal(scene, view, width, height, encoder, timestamps, false)
+    }
+    /// Interactive preview, with conservative 2D effect density. `encode`,
+    /// `draw`, and `capture` retain their formal-output behavior.
+    pub fn encode_preview(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<RenderStats> {
+        self.encode_internal(scene, view, width, height, encoder, timestamps, true)
+    }
+    fn encode_internal(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        preview: bool,
     ) -> Result<RenderStats> {
         self.check_health()?;
         let mut child_stats=RenderStats::default();let mut child_diagnostics=Vec::new();
@@ -875,13 +903,13 @@ impl Renderer {
                 self.effect_gpu.invalidate();
             }
             let view=self.images[&key].view.clone();
-            let stats=self.draw(&node.scene,&view,w,h).map_err(|e|RenderError::Invalid(node.scene.diagnostic(&e.to_string())))?;
+            let stats=self.draw_internal(&node.scene,&view,w,h,preview).map_err(|e|RenderError::Invalid(node.scene.diagnostic(&e.to_string())))?;
             child_stats.add(stats);child_diagnostics.extend(self.effect_diagnostics.iter().map(|v|node.scene.diagnostic(v)));
         }
-        let mut stats=self.encode_local(scene,view,width,height,encoder,timestamps)?;
+        let mut stats=self.encode_local(scene,view,width,height,encoder,timestamps,preview)?;
         stats.add(child_stats);self.effect_diagnostics.extend(child_diagnostics);Ok(stats)
     }
-    fn encode_local(&mut self,scene:&Scene,view:&wgpu::TextureView,width:u32,height:u32,encoder:&mut wgpu::CommandEncoder,timestamps:Option<wgpu::RenderPassTimestampWrites<'_>>)->Result<RenderStats> {
+    fn encode_local(&mut self,scene:&Scene,view:&wgpu::TextureView,width:u32,height:u32,encoder:&mut wgpu::CommandEncoder,timestamps:Option<wgpu::RenderPassTimestampWrites<'_>>,preview:bool)->Result<RenderStats> {
         if width == 0 || height == 0 || scene.layers.len() > MAX_LAYERS {
             return Err(RenderError::Invalid(
                 "invalid render target or layer count".into(),
@@ -894,7 +922,7 @@ impl Renderer {
                 .iter()
                 .any(|l| l.vector.is_some() || l.adjustment)
         {
-            return self.encode_effects(scene, view, width, height, encoder, timestamps);
+            return self.encode_effects(scene, view, width, height, encoder, timestamps, preview);
         }
         self.effect_diagnostics.clear();
         if self.layer_gpu.prepare_vectors(
@@ -1028,13 +1056,16 @@ impl Renderer {
         height: u32,
         encoder: &mut wgpu::CommandEncoder,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        preview: bool,
     ) -> Result<RenderStats> {
         let started = Instant::now();
         loop {
-            self.effect_gpu
-                .builder
-                .build(scene, &self.asset_order, width, height, false)
-                .map_err(RenderError::Invalid)?;
+            if preview {
+                self.effect_gpu.builder.build_preview(scene, &self.asset_order, width, height)
+            } else {
+                self.effect_gpu.builder.build(scene, &self.asset_order, width, height, false)
+            }
+            .map_err(RenderError::Invalid)?;
             match self.effect_gpu.state.prepare(
                 &self.device,
                 &self.queue,

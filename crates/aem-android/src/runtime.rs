@@ -434,19 +434,19 @@ impl Session {
         renderer
             .synchronize_assets(self.engine.project(), &self.root)
             .map_err(|e| e.to_string())?;
-        let (render_width, render_height) = self
-            .preview
-            .tier()
-            .dimensions(self.engine.project().width, self.engine.project().height);
+        let (render_width, render_height) = self.preview.render_dimensions(
+            self.engine.project().width,
+            self.engine.project().height,
+            width,
+            height,
+        );
         let scratch = renderer
             .render_target(render_width, render_height)
             .map_err(|e| e.to_string())?;
         let presenter = Presenter::new(&renderer, &scratch.view, format);
-        let timer = if self.recorder.is_some() {
-            GpuTimer::new(&renderer.device, &renderer.queue)
-        } else {
-            None
-        };
+        // Auto quality needs GPU cost even when no diagnostic recording is active.
+        // Only four reusable 32-byte timing buffers are read, never video pixels.
+        let timer = GpuTimer::new(&renderer.device, &renderer.queue);
         self.graphics = Some(Graphics {
             surface,
             renderer,
@@ -510,7 +510,12 @@ impl Session {
                 }
             }
         }
-        let (rw, rh) = tier.dimensions(self.scene.width, self.scene.height);
+        let (rw, rh) = self.preview.render_dimensions(
+            self.scene.width,
+            self.scene.height,
+            g.config.width,
+            g.config.height,
+        );
         if (g.scratch.width, g.scratch.height) != (rw, rh) {
             let target = g
                 .renderer
@@ -538,16 +543,18 @@ impl Session {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("Motion Studio composition and presentation"),
                 });
-        g.renderer
-            .encode(
-                &self.scene,
-                &g.scratch.view,
-                rw,
-                rh,
-                &mut encoder,
-                slot.map(|i| g.timer.as_ref().unwrap().writes(i, 0)),
-            )
-            .map_err(|e| e.to_string())?;
+        let timestamps = slot.map(|i| g.timer.as_ref().unwrap().writes(i, 0));
+        let encoded = if self.preview.mode == PreviewMode::High {
+            g.renderer.encode(&self.scene, &g.scratch.view, rw, rh, &mut encoder, timestamps)
+        } else {
+            g.renderer.encode_preview(&self.scene, &g.scratch.view, rw, rh, &mut encoder, timestamps)
+        };
+        if let Err(error) = encoded {
+            if let (Some(timer), Some(i)) = (&mut g.timer, slot) {
+                timer.cancel_unsubmitted(i);
+            }
+            return Err(error.to_string());
+        }
         let view = output.texture.create_view(&Default::default());
         let scale = (g.config.width as f32 / self.scene.width as f32)
             .min(g.config.height as f32 / self.scene.height as f32);
@@ -603,7 +610,11 @@ impl Session {
         self.last_presented_revision = self.engine.revision();
         self.last_presented_view_revision = self.view_revision;
         let previous_tier = self.preview.tier();
-        self.preview.observe(self.last_cpu_us, gpu_work_us);
+        self.preview.observe_render(
+            self.last_cpu_us,
+            gpu_work_us,
+            acquire_us.saturating_add(present_call_us),
+        );
         if previous_tier != self.preview.tier() {
             self.view_revision += 1;
         }
@@ -636,9 +647,12 @@ impl Session {
     }
     fn preview_info(&self) -> Value {
         let tier = self.preview.tier();
-        let (width, height) =
-            tier.dimensions(self.engine.project().width, self.engine.project().height);
+        let p = self.engine.project();
+        let (sw, sh) = self.graphics.as_ref().map_or((p.width, p.height), |g| (g.config.width, g.config.height));
+        let (width, height) = self.preview.render_dimensions(p.width, p.height, sw, sh);
         json!({"mode":self.preview.mode.name(),"tier":tier.name(),"width":width,"height":height,"fps":tier.fps(),
+            "effectResolution":if self.preview.mode == PreviewMode::High {"full_layer"} else {"projected_2d"},
+            "surfaceBounded":self.preview.mode != PreviewMode::High,"gpuTimingActive":self.graphics.as_ref().is_some_and(|g|g.timer.is_some()),
             "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY)),
             "video":self.video_info()})
     }
@@ -1623,9 +1637,6 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_stopProfiling(
             )
             .map_err(|e| e.to_string())?;
             s.recorder = None;
-            if let Some(g) = s.graphics.as_mut() {
-                g.timer = None;
-            }
             Ok(json!({"file":path.to_string_lossy()}))
         })
     })
