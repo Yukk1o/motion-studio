@@ -123,6 +123,11 @@ pub struct Renderer {
     pub video_uploads: u64,
     pub video_gpu_conversions: u64,
     asset_order: Vec<u64>,
+    image_sources: HashMap<u64, crate::image_resources::Source>,
+    image_decode: crate::image_resources::DecodeTask,
+    pub image_decodes: u64,
+    pub image_proxy_cache_hits: u64,
+    pub image_upload_bytes: u64,
     pub effect_diagnostics: Vec<String>,
     composition_images: std::collections::HashSet<u64>,
 }
@@ -335,6 +340,11 @@ impl Renderer {
             video_uploads: 0,
             video_gpu_conversions: 0,
             asset_order: Vec::new(),
+            image_sources: HashMap::new(),
+            image_decode: Default::default(),
+            image_decodes: 0,
+            image_proxy_cache_hits: 0,
+            image_upload_bytes: 0,
             effect_diagnostics: Vec::new(),
         };
         renderer.effect_gpu.builder.device_dimension =
@@ -775,6 +785,103 @@ impl Renderer {
             self.effect_gpu.invalidate();
         }
         Ok(())
+    }
+    /// Register the complete, stable asset table without decoding/uploading
+    /// inactive images. Source files in a project are immutable; replacing a
+    /// resource must use a new path (including when retaining its asset ID).
+    pub fn configure_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
+        let mut sources = HashMap::new();
+        for asset in &project.assets {
+            let source = crate::image_resources::Source::new(root, asset)
+                .map_err(RenderError::Invalid)?;
+            sources.insert(asset.id, source);
+        }
+        let stale: Vec<_> = self.images.keys().filter_map(|key| match key {
+            TextureKey::Static(id) if *id != 0 && self.image_sources.get(id) != sources.get(id) => Some(*id),
+            _ => None,
+        }).collect();
+        for id in stale { self.remove_static_image(id); }
+        // Resource edits and project switches may reuse object/source IDs and
+        // timestamps. Never carry a decoded video or vector across a new catalog.
+        let dynamic: Vec<_> = self.images.keys().copied()
+            .filter(|key| !matches!(key, TextureKey::Static(_))).collect();
+        for key in dynamic {
+            self.texture_bytes -= self.images.remove(&key).unwrap().bytes;
+            self.effect_gpu.invalidate();
+        }
+        if let Some(video) = &mut self.video_gpu { video.clear(); }
+        self.composition_images.clear();
+        self.image_sources = sources;
+        self.asset_order = std::iter::once(0).chain(project.assets.iter().map(|a| a.id)).collect();
+        Ok(())
+    }
+    fn remove_static_image(&mut self, id: u64) {
+        if let Some(image) = self.images.remove(&TextureKey::Static(id)) {
+            self.texture_bytes -= image.bytes;
+            self.effect_gpu.builder.alpha_images.remove(&id);
+            self.effect_gpu.invalidate();
+        }
+    }
+    pub fn image_dimensions(&self, id: u64) -> Option<(u32, u32)> {
+        self.images.get(&TextureKey::Static(id)).map(|i| i.size)
+    }
+    pub fn asset_ids(&self) -> &[u64] { &self.asset_order }
+    /// Preview polls a single bounded decode worker. Full capture/export uses
+    /// synchronous preparation on its output worker, always at source size.
+    pub fn prepare_scene_assets(
+        &mut self,
+        scene: &Scene,
+        resolution: crate::image_resources::Resolution,
+        asynchronous: bool,
+    ) -> Result<bool> {
+        use crate::image_resources::{decode, scene_assets};
+        let wanted = scene_assets(scene);
+        let mut required = 4u64;
+        for id in &wanted {
+            let source = self.image_sources.get(id)
+                .ok_or_else(|| RenderError::Invalid(format!("image asset {id} is not registered")))?;
+            let (w, h) = resolution.dimensions(source.width, source.height);
+            if w > self.device.limits().max_texture_dimension_2d || h > self.device.limits().max_texture_dimension_2d {
+                return Err(RenderError::Invalid(format!("image {id} exceeds device texture dimensions")));
+            }
+            required += u64::from(w) * u64::from(h) * 4;
+        }
+        if required > TEXTURE_BUDGET {
+            return Err(RenderError::Invalid("active image working set exceeds 128 MiB; full output requires original resolution".into()));
+        }
+        // Eviction does not alter the stable table used by both render backends.
+        let stale: Vec<_> = self.images.keys().filter_map(|key| match key {
+            TextureKey::Static(id) if *id != 0 && (!wanted.contains(id) || self.image_sources.get(id)
+                .is_none_or(|s| resolution.dimensions(s.width, s.height) != self.images[key].size)) => Some(*id),
+            _ => None,
+        }).collect();
+        for id in stale { self.remove_static_image(id); }
+        if let Some((source, mode, result)) = self.image_decode.poll() {
+            if mode == resolution && wanted.contains(&source.id) && self.image_sources.get(&source.id) == Some(&source) {
+                let pixels = result.map_err(|e| RenderError::Invalid(format!("image {}: {e}", source.id)))?;
+                self.upload_pixels(TextureKey::Static(source.id), pixels.width, pixels.height, &pixels.rgba, false)?;
+                self.image_decodes += u64::from(!pixels.cached);
+                self.image_proxy_cache_hits += u64::from(pixels.cached);
+                self.image_upload_bytes += pixels.rgba.len() as u64;
+            }
+        }
+        for id in wanted {
+            if self.images.contains_key(&TextureKey::Static(id)) { continue; }
+            let source = self.image_sources[&id].clone();
+            if asynchronous {
+                if !self.image_decode.busy() {
+                    self.image_decode.start(source, resolution).map_err(RenderError::Invalid)?;
+                }
+                return Ok(false);
+            }
+            let pixels = decode(&source, resolution)
+                .map_err(|e| RenderError::Invalid(format!("image {id}: {e}")))?;
+            self.upload_pixels(TextureKey::Static(id), pixels.width, pixels.height, &pixels.rgba, false)?;
+            self.image_decodes += u64::from(!pixels.cached);
+            self.image_proxy_cache_hits += u64::from(pixels.cached);
+            self.image_upload_bytes += pixels.rgba.len() as u64;
+        }
+        Ok(true)
     }
     pub fn clear_assets(&mut self) {
         self.composition_images.clear();
