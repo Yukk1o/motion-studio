@@ -39,7 +39,7 @@ class EffectsRuntimeTest {
         val root=root();val p=data(NativeBridge.projectTemplate(0));val session=NativeBridge.create(root.absolutePath,p.toString())
         assertTrue(NativeBridge.creationError(),session>0)
         try {
-            val s=add(session,"tint");assertEquals(6,s.getJSONObject("project").getInt("version"))
+            val s=add(session,"tint");assertEquals(7,s.getJSONObject("project").getInt("version"))
             assertEquals(1,s.getJSONObject("project").getJSONArray("plugin_dependencies").length())
             val capture=data(NativeBridge.capture(session));assertTrue(File(capture.getString("path")).length()>64)
             val pkg=corePackage(session);val m=pkg.getJSONObject("manifest")

@@ -161,10 +161,10 @@ internal class GlLayerSources {
         GL.glActiveTexture(GL.GL_TEXTURE1);GL.glBindTexture(GL.GL_TEXTURE_2D,filtered);GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
         return next
     }
-    fun composite(current:Int) {
+    fun composite(current:Int,flip:Boolean=false) {
         GL.glBindVertexArray(0);GL.glUseProgram(copyProgram)
         GL.glEnable(GL.GL_BLEND);GL.glBlendFunc(GL.GL_ONE,GL.GL_ONE_MINUS_SRC_ALPHA)
-        GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"image"),0);GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"flipY"),0)
+        GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"image"),0);GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"flipY"),if(flip)1 else 0)
         GL.glActiveTexture(GL.GL_TEXTURE0);GL.glBindTexture(GL.GL_TEXTURE_2D,accumulator(current));GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
     }
     fun close() {

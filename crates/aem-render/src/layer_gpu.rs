@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 pub(crate) struct LayerGpu {
     vector: wgpu::RenderPipeline,
+    vector_clear: wgpu::RenderPipeline,
+    clear_vertices: wgpu::Buffer,
     pub adjustment: wgpu::RenderPipeline,
     pub present: wgpu::RenderPipeline,
     pub accumulators: Vec<FxTexture>,
@@ -25,7 +27,7 @@ impl LayerGpu {
             label: Some("vector paints"),
             source: wgpu::ShaderSource::Wgsl(include_str!("vector.wgsl").into()),
         });
-        let vector = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let make_vector = |blend| device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("vector MSAA raster"),
             layout: Some(
                 &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -50,7 +52,7 @@ impl LayerGpu {
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    blend,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -62,6 +64,17 @@ impl LayerGpu {
             },
             multiview: None,
             cache: None,
+        });
+        let vector=make_vector(Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING));
+        let vector_clear=make_vector(None);
+        let clear_vertices=device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label:Some("transparent vector scratch clear"),
+            contents:bytemuck::cast_slice(&[
+                [-1f32,-1.,0.,0.,0.,0.],
+                [3.,-1.,0.,0.,0.,0.],
+                [-1.,3.,0.,0.,0.,0.],
+            ]),
+            usage:wgpu::BufferUsages::VERTEX,
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("adjustment and present"),
@@ -102,6 +115,8 @@ impl LayerGpu {
         };
         Self {
             vector,
+            vector_clear,
+            clear_vertices,
             adjustment: make("adjust", None, &[uniform, image, image]),
             present: make(
                 "present",
@@ -281,6 +296,11 @@ impl LayerGpu {
                     timestamp_writes: None,
                     occlusion_query_set: None,
                 });
+                // Some GLES drivers retain resolved MSAA alpha after a load clear.
+                // Overwrite all samples before reusing the shared raster target.
+                pass.set_pipeline(&self.vector_clear);
+                pass.set_vertex_buffer(0,self.clear_vertices.slice(..));
+                pass.draw(0..3,0..1);
                 pass.set_pipeline(&self.vector);
                 pass.set_vertex_buffer(0, vertices.slice(..));
                 if !mesh.vertices.is_empty() {

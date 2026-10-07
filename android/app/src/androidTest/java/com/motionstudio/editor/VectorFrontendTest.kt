@@ -33,7 +33,11 @@ class VectorFrontendTest {
     @After fun teardown(){if(::scenario.isInitialized)scenario.close()}
     private fun settled(predicate:()->Boolean){compose.waitUntil(15000){vm.state.error!=null||predicate()};assertNull(vm.state.error);assertTrue(predicate())}
     private fun photo(name:String) {
+        compose.waitForIdle();val before=vm.state.sample?.optLong("presented")?:0
+        scenario.onActivity{vm.refreshDiagnostics(repaint=true)}
+        compose.waitUntil(15000){vm.refreshDiagnostics();(vm.state.sample?.optLong("presented")?:0)>before&&vm.state.sample?.optLong("lastPresentedRevision")==vm.state.sample?.optLong("revision")&&vm.state.sample?.optDouble("lastPresentedFrame")==vm.frame}
         compose.waitForIdle();InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        android.os.SystemClock.sleep(150)
         val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         File(root,"$name.png").outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
     }
@@ -42,7 +46,7 @@ class VectorFrontendTest {
         compose.onNodeWithTag("add-layer").performClick();compose.onNodeWithTag("add-shapes").performScrollTo().performClick()
         compose.onNodeWithTag("shape-search").performTextInput("星形");photo("shape-catalogue")
         compose.onNodeWithTag("shape-star").performClick();settled{vm.vectorData()!=null}
-        compose.onNodeWithTag("footer-vector").performClick();compose.onNodeWithTag("vector-panel").assertIsDisplayed();compose.onNodeWithTag("timeline").assertIsDisplayed();photo("shape-properties")
+        compose.onNodeWithTag("footer-vector").performScrollTo().performClick();compose.onNodeWithTag("vector-panel").assertIsDisplayed();compose.onNodeWithTag("timeline").assertIsDisplayed();photo("shape-properties")
         scenario.onActivity{vm.trimClip(vm.selected,0,80);vm.moveClip(vm.selected,20)}
         settled{vm.timelineLayer(vm.selected)?.optInt("offset_frame")==20}
         scenario.onActivity{vm.seek(30.0);vm.selectVectorTrack("vector:parameter:inner_ratio")}
@@ -61,8 +65,8 @@ class VectorFrontendTest {
     }
     @Test fun shapeConversionRequiresConfirmationAndStyleIsUndoable() {
         scenario.onActivity{vm.addVectorShape("ellipse","椭圆")};settled{vm.vectorData()!=null}
-        compose.onNodeWithTag("footer-vector-style").performClick();photo("vector-style")
-        compose.onNodeWithTag("vector-stroke-toggle").performClick();settled{vm.vectorData()?.optJSONObject("stroke")!=null}
+        compose.onNodeWithTag("footer-vector-style").performScrollTo().performClick();compose.onNodeWithTag("vector-panel").assertIsDisplayed();photo("vector-style")
+        compose.onNodeWithTag("vector-stroke-toggle").performScrollTo().performClick();settled{vm.vectorData()?.optJSONObject("stroke")!=null}
         scenario.onActivity{vm.undo()};settled{vm.vectorData()?.optJSONObject("stroke")==null}
         compose.onNodeWithTag("vector-tab-geometry").performClick();compose.onNodeWithTag("vector-convert").performScrollTo().performClick()
         assertEquals("shape",vm.vectorData()!!.getJSONObject("source").getString("kind"))
@@ -73,8 +77,8 @@ class VectorFrontendTest {
     @Test fun penNodesAndGeometryGesturesCancelAndUndoTogether() {
         scenario.onActivity{vm.addPenLayer()};settled{vm.vectorData()?.getJSONObject("source")?.optString("kind")=="paths"}
         val overlay=compose.onNodeWithTag("vector-preview-overlay")
-        overlay.performTouchInput{click(Offset(width*.36f,height*.55f))};settled{vm.vectorData()!!.getJSONObject("source").getJSONArray("paths").getJSONObject(0).getJSONArray("nodes").length()==1}
-        overlay.performTouchInput{swipe(Offset(width*.65f,height*.55f),Offset(width*.72f,height*.65f),400)};settled{vm.vectorData()!!.getJSONObject("source").getJSONArray("paths").getJSONObject(0).getJSONArray("nodes").length()==2}
+        overlay.performTouchInput{click(Offset(width*.36f,height*.55f))};settled{vm.state.saved&&vm.vectorData()!!.getJSONObject("source").getJSONArray("paths").getJSONObject(0).getJSONArray("nodes").length()==1}
+        overlay.performTouchInput{swipe(Offset(width*.65f,height*.55f),Offset(width*.72f,height*.65f),400)};settled{vm.state.saved&&vm.vectorData()!!.getJSONObject("source").getJSONArray("paths").getJSONObject(0).getJSONArray("nodes").length()==2}
         val before=vm.vectorData().toString();val key="vector:node:${vm.vectorPathId}:${vm.vectorNodeId}"
         val original=vm.vectorValue(vm.selected,key) as JSONArray
         scenario.onActivity{vm.beginGesture();vm.setVectorNode(vm.vectorPathId,vm.vectorNodeId,JSONArray(original.toString()).put(0,50),0);vm.cancelGesture()}

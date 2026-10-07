@@ -87,6 +87,45 @@ def gh(*args,check=True):
     return subprocess.run(["gh",*args],check=check,capture_output=True,text=True,encoding="utf-8")
 
 
+def changelog_entries(commits,repo):
+    merged=[];other=[];seen=set()
+    for item in commits:
+        message=item.get("commit",{}).get("message","").strip()
+        lines=[line.strip() for line in message.splitlines() if line.strip()]
+        if not lines: continue
+        match=re.match(r"Merge pull request #(\d+)\b",lines[0])
+        if match:
+            number=match[1]
+            if number in seen: continue
+            seen.add(number)
+            title=lines[1] if len(lines)>1 else "合并改进"
+            merged.append("- "+title+" ([#"+number+"](https://github.com/"+repo+"/pull/"+number+"))")
+        elif not lines[0].startswith("Merge "):
+            other.append("- "+lines[0])
+    return (merged or list(dict.fromkeys(other)))[-20:]
+
+
+def release_changelog(repo,commit,tag,kind):
+    base=None
+    if kind=="preview":
+        with tempfile.TemporaryDirectory() as temporary:
+            result=gh("release","download",tag,"--repo",repo,"--pattern","build-info.json","--dir",temporary,check=False)
+            if result.returncode==0:
+                base=json.loads((Path(temporary)/"build-info.json").read_text(encoding="utf-8")).get("commit")
+    else:
+        result=gh("api","repos/"+repo+"/releases/latest",check=False)
+        if result.returncode==0: base=json.loads(result.stdout).get("tag_name")
+    if base and base!=commit and base!=tag:
+        result=gh("api","repos/"+repo+"/compare/"+base+"..."+commit+"?per_page=100",check=False)
+        if result.returncode==0:
+            data=json.loads(result.stdout)
+            entries=changelog_entries(data.get("commits",[]),repo)
+            if entries:return "本次更新\n\n"+"\n".join(entries)+"\n\n[完整变更]("+data["html_url"]+")\n\n"
+    result=gh("api","repos/"+repo+"/commits/"+commit,check=False)
+    entries=changelog_entries([json.loads(result.stdout)],repo) if result.returncode==0 else []
+    return "本次更新\n\n"+("\n".join(entries) if entries else "更新当前版本的编辑与渲染功能。")+"\n\n[查看提交](https://github.com/"+repo+"/commit/"+commit+")\n\n"
+
+
 def publish():
     folder=ROOT/"artifacts/release"
     info=json.loads((folder/"build-info.json").read_text(encoding="utf-8"))
@@ -123,7 +162,7 @@ def publish():
         print("This exact release is already published:",release["url"])
         return
     notes=folder/"release-notes.md"
-    notes.write_text(("main 分支自动预览构建。\n\n" if kind=="preview" else "版本标签自动构建。\n\n")+"版本："+info["versionName"]+"\n\n提交：`"+commit+"`\n\n包含 arm64-v8a 与 x86_64。APK 已验证签名、包名、版本及非调试状态。Rust/GPU、Android 构建和指定界面交互检查通过后发布；模拟器检查不替代真机性能与完整媒体验收。下载 APK 后可使用 SHA256SUMS 校验文件。\n",encoding="utf-8")
+    notes.write_text("版本："+info["versionName"]+"\n\n"+release_changelog(repo,commit,tag,kind)+("main 分支自动预览构建。\n\n" if kind=="preview" else "版本标签自动构建。\n\n")+"包含 arm64-v8a 与 x86_64。下载 APK 后可使用 SHA256SUMS 校验文件。\n",encoding="utf-8")
     title="自动预览版" if kind=="preview" else "Motion Studio "+version
     if not release:
         gh("release","create",tag,"--repo",repo,"--verify-tag","--title",title,"--notes-file",str(notes),"--draft")
