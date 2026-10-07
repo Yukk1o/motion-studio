@@ -1,6 +1,7 @@
 package com.motionstudio.editor
 
-import android.graphics.PixelFormat
+import android.graphics.ImageFormat
+import android.hardware.HardwareBuffer
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
@@ -13,6 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(AndroidJUnit4::class)
 class EffectPreviewBackendTest {
@@ -31,8 +33,9 @@ class EffectPreviewBackendTest {
         val id = NativeBridge.create(root.absolutePath, p.toString())
         assertTrue(NativeBridge.creationError(), id > 0)
         val consumer = HandlerThread("effect-preview-consumer").apply { start() }
-        val reader = ImageReader.newInstance(640, 360, PixelFormat.RGBA_8888, 3)
-        reader.setOnImageAvailableListener({ it.acquireLatestImage()?.close() }, Handler(consumer.looper))
+        val reader = ImageReader.newInstance(640, 360, ImageFormat.PRIVATE, 3, HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE)
+        val received=AtomicInteger()
+        reader.setOnImageAvailableListener({ it.acquireLatestImage()?.use{received.incrementAndGet()} }, Handler(consumer.looper))
         try {
             data(NativeBridge.surface(id, reader.surface, 640, 360))
             val packages = data(NativeBridge.plugin(id, "{\"op\":\"catalogue\"}")).getJSONArray("packages")
@@ -82,9 +85,15 @@ class EffectPreviewBackendTest {
             assertTrue(NativeBridge.state(id), NativeBridge.render(id, 1.0))
             data(NativeBridge.stopProfiling(id))
             assertEquals(timingActive, data(NativeBridge.previewInfo(id)).getBoolean("gpuTimingActive"))
+            val deadline=android.os.SystemClock.elapsedRealtime()+3000
+            while(received.get()==0&&android.os.SystemClock.elapsedRealtime()<deadline)Thread.sleep(10)
+            assertTrue("Preview must deliver a buffer to its Surface",received.get()>0)
         } finally {
             data(NativeBridge.surface(id, null, 0, 0)); NativeBridge.destroy(id)
-            reader.close(); consumer.quitSafely(); consumer.join(3000)
+            reader.setOnImageAvailableListener(null,null)
+            consumer.quitSafely(); consumer.join(3000)
+            assertFalse("Preview consumer must stop before its reader is closed",consumer.isAlive)
+            reader.close()
         }
     }
 }
