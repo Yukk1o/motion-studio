@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,7 +48,7 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
     return frames.roundToInt()
 }
 
-@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String,Int)->Unit,onImport:()->Unit,onSettings:()->Unit) {
+@Composable internal fun ProjectHome(vm:EditorViewModel,onOpen:(ProjectSummary)->Unit,onNew:(Int,Int,Int,String,Int)->Unit,onImport:()->Unit,onSettings:()->Unit,onReport:()->Unit,onUpdates:()->Unit) {
     var query by rememberSaveable{mutableStateOf("")}
     var creating by rememberSaveable{mutableStateOf(false)}
     val keyboard=LocalSoftwareKeyboardController.current
@@ -63,6 +64,7 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
                         Icon(editorIcon(Icons.Default.Settings),"设置",Modifier.size(22.dp),tint=Ink)
                     }
                 }
+                ReleaseUpdateBanner(vm.updates,onUpdates)
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     Button(onClick={creating=true},shape=RoundedCornerShape(12.dp),colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=Background),modifier=Modifier.weight(1f).height(56.dp).testTag("home-new-project")) {
                         Icon(editorIcon(Icons.Default.Add),null,Modifier.size(20.dp));Spacer(Modifier.width(8.dp));Text("新建工程")
@@ -115,7 +117,7 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
         }
     }
     if(creating)NewProjectDialog(onDismiss={creating=false}){w,h,fps,name,frames->creating=false;onNew(w,h,fps,name,frames)}
-    vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Text(message)},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
+    vm.state.error?.let{message->AlertDialog(onDismissRequest=vm::clearError,title={Text("操作未完成")},text={Column{Text(message);TextButton(onClick=onReport){Text("导出错误报告")}}},confirmButton={TextButton(onClick=vm::clearError){Text("知道了")}})}
 }
 
 @Composable private fun ProjectAspectTile(project:ProjectSummary,active:Boolean) {
@@ -131,15 +133,16 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
     }
 }
 
-@Composable internal fun NewProjectDialog(onDismiss:()->Unit,onCreate:(Int,Int,Int,String,Int)->Unit) {
+@Composable internal fun NewProjectDialog(onDismiss:()->Unit,title:String="新建工程",onCreate:(Int,Int,Int,String,Int)->Unit) {
     var name by remember{mutableStateOf("")}
     var width by remember{mutableStateOf("1080")};var height by remember{mutableStateOf("1920")}
-    var fps by remember{mutableIntStateOf(30)}
+    var rateText by remember{mutableStateOf("30")}
+    val rate=rateText.toIntOrNull();val fps=rate?.takeIf{it in 1..240}?:30
     var duration by remember{mutableStateOf("6")}
     val frames=compositionFrames(duration,fps)
     val w=width.toIntOrNull();val h=height.toIntOrNull()
-    val valid=w!=null&&h!=null&&w in 1..8192&&h in 1..8192&&frames!=null
-    AlertDialog(onDismissRequest=onDismiss,containerColor=Panel,title={Text("新建工程")},text={
+    val valid=w!=null&&h!=null&&w in 1..8192&&h in 1..8192&&rate!=null&&rate in 1..240&&frames!=null
+    AlertDialog(onDismissRequest=onDismiss,containerColor=Panel,title={Text(title)},text={
         val keyboard=LocalSoftwareKeyboardController.current
         val focus=LocalFocusManager.current
         fun finishInput(){focus.clearFocus();keyboard?.hide()}
@@ -157,7 +160,9 @@ internal fun compositionFrames(seconds:String,fps:Int):Int? {
         }
         if(w==null||h==null||w !in 1..8192||h !in 1..8192)Text("宽度和高度需要在 1 至 8192 之间",color=MaterialTheme.colorScheme.error,fontSize=12.sp)
         Spacer(Modifier.height(16.dp));Text("帧率",color=Muted,fontSize=13.sp)
-        Row {listOf(30,60).forEach{rate->TextButton(onClick={finishInput();fps=rate},modifier=Modifier.heightIn(min=48.dp).testTag("new-project-fps-$rate")){Text("$rate fps",color=if(fps==rate)Accent else Muted)}}}
+        Row(Modifier.horizontalScroll(rememberScrollState())) {listOf(30,60,24,25,50,90,120,144,240).forEach{preset->TextButton(onClick={finishInput();rateText=preset.toString()},modifier=Modifier.heightIn(min=48.dp).testTag("new-project-fps-$preset")){Text("$preset fps",color=if(rate==preset)Accent else Muted)}}}
+        OutlinedTextField(rateText,{rateText=it},label={Text("自定义帧率 · 1–240")},singleLine=true,isError=rate==null||rate !in 1..240,
+            keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number,imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={finishInput()}),modifier=Modifier.fillMaxWidth().testTag("new-project-custom-fps"))
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(duration,{duration=it},label={Text("时长（秒）")},singleLine=true,isError=frames==null,
             supportingText={Text(if(frames==null)"时长需为 1 帧至 ${36000/fps} 秒"else"$frames 帧 · ${String.format(Locale.getDefault(),"%.3f",frames.toDouble()/fps)} 秒")},

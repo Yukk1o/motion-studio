@@ -230,7 +230,20 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_request(
 ) -> jstring {
     let result=std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let text=read_string(&mut env,&text)?;if text.len()>16*1024{return Err("media request too large".into());}
-        let request:Request=serde_json::from_str(&text).map_err(|e|e.to_string())?;
+        let mut value:Value=serde_json::from_str(&text).map_err(|e|e.to_string())?;
+        let requested=value.as_object_mut().ok_or("media request must be an object")?.remove("composition").map(|v|v.as_str().map(str::to_owned).ok_or("invalid media composition")).transpose()?;
+        let op=value["op"].as_str().unwrap_or("").to_owned();
+        let request_id=value["request_id"].as_str().map(str::to_owned);
+        with_session(id,|s|{
+            let active=s.engine.project().composition_id.clone();
+            if requested.as_ref().is_some_and(|r|r!=&active){return Err(s.composition_error("context_mismatch","Open the requested composition before media access",json!({"requested":requested})));}
+            if matches!(op.as_str(),"import_media"|"probe_media") {
+                if let Some(id)=&request_id{if !s.media_compositions.contains_key(id){s.media_compositions.insert(id.clone(),active.clone());}}
+            }
+            if op=="finish_media_import"&&request_id.as_ref().and_then(|id|s.media_compositions.get(id)).is_some_and(|c|c!=&active){return Err(s.composition_error("context_mismatch","Return to the media task's composition before finishing import",json!({"composition":request_id.as_ref().and_then(|id|s.media_compositions.get(id))})));}
+            Ok(())
+        })?;
+        let request:Request=serde_json::from_value(value).map_err(|e|e.to_string())?;
         match request {
             Request::MediaCapabilities{video_query}=>super::media_capabilities::query(&mut env,video_query),
             Request::ImportMedia{request_id,uri,kind,at_frame,name,track,with_audio,audio_track} => {
@@ -255,7 +268,7 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_request(
                 s.sample()?;Ok(json!({"task":task,"state":s.snapshot()}))
             }),
             Request::CancelMediaImport{request_id}=>with_session(id,|s|if s.video_jobs.contains(&request_id){Ok(json!(s.video_jobs.cancel(&request_id)?))}else{Ok(json!(s.audio_jobs.cancel(&request_id)?))}),
-            Request::ReleaseMediaTask{request_id}=>with_session(id,|s|{if s.video_jobs.contains(&request_id){s.video_jobs.release(&request_id)?;}else{s.audio_jobs.release(&request_id)?;}Ok(json!({"released":request_id}))}),
+            Request::ReleaseMediaTask{request_id}=>with_session(id,|s|{if s.video_jobs.contains(&request_id){s.video_jobs.release(&request_id)?;}else{s.audio_jobs.release(&request_id)?;}s.media_compositions.remove(&request_id);Ok(json!({"released":request_id}))}),
             Request::PrepareAudio{request_id,asset}=>with_session(id,|s|{
                 if s.video_jobs.contains(&request_id){return Err("media request id already exists".into());}
                 let asset=s.engine.project().audio_assets.iter().find(|a|a.id==asset).cloned().ok_or("audio asset missing")?;

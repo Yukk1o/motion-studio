@@ -2,7 +2,7 @@ use aem_core::{Layer, Project, Scene};
 use aem_render::{GpuTimer, Presenter, Renderer};
 #[test]
 fn full_resolution_composition_fits_the_surface_and_yields_real_pass_timings() {
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
     let mut r = pollster::block_on(Renderer::new_profiled(
         &instance,
         None,

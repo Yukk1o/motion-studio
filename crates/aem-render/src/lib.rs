@@ -2,6 +2,7 @@
 //! playback uploads only fixed-size layer uniforms.
 mod effect_gpu;
 pub mod effect_plan;
+pub mod composition_plan;
 mod measurement;
 mod presenter;
 mod quality;
@@ -10,6 +11,8 @@ pub mod scene_generator;
 mod timing;
 mod video_pixels;
 mod video_gpu;
+mod vector_mesh;
+mod layer_gpu;
 pub use video_pixels::{ChromaLayout, VideoPlane, Yuv420Frame};
 pub use aem_core::Scene;
 pub use measurement::{FrameMeasurement, FrameRecorder};
