@@ -177,7 +177,7 @@ jobs:
           profile: Nexus 6
           ram-size: 2048M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -feature -HardwareDecoder -no-snapshot -no-audio -no-boot-anim
           script: python tools/ci_android_ui.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

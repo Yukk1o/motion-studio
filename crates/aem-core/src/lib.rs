@@ -3,6 +3,7 @@ mod animation;
 mod audio;
 mod camera;
 mod compositor;
+pub mod composition;
 mod curve;
 mod editor;
 mod effects;
@@ -14,6 +15,7 @@ mod scene;
 pub mod storage;
 mod timeline;
 mod video;
+pub mod vector;
 
 pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
 pub use audio::{AudioAsset, AudioClip};
@@ -21,6 +23,7 @@ pub use camera::{
     to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer, ProjectionKind,
 };
 pub use compositor::{PlaneBatch, PlaneCompositor, PlaneVertex};
+pub use composition::{Composition, CompositionAction, CompositionClip, CompositionSettings, MAIN_COMPOSITION};
 pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
 pub use editor::{parse_commands, Command, EditResult, Engine, Property};
 pub use effects::{
@@ -63,6 +66,8 @@ pub fn scene_prefix_delta(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    Composition(#[from] composition::CompositionError),
     #[error("expression {target} at frame {frame}: {message}")]
     Expression {
         target: String,

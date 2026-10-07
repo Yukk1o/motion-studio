@@ -12,12 +12,13 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
     private val ownedTextures=ArrayList<Int>()
     private val pool=IntArray(8)
     private val luts=HashMap<Int,Pair<Int,ByteArray>>()
+    private var packageBytes=0L
     private var poolWidth=0;private var poolHeight=0;private var poolMask=0
     private var poolSizes=IntArray(16)
     private var framebuffer=0;private var uniform=0;private var sprites=0;private var spriteVao=0
     init {
         try {
-            check(info.getInt("version")==3&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
+            check(info.getInt("version")==4&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
             val ids=IntArray(1);GL.glGenFramebuffers(1,ids,0);framebuffer=ids[0]
             GL.glGenBuffers(1,ids,0);uniform=ids[0];GL.glBindBuffer(GL.GL_UNIFORM_BUFFER,uniform)
             GL.glBufferData(GL.GL_UNIFORM_BUFFER,624,null,GL.GL_DYNAMIC_DRAW)
@@ -60,7 +61,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
                     val image=images.getJSONObject(i);val w=image.getInt("width");val h=image.getInt("height")
                     val key=program.getString("key").substringBefore(':')+":"+image.getString("path")
                     resources[i]=resourceCache[key]?:run {
-                        resourceBytes+=w.toLong()*h*4;check(resourceBytes<=128L*1024*1024){"素材和效果资源超过 128 MiB"}
+                        packageBytes+=w.toLong()*h*4;resourceBytes+=w.toLong()*h*4;check(resourceBytes<=128L*1024*1024){"素材和效果资源超过 128 MiB"}
                         val pixels=NativeBridge.pluginPixels(native,index,i)?:error("效果资源读取失败")
                         val texture=texture(w,h,false,ByteBuffer.allocateDirect(pixels.size).put(pixels).apply{flip()})
                         ownedTextures.add(texture);resourceCache[key]=texture;texture
@@ -71,7 +72,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer) {
-        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==3){"不兼容的帧计划"}
+        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==4){"不兼容的帧计划"}
         check(plan.getInt(28) in 80..plan.capacity()){"帧计划长度错误"}
         val spriteOffset=plan.getInt(64);val spriteCount=plan.getInt(68)
         check(plan.getInt(72)==48&&spriteCount in 0..65536&&spriteOffset>=80&&spriteOffset.toLong()+spriteCount.toLong()*48<=plan.getInt(28)){"粒子实例范围错误"}
@@ -112,6 +113,8 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
             }
         }
     }
+    fun resourceBytes():Long=packageBytes
+    fun scratchBytes():Long=(0..7).sumOf{i->poolSizes[i*2].toLong()*poolSizes[i*2+1]*(if(i==7)8 else 4)}
     fun texture(slot:Int):Int {check(slot in pool.indices&&pool[slot]!=0){"效果纹理索引错误"};return pool[slot]}
     fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null) {
         val count=plan.getInt(12);check(start>=0&&end in start..count){"效果 pass 范围错误"}

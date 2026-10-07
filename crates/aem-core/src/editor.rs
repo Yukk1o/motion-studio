@@ -23,6 +23,23 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    AddAdjustment {
+        id: u64,
+        name: String,
+    },
+    AddShape {
+        id: u64,
+        name: String,
+        shape: crate::vector::ShapeKind,
+        size: [f32; 2],
+        position: [f32; 3],
+    },
+    Vector {
+        object: u64,
+        action: crate::vector::VectorAction,
+    },
+    InComposition { composition: String, command: Box<Command> },
+    Composition { action: crate::CompositionAction },
     RegisterAudioAsset {
         asset: crate::AudioAsset,
     },
@@ -193,7 +210,19 @@ pub enum Command {
     },
 }
 
-/// Composition routing is explicit even while the engine has one composition.
+impl Command {
+    pub fn changes_resources(&self) -> bool {
+        match self {
+            Self::InComposition { command, .. } => command.changes_resources(),
+            Self::RegisterAsset { .. } | Self::Content { .. } | Self::Add { .. } | Self::Composition { .. } => true,
+            _ => false,
+        }
+    }
+    fn composition_transaction(&self) -> bool {
+        match self { Self::InComposition {command,..} => command.composition_transaction(), Self::Composition {..} => true, _ => false }
+    }
+}
+/// Commands route explicitly within the shared composition graph.
 /// Omitting it always means comp-main, never an editor's current selection.
 pub fn parse_commands(text: &str) -> Result<Vec<Command>> {
     let value: serde_json::Value = serde_json::from_str(text)?;
@@ -207,13 +236,11 @@ pub fn parse_commands(text: &str) -> Result<Vec<Command>> {
             let object = value
                 .as_object_mut()
                 .ok_or_else(|| Error::Invalid("command must be an object".into()))?;
-            if let Some(composition) = object.remove("composition") {
-                ensure(
-                    composition.as_str() == Some("comp-main"),
-                    "composition does not exist; this engine supports comp-main only",
-                )?;
-            }
-            Ok(serde_json::from_value(value)?)
+            let composition = object.remove("composition").unwrap_or_else(||serde_json::json!(crate::MAIN_COMPOSITION));
+            let composition = composition.as_str().ok_or_else(||Error::Invalid("composition must be a stable ID string".into()))?.to_string();
+            ensure(composition.starts_with("comp-")&&composition.len()<=64&&composition.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-'),"invalid composition ID")?;
+            let command = serde_json::from_value(value)?;
+            Ok(Command::InComposition { composition, command: Box::new(command) })
         })
         .collect()
 }
@@ -326,6 +353,7 @@ fn axis_channel(
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum EditResult {
     SplitLayerClip { left_object: u64, right_object: u64 },
+    Composition { result: serde_json::Value },
 }
 
 fn editable_clip(project: &mut Project, object: u64) -> Result<&mut Layer> {
@@ -338,9 +366,18 @@ fn editable_clip(project: &mut Project, object: u64) -> Result<&mut Layer> {
 }
 
 fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult>> {
+    if let Command::InComposition { composition, command } = command {
+        let previous = project.composition_id.clone();
+        project.activate_composition(&composition)?;
+        let result = apply_to(project, *command);
+        project.activate_composition(&previous)?;
+        return result;
+    }
     let valid_frame = |frame| ensure(frame < project.frames, "edit frame outside the composition");
     let mut result = None;
     match command {
+        Command::InComposition { .. } => unreachable!(),
+        Command::Composition { action } => result=Some(EditResult::Composition { result: project.edit_composition(action)? }),
         Command::RegisterAudioAsset { asset } => project.audio_assets.push(asset),
         Command::RegisterVideoAsset { asset } => project.video_assets.push(asset),
         Command::SetAudio {
@@ -635,6 +672,53 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             let frame = project.edit_frame(object, frame)?;
             axis_channel(project, object, property, axis)?.ease(frame, ease)?;
         }
+        Command::AddAdjustment { id, name } => {
+            let mut layer = Layer::solid(
+                id,
+                &name,
+                [project.width as f32, project.height as f32],
+                [project.width as f32 * 0.5, project.height as f32 * 0.5, 0.],
+                [1.; 4],
+            );
+            layer.content = Content::Adjustment;
+            project.layers.push(layer);
+        }
+        Command::AddShape {
+            id,
+            name,
+            shape,
+            size,
+            position,
+        } => {
+            let mut layer = Layer::solid(id, &name, size, position, [1.; 4]);
+            layer.content = Content::Vector {
+                vector: crate::vector::VectorContent::shape(shape),
+            };
+            project.layers.push(layer);
+        }
+        Command::Vector { object, action } => {
+            let edit_frame = match &action {
+                crate::vector::VectorAction::SetNode { frame, .. }
+                | crate::vector::VectorAction::SetParameter { frame, .. }
+                | crate::vector::VectorAction::ConvertToPath { frame } => Some(*frame),
+                _ => None,
+            };
+            if let Some(frame) = edit_frame {
+                valid_frame(frame)?;
+            }
+            let layer = project.layer_mut(object)?;
+            if layer.locked {
+                return Err(Error::Locked(object));
+            }
+            let Content::Vector { vector } = &mut layer.content else {
+                return Err(Error::Invalid("not a vector layer".into()));
+            };
+            vector.edit(
+                action,
+                layer.size,
+                layer.timeline.map_or(0, |t| t.offset_frame),
+            )?;
+        }
         Command::RegisterAsset { asset } => project.assets.push(asset),
         Command::Content {
             object,
@@ -874,6 +958,11 @@ pub struct Engine {
     history_budget: usize,
 }
 impl Engine {
+    pub fn activate_composition(&mut self, id: &str) -> Result<()> {
+        if self.gesture.is_some() { return Err(Error::Gesture); }
+        self.project.activate_composition(id)
+    }
+    pub fn gesture_active(&self) -> bool { self.gesture.is_some() }
     pub fn new(project: Project) -> Result<Self> {
         let project = project.migrate()?;
         Ok(Self {
@@ -945,6 +1034,9 @@ impl Engine {
         commands: Vec<Command>,
         root: Option<&std::path::Path>,
     ) -> Result<Vec<EditResult>> {
+        if self.gesture.is_some() && commands.iter().any(Command::composition_transaction) {
+            return Err(Error::Gesture);
+        }
         let before = self.project.clone();
         let mut results = Vec::new();
         for command in commands {

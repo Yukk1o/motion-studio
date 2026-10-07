@@ -14,6 +14,8 @@ internal class LayerClipboard private constructor(
     private val expressions:List<String>,
     private val assets:List<Pair<String,String>>,
 ) {
+    val composition:String get()=sourceComposition
+    private var sourceComposition="comp-main"
     val size:Int get()=layers.size
     fun available(project:JSONObject):Boolean {
         val ids=layers.map{JSONObject(it).getLong("id")}.toSet()
@@ -82,7 +84,7 @@ internal class LayerClipboard private constructor(
                 }
             }
             return LayerClipboard(root,layers.map{it.toString()},project.optJSONArray("expressions").objects()
-                .filter{it.getJSONObject("target").getLong("object") in objects}.map{it.toString()},assets.map{(key,value)->key.first to value})
+                .filter{it.getJSONObject("target").getLong("object") in objects}.map{it.toString()},assets.map{(key,value)->key.first to value}).also{it.sourceComposition=project.optString("composition_id","comp-main")}
         }
     }
 }

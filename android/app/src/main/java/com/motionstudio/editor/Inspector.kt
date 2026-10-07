@@ -41,7 +41,8 @@ import kotlin.math.*
 
 @Composable internal fun EditorFooter(vm:EditorViewModel) {
     if(vm.layerSelectionMode){LayerSelectionBar(vm);return}
-    var more by remember(vm.root,vm.selected){mutableStateOf(false)}
+    var more by remember(vm.root,vm.compositionId,vm.selected){mutableStateOf(false)}
+    var precompose by remember{mutableStateOf(false)}
     val kind=vm.contentKind()
     val hasTarget=vm.selected!=0L||vm.hasCamera()
     BoxWithConstraints(Modifier.fillMaxWidth().height(52.dp).background(Panel)
@@ -51,7 +52,7 @@ import kotlin.math.*
             Text(if(hasTarget)objectName(vm,vm.selected)else"选择图层",
                 modifier=if(hasTarget)Modifier.width(nameWidth).padding(end=8.dp)else Modifier.weight(1f),
                 color=Muted,fontSize=13.sp,lineHeight=20.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-            if(hasTarget)key(vm.root,vm.selected) {
+            if(hasTarget)key(vm.root,vm.compositionId,vm.selected) {
                 Row(Modifier.weight(1f).fillMaxHeight().horizontalScroll(rememberScrollState()).testTag("layer-categories"),
                     verticalAlignment=Alignment.CenterVertically) {
                     if(kind=="audio")LayerCategory("声音","footer-audio"){vm.openProperty("audio")}
@@ -59,8 +60,16 @@ import kotlin.math.*
                         LayerCategory("变换","footer-transform") {
                             vm.openProperty(if(vm.property in listOf("position","rotation","scale","opacity"))vm.property else "position")
                         }
-                        if(kind in listOf("solid","image","text","video"))LayerCategory("效果","open-effects",vm::openEffects)
+                        if(kind in listOf("solid","image","text","video","vector","adjustment","composition"))LayerCategory("效果","open-effects",vm::openEffects)
+                        if(kind=="vector") {
+                            LayerCategory(if(vm.vectorData()?.getJSONObject("source")?.optString("kind")=="shape")"形状"else"路径","footer-vector"){vm.openVector()}
+                            LayerCategory("样式","footer-vector-style"){vm.openVector("style")}
+                        }
                         if(vm.audioClip()!=null)LayerCategory("原声","footer-audio"){vm.openProperty("audio")}
+                        if(kind=="composition") {
+                            LayerCategory("子合成","footer-composition",vm::openSelectedComposition)
+                            LayerCategory("片段","footer-composition-clip",vm::openCompositionClip)
+                        }
                         if(vm.selected==0L) {
                             LayerCategory("镜头","footer-lens"){vm.openProperty("fov")}
                             LayerCategory("目标点","footer-target"){vm.openProperty("target")}
@@ -74,12 +83,14 @@ import kotlin.math.*
                     DropdownMenuItem(text={Text("多选图层")},modifier=Modifier.testTag("start-layer-selection"),enabled=vm.state.project?.optJSONArray("layers")?.length()?.let{it>0}==true,onClick={more=false;vm.startLayerSelection()})
                     if(vm.selected!=0L) {
                         DropdownMenuItem(text={Text("创建副本")},enabled=vm.editable(),onClick={more=false;vm.duplicate()})
+                        DropdownMenuItem(text={Text("预合成")},enabled=vm.canPrecompose(),modifier=Modifier.testTag("precompose-layer"),onClick={more=false;precompose=true})
                         DropdownMenuItem(text={Text("删除图层")},enabled=vm.editable(),onClick={more=false;vm.deleteLayer()})
                     }
                 }
             }
         }
     }
+    if(precompose)InputDialog("预合成名称","预合成",{precompose=false}){vm.precompose(it);precompose=false}
 }
 
 @Composable private fun LayerCategory(label:String,tag:String,onClick:()->Unit) {
@@ -154,7 +165,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
             if(curves)Tool(Icons.AutoMirrored.Filled.ArrowBack,"返回变换参数"){curves=false}
             Text(if(curves)if(vm.isSeparated())vm.axisName().uppercase()+" 轴曲线"else"缓动曲线" else objectName(vm,vm.selected),
                 Modifier.weight(1f),color=Ink,fontSize=15.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
-            if(!curves&&!camera)TextButton(onClick={vm.setThreeD(!threeD)},enabled=vm.editable(),
+            if(!curves&&!camera&&vm.contentKind()!="adjustment")TextButton(onClick={vm.setThreeD(!threeD)},enabled=vm.editable(),
                 modifier=Modifier.width(48.dp).height(48.dp).testTag("layer-3d-toggle").semantics{selected=threeD;stateDescription=if(threeD)"3D 图层"else"2D 图层"},contentPadding=PaddingValues(0.dp)) {
                 Text(if(threeD)"3D"else"2D",fontSize=12.sp,color=if(threeD)Accent else Muted)
             }

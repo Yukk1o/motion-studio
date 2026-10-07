@@ -56,7 +56,14 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
                 AddCard("音频","音乐与声音",Icons.Default.Audiotrack,Accent,Modifier.weight(1f).testTag("add-audio")){onAdd("audio")}
             }
             Spacer(Modifier.height(10.dp))
-            AddCard("矩形","纯色形状",Icons.Default.Rectangle,Color(0xFF83BAEB),Modifier.fillMaxWidth().testTag("add-solid")){onAdd("solid")}
+            Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                AddCard("形状","选择几何形状",Icons.Default.Rectangle,Color(0xFF83BAEB),Modifier.weight(1f).testTag("add-shapes")){onAdd("shapes")}
+                AddCard("钢笔","绘制节点与曲柄",Icons.Default.Edit,Accent,Modifier.weight(1f).testTag("add-pen")){onAdd("pen")}
+            }
+            Spacer(Modifier.height(10.dp))
+            AddCard("调整图层","为下方画面添加效果",Icons.Default.Tune,Accent,Modifier.fillMaxWidth().testTag("add-adjustment")){onAdd("adjustment")}
+            Spacer(Modifier.height(10.dp))
+            AddCard("子合成","新建或引用已有合成",Icons.Default.Layers,Accent,Modifier.fillMaxWidth().testTag("add-composition")){onAdd("composition")}
             Spacer(Modifier.height(20.dp))
             Text("动画与空间",color=Muted,fontSize=12.sp)
             Spacer(Modifier.height(8.dp))
@@ -69,7 +76,7 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
 }
 
 @Composable private fun AddCard(title:String,description:String,icon:ImageVector,color:Color,modifier:Modifier,enabled:Boolean=true,onClick:()->Unit) {
-    Surface(onClick=onClick,enabled=enabled,color=Background,shape=RoundedCornerShape(12.dp),modifier=modifier.heightIn(min=88.dp)) {
+    Surface(onClick=onClick,enabled=enabled,color=Background,shape=RoundedCornerShape(12.dp),modifier=modifier.heightIn(min=64.dp)) {
         Row(Modifier.padding(14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             Icon(editorIcon(icon),null,tint=if(enabled)color else Muted.copy(alpha=.4f),modifier=Modifier.size(26.dp))
             Column(Modifier.weight(1f)) {
