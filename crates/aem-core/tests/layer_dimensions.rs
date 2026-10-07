@@ -113,7 +113,7 @@ fn old_files_preserve_spatial_rendering_in_memory_without_changing_new_layer_def
     let bytes = serde_json::to_vec(&raw).unwrap();
     std::fs::write(tmp.path().join("project.json"), &bytes).unwrap();
     let migrated = aem_core::storage::load(tmp.path()).unwrap();
-    assert_eq!(migrated.version, 6);
+    assert_eq!(migrated.version, 7);
     assert!(migrated.layers.iter().all(|l| l.three_d));
     assert_eq!(
         bytes,

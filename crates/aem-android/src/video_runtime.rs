@@ -7,6 +7,9 @@ struct FrozenVideo {
     project: Project,
     root: PathBuf,
     frames: VideoFrames,
+    prepared:HashMap<u64,Arc<DecodedFrame>>,
+    sequence:u64,
+    time:f64,
 }
 static VIDEO: OnceLock<Mutex<HashMap<i64, FrozenVideo>>> = OnceLock::new();
 static VIDEO_NEXT: AtomicI64 = AtomicI64::new(1);
@@ -103,6 +106,7 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_freezeVideo(
                     project: s.engine.snapshot(),
                     root: s.root.clone(),
                     frames: VideoFrames::default(),
+                    prepared:Default::default(),sequence:0,time:-1.,
                 },
             );
             Ok(
@@ -110,6 +114,29 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_freezeVideo(
             )
         })
     })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_requestFrozenCompositionFrame(mut env:JNIEnv,_class:JClass,handle:jlong,frame:jdouble,sequence:jlong)->jstring {
+    string_result(&mut env,||{
+        if sequence<=0{return Err("invalid frozen video sequence".into());}
+        let mut readers=frozen().lock().map_err(|_|"frozen video registry poisoned")?;
+        let r=readers.get_mut(&handle).ok_or("frozen video reader closed")?;
+        if (sequence as u64)<r.sequence || (sequence as u64==r.sequence&&frame!=r.time) {return Err("frozen composition request superseded".into());}
+        let mut scene=Scene::new(&r.project);scene.sample(&r.project,frame,None).map_err(|e|e.to_string())?;
+        if sequence as u64!=r.sequence{r.prepared.clear();r.sequence=sequence as u64;r.time=frame;}
+        match r.frames.prepare_scene_exact(&r.project,&r.root,&scene)?{
+            None=>Ok(json!({"state":"pending","sequence":sequence})),
+            Some(frames)=>{r.prepared=frames.into_iter().collect();Ok(json!({"state":"ready","sequence":sequence,"instances":r.prepared.keys().collect::<Vec<_>>()}))}
+        }
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_readFrozenCompositionVideoInto(mut env:JNIEnv,_class:JClass,handle:jlong,object:jlong,sequence:jlong,buffer:JByteBuffer)->jstring {
+    let result=(||{let readers=frozen().lock().map_err(|_|"frozen video registry poisoned")?;let r=readers.get(&handle).ok_or("frozen video reader closed")?;
+        if sequence<=0||r.sequence!=sequence as u64{return Err("frozen composition video superseded".into());}
+        let frame=r.prepared.get(&(object as u64)).cloned().ok_or("frozen composition video is pending or absent")?;
+        copy_frame(&mut env,&buffer,frame,object,sequence)
+    })();string_result(&mut env,||result)
 }
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_requestFrozenVideoFrame(
