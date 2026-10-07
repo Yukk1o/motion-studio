@@ -68,7 +68,7 @@ internal fun compositionErrorMessage(raw:String):String {
         }
     }
     if(creating)NewProjectDialog(onDismiss={creating=false},title="新建子合成"){w,h,fps,name,frames->creating=false;vm.compositionAction(JSONObject().put("kind","create").put("settings",JSONObject().put("name",name.ifBlank{"子合成"}).put("width",w).put("height",h).put("fps",fps).put("frames",frames)))}
-    deleting?.let{node->AlertDialog(onDismissRequest={deleting=null},title={Text("删除 ${node.getString("name")}？")},text={Text(if(deleteInfo==null)"正在检查引用…"else if(deleteInfo?.optBoolean("can_delete")==true)"删除空闲合成，可撤销恢复。"else"此合成仍被引用，无法删除。")},confirmButton={TextButton(onClick={vm.compositionAction(JSONObject().put("kind","delete").put("target",node.getString("id")));deleting=null},enabled=deleteInfo?.optBoolean("can_delete")==true){Text("删除")}},dismissButton={TextButton(onClick={deleting=null}){Text("取消")}})}
+    deleting?.let{node->AlertDialog(onDismissRequest={deleting=null},title={Text("删除 ${node.getString("name")}？")},text={Text(if(deleteInfo==null)"正在检查引用…"else if(deleteInfo?.optBoolean("can_delete")==true)"删除空闲合成，可撤销恢复。"else"此合成仍被引用，无法删除。")},confirmButton={TextButton(onClick={vm.compositionAction(JSONObject().put("kind","delete").put("target",node.getString("id")));deleting=null},enabled=deleteInfo?.optBoolean("can_delete")==true,modifier=Modifier.testTag("delete-composition-confirm")){Text("删除")}},dismissButton={TextButton(onClick={deleting=null}){Text("取消")}})}
 }
 
 @Composable internal fun CompositionSettings(vm:EditorViewModel,onDismiss:()->Unit) {

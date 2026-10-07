@@ -108,7 +108,7 @@ class CompositionFrontendTest {
         compose.onNodeWithTag("add-layer").performClick();compose.onNodeWithTag("add-composition").performScrollTo().performClick()
         compose.onNodeWithTag("delete-composition-$id").performClick()
         compose.waitUntil(10000){compose.onAllNodesWithText("删除空闲合成，可撤销恢复。").fetchSemanticsNodes().isNotEmpty()}
-        compose.onNode(hasText("删除") and hasAnyAncestor(isDialog())).performClick();settled{vm.state.saved&&vm.state.sample!!.getJSONArray("compositions").length()==1}
+        compose.onNodeWithTag("delete-composition-confirm").performClick();settled{vm.state.saved&&vm.state.sample!!.getJSONArray("compositions").length()==1}
     }
     @Test fun homeShowsCachedUpdatePromptAndSettingsExposeReleaseNotes() {
         scenario.close()
