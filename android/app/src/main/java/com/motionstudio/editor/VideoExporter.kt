@@ -183,11 +183,15 @@ class VideoExporter(private val root:File,private val projectJson:String) {
     }
 }
 
-internal class EglMovieRenderer(surface:Surface?,private val width:Int,private val height:Int,project:JSONObject,native:Long,planInfo:JSONObject) {
+internal class EglMovieRenderer(surface:Surface?,private val width:Int,private val height:Int,project:JSONObject,private val native:Long,planInfo:JSONObject) {
     private val display=EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
     private var context:EGLContext=EGL14.EGL_NO_CONTEXT
     private var window:EGLSurface=EGL14.EGL_NO_SURFACE
     private val textures=ArrayList<Int>()
+    private val imageAssets=project.getJSONArray("assets")
+    private var imageBuffer:ByteBuffer?=null
+    var imageUploads:Long=0;private set
+    var residentImageBytes:Long=4;private set
     private var frameTexture:Int=0
     private var framebuffer:Int=0
     private var plane:Int=0
@@ -232,14 +236,8 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         clear[3]=background.getDouble(3).toFloat()
         for(i in 0..2)clear[i]=linear(background.getDouble(i).toFloat())*clear[3]
         textures.add(texture(1,1,ByteBuffer.allocateDirect(4).put(byteArrayOf(-1,-1,-1,-1)).apply{flip()}))
-        val assets=project.getJSONArray("assets");var bytes=4L
-        for(i in 0 until assets.length()) {
-            val a=assets.getJSONObject(i);val w=a.getInt("width");val h=a.getInt("height")
-            bytes+=w.toLong()*h*4;check(bytes<=128L*1024*1024){"导出纹理超出预算"}
-            val data=NativeBridge.assetPixels(native,a.getLong("id"))?:error("图片资源读取失败")
-            textures.add(texture(w,h,ByteBuffer.allocateDirect(data.size).put(data).apply{flip()}))
-        }
-        imageBytes=bytes
+        repeat(imageAssets.length()){textures.add(0)}
+        imageBytes=4L
         effects=GlEffects(planInfo,native,textures)
         layerSources=GlLayerSources()
         frameTexture=texture(width,height,null)
@@ -262,14 +260,53 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         for(i in compositionTextures.keys.filter{it>=count||it==root}){
             val t=compositionTextures.remove(i)!!;imageBytes-=t.second.toLong()*t.third*4;GLES30.glDeleteTextures(1,intArrayOf(t.first),0)
         }
+        val plans=(0 until count).map { i ->
+            val d=32+i*80;val offset=bundle.getInt(d+40);val bytes=bundle.getInt(d+44)
+            check(offset>=32&&bytes>=112&&offset.toLong()+bytes<=bundle.getInt(12)){"合成图像计划范围失效"}
+            bundle.duplicate().order(ByteOrder.LITTLE_ENDIAN).apply{position(offset);limit(offset+bytes)}.slice().order(ByteOrder.LITTLE_ENDIAN)
+        }
+        prepareImages(plans)
         for(i in 0 until count)if(i!=root) {
             val d=32+i*80;val w=bundle.getInt(d+16);val h=bundle.getInt(d+20);val previous=compositionTextures[i]
             if(previous==null||previous.second!=w||previous.third!=h) {
                 val old=previous?.let{it.second.toLong()*it.third*4}?:0
-                val cost=w.toLong()*h*4;check(imageBytes-old+cost<=128L*1024*1024){"嵌套合成纹理超过 128 MiB"}
+                val cost=w.toLong()*h*4;check(imageBytes-old+cost+effects!!.resourceBytes()<=128L*1024*1024){"嵌套合成纹理超过 128 MiB"}
                 val next=texture(w,h,null);previous?.let{GLES30.glDeleteTextures(1,intArrayOf(it.first),0)}
                 compositionTextures[i]=Triple(next,w,h);imageBytes=imageBytes-old+cost
             }
+        }
+    }
+    private fun prepareImages(plans:List<ByteBuffer>) {
+        val wanted=HashSet<Int>()
+        for(plan in plans) {
+            check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==4){"不兼容的图片帧计划"}
+            val layers=plan.getInt(8);val offset=plan.getInt(16)
+            check(layers in 0..128&&offset>=80&&offset.toLong()+layers*128L<=plan.getInt(28)){"图片图层范围失效"}
+            for(i in 0 until layers) {
+                val base=offset+i*128;val slot=plan.getFloat(base+96).toInt()
+                if(plan.getFloat(base+124)==0f&&slot>0&&slot !in skippedSlots) {
+                    check(slot<textures.size){"图片素材表索引失效"};wanted.add(slot)
+                }
+            }
+        }
+        for(slot in 1 until textures.size)if(textures[slot]!=0&&slot !in wanted) {
+            GLES30.glDeleteTextures(1,intArrayOf(textures[slot]),0);textures[slot]=0
+            val asset=imageAssets.getJSONObject(slot-1);val bytes=asset.getInt("width").toLong()*asset.getInt("height")*4
+            imageBytes-=bytes;residentImageBytes-=bytes
+        }
+        val required=4L+wanted.sumOf{slot->val a=imageAssets.getJSONObject(slot-1);a.getInt("width").toLong()*a.getInt("height")*4}
+        check(required<=128L*1024*1024){"当前帧原图纹理超过 128 MiB，导出不会缩小原图"}
+        for(slot in wanted.sorted())if(textures[slot]==0) {
+            val a=imageAssets.getJSONObject(slot-1);val w=a.getInt("width");val h=a.getInt("height");val bytes=w.toLong()*h*4
+            check(imageBytes+bytes+effects!!.resourceBytes()<=128L*1024*1024){"图片和动态纹理超过 128 MiB"}
+            val limit=IntArray(1);GLES30.glGetIntegerv(GLES30.GL_MAX_TEXTURE_SIZE,limit,0)
+            check(w<=limit[0]&&h<=limit[0]){"原图超过设备纹理尺寸"}
+            val data=imageBuffer?.takeIf{it.capacity()>=bytes}?:ByteBuffer.allocateDirect(bytes.toInt()).also{imageBuffer=it}
+            data.clear();data.limit(bytes.toInt())
+            val result=nativeData(NativeBridge.assetPixelsInto(native,a.getLong("id"),data))
+            check(result.getLong("bytes")==bytes&&result.getString("resolution")=="original"){"原图像素长度错误"}
+            textures[slot]=texture(w,h,data)
+            imageBytes+=bytes;residentImageBytes+=bytes;imageUploads++
         }
     }
     fun drawBundle(bundle:ByteBuffer) {
@@ -289,15 +326,16 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
     fun uploadVideo(slot:Long,w:Int,h:Int,pixels:ByteBuffer) {
         val previous=videoSizes[slot]
         if(previous==null) {
-            imageBytes+=w.toLong()*h*4;check(imageBytes<=128L*1024*1024){"导出纹理超出预算"}
+            val bytes=w.toLong()*h*4;check(imageBytes+bytes+effects!!.resourceBytes()<=128L*1024*1024){"导出纹理超出预算"}
             videoTextures[slot]=texture(w,h,pixels);videoSizes[slot]=w to h
+            imageBytes+=bytes
         }else {
             check(previous==w to h){"视频尺寸在解码中改变"}
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,videoTextures.getValue(slot))
             GLES30.glTexSubImage2D(GLES30.GL_TEXTURE_2D,0,0,0,w,h,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,pixels)
         }
     }
-    fun draw(buffer:ByteBuffer) {draw(buffer,frameTexture,width,height,clear,videoTextures.mapKeys{it.key.toInt()},false);drawPresentation()}
+    fun draw(buffer:ByteBuffer) {prepareImages(listOf(buffer));draw(buffer,frameTexture,width,height,clear,videoTextures.mapKeys{it.key.toInt()},false);drawPresentation()}
     private fun draw(buffer:ByteBuffer,target:Int,w:Int,h:Int,background:FloatArray,dynamic:Map<Int,Int>,flip:Boolean) {
         check(buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==4){"不兼容的帧计划"}
         val total=buffer.getInt(28);val vertexOffset=buffer.getInt(60);val bytes=buffer.getInt(80)*20
@@ -391,7 +429,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
             GLES30.glDeleteBuffers(1,intArrayOf(vertexBuffer),0);GLES30.glDeleteVertexArrays(1,intArrayOf(vertexArray),0)
             GLES30.glDeleteTextures(videoTextures.size,videoTextures.values.toIntArray(),0);videoTextures.clear()
             GLES30.glDeleteTextures(compositionTextures.size,compositionTextures.values.map{it.first}.toIntArray(),0);compositionTextures.clear()
-            GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0)
+            GLES30.glDeleteTextures(textures.size,textures.toIntArray(),0);textures.clear();imageBuffer=null
             GLES30.glDeleteTextures(1,intArrayOf(frameTexture),0);GLES30.glDeleteFramebuffers(1,intArrayOf(framebuffer),0)
         }
         EGL14.eglMakeCurrent(display,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT)
