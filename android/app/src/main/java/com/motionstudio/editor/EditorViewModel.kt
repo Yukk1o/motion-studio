@@ -47,6 +47,7 @@ private fun activeProjectDirectory(app:Application):File {
 }
 
 class EditorViewModel @JvmOverloads constructor(app: Application,projectDirectory:File?=null,initialProjectJson:String="") : AndroidViewModel(app) {
+    internal val updates=ReleaseUpdates(app,viewModelScope)
     private val errors=(app as? StudioApplication)?.errors?:ErrorReports(app)
     private var pendingDiagnostic:File?=null
     internal val gestureInertia=GestureInertiaGroup()
@@ -56,6 +57,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var expressionTarget by mutableStateOf<JSONObject?>(null); private set
     private var shownRenderError:String?=null
     var frame by mutableDoubleStateOf(0.0); private set
+    var compositionId by mutableStateOf("comp-main");private set
+    var compositionPath by mutableStateOf(listOf("comp-main"));private set
+    var compositionTimeline by mutableStateOf(JSONObject());private set
+    @Volatile private var engineComposition="comp-main"
     var playing by mutableStateOf(false); private set
     var selected by mutableLongStateOf(0L)
     var layerSelectionMode by mutableStateOf(false);private set
@@ -64,6 +69,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var panelOpen by mutableStateOf(false)
     var effectsOpen by mutableStateOf(false)
     var vectorOpen by mutableStateOf(false)
+    var compositionClipOpen by mutableStateOf(false)
     var vectorTab by mutableStateOf("geometry")
     var vectorDrawMode by mutableStateOf(false)
     var vectorPathId by mutableLongStateOf(1L)
@@ -114,7 +120,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private var gestureUpdates:GestureUpdates?=null
     private var id = 0L
     private val closed = AtomicBoolean(false)
-    internal val pluginEditor=PluginEditorHost(worker,main,{id},{closed.get()}) {save->
+    internal val pluginEditor=PluginEditorHost(worker,main,{id},{closed.get()},{engineComposition}) {save->
         publish(if(save)NativeBridge.save(id)else NativeBridge.state(id),if(save)true else null)
     }
     private val queued = AtomicBoolean(false)
@@ -162,7 +168,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                         if(!playback||pendingPlaybackGeneration!=playbackGeneration)pendingPlaybackFrame=null
                         if(id!=0L && foreground.get() && surfaceReady.get()) {
                             val renderTarget=if(playback)pendingPlaybackFrame?:target else target
-                            val rendered=NativeBridge.render(id,renderTarget)
+                            val rendered=CompositionBridge.render(id,engineComposition,renderTarget)
                             pendingPlaybackGeneration=playbackGeneration
                             pendingPlaybackFrame=if(playback&&!rendered)renderTarget else null
                             if(!rendered) {
@@ -196,7 +202,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     private fun fail(message:String,surfaceGeneration:Long?=null,cause:Throwable?=null) {main.post {
         if(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get()) {
-            state=state.copy(error=message,busy=false)
+            state=state.copy(error=compositionErrorMessage(message),busy=false)
             val p=state.project
             val context=JSONObject().put("frame",frame).put("selected_kind",contentKind()).put("property",property)
                 .put("playing",playing).put("output_phase",outputPhase.substringBefore(':')).put("preview_mode",previewMode)
@@ -282,6 +288,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 return
             }
             val d=r.getJSONObject("data")
+            engineComposition=d.optString("composition","comp-main")
             if(pluginEditor.session!=null)pluginEditor.refresh()
             main.post {
                 if(!closed.get()&&(surfaceGeneration==null||surfaceGeneration==surfaceRequest.get())) {
@@ -293,14 +300,25 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     state=StudioState(d.getJSONObject("project"),d,d.optBoolean("canUndo"),
                         d.optBoolean("canRedo"),d.optBoolean("observing"),
                         nextError,false,savedState)
+                    val nextComposition=d.optString("composition","comp-main")
+                    val context=d.optJSONObject("composition_context")
+                    compositionPath=context?.optJSONArray("path")?.let{a->(0 until a.length()).map{a.getString(it)}}?:listOf(nextComposition)
+                    if(nextComposition!=compositionId) {
+                        compositionId=nextComposition;closeWorkspace();waveforms=emptyMap();property="position";frame=d.optDouble("frame",0.0)
+                        val selection=context?.optJSONArray("selection")?.let{a->(0 until a.length()).map{a.getLong(it)}}.orEmpty()
+                        selected=selection.firstOrNull()?:0;selectedLayerIds=selection.filter{it!=0L}.toSet();layerSelectionMode=selectedLayerIds.size>1
+                        compositionTimeline=context?.optJSONObject("timeline")?:JSONObject()
+                        timelineScale=compositionTimeline.optDouble("zoom",1.5).toFloat().coerceIn(.4f,12f)
+                    }
                     selectedLayerIds=selectedLayerIds.intersect(state.project?.optJSONArray("layers").objects().map{it.getLong("id")}.toSet())
                     d.optJSONObject("edit_result")?.takeIf{it.optString("op")=="split_layer_clip"}?.let {
                         if(selected==it.optLong("left_object"))selected=it.getLong("right_object")
                     }
+                    d.optJSONArray("edit_results").objects().filter{it.optString("op")=="composition"}.forEach{edit->edit.optJSONObject("result")?.optJSONArray("selection")?.let{a->selected=if(a.length()>0)a.getLong(0)else 0L;finishLayerSelection()}}
                     if(selectedExisted&&selected!=0L&&layer(selected)==null){selected=0L;panelOpen=false;expressionTarget=null;pluginEditor.close()}
                     if(d.has("root")) {
                         val nextRoot=File(d.getString("root"))
-                        if(nextRoot!=root){finishLayerSelection();frame=d.optDouble("frame",0.0);selected=0L;property="position";panelOpen=false;effectsOpen=false;expressionTarget=null}
+                        if(nextRoot!=root){finishLayerSelection();closeWorkspace();frame=d.optDouble("frame",0.0);selected=0L;property="position";compositionTimeline=context?.optJSONObject("timeline")?:JSONObject();timelineScale=compositionTimeline.optDouble("zoom",1.5).toFloat().coerceIn(.4f,12f)}
                         root=nextRoot
                         if(persistProjectSelection)getApplication<Application>().getSharedPreferences("motion-studio",0)
                             .edit().putString("activeProject",root.name).apply()
@@ -319,6 +337,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             if(id==0L||closed.get())return@post
             try {
                 val result=operation()
+                JSONObject(result).optJSONObject("data")?.optString("composition")?.takeIf{it.isNotBlank()}?.let{engineComposition=it}
                 if(save&&JSONObject(result).optBoolean("ok")) {
                     val saved=JSONObject(NativeBridge.save(id))
                     val edits=JSONObject(result).optJSONObject("data")
@@ -386,11 +405,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun pause() {
         playGeneration.incrementAndGet();audioPlayer.stop()
-        if(playing) {playing=false;val f=frame;invoke {NativeBridge.seek(id,f)}}
+        if(playing) {playing=false;val f=frame;invoke {CompositionBridge.seek(id,engineComposition,f)}}
     }
     fun suspendPreview(){pause();foreground.set(false)}
     fun resumePreview(){foreground.set(true);dirty.set(true)}
-    fun refreshDiagnostics(){invoke(repaint=false){NativeBridge.state(id)}}
+    fun refreshDiagnostics(repaint:Boolean=false){invoke(repaint=repaint){NativeBridge.state(id)}}
     fun retryPreview(){currentSurface?.takeIf{it.isValid}?.let{clearError();attach(it,surfaceWidth,surfaceHeight)}}
     fun injectGraphicsFault(kind:Int) {
         require(getApplication<Application>().applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE!=0){"Diagnostics require a debug application"}
@@ -458,11 +477,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         if(pluginEditor.gesture&&!(fromNativePlugin&&pluginEditor.session?.definition?.optJSONObject("native_editor")!=null))return
         if(playing)pause() else if(state.project!=null) {
             val p=state.project!!
-            val hasSound=p.optJSONArray("layers").objects().any{audioClip(it.getLong("id"))!=null}
+            val hasSound=state.sample?.optBoolean("has_audio")==true
             if(!hasSound){startFrame=frame;startNanos=System.nanoTime();playing=true;return}
             val at=frame;val ticket=playGeneration.incrementAndGet()
             worker.post {try {
-                val frozen=nativeData(MediaBridge.freezeAudio(id))
+                val frozen=nativeData(CompositionBridge.freezeAudio(id,engineComposition))
                 val handle=frozen.getLong("handle")
                 if(ticket!=playGeneration.get()){MediaBridge.releaseFrozenAudio(handle);return@post}
                 audioPlayer.start(handle,(at*48000/p.getInt("fps")).toLong(),frozen.getLong("total_frames")) {
@@ -477,7 +496,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         if(!value.isFinite()){fail("帧位置无效");return}
         pause();val p=state.project?:return
         frame=value.coerceIn(0.0,p.getInt("frames")-1.0)
-        val f=frame;invoke {NativeBridge.seek(id,f)}
+        val f=frame;invoke {CompositionBridge.seek(id,engineComposition,f)}
     }
     fun step(delta:Int)=seek(floor(frame)+delta)
     fun select(objectId:Long,openEditor:Boolean=true) {
@@ -488,52 +507,94 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             expressionTarget=null
             effectsOpen=false
             vectorOpen=false
+            compositionClipOpen=false
             selected=objectId
             property=if(objectId==0L&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else "position"
         }
         if(openEditor)panelOpen=true
     }
-    fun openProperty(key:String) {gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;vectorOpen=false;
+    fun openProperty(key:String) {gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;vectorOpen=false;compositionClipOpen=false;
         pause()
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
     }
     fun hasCamera()=state.project?.optJSONObject("camera")?.optBoolean("created",true)==true
-    fun editable():Boolean=if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false
+    internal fun compositionQuery(op:String,target:String=compositionId,fields:JSONObject=JSONObject(),onResult:(JSONObject)->Unit) {
+        val sourceRoot=root;val sourceComposition=compositionId
+        worker.post {try {
+            val result=nativeData(CompositionBridge.request(id,JSONObject(fields.toString()).put("version",1).put("composition",target).put("op",op).toString()))
+            main.post{if(!closed.get()&&root==sourceRoot&&compositionId==sourceComposition)onResult(result)}
+        }catch(e:Throwable){fail(compositionErrorMessage(e.message?:"合成操作失败"),cause=e)}}
+    }
+    internal fun compositionAction(action:JSONObject,save:Boolean=true) = edit(JSONObject().put("op","composition").put("action",action),save)
+    internal fun canPrecompose():Boolean {
+        val layers=if(layerSelectionMode)selectedLayers()else listOfNotNull(layer(selected))
+        if(layers.isEmpty()||layers.any{it.optBoolean("locked")||it.optBoolean("three_d")})return false
+        val ids=layers.map{it.getLong("id")}.toSet()
+        val indices=state.project?.optJSONArray("layers").objects().mapIndexedNotNull{index,l->index.takeIf{l.getLong("id") in ids}}
+        return indices.isNotEmpty()&&indices.last()-indices.first()+1==indices.size
+    }
+    internal fun precompose(name:String) {
+        if(!canPrecompose()){fail("请选择连续且未锁定的二维图层");return}
+        compositionAction(JSONObject().put("kind","precompose").put("objects",JSONArray(if(layerSelectionMode)selectedLayerIds.toList()else listOf(selected))).put("name",name.ifBlank{"预合成"}).put("range","composition"))
+        finishLayerSelection();closeWorkspace()
+    }
+    internal fun openComposition(target:String,path:List<String> = listOf(target)) {
+        if(importTask!=null||exporting){fail("请先完成或取消导入、导出，再切换合成");return}
+        if(state.busy)return
+        gestureInertia.stop();if(gestureUpdates!=null)endGesture();closeWorkspace();pause()
+        val previous=compositionId
+        val selection=if(layerSelectionMode)selectedLayerIds.toList()else listOf(selected).filter{it!=0L||hasCamera()}
+        val timeline=JSONObject(compositionTimeline.toString()).put("zoom",timelineScale)
+        state=state.copy(busy=true)
+        invoke {
+            nativeData(CompositionBridge.request(id,JSONObject().put("version",1).put("composition",previous).put("op","context").put("selection",JSONArray(selection)).put("timeline",timeline).toString()))
+            CompositionBridge.request(id,JSONObject().put("version",1).put("composition",target).put("op","open").put("path",JSONArray(path)).toString())
+        }
+    }
+    internal fun openSelectedComposition() {
+        val target=layer(selected)?.optJSONObject("content")?.optJSONObject("clip")?.optString("composition")?:return
+        openComposition(target,compositionPath+target)
+    }
+    internal fun applyCompositionSettings(settings:JSONObject,revision:Long) {
+        val target=compositionId
+        invoke(true){CompositionBridge.request(id,JSONObject().put("version",1).put("composition",target).put("op","settings_apply").put("expected_revision",revision).put("settings",settings).toString())}
+    }
+    fun editable():Boolean=!state.busy&&(if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false)
     fun edit(command:JSONObject,save:Boolean=true) {
         errors.operation("edit:"+command.optString("op"))
         if(pluginEditor.gesture)return
         if(command.optString("op") in listOf("remove","flags","camera_mode","set_layer_3d"))pluginEditor.close()
-        pause();val routed=routeVectorCommand(routeEffectCommand(command))?:return
+        pause();val routed=(routeVectorCommand(routeEffectCommand(command))?:return).put("composition",compositionId)
         if(!save&&queueGesture(listOf(routed)))return
         invoke(save){NativeBridge.command(id,routed.toString())}
     }
     fun editBatch(commands:JSONArray,save:Boolean=true) {
         errors.operation("batch:"+commands.objects().map{it.optString("op")}.distinct().joinToString(","))
         if(pluginEditor.gesture)return
-        pause();val routed=commands.objects().map{routeVectorCommand(routeEffectCommand(it))?:return}
+        pause();val routed=commands.objects().map{(routeVectorCommand(routeEffectCommand(it))?:return).put("composition",compositionId)}
         if(!save&&queueGesture(routed))return
         invoke(save){NativeBridge.command(id,JSONArray(routed).toString())}
     }
-    fun undo() {errors.operation("undo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,0)}}
-    fun redo() {errors.operation("redo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){NativeBridge.history(id,1)}}
-    fun beginGesture() {gestureInertia.stop();pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{NativeBridge.history(id,2)}}
+    fun undo() {errors.operation("undo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){CompositionBridge.history(id,engineComposition,0)}}
+    fun redo() {errors.operation("redo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){CompositionBridge.history(id,engineComposition,1)}}
+    fun beginGesture() {gestureInertia.stop();pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{CompositionBridge.history(id,engineComposition,2)}}
     fun endGesture(onComplete:()->Unit={}) {
         val pending=gestureUpdates?.take().orEmpty();gestureUpdates=null
         invoke(true,onComplete=onComplete) {
             if(pending.isNotEmpty()) {
                 val result=NativeBridge.command(id,JSONArray(pending.map{JSONObject(it)}).toString())
-                if(!JSONObject(result).optBoolean("ok")){NativeBridge.history(id,4);return@invoke result}
+                if(!JSONObject(result).optBoolean("ok")){CompositionBridge.history(id,engineComposition,4);return@invoke result}
             }
-            NativeBridge.history(id,3)
+            CompositionBridge.history(id,engineComposition,3)
         }
     }
-    fun cancelGesture() {gestureUpdates?.take();gestureUpdates=null;invoke{NativeBridge.history(id,4)}}
+    fun cancelGesture() {gestureUpdates?.take();gestureUpdates=null;invoke{CompositionBridge.history(id,engineComposition,4)}}
     fun moveLayer(dx:Float,dy:Float,width:Int,height:Int) {
         val objectId=selected
         if(objectId==0L)return
         property="position"
-        invoke{NativeBridge.drag(id,objectId,dx.toDouble(),dy.toDouble(),width,height)}
+        invoke{CompositionBridge.drag(id,engineComposition,objectId,dx.toDouble(),dy.toDouble(),width,height)}
     }
     fun save() {invoke(true){NativeBridge.state(id)}}
     fun layer(id:Long):JSONObject? {
@@ -572,17 +633,17 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         if(fit<=0)return
         val px=(x-(width-p.getInt("width")*fit)/2)/fit
         val py=(y-(height-p.getInt("height")*fit)/2)/fit
-        val at=frame;val projectRoot=root;val request=pickRequest.incrementAndGet()
+        val at=frame;val projectRoot=root;val sourceComposition=compositionId;val request=pickRequest.incrementAndGet()
         worker.post {
             if(id==0L||closed.get())return@post
             try {
-                val seek=JSONObject(NativeBridge.seek(id,at));check(seek.optBoolean("ok")){seek.optString("error")}
+                val seek=JSONObject(CompositionBridge.seek(id,engineComposition,at));check(seek.optBoolean("ok")){seek.optString("error")}
                 val result=JSONObject(GeometryBridge.hitCandidates(id,px.toDouble(),py.toDouble()))
                 check(result.optBoolean("ok")){result.optString("error")}
                 val candidates=result.getJSONObject("data").getJSONArray("candidates")
                 val picked=if(candidates.length()==0)null else candidates.getJSONObject(0).getLong("id")
-                main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&frame==at)onPicked(picked)}
-            }catch(e:Throwable){main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&frame==at){fail(e.message?:"图层点选失败");onPicked(null)}}}
+                main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&compositionId==sourceComposition&&frame==at)onPicked(picked)}
+            }catch(e:Throwable){main.post{if(!closed.get()&&request==pickRequest.get()&&root==projectRoot&&compositionId==sourceComposition&&frame==at){fail(e.message?:"图层点选失败");onPicked(null)}}}
         }
     }
     fun visibleAxes():List<Int> = if(threeD())listOf(0,1,2)else if(property=="rotation")listOf(2)else listOf(0,1)
@@ -737,18 +798,18 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun canCopyLayers()=!state.busy&&importTask==null&&!layerClipboardBusy&&
         (if(layerSelectionMode)selectedLayers().isNotEmpty()else selected!=0L&&layer(selected)!=null)
     fun canPasteLayers()=!state.busy&&importTask==null&&!layerClipboardBusy&&
-        layerClipboard?.let{clip->clip.root==root.canonicalFile&&state.project?.let(clip::available)==true}==true
+        layerClipboard?.let{clip->clip.root==root.canonicalFile&&clip.composition==compositionId&&state.project?.let(clip::available)==true}==true
     fun layerPasteHint():String?=layerClipboard?.let{clip->
-        when {clip.root!=root.canonicalFile->"在原工程内粘贴";state.project?.let(clip::available)==false->"素材或父级已变化，请重新复制";else->null}
+        when {clip.root!=root.canonicalFile->"在原工程内粘贴";clip.composition!=compositionId->"请返回原合成粘贴";state.project?.let(clip::available)==false->"素材或父级已变化，请重新复制";else->null}
     }
     fun copyLayers() {
         if(!canCopyLayers())return
         gestureInertia.stop();pause()
-        val sourceRoot=root.canonicalFile;val objects=if(layerSelectionMode)selectedLayerIds else setOf(selected)
+        val sourceRoot=root.canonicalFile;val sourceComposition=compositionId;val objects=if(layerSelectionMode)selectedLayerIds else setOf(selected)
         layerClipboardBusy=true
         invoke(repaint=false,onComplete={
             layerClipboardBusy=false
-            if(root.canonicalFile==sourceRoot)state.project?.let{project->LayerClipboard.capture(sourceRoot,project,objects)}?.let{clip->
+            if(root.canonicalFile==sourceRoot&&compositionId==sourceComposition)state.project?.let{project->LayerClipboard.capture(sourceRoot,project,objects)}?.let{clip->
                 layerClipboard=clip
                 Toast.makeText(getApplication(),"已复制 ${clip.size} 个图层",Toast.LENGTH_SHORT).show()
             }
@@ -768,9 +829,9 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }
         }){
             val current=nativeData(NativeBridge.state(id))
-            check(File(current.getString("root")).canonicalFile==sourceRoot){"工程已切换，请重新复制"}
+            check(File(current.getString("root")).canonicalFile==sourceRoot&&current.optString("composition","comp-main")==clip.composition){"工程已切换，请重新复制"}
             val paste=clip.plan(current.getJSONObject("project"),at)?:error("素材或父级已变化，请重新复制")
-            val result=NativeBridge.command(id,paste.commands.toString())
+            val result=NativeBridge.command(id,JSONArray(paste.commands.objects().map{it.put("composition",engineComposition)}).toString())
             if(JSONObject(result).optBoolean("ok"))pastedObjects=paste.objects
             result
         }
@@ -905,7 +966,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         pause();state=state.copy(busy=true)
         worker.post {
             try {
-                val r=JSONObject(if(png)NativeBridge.capture(id)else NativeBridge.pack(id))
+                val r=JSONObject(if(png)CompositionBridge.capture(id,engineComposition)else NativeBridge.pack(id))
                 if(!r.optBoolean("ok")){fail(r.optString("error"));return@post}
                 val file=File(r.getJSONObject("data").getString("path"))
                 main.post{state=state.copy(busy=false);callback(file)}
@@ -923,7 +984,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun newProject(width:Int,height:Int,fps:Int=30,name:String="新建工程",frames:Int=fps*6) {
-        if(width !in 1..8192||height !in 1..8192||fps !in listOf(30,60)||frames !in 1..36000){fail("合成尺寸、帧率或时长无效");return}
+        if(width !in 1..8192||height !in 1..8192||fps !in 1..240||frames !in 1..36000){fail("合成尺寸、帧率或时长无效");return}
         finishLayerSelection()
         projectGeneration.incrementAndGet()
         closeWorkspace();pause();cancelMediaImport();state=state.copy(busy=true,error=null)
@@ -1035,20 +1096,21 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         return JSONObject().put("op","effect").put("object",objectId).put("action",action.put("effect",target.first).put("param",target.second))
     }
     private fun readCatalogue() {
-        val result=nativeData(NativeBridge.plugin(id,JSONObject().put("op","catalogue").toString()))
+        val result=nativeData(CompositionBridge.plugin(id,engineComposition,JSONObject().put("op","catalogue")))
         main.post{if(!closed.get())catalogue=result}
     }
     fun refreshCatalogue(){worker.post{try{readCatalogue()}catch(e:Throwable){fail(e.message?:"效果目录读取失败")}}}
     fun pluginOperation(request:JSONObject,save:Boolean=false) {
         pluginEditor.close();pause();worker.post {try {
-            val raw=NativeBridge.plugin(id,request.toString())
+            val raw=CompositionBridge.plugin(id,engineComposition,request)
             nativeData(raw)
             if(save)publish(NativeBridge.save(id),true)else publish(raw)
             readCatalogue()
         }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
     }
-    fun closeWorkspace(){gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;vectorOpen=false;panelOpen=false}
-    fun openEffects(){gestureInertia.stop();pluginEditor.close();expressionTarget=null;vectorOpen=false;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun closeWorkspace(){gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;vectorOpen=false;compositionClipOpen=false;panelOpen=false}
+    internal fun openCompositionClip(){closeWorkspace();pause();compositionClipOpen=true;panelOpen=true}
+    fun openEffects(){gestureInertia.stop();pluginEditor.close();expressionTarget=null;vectorOpen=false;compositionClipOpen=false;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
     fun openPluginEditor(instance:Long){pause();expressionTarget=null;pluginEditor.open(selected,instance)}
     fun expressionTargetForCurrent(axis:Int?=null):JSONObject? {
         if(state.sample?.optJSONObject("capabilities")?.optJSONObject("property_expressions")?.optBoolean("supported")!=true)return null
@@ -1081,7 +1143,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             val error=runCatching {
                 check(id!=0L&&!closed.get()){"工程已关闭"}
                 check(root==requestRoot&&generation==projectGeneration.get()){"工程已切换"}
-                nativeData(NativeBridge.command(id,request))
+                nativeData(NativeBridge.command(id,JSONObject(request).put("composition",engineComposition).toString()))
                 publish(NativeBridge.save(id),true)
             }.exceptionOrNull()?.message
             main.post{if(!closed.get()&&root==requestRoot&&generation==projectGeneration.get())callback(error)}
@@ -1099,7 +1161,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 }}?:error("无法打开效果包")
                 worker.post {try {
                     check(root==sourceRoot&&!closed.get()){"工程已切换，请重新安装"}
-                    publish(NativeBridge.plugin(id,JSONObject().put("op","install").put("path",file.absolutePath).toString()))
+                    publish(CompositionBridge.plugin(id,engineComposition,JSONObject().put("op","install").put("path",file.absolutePath)))
                     readCatalogue()
                 }catch(e:Throwable){fail(e.message?:"效果包安装失败")}finally{file.delete()}}
             }catch(e:Throwable){file.delete();fail(e.message?:"效果包安装失败")}
@@ -1115,22 +1177,22 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             val query=JSONObject().put("op","import_media").put("kind",kind).put("request_id",request).put("uri",uri.toString()).put("at_frame",at)
                 .put("name",if(kind=="audio")"音频"else"视频")
             if(kind=="video")query.put("with_audio",withAudio)
-            nativeData(MediaBridge.request(id,getApplication<Application>(),query.toString()))
+            nativeData(MediaBridge.request(id,getApplication<Application>(),query.put("composition",engineComposition).toString()))
             pollMedia(request,ticket)
         }catch(e:Throwable){releaseMedia(request);main.post{importTask=null};fail(e.message?:"媒体导入失败")}}
     }
     private fun releaseMedia(request:String) {
-        runCatching{MediaBridge.request(id,null,JSONObject().put("op","release_media_task").put("request_id",request).toString())}
+        runCatching{MediaBridge.request(id,null,JSONObject().put("composition",engineComposition).put("op","release_media_task").put("request_id",request).toString())}
         if(pendingMedia==request)pendingMedia=null
     }
     private fun pollMedia(request:String,ticket:Long) {
         if(closed.get()||ticket!=mediaGeneration.get())return
         try {
-            val task=nativeData(MediaBridge.request(id,null,JSONObject().put("op","media_status").put("request_id",request).toString()))
+            val task=nativeData(MediaBridge.request(id,null,JSONObject().put("composition",engineComposition).put("op","media_status").put("request_id",request).toString()))
             main.post{if(ticket==mediaGeneration.get())importTask=task}
             when(task.getString("state")) {
                 "ready"->{
-                    val done=nativeData(MediaBridge.request(id,null,JSONObject().put("op","finish_media_import").put("request_id",request).toString()))
+                    val done=nativeData(MediaBridge.request(id,null,JSONObject().put("composition",engineComposition).put("op","finish_media_import").put("request_id",request).toString()))
                     val snapshot=done.getJSONObject("state")
                     publish(JSONObject().put("ok",true).put("data",snapshot).toString(),true)
                     val result=done.getJSONObject("task").getJSONObject("edit_result")
@@ -1148,7 +1210,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun cancelMediaImport() {
         mediaGeneration.incrementAndGet();importTask=null
         worker.post{pendingMedia?.let{request->
-            runCatching{MediaBridge.request(id,null,JSONObject().put("op","cancel_media_import").put("request_id",request).toString())}
+            runCatching{MediaBridge.request(id,null,JSONObject().put("composition",engineComposition).put("op","cancel_media_import").put("request_id",request).toString())}
             releaseMedia(request)
         }}
     }
@@ -1157,10 +1219,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val clip=audioClip(objectId)?:return
         val asset=clip.getLong("asset");val previous=waveforms[objectId]
         if(previous?.optInt("first_bucket")==firstBucket&&previous.optInt("requested_count")==count)return
-        val sourceRoot=root
+        val sourceRoot=root;val sourceComposition=compositionId
         worker.post {try {
-            val data=nativeData(MediaBridge.request(id,null,JSONObject().put("op","audio_waveform").put("asset",asset).put("first_bucket",firstBucket.coerceAtLeast(0)).put("count",count.coerceIn(1,4096)).toString())).put("requested_count",count)
-            main.post{if(root==sourceRoot)waveforms=waveforms+(objectId to data)}
+            val data=nativeData(MediaBridge.request(id,null,JSONObject().put("composition",engineComposition).put("op","audio_waveform").put("asset",asset).put("first_bucket",firstBucket.coerceAtLeast(0)).put("count",count.coerceIn(1,4096)).toString())).put("requested_count",count)
+            main.post{if(root==sourceRoot&&compositionId==sourceComposition)waveforms=waveforms+(objectId to data)}
         }catch(e:Throwable){fail(e.message?:"波形读取失败")}}
     }
     fun prepareMediaCaches(force:Boolean=false) {
@@ -1177,11 +1239,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             val request="cache-${UUID.randomUUID()}"
             worker.post {try {
                 check(sourceRoot==root){"工程已切换"};pendingMedia=request
-                nativeData(MediaBridge.request(id,null,JSONObject().put("op",work[index].first).put("asset",work[index].second).put("request_id",request).toString()))
+                nativeData(MediaBridge.request(id,null,JSONObject().put("composition",engineComposition).put("op",work[index].first).put("asset",work[index].second).put("request_id",request).toString()))
                 fun poll() {
                     if(ticket!=mediaGeneration.get()||closed.get())return
                     try {
-                        val status=nativeData(MediaBridge.request(id,null,JSONObject().put("op","media_status").put("request_id",request).toString()))
+                        val status=nativeData(MediaBridge.request(id,null,JSONObject().put("composition",engineComposition).put("op","media_status").put("request_id",request).toString()))
                         main.post{if(ticket==mediaGeneration.get())importTask=status}
                         when(status.getString("state")) {
                             "succeeded"->{releaseMedia(request);next(index+1)}

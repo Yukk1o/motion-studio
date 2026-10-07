@@ -14,7 +14,7 @@ internal data class PluginEditorSession(val token:String,val origin:String,val e
 
 /** All engine access, including closing a gesture, stays on the render worker. */
 internal class PluginEditorHost(private val worker:Handler,private val main:Handler,private val handle:()->Long,
-    private val closed:()->Boolean,private val changed:(Boolean)->Unit) {
+    private val closed:()->Boolean,private val composition:()->String,private val changed:(Boolean)->Unit) {
     var session by mutableStateOf<PluginEditorSession?>(null);private set
     var state by mutableStateOf<JSONObject?>(null);private set
     var error by mutableStateOf<String?>(null);private set
@@ -28,7 +28,7 @@ internal class PluginEditorHost(private val worker:Handler,private val main:Hand
         val envelope=JSONObject(raw);check(envelope.optBoolean("ok")){envelope.optString("error","编辑器操作失败")}
         return envelope.getJSONObject("data")
     }
-    private fun native(request:JSONObject)=NativeBridge.plugin(handle(),request.toString())
+    private fun native(request:JSONObject)=CompositionBridge.plugin(handle(),composition(),request)
     private fun closeOnWorker(commit:Boolean=false) {
         workerToken?.let{token->runCatching{native(JSONObject().put("op","editor_close").put("token",token).put("commit",commit))}}
         workerToken=null

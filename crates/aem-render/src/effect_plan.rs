@@ -547,6 +547,28 @@ impl PlanBuilder {
         height: u32,
         strict: bool,
     ) -> Result<&EffectFramePlan, String> {
+        self.build_internal(scene, assets, width, height, strict, false)
+    }
+    /// Preview-only density reduction. Formal plans keep published full-size
+    /// passes and package hashes, including legacy effects.
+    pub fn build_preview(
+        &mut self,
+        scene: &Scene,
+        assets: &[u64],
+        width: u32,
+        height: u32,
+    ) -> Result<&EffectFramePlan, String> {
+        self.build_internal(scene, assets, width, height, false, true)
+    }
+    fn build_internal(
+        &mut self,
+        scene: &Scene,
+        assets: &[u64],
+        width: u32,
+        height: u32,
+        strict: bool,
+        preview: bool,
+    ) -> Result<&EffectFramePlan, String> {
         self.synchronize(scene)?;
         self.frame.sprites.clear();
         self.frame.generator_stats = Default::default();
@@ -625,6 +647,17 @@ impl PlanBuilder {
             .min(1.0)
             .max(0.001);
         for (layer_index, layer) in scene.layers.iter().enumerate() {
+            let scale = if preview && !layer.adjustment && !layer.composition
+                && !scene.effects.iter().enumerate().any(|(i, e)| {
+                    e.layer == layer.id && e.enabled && self.resolved[i].as_ref().is_some_and(|r| {
+                        r.definition.renderer != aem_effects::RendererKind::Image
+                    })
+                })
+            {
+                crate::quality::preview_layer_scale(layer, scene.width, scene.height, scale)
+            } else {
+                scale
+            };
             if let Some(vector) = &layer.vector {
                 let dirty = self
                     .vector_cache
@@ -1055,7 +1088,7 @@ impl PlanBuilder {
             words[21] = region[3];
             words[22] = layer.opacity;
             words[23] = if additive { 1. } else { 0. };
-            words[24] = if layer.video.is_some() {
+            words[24] = if layer.video.is_some() || layer.composition {
                 -(layer.order as f32 + 1.0)
             } else {
                 asset as f32
@@ -1065,6 +1098,7 @@ impl PlanBuilder {
             words[27] = if materialized { 0.0 } else { -1.0 };
             words[28] = pass_start as f32;
             words[29] = self.frame.passes.len() as f32;
+            words[30] = if layer.composition { 2. } else if layer.video.is_some() { 1. } else { 0. };
             words[31] = if layer.adjustment {
                 2.
             } else if layer.vector.is_some() {
@@ -1095,15 +1129,9 @@ impl PlanBuilder {
         if self.frame.width > 0 {
             for d in &mut self.frame.draws {
                 if d.words[27] >= 0.0 {
-                    let extent = if d.words[31] == 2. {
-                        [d.words[18], d.words[19]]
-                    } else {
-                        [d.words[20], d.words[21]]
-                    };
-                    d.words[25] =
-                        (extent[0] * scale).ceil() / self.frame.scratch_sizes[0][0] as f32;
-                    d.words[26] =
-                        (extent[1] * scale).ceil() / self.frame.scratch_sizes[0][1] as f32;
+                    let output = &self.frame.passes[d.pass_end - 1];
+                    d.words[25] = output.width as f32 / self.frame.scratch_sizes[0][0] as f32;
+                    d.words[26] = output.height as f32 / self.frame.scratch_sizes[0][1] as f32;
                 }
             }
         }

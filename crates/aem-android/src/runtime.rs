@@ -38,6 +38,9 @@ mod video_frames;
 #[path = "video_runtime.rs"]
 mod video_runtime;
 
+#[path = "composition_runtime.rs"]
+mod composition_runtime;
+
 type Result<T> = std::result::Result<T, String>;
 static NEXT: AtomicI64 = AtomicI64::new(1);
 static SESSIONS: OnceLock<Mutex<HashMap<i64, Session>>> = OnceLock::new();
@@ -71,6 +74,9 @@ struct Graphics {
     timer: Option<GpuTimer>,
 }
 struct Session {
+    composition_contexts: HashMap<String,composition_runtime::CompositionContext>,
+    composition_bundle:Vec<u8>,
+    media_compositions:HashMap<String,String>,
     video_jobs: aem_media::VideoJobs,
     video_frames: video_frames::VideoFrames,
     audio_jobs: aem_media::AudioJobs,
@@ -125,6 +131,7 @@ impl Session {
         self.effects.alpha_images.clear();
         self.scene = Scene::new(engine.project());
         self.observer = Observer::new(engine.project().width, engine.project().height);
+        self.composition_contexts.clear();self.media_compositions.clear();
         self.engine = engine;
         self.audio_jobs = audio_jobs;
         self.video_jobs = video_jobs;
@@ -168,6 +175,7 @@ impl Session {
             aem_effects::Registry::load(&plugin_root).map_err(|e| e.to_string())?,
         )?;
         Ok(Self {
+            composition_contexts:Default::default(),composition_bundle:Vec::new(),media_compositions:Default::default(),
             video_jobs: aem_media::VideoJobs::with_audio_decoder(root.clone(), std::sync::Arc::new(audio_decode::decode))?,
             video_frames: video_frames::VideoFrames::default(),
             audio_jobs: aem_media::AudioJobs::with_decoder(root.clone(), aem_media::Limits::default(), std::sync::Arc::new(audio_decode::decode))?,
@@ -426,19 +434,19 @@ impl Session {
         renderer
             .synchronize_assets(self.engine.project(), &self.root)
             .map_err(|e| e.to_string())?;
-        let (render_width, render_height) = self
-            .preview
-            .tier()
-            .dimensions(self.engine.project().width, self.engine.project().height);
+        let (render_width, render_height) = self.preview.render_dimensions(
+            self.engine.project().width,
+            self.engine.project().height,
+            width,
+            height,
+        );
         let scratch = renderer
             .render_target(render_width, render_height)
             .map_err(|e| e.to_string())?;
         let presenter = Presenter::new(&renderer, &scratch.view, format);
-        let timer = if self.recorder.is_some() {
-            GpuTimer::new(&renderer.device, &renderer.queue)
-        } else {
-            None
-        };
+        // Auto quality needs GPU cost even when no diagnostic recording is active.
+        // Only four reusable 32-byte timing buffers are read, never video pixels.
+        let timer = GpuTimer::new(&renderer.device, &renderer.queue);
         self.graphics = Some(Graphics {
             surface,
             renderer,
@@ -480,8 +488,8 @@ impl Session {
         for (object, image) in frames {
             let source = self
                 .scene
-                .layers
-                .iter()
+                .video_layers()
+                .into_iter()
                 .find(|l| l.id == object)
                 .unwrap()
                 .video
@@ -502,7 +510,12 @@ impl Session {
                 }
             }
         }
-        let (rw, rh) = tier.dimensions(self.scene.width, self.scene.height);
+        let (rw, rh) = self.preview.render_dimensions(
+            self.scene.width,
+            self.scene.height,
+            g.config.width,
+            g.config.height,
+        );
         if (g.scratch.width, g.scratch.height) != (rw, rh) {
             let target = g
                 .renderer
@@ -530,16 +543,18 @@ impl Session {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("Motion Studio composition and presentation"),
                 });
-        g.renderer
-            .encode(
-                &self.scene,
-                &g.scratch.view,
-                rw,
-                rh,
-                &mut encoder,
-                slot.map(|i| g.timer.as_ref().unwrap().writes(i, 0)),
-            )
-            .map_err(|e| e.to_string())?;
+        let timestamps = slot.map(|i| g.timer.as_ref().unwrap().writes(i, 0));
+        let encoded = if self.preview.mode == PreviewMode::High {
+            g.renderer.encode(&self.scene, &g.scratch.view, rw, rh, &mut encoder, timestamps)
+        } else {
+            g.renderer.encode_preview(&self.scene, &g.scratch.view, rw, rh, &mut encoder, timestamps)
+        };
+        if let Err(error) = encoded {
+            if let (Some(timer), Some(i)) = (&mut g.timer, slot) {
+                timer.cancel_unsubmitted(i);
+            }
+            return Err(error.to_string());
+        }
         let view = output.texture.create_view(&Default::default());
         let scale = (g.config.width as f32 / self.scene.width as f32)
             .min(g.config.height as f32 / self.scene.height as f32);
@@ -595,7 +610,11 @@ impl Session {
         self.last_presented_revision = self.engine.revision();
         self.last_presented_view_revision = self.view_revision;
         let previous_tier = self.preview.tier();
-        self.preview.observe(self.last_cpu_us, gpu_work_us);
+        self.preview.observe_render(
+            self.last_cpu_us,
+            gpu_work_us,
+            acquire_us.saturating_add(present_call_us),
+        );
         if previous_tier != self.preview.tier() {
             self.view_revision += 1;
         }
@@ -628,9 +647,12 @@ impl Session {
     }
     fn preview_info(&self) -> Value {
         let tier = self.preview.tier();
-        let (width, height) =
-            tier.dimensions(self.engine.project().width, self.engine.project().height);
+        let p = self.engine.project();
+        let (sw, sh) = self.graphics.as_ref().map_or((p.width, p.height), |g| (g.config.width, g.config.height));
+        let (width, height) = self.preview.render_dimensions(p.width, p.height, sw, sh);
         json!({"mode":self.preview.mode.name(),"tier":tier.name(),"width":width,"height":height,"fps":tier.fps(),
+            "effectResolution":if self.preview.mode == PreviewMode::High {"full_layer"} else {"projected_2d"},
+            "surfaceBounded":self.preview.mode != PreviewMode::High,"gpuTimingActive":self.graphics.as_ref().is_some_and(|g|g.timer.is_some()),
             "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY)),
             "video":self.video_info()})
     }
@@ -739,13 +761,15 @@ impl Session {
             "max_decoders":4,"default_with_audio":true,"frozen_source_frames":true,"legacy_gles_export_integrated":true
         });
         json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
-            "main_composition":"comp-main","vector_layers":vector_layers,
+            "main_composition":"comp-main","composition":p.composition_id,"compositions":p.composition_list(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),
+            "composition_context":self.composition_context_snapshot(),
+            "vector_layers":vector_layers,
             "capabilities":{"adjustment_layers":{"supported":true,"command":"add_adjustment","composite":"lower_layers","mask":"transformed_rectangle","background":"excluded","three_d":false},"vector_drawing":{"supported":true,"protocol":1,"command":"vector","coordinates":"centered_canvas_pixels_y_down","max_paths":aem_core::vector::MAX_PATHS,"max_nodes":aem_core::vector::MAX_NODES,"fill_rules":["non_zero","even_odd"],"stroke_caps":["butt","round","square"],"stroke_joins":["miter","round","bevel"],"shape_catalog":aem_core::vector::shape_catalog()},"scene_effects":{"sdk_version":aem_effects::SDK_VERSION,"plugin_editor_protocol":1,"max_particles_per_effect":20000,"max_sprites_per_frame":65536,"occlusion":"source_alpha_planes","simulation":"analytic_world_birth_or_legacy_local_space","particle_birth_history":true,"particle_history_expressions":false,"particle_rate_animation":false},"native_plugin_ui":{"supported":true,"protocol":1,"slots":["preview","timeline","parameters","layer_source","image_sprite","seed","transform","note"],"preview":"shared_wgpu_surface","timeline":"shared_composition_clock"},"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"layer_3d":{"supported":true,"default":false,"activation":"explicit","command":"set_layer_3d"},
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
                 "composition":{"fps_range":[1,aem_core::MAX_COMPOSITION_FPS],"fps_presets":[24,25,30,50,60,90,120,144,240],"fps_type":"integer"},
-                "multiple_compositions":false,"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":7,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
                 "video":video_capabilities,
                 "audio":{"supported_formats":["M4A/AAC-LC/ALAC","MP3","FLAC","Ogg/Vorbis/Opus","ADTS/AAC","WAV/PCM8/16/24/32/float","AIFF"],"sample_rates":[8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000],"sample_rate_range":[8000,192000],"channels":[1,2],"device_query":"media_capabilities",
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
@@ -776,7 +800,7 @@ fn string_result(env: &mut JNIEnv<'_>, operation: impl FnOnce() -> Result<Value>
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(operation));
     let value = match result {
         Ok(Ok(value)) => json!({"ok":true,"data":value}),
-        Ok(Err(error)) => json!({"ok":false,"error":error}),
+        Ok(Err(error)) => json!({"ok":false,"error":error,"error_detail":error.strip_prefix("composition_error:").and_then(|v|serde_json::from_str::<Value>(v).ok())}),
         Err(payload) => {
             let reason = payload
                 .downcast_ref::<String>()
@@ -832,6 +856,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
                 return Err("plugin request exceeds 256 KiB".into());
             }
             let v: Value = serde_json::from_str(&request).map_err(|e| e.to_string())?;
+            if v.get("composition").is_some_and(|v|v.as_str()!=Some(s.engine.project().composition_id.as_str())){return Err(s.composition_error("context_mismatch","Open the requested composition before plugin access",json!({})));}
             if v["op"].as_str().is_some_and(|op| op.starts_with("editor_")) {
                 return s.editor_operation(&v);
             }
@@ -981,13 +1006,13 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             s.observing = false;
             s.sample()?;
             let p = s.engine.project();
-            s.effects.preflight_project(p)?;
+            for id in p.reachable_compositions().map_err(|e|e.to_string())?{s.effects.preflight_project(&p.composition(&id).map_err(|e|e.to_string())?)?;}
             s.effects.synchronize_alpha(p, &s.root)?;
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
-            s.effects
-                .build(&s.scene, &assets, p.width, p.height, true)?;
+            for id in p.reachable_compositions().map_err(|e|e.to_string())?{let mut node=p.composition(&id).map_err(|e|e.to_string())?;for e in &mut node.expressions{e.enabled=false;}for c in &mut node.compositions{for e in &mut c.expressions{e.enabled=false;}}let mut scene=Scene::new(&node);scene.sample(&node,0.,None).map_err(|e|e.to_string())?;s.effects.synchronize(&scene)?;}
+            s.effects.build(&s.scene, &assets, p.width, p.height, true)?;
             let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"sprite":program.shader.sprite,"additive":program.shader.additive,"resources":program.resources.iter().map(|path|{
    let bytes=&program.package.as_ref().unwrap().files[path];let dimensions=image::load_from_memory(bytes).map(|v|(v.width(),v.height())).unwrap_or((0,0));json!({"path":path,"width":dimensions.0,"height":dimensions.1})
   }).collect::<Vec<_>>() })).collect::<Vec<_>>();
@@ -1003,7 +1028,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
                 + count * 1024
                 + aem_effects::MAX_SPRITES * 48 + 8192 * 12 + 65536 * 20 + aem_core::MAX_LAYERS*28 + 262144*24;
             Ok(
-                json!({"version":aem_render::effect_plan::PLAN_VERSION,"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
             )
         })
     })
@@ -1028,6 +1053,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleRenderPla
             s.frame = f64::from(frame);
             s.sample()?;
             let p = s.engine.project();
+            if !s.scene.nested.is_empty(){return Err("nested compositions require CompositionBridge.sampleFrameBundleInto".into());}
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
@@ -1217,12 +1243,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
         let text = parsed?;
         with_session(id, |s| {
             let commands = aem_core::parse_commands(&text).map_err(|e| e.to_string())?;
-            let resources = commands.iter().any(|c| {
-                matches!(
-                    c,
-                    Command::RegisterAsset { .. } | Command::Content { .. } | Command::Add { .. }
-                )
-            });
+            let resources = commands.iter().any(Command::changes_resources);
             if resources {
                 let mut check = Engine::new(s.engine.snapshot()).map_err(|e| e.to_string())?;
                 check
@@ -1350,6 +1371,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
 ) -> jstring {
     string_result(&mut env, || {
         with_session(id, |s| {
+            let active=s.engine.project().composition_id.clone();
             match op {
                 0 => {
                     s.engine.undo().map_err(|e| e.to_string())?;
@@ -1362,6 +1384,8 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
                 4 => s.engine.end_gesture(false).map_err(|e| e.to_string())?,
                 _ => return Err("invalid history operation".into()),
             }
+            if !s.engine.gesture_active(){let target=if s.engine.project().composition_ids().contains(&active){active.as_str()}else{aem_core::MAIN_COMPOSITION};s.engine.activate_composition(target).map_err(|e|e.to_string())?;}
+            s.frame=s.frame.min(f64::from(s.engine.project().frames-1));s.audio_mixer=None;s.video_frames.clear();
             if let Some(g) = &mut s.graphics {
                 g.renderer
                     .synchronize_assets(s.engine.project(), &s.root)
@@ -1613,9 +1637,6 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_stopProfiling(
             )
             .map_err(|e| e.to_string())?;
             s.recorder = None;
-            if let Some(g) = s.graphics.as_mut() {
-                g.timer = None;
-            }
             Ok(json!({"file":path.to_string_lossy()}))
         })
     })
@@ -1698,7 +1719,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
     string_result(&mut env, || {
         with_session(id, |s| {
             let p = s.engine.project();
-            s.effects.preflight_project(p)?;
+            for id in p.reachable_compositions().map_err(|e|e.to_string())?{s.effects.preflight_project(&p.composition(&id).map_err(|e|e.to_string())?)?;}
             s.effects.synchronize_alpha(p, &s.root)?;
             let mut scene = Scene::new(p);
             scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
@@ -1726,8 +1747,8 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
             renderer.retain_video_instances(&scene);
             for (object, image) in frames {
                 let source = scene
-                    .layers
-                    .iter()
+                    .video_layers()
+                    .into_iter()
                     .find(|l| l.id == object)
                     .unwrap()
                     .video

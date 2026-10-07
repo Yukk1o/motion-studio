@@ -41,7 +41,8 @@ import kotlin.math.*
 
 @Composable internal fun EditorFooter(vm:EditorViewModel) {
     if(vm.layerSelectionMode){LayerSelectionBar(vm);return}
-    var more by remember(vm.root,vm.selected){mutableStateOf(false)}
+    var more by remember(vm.root,vm.compositionId,vm.selected){mutableStateOf(false)}
+    var precompose by remember{mutableStateOf(false)}
     val kind=vm.contentKind()
     val hasTarget=vm.selected!=0L||vm.hasCamera()
     BoxWithConstraints(Modifier.fillMaxWidth().height(52.dp).background(Panel)
@@ -51,7 +52,7 @@ import kotlin.math.*
             Text(if(hasTarget)objectName(vm,vm.selected)else"选择图层",
                 modifier=if(hasTarget)Modifier.width(nameWidth).padding(end=8.dp)else Modifier.weight(1f),
                 color=Muted,fontSize=13.sp,lineHeight=20.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
-            if(hasTarget)key(vm.root,vm.selected) {
+            if(hasTarget)key(vm.root,vm.compositionId,vm.selected) {
                 Row(Modifier.weight(1f).fillMaxHeight().horizontalScroll(rememberScrollState()).testTag("layer-categories"),
                     verticalAlignment=Alignment.CenterVertically) {
                     if(kind=="audio")LayerCategory("声音","footer-audio"){vm.openProperty("audio")}
@@ -65,6 +66,10 @@ import kotlin.math.*
                             LayerCategory("样式","footer-vector-style"){vm.openVector("style")}
                         }
                         if(vm.audioClip()!=null)LayerCategory("原声","footer-audio"){vm.openProperty("audio")}
+                        if(kind=="composition") {
+                            LayerCategory("子合成","footer-composition",vm::openSelectedComposition)
+                            LayerCategory("片段","footer-composition-clip",vm::openCompositionClip)
+                        }
                         if(vm.selected==0L) {
                             LayerCategory("镜头","footer-lens"){vm.openProperty("fov")}
                             LayerCategory("目标点","footer-target"){vm.openProperty("target")}
@@ -78,12 +83,14 @@ import kotlin.math.*
                     DropdownMenuItem(text={Text("多选图层")},modifier=Modifier.testTag("start-layer-selection"),enabled=vm.state.project?.optJSONArray("layers")?.length()?.let{it>0}==true,onClick={more=false;vm.startLayerSelection()})
                     if(vm.selected!=0L) {
                         DropdownMenuItem(text={Text("创建副本")},enabled=vm.editable(),onClick={more=false;vm.duplicate()})
+                        DropdownMenuItem(text={Text("预合成")},enabled=vm.canPrecompose(),modifier=Modifier.testTag("precompose-layer"),onClick={more=false;precompose=true})
                         DropdownMenuItem(text={Text("删除图层")},enabled=vm.editable(),onClick={more=false;vm.deleteLayer()})
                     }
                 }
             }
         }
     }
+    if(precompose)InputDialog("预合成名称","预合成",{precompose=false}){vm.precompose(it);precompose=false}
 }
 
 @Composable private fun LayerCategory(label:String,tag:String,onClick:()->Unit) {

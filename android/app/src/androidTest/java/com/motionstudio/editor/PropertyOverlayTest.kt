@@ -140,7 +140,12 @@ class PropertyOverlayTest {
     @Test fun systemBackClosesPropertiesAndKeepsEditorOpen() {
         compose.onNodeWithTag("footer-transform").performScrollTo().performClick()
         compose.waitForIdle()
-        InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        compose.waitUntil(10000){
+            var focused=false
+            compose.runOnUiThread{focused=ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).any{it.hasWindowFocus()}}
+            focused
+        }
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         compose.waitUntil(10000){!vm.panelOpen}
         compose.waitForIdle()
         compose.onNodeWithTag("properties-panel").assertDoesNotExist()
