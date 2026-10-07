@@ -6,6 +6,7 @@ import java.nio.ByteBuffer
 object MediaBridge {
     init { System.loadLibrary("motion_engine") }
     @JvmStatic external fun request(id:Long,context:Context?,request:String):String
+    @JvmStatic external fun packageLimits():String
     @JvmStatic external fun readPcmInto(id:Long,startSample:Long,frames:Int,output:ByteBuffer):String
     @JvmStatic external fun freezeAudio(id:Long):String
     @JvmStatic external fun readFrozenPcmInto(handle:Long,startSample:Long,frames:Int,output:ByteBuffer):String
