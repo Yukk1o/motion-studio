@@ -4,6 +4,8 @@ mod package;
 mod scene;
 mod schema;
 pub use scene::*;
+mod native_ui;
+pub use native_ui::*;
 pub mod shader;
 pub use package::{package_directory, EffectPackage, InstalledPlugin, Registry};
 pub use schema::*;

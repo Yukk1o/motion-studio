@@ -550,6 +550,7 @@ impl PlanBuilder {
         self.synchronize(scene)?;
         self.frame.sprites.clear();
         self.frame.generator_stats = Default::default();
+        self.generator_scratch.retain(scene);
         self.frame.width = 0;
         self.frame.height = 0;
         self.frame.slots = 0;
@@ -755,11 +756,15 @@ impl PlanBuilder {
                         self.frame.generator_stats.alive += stats.alive;
                         self.frame.generator_stats.visible += stats.visible;
                         self.frame.generator_stats.culled += stats.culled;
+                        self.frame.generator_stats.births_sampled += stats.births_sampled;
                         region = [0., 0., scene.width as f32, scene.height as f32];
+                        let sprite_asset = if let Some(image) = e.scene.as_ref().and_then(|s| s.sprite_asset) {
+                            assets.iter().position(|id| *id == image).ok_or_else(||format!("particle sprite image {image} is not loaded"))?
+                        } else {asset};
                         self.frame.passes.push(EffectPass {
                             program: resolved.programs[0],
-                            input: -(asset as i32) - 1,
-                            source: -(asset as i32) - 1,
+                            input: -(sprite_asset as i32) - 1,
+                            source: -(sprite_asset as i32) - 1,
                             output: 7,
                             width: (region[2] * scale).ceil() as u32,
                             height: (region[3] * scale).ceil() as u32,
