@@ -66,3 +66,31 @@ adb -s <serial> install -r android/app/build/outputs/apk/debug/app-debug.apk
 adb -s <serial> install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb -s <serial> shell am instrument -w -r -e class com.motionstudio.editor.NativeParticleEditorTest,com.motionstudio.editor.SceneEffectsTest,com.motionstudio.editor.IntegratedFrontendTest#catalogueChainParametersAndUndoWorkFromThePanel com.motionstudio.editor.effectsacceptance.test/androidx.test.runner.AndroidJUnitRunner
 ```
+
+## 同步子合成与预览优化主分支后的补验
+
+已同步主分支 `0ca9665`（PR #28 子合成、PR #31 预览性能）。保留按活动合成路由的
+`CompositionBridge.plugin` 与原生页提交/取消事务；子场景携带 PNG 元数据和出生历史。
+新增 GPU 用例验证在子合成内创建运动粒子、引用到父合成后的 PNG、出生状态、
+正序/倒序/随机寻帧画面、引用撤销重做及保存恢复，帧间对照 MAE ≤3。
+场景生成器的现有图层预合成限制继续生效；该用例使用已有合成引用 API。
+
+补验结果：Rust workspace `aem-android/diagnostics` 206 成功、0 失败、1 个原有用例忽略；
+arm64-v8a / x86_64、APK / test APK、10 个 JVM 用例、lint 构建成功。
+11 个设备用例执行 46.792 s，其中原生粒子/场景/目录 6 项与合成后端 3 项成功；
+2 项原有子合成未编码对照未达阈值，保留为环境兼容性待查项：
+
+| 用例 | RGB MAE | Alpha MAE | 前景 RGB MAE |
+| --- | ---: | ---: | ---: |
+| 混合帧率、重复 3D 引用与空间效果 | 3.389263 | 6.591417 | 8.829046 |
+| 嵌套动画矢量与调整图层 | 1.821311 | 0.519803 | 3.041541 |
+
+在同一软件图形模拟器上，重新安装 PR #28/#31 集成构建 `714062b` 并单独执行这两项，
+得到相同误差；其 Git tree 与 `0ca9665` 相同，排除了新增运动粒子作为该差异来源。
+此前主分支 GitHub Actions 模拟器验收通过，不能将本次本地模拟器差异表述成所有设备失败，
+也不能将本次 11 项表述为全部通过。原始日志分别为 `integrated-android-tests.log`、
+`baseline-composition-parity.log`，保存在本地 artifacts。
+
+更新后的本地 APK 为 109,517,131 B，SHA-256
+`63010e03bb012877e4bfe8edf79fc8ad5a4b27b000cde9cfc0d2bf857427706b`。
+上文首次交付 APK 的哈希保留为历史记录。CI 已加入原生粒子页及 SceneEffects 用例。

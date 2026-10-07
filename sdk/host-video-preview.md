@@ -2,6 +2,8 @@
 
 本轮优化不改变工程格式、`.msfx`、SDK 3 或渲染计划协议 3，也不增加前端控件。
 
+4K 视频叠加光效/模糊的画布尺寸约束、2D 效果密度及新增预览诊断字段，参见 [光效与模糊预览性能](host-effect-preview-performance.md)。
+
 ## 后端已实现
 
 - 默认 SDR YUV420 解码结果保留为 Y + chroma；CPU 按 stride/pixelStride 打包，WGSL 在 GPU 上完成 BT.601/BT.709、full/limited range、crop 相位与 0/90/180/270 度旋转。保留原有整数转色和 clamp 规则。

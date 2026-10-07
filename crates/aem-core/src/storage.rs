@@ -99,11 +99,14 @@ pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
     Ok(())
 }
 pub fn load(root: &Path) -> Result<Project> {
-    let project = read_json(&root.join("project.json"))?;
+    let mut project = read_json(&root.join("project.json"))?;
+    project.activate_composition(crate::MAIN_COMPOSITION)?;
     validate_assets(root, &project)?;
     Ok(project)
 }
 pub fn save(root: &Path, project: &Project) -> Result<()> {
+    let canonical=project.composition(crate::MAIN_COMPOSITION)?;
+    let project=&canonical;
     project.validate()?;
     fs::create_dir_all(root)?;
     validate_assets(root, project)?;
@@ -121,6 +124,8 @@ pub fn save(root: &Path, project: &Project) -> Result<()> {
     Ok(())
 }
 pub fn export_package(root: &Path, project: &Project, output: &Path) -> Result<()> {
+    let canonical=project.composition(crate::MAIN_COMPOSITION)?;
+    let project=&canonical;
     project.validate()?;
     validate_assets(root, project)?;
     let parent = output

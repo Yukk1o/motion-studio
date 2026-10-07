@@ -1,5 +1,5 @@
 import unittest
-from ci_release import release_kind,version_code,validate_badging
+from ci_release import release_kind,version_code,validate_badging,changelog_entries
 
 
 class ReleasePolicyTest(unittest.TestCase):
@@ -20,6 +20,11 @@ class ReleasePolicyTest(unittest.TestCase):
         validate_badging(text,12,"1.2.3")
         for invalid in [text.replace("com.motionstudio.editor","com.motionstudio.editor.effectsacceptance"),text.replace("versionCode='12'","versionCode='11'"),text.replace("1.2.3","1.2.2"),text+"application-debuggable\n"]:
             with self.subTest(text=invalid),self.assertRaises(ValueError):validate_badging(invalid,12,"1.2.3")
+
+    def test_changelog_uses_merged_pr_titles_without_repeating_internal_commits(self):
+        commits=[{"commit":{"message":"Fix temporary build"}},{"commit":{"message":"Merge pull request #28 from owner/branch\n\n子合成编辑与更新日志"}},{"commit":{"message":"Merge pull request #28 from owner/branch\n\n重复"}}]
+        self.assertEqual(changelog_entries(commits,"Yukk1o/motion-studio"),["- 子合成编辑与更新日志 ([#28](https://github.com/Yukk1o/motion-studio/pull/28))"])
+        self.assertEqual(changelog_entries([{"commit":{"message":"Correct preview playback\n\nDetails"}}],"owner/repo"),["- Correct preview playback"])
 
 
 if __name__=="__main__":unittest.main()

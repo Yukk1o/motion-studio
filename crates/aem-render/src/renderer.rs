@@ -62,11 +62,15 @@ pub(crate) enum TextureKey {
 fn texture_key(layer: &aem_core::DrawLayer) -> TextureKey {
     if layer.vector.is_some() {
         TextureKey::Vector(layer.id)
-    } else if layer.video.is_some() {
+    } else if layer.video.is_some() || layer.composition {
         TextureKey::Video(layer.id)
     } else {
         TextureKey::Static(layer.asset.unwrap_or(0))
     }
+}
+fn nested_size(parent:&Scene,child:&Scene,width:u32,height:u32)->(u32,u32) {
+    let scale=(f64::from(width)/f64::from(parent.width)).min(f64::from(height)/f64::from(parent.height));
+    ((f64::from(child.width)*scale).ceil().max(1.) as u32,(f64::from(child.height)*scale).ceil().max(1.) as u32)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -80,6 +84,16 @@ pub struct RenderStats {
     pub particles_alive: u32,
     pub particles_visible: u32,
     pub particles_culled: u32,
+}
+
+impl RenderStats {
+    fn add(&mut self,other:Self) {
+        self.cpu_prepare_us+=other.cpu_prepare_us;self.draw_calls+=other.draw_calls;
+        self.parameter_upload_bytes+=other.parameter_upload_bytes;self.parameter_resource_upload_bytes+=other.parameter_resource_upload_bytes;
+        self.instance_upload_bytes+=other.instance_upload_bytes;self.particles_alive+=other.particles_alive;
+        self.particles_visible+=other.particles_visible;self.particles_culled+=other.particles_culled;
+        self.texture_bytes=self.texture_bytes.max(other.texture_bytes);
+    }
 }
 
 pub struct Renderer {
@@ -110,6 +124,7 @@ pub struct Renderer {
     pub video_gpu_conversions: u64,
     asset_order: Vec<u64>,
     pub effect_diagnostics: Vec<String>,
+    composition_images: std::collections::HashSet<u64>,
 }
 
 impl Renderer {
@@ -311,6 +326,7 @@ impl Renderer {
             images: HashMap::new(),
             texture_bytes: 0,
             target_format: format,
+            composition_images: Default::default(),
             gpu_failure,
             effect_gpu,
             layer_gpu,
@@ -343,6 +359,10 @@ impl Renderer {
         self.effect_gpu.set_registry(registry);
     }
     pub fn preflight_effects(&mut self, scene: &Scene, width: u32, height: u32) -> Result<()> {
+        for node in &scene.nested {
+            let (w,h)=nested_size(scene,&node.scene,width,height);
+            self.preflight_effects(&node.scene,w,h)?;
+        }
         self.effect_gpu
             .builder
             .build(scene, &self.asset_order, width, height, true)
@@ -533,15 +553,14 @@ impl Renderer {
         Ok(())
     }
     pub fn retain_video_instances(&mut self, scene: &Scene) {
+        fn collect(scene:&Scene,ids:&mut std::collections::HashSet<u64>,compositions:&mut std::collections::HashSet<u64>){for l in &scene.layers{if l.video.is_some()||l.composition{ids.insert(l.id);}if l.composition{compositions.insert(l.id);}}for n in &scene.nested{collect(&n.scene,ids,compositions);}}
+        let mut live=Default::default();let mut compositions=Default::default();collect(scene,&mut live,&mut compositions);
         let stale: Vec<_> = self
             .images
             .keys()
             .filter_map(|key| match key {
                 TextureKey::Video(object)
-                    if !scene
-                        .layers
-                        .iter()
-                        .any(|l| l.id == *object && l.video.is_some()) =>
+                    if !live.contains(object)||self.composition_images.contains(object)!=compositions.contains(object) =>
                 {
                     Some(*object)
                 }
@@ -559,6 +578,7 @@ impl Renderer {
             }
             self.effect_gpu.invalidate();
         }
+        self.composition_images.retain(|id|compositions.contains(id));
     }
     fn upload_pixels(
         &mut self,
@@ -732,10 +752,7 @@ impl Renderer {
             .copied()
             .filter(|id| match id {
                 TextureKey::Static(id) => *id != 0 && !project.assets.iter().any(|a| a.id == *id),
-                TextureKey::Video(id) => !project
-                    .layers
-                    .iter()
-                    .any(|l| l.id == *id && matches!(l.content, aem_core::Content::Video { .. })),
+                TextureKey::Video(_) => true,
                 TextureKey::Vector(id) => !project
                     .layers
                     .iter()
@@ -760,6 +777,7 @@ impl Renderer {
         Ok(())
     }
     pub fn clear_assets(&mut self) {
+        self.composition_images.clear();
         if let Some(video) = &mut self.video_gpu {
             video.clear();
         }
@@ -813,12 +831,15 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> Result<RenderStats> {
+        self.draw_internal(scene,view,width,height,false)
+    }
+    fn draw_internal(&mut self,scene:&Scene,view:&wgpu::TextureView,width:u32,height:u32,preview:bool)->Result<RenderStats> {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Motion Studio frame"),
             });
-        let mut stats = self.encode(scene, view, width, height, &mut encoder, None)?;
+        let mut stats = self.encode_internal(scene, view, width, height, &mut encoder, None, preview)?;
         let submitted = Instant::now();
         self.queue.submit(Some(encoder.finish()));
         stats.cpu_prepare_us += submitted.elapsed().as_micros() as u64;
@@ -834,7 +855,61 @@ impl Renderer {
         encoder: &mut wgpu::CommandEncoder,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) -> Result<RenderStats> {
+        self.encode_internal(scene, view, width, height, encoder, timestamps, false)
+    }
+    /// Interactive preview, with conservative 2D effect density. `encode`,
+    /// `draw`, and `capture` retain their formal-output behavior.
+    pub fn encode_preview(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> Result<RenderStats> {
+        self.encode_internal(scene, view, width, height, encoder, timestamps, true)
+    }
+    fn encode_internal(
+        &mut self,
+        scene: &Scene,
+        view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        encoder: &mut wgpu::CommandEncoder,
+        timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        preview: bool,
+    ) -> Result<RenderStats> {
         self.check_health()?;
+        let mut child_stats=RenderStats::default();let mut child_diagnostics=Vec::new();
+        for node in &scene.nested {
+            let (w,h)=nested_size(scene,&node.scene,width,height);
+            let key=TextureKey::Video(node.layer);
+            if self.images.get(&key).is_none_or(|image|image.size!=(w,h)) {
+                let bytes=u64::from(w)*u64::from(h)*4;
+                let previous=self.images.get(&key).map_or(0,|image|image.bytes);
+                if self.texture_bytes-previous+self.video_plane_bytes()+self.effect_gpu.state.resource_bytes+bytes>TEXTURE_BUDGET {
+                    return Err(RenderError::Invalid(format!("composition {}: nested textures exceed 128 MiB",node.composition)));
+                }
+                let target=self.render_target(w,h)?;
+                let group=self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label:Some("Composition reference"),layout:&self.image_layout,
+                    entries:&[wgpu::BindGroupEntry{binding:0,resource:wgpu::BindingResource::TextureView(&target.view)},
+                        wgpu::BindGroupEntry{binding:1,resource:wgpu::BindingResource::Sampler(&self.sampler)}],
+                });
+                self.images.insert(key,GpuImage {_texture:target.texture,view:target.view,bind_group:group,bytes,size:(w,h),video_stamp:None});
+                self.texture_bytes=self.texture_bytes-previous+bytes;
+                self.composition_images.insert(node.layer);
+                self.effect_gpu.invalidate();
+            }
+            let view=self.images[&key].view.clone();
+            let stats=self.draw_internal(&node.scene,&view,w,h,preview).map_err(|e|RenderError::Invalid(node.scene.diagnostic(&e.to_string())))?;
+            child_stats.add(stats);child_diagnostics.extend(self.effect_diagnostics.iter().map(|v|node.scene.diagnostic(v)));
+        }
+        let mut stats=self.encode_local(scene,view,width,height,encoder,timestamps,preview)?;
+        stats.add(child_stats);self.effect_diagnostics.extend(child_diagnostics);Ok(stats)
+    }
+    fn encode_local(&mut self,scene:&Scene,view:&wgpu::TextureView,width:u32,height:u32,encoder:&mut wgpu::CommandEncoder,timestamps:Option<wgpu::RenderPassTimestampWrites<'_>>,preview:bool)->Result<RenderStats> {
         if width == 0 || height == 0 || scene.layers.len() > MAX_LAYERS {
             return Err(RenderError::Invalid(
                 "invalid render target or layer count".into(),
@@ -847,7 +922,7 @@ impl Renderer {
                 .iter()
                 .any(|l| l.vector.is_some() || l.adjustment)
         {
-            return self.encode_effects(scene, view, width, height, encoder, timestamps);
+            return self.encode_effects(scene, view, width, height, encoder, timestamps, preview);
         }
         self.effect_diagnostics.clear();
         if self.layer_gpu.prepare_vectors(
@@ -863,7 +938,7 @@ impl Renderer {
         )? {
             self.effect_gpu.state.invalidate();
         }
-        self.effect_gpu.state.release_scratch();
+        if self.composition_images.is_empty() { self.effect_gpu.state.release_scratch(); }
         self.layer_gpu.prepare_accumulators(
             &self.device,
             &self.image_layout,
@@ -981,13 +1056,16 @@ impl Renderer {
         height: u32,
         encoder: &mut wgpu::CommandEncoder,
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
+        preview: bool,
     ) -> Result<RenderStats> {
         let started = Instant::now();
         loop {
-            self.effect_gpu
-                .builder
-                .build(scene, &self.asset_order, width, height, false)
-                .map_err(RenderError::Invalid)?;
+            if preview {
+                self.effect_gpu.builder.build_preview(scene, &self.asset_order, width, height)
+            } else {
+                self.effect_gpu.builder.build(scene, &self.asset_order, width, height, false)
+            }
+            .map_err(RenderError::Invalid)?;
             match self.effect_gpu.state.prepare(
                 &self.device,
                 &self.queue,
@@ -1135,7 +1213,7 @@ impl Renderer {
                     p,
                     frame,
                     &self.asset_order,
-                    (scene.layers[i].video.is_some() || scene.layers[i].vector.is_some())
+                    (scene.layers[i].video.is_some() || scene.layers[i].vector.is_some() || scene.layers[i].composition)
                         .then(|| texture_key(&scene.layers[i])),
                     (scene.layers[i].adjustment && has_adjustment)
                         .then(|| &self.layer_gpu.accumulators[accumulator].view),

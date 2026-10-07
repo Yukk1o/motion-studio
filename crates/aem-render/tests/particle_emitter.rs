@@ -300,3 +300,70 @@ fn custom_png_sprite_keeps_aspect_alpha_and_shared_texture() {
         .unwrap_err()
         .contains("sprite"));
 }
+#[test]
+fn nested_png_emitter_preserves_births_pixels_and_random_seek() {
+    let mut p = project();
+    p.assets.push(aem_core::Asset {
+        id: 1,
+        path: "assets/sprite.png".into(),
+        width: 8,
+        height: 8,
+    });
+    p.layers[0].effects[0].scene.as_mut().unwrap().sprite_asset = Some(1);
+    // Scene-generator precompose remains explicitly unsupported. Exercise a
+    // generator authored inside a child, referenced through the supported API.
+    let mut nested_project = p.clone();
+    nested_project.compositions.push(aem_core::Composition {
+        id: "comp-1".into(),
+        name: "particles".into(),
+        width: p.width,
+        height: p.height,
+        fps: p.fps,
+        frames: p.frames,
+        background: [0.; 4],
+        camera: p.camera.clone(),
+        layers: std::mem::take(&mut nested_project.layers),
+        expressions: Vec::new(),
+    });
+    let mut engine = aem_core::Engine::new(nested_project).unwrap();
+    engine.apply_batch(aem_core::parse_commands(r#"{"op":"composition","composition":"comp-main","action":{"kind":"reference","target":"comp-1"}}"#).unwrap()).unwrap();
+    let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
+    renderer.upload_image(1, 8, 8, &[255; 8 * 8 * 4]).unwrap();
+    let target = renderer.capture_target(128, 128).unwrap();
+    let mut plain = Scene::new(&p);
+    let mut nested = Scene::new(engine.project());
+    for frame in [30., 15., 35., 5., 30.] {
+        plain.sample(&p, frame, None).unwrap();
+        let expected = renderer.capture(&plain, &target).unwrap().0;
+        nested.sample(engine.project(), frame, None).unwrap();
+        assert_eq!(nested.nested.len(), 1);
+        assert!(nested.nested[0].scene.effects[0].particle_history.is_some());
+        assert_eq!(nested.nested[0].scene.sprite_assets[&1], [8, 8]);
+        let actual = renderer.capture(&nested, &target).unwrap().0;
+        let mae = expected
+            .iter()
+            .zip(&actual)
+            .map(|(a, b)| a.abs_diff(*b) as f64)
+            .sum::<f64>()
+            / expected.len() as f64;
+        assert!(
+            mae <= 3.,
+            "composition reference changed frame {frame}: {mae}"
+        );
+    }
+    engine.undo().unwrap();
+    assert!(engine.project().layers.is_empty());
+    engine.redo().unwrap();
+    let restored: Project =
+        serde_json::from_slice(&serde_json::to_vec(engine.project()).unwrap()).unwrap();
+    restored.validate().unwrap();
+    nested.sample(&restored, 30., None).unwrap();
+    assert_eq!(
+        nested.nested[0].scene.effects[0]
+            .scene
+            .as_ref()
+            .unwrap()
+            .sprite_asset,
+        Some(1)
+    );
+}

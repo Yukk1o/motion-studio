@@ -139,7 +139,7 @@ fn adjustment_factory_identity_and_invalid_spatial_mode() {
     assert_eq!(before, e.snapshot());
     let mut old = empty();
     old.version = 5;
-    assert_eq!(old.migrate().unwrap().version, 6);
+    assert_eq!(old.migrate().unwrap().version, 7);
     let mut invalid = e.snapshot();
     invalid.version = 5;
     assert!(invalid.validate().is_err());

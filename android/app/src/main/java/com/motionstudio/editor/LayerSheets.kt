@@ -62,6 +62,8 @@ internal fun objectIcon(vm:EditorViewModel,id:Long):ImageVector=if(id==0L)Icons.
             }
             Spacer(Modifier.height(10.dp))
             AddCard("调整图层","为下方画面添加效果",Icons.Default.Tune,Accent,Modifier.fillMaxWidth().testTag("add-adjustment")){onAdd("adjustment")}
+            Spacer(Modifier.height(10.dp))
+            AddCard("子合成","新建或引用已有合成",Icons.Default.Layers,Accent,Modifier.fillMaxWidth().testTag("add-composition")){onAdd("composition")}
             Spacer(Modifier.height(20.dp))
             Text("动画与空间",color=Muted,fontSize=12.sp)
             Spacer(Modifier.height(8.dp))
