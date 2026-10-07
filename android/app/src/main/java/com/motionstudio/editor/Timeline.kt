@@ -80,7 +80,8 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
             vm.requestWaveform(row.id,first)
         }
     }
-    var vertical by remember(focused,density,fontScale){mutableFloatStateOf(0f)}
+    var vertical by remember(vm.root,vm.compositionId,focused,density,fontScale){mutableFloatStateOf(if(focused)0f else vm.compositionTimeline.optDouble("scroll",0.0).toFloat()*density)}
+    SideEffect {if(!focused)vm.compositionTimeline.put("scroll",vertical/density)}
     var viewportHeight by remember{mutableFloatStateOf(0f)}
     LaunchedEffect(rows.size,viewportHeight,focused,density,fontScale) {
         if(viewportHeight>0)vertical=vertical.coerceIn(0f,max(0f,rows.size*rowHeight-viewportHeight+head))
@@ -95,7 +96,7 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
     var hoveredRow by remember{mutableStateOf<Int?>(null)}
     val inertia=rememberGestureInertia(vm.gestureInertia)
     val limits=rememberFlingLimits()
-    val projectKey=vm.root
+    val projectKey=vm.root to vm.compositionId
     LaunchedEffect(projectKey,vm.playing,focused,vm.selected,vm.panelOpen,vm.effectsOpen,density,fontScale) {inertia.stop()}
     Canvas(modifier.testTag("timeline").semantics {
         if(vm.layerSelectionMode) {
@@ -184,7 +185,7 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
                     var position=if(mode=="scrub")vm.frame else vertical.toDouble()
                     val speed=releaseVelocity(if(mode=="scrub")velocity.x else velocity.y,releasedAt,if(mode=="scrub")lastX else lastY,limits)
                     inertia.start(speed,limits.minimum,1.2f,onDelta={delta->
-                        if(vm.root!=projectKey||vm.playing||vm.isClosed)false
+                        if((vm.root to vm.compositionId)!=projectKey||vm.playing||vm.isClosed)false
                         else if(mode=="scrub") {
                             val last=(vm.state.project?.optInt("frames")?:1)-1.0
                             position=(position-delta/startScale).coerceIn(0.0,last.coerceAtLeast(0.0))
