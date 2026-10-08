@@ -7,6 +7,7 @@ mod measurement;
 mod presenter;
 mod quality;
 mod renderer;
+pub mod image_resources;
 pub mod scene_generator;
 mod particle_emitter;
 mod timing;

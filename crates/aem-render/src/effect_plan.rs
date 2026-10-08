@@ -343,6 +343,33 @@ impl PlanBuilder {
             .retain(|id, _| project.assets.iter().any(|a| a.id == *id));
         Ok(())
     }
+    /// Alpha dependencies use the same sampled working set as image textures,
+    /// including nested compositions. Unused library images cannot exhaust it.
+    pub fn synchronize_scene_alpha(
+        &mut self, scene: &Scene, project: &aem_core::Project, root: &std::path::Path,
+    ) -> Result<(), String> {
+        fn collect(scene: &Scene, wanted: &mut std::collections::BTreeSet<u64>) {
+            if scene.effects.iter().any(|e| e.enabled && scene.layers.iter().any(|l|l.id==e.layer)
+                && e.scene.as_ref().is_some_and(|s| s.occlusion)) {
+                wanted.extend(scene.layers.iter().filter_map(|l| l.asset));
+            }
+            for child in &scene.nested { collect(&child.scene, wanted); }
+        }
+        let mut wanted = Default::default();
+        collect(scene, &mut wanted);
+        self.alpha_images.retain(|id, _| wanted.contains(id));
+        let pixels: u64 = project.assets.iter().filter(|a| wanted.contains(&a.id))
+            .map(|a| u64::from(a.width)*u64::from(a.height)).sum();
+        if pixels > 32*1024*1024 { return Err("active occlusion alpha exceeds 32 MiB".into()); }
+        for id in wanted {
+            if self.alpha_images.contains_key(&id) { continue; }
+            let asset = project.assets.iter().find(|a| a.id == id).ok_or("occlusion asset missing")?;
+            let source = crate::image_resources::Source::new(root, asset)?;
+            let image = crate::image_resources::decode(&source, crate::image_resources::Resolution::Full)?;
+            self.set_alpha(id, image.width, image.height, &image.rgba)?;
+        }
+        Ok(())
+    }
     pub fn preflight_project(&self, project: &aem_core::Project) -> Result<(), String> {
         for layer in &project.layers {
             for (chain_index, e) in layer.effects.iter().filter(|e| e.enabled).enumerate() {

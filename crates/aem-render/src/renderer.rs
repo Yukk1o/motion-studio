@@ -123,6 +123,19 @@ pub struct Renderer {
     pub video_uploads: u64,
     pub video_gpu_conversions: u64,
     asset_order: Vec<u64>,
+    image_sources: HashMap<u64, crate::image_resources::Source>,
+    image_decode: crate::image_resources::DecodeTask,
+    image_active: std::collections::BTreeSet<u64>,
+    image_access: HashMap<u64, u64>,
+    image_clock: u64,
+    image_prefetch: Vec<u64>,
+    image_prefetch_failed: std::collections::HashSet<u64>,
+    image_cache_enabled: bool,
+    pub image_decodes: u64,
+    pub image_proxy_cache_hits: u64,
+    pub image_upload_bytes: u64,
+    pub image_memory_cache_hits: u64,
+    pub image_prefetches: u64,
     pub effect_diagnostics: Vec<String>,
     composition_images: std::collections::HashSet<u64>,
 }
@@ -335,6 +348,19 @@ impl Renderer {
             video_uploads: 0,
             video_gpu_conversions: 0,
             asset_order: Vec::new(),
+            image_sources: HashMap::new(),
+            image_decode: Default::default(),
+            image_active: Default::default(),
+            image_access: Default::default(),
+            image_clock: 0,
+            image_prefetch: Vec::new(),
+            image_prefetch_failed: Default::default(),
+            image_cache_enabled: false,
+            image_decodes: 0,
+            image_proxy_cache_hits: 0,
+            image_upload_bytes: 0,
+            image_memory_cache_hits: 0,
+            image_prefetches: 0,
             effect_diagnostics: Vec::new(),
         };
         renderer.effect_gpu.builder.device_dimension =
@@ -367,6 +393,7 @@ impl Renderer {
             .builder
             .build(scene, &self.asset_order, width, height, true)
             .map_err(RenderError::Invalid)?;
+        self.prepare_effect_images();
         self.effect_gpu.state.prepare(
             &self.device,
             &self.queue,
@@ -471,6 +498,7 @@ impl Renderer {
             .video_gpu
             .as_ref()
             .map_or(frame.bytes() as u64, |v| v.replacement_bytes(object, frame));
+        self.trim_image_cache((bytes + planes).saturating_sub(previous + self.video_plane_bytes()));
         if self.texture_bytes - previous + bytes + planes + self.effect_gpu.state.resource_bytes
             > TEXTURE_BUDGET
         {
@@ -601,6 +629,7 @@ impl Renderer {
             ));
         }
         let previous = self.images.get(&id).map_or(0, |t| t.bytes);
+        self.trim_image_cache_except(bytes.saturating_sub(previous), Some(id));
         if self.texture_bytes - previous
             + bytes
             + self.video_plane_bytes()
@@ -776,7 +805,200 @@ impl Renderer {
         }
         Ok(())
     }
+    /// Register the complete, stable asset table without decoding/uploading
+    /// inactive images. Source files in a project are immutable; replacing a
+    /// resource must use a new path (including when retaining its asset ID).
+    pub fn configure_assets(&mut self, project: &Project, root: &Path) -> Result<()> {
+        let mut sources = HashMap::new();
+        for asset in &project.assets {
+            let source = crate::image_resources::Source::new(root, asset)
+                .map_err(RenderError::Invalid)?;
+            sources.insert(asset.id, source);
+        }
+        let stale: Vec<_> = self.images.keys().filter_map(|key| match key {
+            TextureKey::Static(id) if *id != 0 && self.image_sources.get(id) != sources.get(id) => Some(*id),
+            _ => None,
+        }).collect();
+        for id in stale { self.remove_static_image(id); }
+        self.image_decode.cancel();
+        self.image_active.clear();
+        self.image_prefetch.clear();
+        self.image_prefetch_failed.clear();
+        // Resource edits and project switches may reuse object/source IDs and
+        // timestamps. Never carry a decoded video or vector across a new catalog.
+        let dynamic: Vec<_> = self.images.keys().copied()
+            .filter(|key| !matches!(key, TextureKey::Static(_))).collect();
+        for key in dynamic {
+            self.texture_bytes -= self.images.remove(&key).unwrap().bytes;
+            self.effect_gpu.invalidate();
+        }
+        if let Some(video) = &mut self.video_gpu { video.clear(); }
+        self.composition_images.clear();
+        self.image_sources = sources;
+        self.asset_order = std::iter::once(0).chain(project.assets.iter().map(|a| a.id)).collect();
+        Ok(())
+    }
+    fn remove_static_image(&mut self, id: u64) {
+        self.image_access.remove(&id);
+        if let Some(image) = self.images.remove(&TextureKey::Static(id)) {
+            self.texture_bytes -= image.bytes;
+            self.effect_gpu.builder.alpha_images.remove(&id);
+            self.effect_gpu.invalidate();
+        }
+    }
+    pub fn image_dimensions(&self, id: u64) -> Option<(u32, u32)> {
+        self.images.get(&TextureKey::Static(id)).map(|i| i.size)
+    }
+    pub fn asset_ids(&self) -> &[u64] { &self.asset_order }
+    pub fn image_idle_bytes(&self) -> u64 {
+        self.image_access.keys().filter(|id| !self.image_active.contains(id))
+            .filter_map(|id| self.images.get(&TextureKey::Static(*id))).map(|i| i.bytes).sum()
+    }
+    pub fn set_image_prefetch(&mut self, assets: Vec<u64>) { self.image_prefetch = assets; }
+    /// Idle textures are expendable, and share (rather than extend) the source
+    /// texture budget with videos, nested compositions and plugin resources.
+    fn trim_image_cache(&mut self, additional: u64) {
+        self.trim_image_cache_except(additional, None);
+    }
+    fn trim_image_cache_except(&mut self, additional: u64, replacing: Option<TextureKey>) {
+        let limit = if self.image_cache_enabled { crate::image_resources::IDLE_TEXTURE_BYTES } else { 0 };
+        let mut idle = self.image_idle_bytes();
+        let mut total = self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes + additional;
+        let mut victims: Vec<_> = self.image_access.iter()
+            .filter(|(id, _)| !self.image_active.contains(id) && replacing != Some(TextureKey::Static(**id)))
+            .map(|(id, time)| (*time, *id)).collect();
+        victims.sort_unstable();
+        for (_, id) in victims {
+            if idle <= limit && total <= TEXTURE_BUDGET { break; }
+            let bytes = self.images.get(&TextureKey::Static(id)).map_or(0, |i| i.bytes);
+            self.remove_static_image(id);
+            idle -= bytes;
+            total = total.saturating_sub(bytes);
+        }
+    }
+    fn touch_image(&mut self, id: u64) {
+        self.image_clock = self.image_clock.saturating_add(1);
+        self.image_access.insert(id, self.image_clock);
+    }
+    fn prepare_effect_images(&mut self) {
+        let extra = self.effect_gpu.state.pending_resource_bytes(&self.effect_gpu.builder);
+        self.trim_image_cache(extra);
+    }
+    /// Preview polls a single bounded decode worker. Full capture/export uses
+    /// synchronous preparation on its output worker, always at source size.
+    pub fn prepare_scene_assets(
+        &mut self,
+        scene: &Scene,
+        resolution: crate::image_resources::Resolution,
+        asynchronous: bool,
+    ) -> Result<bool> {
+        use crate::image_resources::{decode, scene_assets, Resolution};
+        let wanted = scene_assets(scene);
+        let mut required = 4u64;
+        for id in &wanted {
+            let source = self.image_sources.get(id)
+                .ok_or_else(|| RenderError::Invalid(format!("image asset {id} is not registered")))?;
+            let (w, h) = resolution.dimensions(source.width, source.height);
+            if w > self.device.limits().max_texture_dimension_2d || h > self.device.limits().max_texture_dimension_2d {
+                return Err(RenderError::Invalid(format!("image {id} exceeds device texture dimensions")));
+            }
+            required += u64::from(w) * u64::from(h) * 4;
+        }
+        if required > TEXTURE_BUDGET {
+            return Err(RenderError::Invalid("active image working set exceeds 128 MiB; full output requires original resolution".into()));
+        }
+        self.image_cache_enabled = matches!(resolution, Resolution::Preview(_));
+        for id in wanted.difference(&self.image_active) {
+            if self.image_access.contains_key(id) && self.images.get(&TextureKey::Static(*id))
+                .is_some_and(|i| resolution.dimensions(self.image_sources[id].width, self.image_sources[id].height) == i.size) {
+                self.image_memory_cache_hits += 1;
+            }
+        }
+        self.image_active = wanted.clone();
+        for id in &wanted { if self.images.contains_key(&TextureKey::Static(*id)) { self.touch_image(*id); } }
+        // Wrong-resolution images cannot survive a quality switch. Idle preview
+        // images otherwise stay resident until LRU or resource pressure evicts.
+        let stale: Vec<_> = self.images.keys().filter_map(|key| match key {
+            TextureKey::Static(id) if *id != 0 && (self.image_sources.get(id)
+                .is_none_or(|s| resolution.dimensions(s.width, s.height) != self.images[key].size)) => Some(*id),
+            _ => None,
+        }).collect();
+        for id in stale { self.remove_static_image(id); }
+        self.trim_image_cache(0);
+        let demand_missing = wanted.iter().any(|id| !self.images.contains_key(&TextureKey::Static(*id)));
+        let candidates: std::collections::BTreeSet<_> = self.image_prefetch.iter().copied()
+            .filter(|id| !wanted.contains(id)).take(crate::image_resources::MAX_PREFETCH_IMAGES).collect();
+        let allowed = if self.image_cache_enabled && asynchronous && !demand_missing {
+            wanted.union(&candidates).copied().collect()
+        } else { wanted.clone() };
+        self.image_decode.cancel_unwanted(&allowed, resolution);
+        if let Some((source, mode, speculative, result)) = self.image_decode.poll() {
+            if mode == resolution && allowed.contains(&source.id) && self.image_sources.get(&source.id) == Some(&source)
+                && !self.images.contains_key(&TextureKey::Static(source.id)) {
+                match result {
+                Ok(pixels) => {
+                    // Prefetch must never evict useful recent images or consume
+                    // resources needed by an already active video/effect.
+                    let cost = pixels.rgba.len() as u64;
+                    if !wanted.contains(&source.id) && (cost + self.image_idle_bytes() > crate::image_resources::IDLE_TEXTURE_BYTES
+                        || self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes + cost > TEXTURE_BUDGET) { return Ok(true); }
+                self.upload_pixels(TextureKey::Static(source.id), pixels.width, pixels.height, &pixels.rgba, false)?;
+                self.image_decodes += u64::from(!pixels.cached);
+                self.image_proxy_cache_hits += u64::from(pixels.cached);
+                self.image_upload_bytes += pixels.rgba.len() as u64;
+                self.touch_image(source.id);
+                }
+                Err(error) if error == crate::image_resources::CANCELLED => {}
+                Err(error) if !speculative => return Err(RenderError::Invalid(format!("image {}: {error}", source.id))),
+                Err(_) => { self.image_prefetch_failed.insert(source.id); }
+                }
+            }
+        }
+        for id in wanted {
+            if self.images.contains_key(&TextureKey::Static(id)) { continue; }
+            let source = self.image_sources[&id].clone();
+            if asynchronous {
+                if !self.image_decode.busy() {
+                    self.image_decode.start(source, resolution, false).map_err(RenderError::Invalid)?;
+                }
+                return Ok(false);
+            }
+            let pixels = decode(&source, resolution)
+                .map_err(|e| RenderError::Invalid(format!("image {id}: {e}")))?;
+            self.upload_pixels(TextureKey::Static(id), pixels.width, pixels.height, &pixels.rgba, false)?;
+            self.image_decodes += u64::from(!pixels.cached);
+            self.image_proxy_cache_hits += u64::from(pixels.cached);
+            self.image_upload_bytes += pixels.rgba.len() as u64;
+            self.touch_image(id);
+        }
+        Ok(true)
+    }
+    /// Call after active image/video uploads. Speculation never precedes demand
+    /// preparation, and at most one cancellable decode allocation exists.
+    pub fn prefetch_scene_assets(&mut self, resolution: crate::image_resources::Resolution) -> Result<()> {
+        if !self.image_cache_enabled || self.image_decode.busy() { return Ok(()); }
+        for id in self.image_prefetch.clone().into_iter().filter(|id| !self.image_active.contains(id))
+            .take(crate::image_resources::MAX_PREFETCH_IMAGES) {
+            if self.images.contains_key(&TextureKey::Static(id)) { continue; }
+            if self.image_prefetch_failed.contains(&id) { continue; }
+            let Some(source) = self.image_sources.get(&id) else { continue; };
+            let (w, h) = resolution.dimensions(source.width, source.height);
+            let bytes = u64::from(w) * u64::from(h) * 4;
+            if w > self.device.limits().max_texture_dimension_2d || h > self.device.limits().max_texture_dimension_2d
+                || bytes + self.image_idle_bytes() > crate::image_resources::IDLE_TEXTURE_BYTES
+                || self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes + bytes > TEXTURE_BUDGET { continue; }
+            self.image_decode.start(source.clone(), resolution, true).map_err(RenderError::Invalid)?;
+            self.image_prefetches += 1;
+            break;
+        }
+        Ok(())
+    }
     pub fn clear_assets(&mut self) {
+        self.image_decode.cancel();
+        self.image_active.clear();
+        self.image_access.clear();
+        self.image_prefetch.clear();
+        self.image_prefetch_failed.clear();
         self.composition_images.clear();
         if let Some(video) = &mut self.video_gpu {
             video.clear();
@@ -888,6 +1110,7 @@ impl Renderer {
             if self.images.get(&key).is_none_or(|image|image.size!=(w,h)) {
                 let bytes=u64::from(w)*u64::from(h)*4;
                 let previous=self.images.get(&key).map_or(0,|image|image.bytes);
+                self.trim_image_cache(bytes.saturating_sub(previous));
                 if self.texture_bytes-previous+self.video_plane_bytes()+self.effect_gpu.state.resource_bytes+bytes>TEXTURE_BUDGET {
                     return Err(RenderError::Invalid(format!("composition {}: nested textures exceed 128 MiB",node.composition)));
                 }
@@ -1066,6 +1289,7 @@ impl Renderer {
                 self.effect_gpu.builder.build(scene, &self.asset_order, width, height, false)
             }
             .map_err(RenderError::Invalid)?;
+            self.prepare_effect_images();
             match self.effect_gpu.state.prepare(
                 &self.device,
                 &self.queue,
@@ -1088,6 +1312,8 @@ impl Renderer {
                 }
             }
         }
+        let vector_bytes = self.layer_gpu.pending_vector_bytes(scene, &self.effect_gpu.builder.frame.vectors, &self.images);
+        self.trim_image_cache(vector_bytes);
         let frame = &self.effect_gpu.builder.frame;
         let vectors_changed = self.layer_gpu.prepare_vectors(
             &self.device,

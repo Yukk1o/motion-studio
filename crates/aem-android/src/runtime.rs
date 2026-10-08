@@ -119,7 +119,7 @@ impl Session {
         let video_jobs = aem_media::VideoJobs::with_audio_decoder(root.clone(), std::sync::Arc::new(audio_decode::decode))?;
         if let Some(g) = &mut self.graphics {
             g.renderer
-                .replace_assets(engine.project(), &root)
+                .configure_assets(engine.project(), &root)
                 .map_err(|e| e.to_string())?;
         }
         if let Some(mut editor) = self.editor.take() {
@@ -335,11 +335,12 @@ impl Session {
             let mut renderer =
                 pollster::block_on(Renderer::headless()).map_err(|e| e.to_string())?;
             renderer.set_effect_registry(self.effects.registry.clone());
+            renderer.configure_assets(self.engine.project(), &self.root)
+                .map_err(|e|e.to_string())?;
             self.editor_renderer = Some(renderer);
         }
         let renderer = self.editor_renderer.as_mut().unwrap();
-        renderer
-            .synchronize_assets(self.engine.project(), &self.root)
+        renderer.prepare_scene_assets(&self.scene, aem_render::image_resources::Resolution::Preview(1024), false)
             .map_err(|e| e.to_string())?;
         renderer
             .preflight_effects(&self.scene, width as u32, height as u32)
@@ -436,7 +437,7 @@ impl Session {
         };
         surface.configure(&renderer.device, &config);
         renderer
-            .synchronize_assets(self.engine.project(), &self.root)
+            .configure_assets(self.engine.project(), &self.root)
             .map_err(|e| e.to_string())?;
         let (render_width, render_height) = self.preview.render_dimensions(
             self.engine.project().width,
@@ -475,6 +476,13 @@ impl Session {
             return Ok(false);
         };
         g.renderer.retain_video_instances(&self.scene);
+        g.renderer.set_image_prefetch(aem_render::image_resources::upcoming_assets(self.engine.project(), frame));
+        let image_resolution = if self.preview.mode == PreviewMode::High {
+            aem_render::image_resources::Resolution::Full
+        } else {
+            aem_render::image_resources::Resolution::Preview(aem_render::image_resources::MAX_PREVIEW_EDGE)
+        };
+        let images_ready = g.renderer.prepare_scene_assets(&self.scene, image_resolution, true).map_err(|e| e.to_string())?;
         let preparing = Instant::now();
         let frames = self.video_frames.prepare_scene(
             self.engine.project(),
@@ -488,6 +496,10 @@ impl Session {
             self.video_upload_us = 0;
             return Ok(false);
         };
+        if !images_ready {
+            self.video_upload_us = 0;
+            return Ok(false);
+        }
         let uploading = Instant::now();
         for (object, image) in frames {
             let source = self
@@ -622,6 +634,7 @@ impl Session {
         if previous_tier != self.preview.tier() {
             self.view_revision += 1;
         }
+        g.renderer.prefetch_scene_assets(image_resolution).map_err(|e| e.to_string())?;
         self.last_error = None;
         Ok(true)
     }
@@ -656,6 +669,15 @@ impl Session {
         let (width, height) = self.preview.render_dimensions(p.width, p.height, sw, sh);
         json!({"mode":self.preview.mode.name(),"tier":tier.name(),"width":width,"height":height,"fps":tier.fps(),
             "effectResolution":if self.preview.mode == PreviewMode::High {"full_layer"} else {"projected_2d"},
+            "imageResolution":if self.preview.mode == PreviewMode::High {"original"} else {"proxy_max_2048"},
+            "imageDecodes":self.graphics.as_ref().map_or(0,|g|g.renderer.image_decodes),
+            "imageProxyCacheHits":self.graphics.as_ref().map_or(0,|g|g.renderer.image_proxy_cache_hits),
+            "imageUploadBytes":self.graphics.as_ref().map_or(0,|g|g.renderer.image_upload_bytes),
+            "imageMemoryCacheHits":self.graphics.as_ref().map_or(0,|g|g.renderer.image_memory_cache_hits),
+            "imageIdleBytes":self.graphics.as_ref().map_or(0,|g|g.renderer.image_idle_bytes()),
+            "imageIdleBudgetBytes":aem_render::image_resources::IDLE_TEXTURE_BYTES,
+            "imagePrefetches":self.graphics.as_ref().map_or(0,|g|g.renderer.image_prefetches),
+            "imagePrefetchSeconds":aem_render::image_resources::PREFETCH_SECONDS,
             "surfaceBounded":self.preview.mode != PreviewMode::High,"gpuTimingActive":self.graphics.as_ref().is_some_and(|g|g.timer.is_some()),
             "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY)),
             "video":self.video_info()})
@@ -1011,7 +1033,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             s.sample()?;
             let p = s.engine.project();
             for id in p.reachable_compositions().map_err(|e|e.to_string())?{s.effects.preflight_project(&p.composition(&id).map_err(|e|e.to_string())?)?;}
-            s.effects.synchronize_alpha(p, &s.root)?;
+            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
@@ -1032,7 +1054,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
                 + count * 1024
                 + aem_effects::MAX_SPRITES * 48 + 8192 * 12 + 65536 * 20 + aem_core::MAX_LAYERS*28 + 262144*24;
             Ok(
-                json!({"version":aem_render::effect_plan::PLAN_VERSION,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4,"declaredAssetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>(),"imageResources":{"version":1,"demandLoading":true,"previewMaxEdge":aem_render::image_resources::MAX_PREVIEW_EDGE,"fullResolutionExport":true,"directBuffer":true}}),
             )
         })
     })
@@ -1061,7 +1083,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleRenderPla
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
-            s.effects.synchronize_alpha(p, &s.root)?;
+            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
             let result = (|| {
                 let plan = s
                     .effects
@@ -1265,10 +1287,10 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_command(
                 s.editor_renderer = None;
                 s.editor_target = None;
                 if let Some(g) = &mut s.graphics {
-                    if let Err(error) = g.renderer.synchronize_assets(s.engine.project(), &s.root) {
+                    if let Err(error) = g.renderer.configure_assets(s.engine.project(), &s.root) {
                         s.engine.undo().map_err(|e| e.to_string())?;
                         g.renderer.clear_assets();
-                        let _ = g.renderer.synchronize_assets(s.engine.project(), &s.root);
+                        let _ = g.renderer.configure_assets(s.engine.project(), &s.root);
                         return Err(error.to_string());
                     }
                 }
@@ -1390,9 +1412,13 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
             }
             if !s.engine.gesture_active(){let target=if s.engine.project().composition_ids().contains(&active){active.as_str()}else{aem_core::MAIN_COMPOSITION};s.engine.activate_composition(target).map_err(|e|e.to_string())?;}
             s.frame=s.frame.min(f64::from(s.engine.project().frames-1));s.audio_mixer=None;s.video_frames.clear();
+            if matches!(op,0|1|4) {
+                s.effects.alpha_images.clear();
+                s.editor_renderer=None;s.editor_target=None;
+            }
             if let Some(g) = &mut s.graphics {
                 g.renderer
-                    .synchronize_assets(s.engine.project(), &s.root)
+                    .configure_assets(s.engine.project(), &s.root)
                     .map_err(|e| e.to_string())?;
             }
             if let Err(error) = s.sample() {
@@ -1724,7 +1750,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
         with_session(id, |s| {
             let p = s.engine.project();
             for id in p.reachable_compositions().map_err(|e|e.to_string())?{s.effects.preflight_project(&p.composition(&id).map_err(|e|e.to_string())?)?;}
-            s.effects.synchronize_alpha(p, &s.root)?;
+            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
             let mut scene = Scene::new(p);
             scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
             let mut temporary = None;
@@ -1739,7 +1765,10 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
             };
             renderer.set_effect_registry(s.effects.registry.clone());
             renderer
-                .synchronize_assets(p, &s.root)
+                .configure_assets(p, &s.root)
+                .map_err(|e| e.to_string())?;
+            renderer.retain_video_instances(&scene);
+            renderer.prepare_scene_assets(&scene, aem_render::image_resources::Resolution::Full, false)
                 .map_err(|e| e.to_string())?;
             let target = renderer
                 .capture_target(p.width, p.height)
@@ -2121,6 +2150,62 @@ pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_sampleGeometr
     })
 }
 
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_imageInfo(
+    mut env: JNIEnv, _class: JClass, path: JString,
+) -> jstring {
+    let path = read_string(&mut env, &path);
+    string_result(&mut env, || {
+        let (width,height,format,bytes) = aem_render::image_resources::inspect(std::path::Path::new(&path?))?;
+        Ok(json!({"version":1,"width":width,"height":height,"format":format!("{format:?}"),"bytes":bytes,
+            "maxEncodedBytes":aem_render::image_resources::MAX_ENCODED_BYTES,"previewMaxEdge":aem_render::image_resources::MAX_PREVIEW_EDGE}))
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_prepareImage(
+    mut env: JNIEnv, _class: JClass, root: JString, path: JString,
+) -> jstring {
+    let root=read_string(&mut env,&root);
+    let path=read_string(&mut env,&path);
+    string_result(&mut env, || {
+        let root=PathBuf::from(root?);let path=path?;
+        aem_core::storage::validate_relative_path(&path).map_err(|e|e.to_string())?;
+        let (width,height,format,bytes)=aem_render::image_resources::inspect(&root.join(&path))?;
+        let asset=aem_core::Asset{id:1,path:path.clone(),width,height};
+        let source=aem_render::image_resources::Source::new(&root,&asset)?;
+        let proxy=aem_render::image_resources::decode(&source,aem_render::image_resources::Resolution::Preview(aem_render::image_resources::MAX_PREVIEW_EDGE))?;
+        Ok(json!({"version":1,"path":path,"width":width,"height":height,"format":format!("{format:?}"),
+            "bytes":bytes,"validated":true,"proxyWidth":proxy.width,"proxyHeight":proxy.height,"proxyCached":proxy.cached}))
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_assetPixelsInto(
+    mut env: JNIEnv, _class: JClass, id: jlong, asset: jlong, buffer: JByteBuffer,
+) -> jstring {
+    let destination = (|| -> Result<_> {
+        if env.call_method(&buffer,"isReadOnly","()Z",&[]).and_then(|v|v.z()).map_err(|e|e.to_string())? {
+            return Err("image output buffer is read-only".into());
+        }
+        let capacity=env.get_direct_buffer_capacity(&buffer).map_err(|e|e.to_string())?;
+        let address=env.get_direct_buffer_address(&buffer).map_err(|e|e.to_string())?;
+        Ok((capacity,address))
+    })();
+    string_result(&mut env, || {
+        let (capacity,address)=destination?;
+        with_session(id, |s| {
+            let a=s.engine.project().assets.iter().find(|a|a.id==asset as u64).ok_or("asset not found")?;
+            let bytes=u64::from(a.width)*u64::from(a.height)*4;
+            if address.is_null() || bytes>aem_render::image_resources::MAX_DECODED_BYTES || (capacity as u64)<bytes {
+                return Err("image direct buffer is too small or exceeds 128 MiB".into());
+            }
+            let source=aem_render::image_resources::Source::new(&s.root,a)?;
+            // JNI owns this direct buffer for the duration of this synchronous call.
+            let output=unsafe{std::slice::from_raw_parts_mut(address,bytes as usize)};
+            aem_render::image_resources::decode_into(&source,aem_render::image_resources::Resolution::Full,output)?;
+            Ok(json!({"version":1,"asset":a.id,"width":a.width,"height":a.height,"bytes":bytes,"resolution":"original"}))
+        })
+    })
+}
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_assetPixels(
     env: JNIEnv,
