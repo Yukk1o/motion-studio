@@ -1,0 +1,6 @@
+# Optional, isolated research tool dependencies; not shipped in the Android app.
+py-aep==0.18.1
+attrs==26.1.0
+fonttools==4.66.1
+PyYAML==6.0.3
+uharfbuzz==0.56.3

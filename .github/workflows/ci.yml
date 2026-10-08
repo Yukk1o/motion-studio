@@ -56,6 +56,10 @@ jobs:
           python -m unittest discover -s tools -p 'test_ae_project_audit.py' -v
           node tools/test_ae_export_project.js
           test -z "$(git ls-files docs)"
+      - name: Validate optional AE source capture tools
+        run: |
+          python -m pip install -r tools/ae-source-requirements.txt
+          python -m unittest discover -s tools -p 'test_ae_source_graph.py' -v
       - name: Run Rust and software Vulkan tests
         run: cargo test --workspace --locked --features aem-android/diagnostics -- --test-threads=1
 
