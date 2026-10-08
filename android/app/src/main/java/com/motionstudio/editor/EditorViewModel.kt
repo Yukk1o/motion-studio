@@ -1019,9 +1019,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             try {
                 val file=File(root.parentFile,"incoming-"+UUID.randomUUID()+".motion")
                 try {
+                    val limits=nativeData(MediaBridge.packageLimits())
+                    val archiveLimit=limits.getLong("max_archive_bytes")
                     getApplication<Application>().contentResolver.openInputStream(uri)?.use{input->file.outputStream().use{out->
-                        val buffer=ByteArray(32*1024);var total=0L
-                        while(true){val read=input.read(buffer);if(read<0)break;total+=read;check(total<=512L*1024*1024){"工程包超过 512 MiB"};out.write(buffer,0,read)}
+                        val buffer=ByteArray(limits.getInt("transfer_buffer_bytes"));var total=0L
+                        while(true){val read=input.read(buffer);if(read<0)break;total+=read;check(total<=archiveLimit){"工程包超过 ${archiveLimit/1024/1024} MiB"};out.write(buffer,0,read)}
                     }}?:error("无法打开工程文件")
                 }catch(error:Throwable){file.delete();throw error}
                 worker.post {
