@@ -919,24 +919,21 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun setParent(parent:Long?){edit(JSONObject().put("op","parent").put("object",selected).put("parent",parent?:JSONObject.NULL).put("frame",floor(frame).toInt()))}
     fun importImage(uri:Uri) {
         val p=state.project?:return;pause();state=state.copy(busy=true)
+        val projectRoot=root;val generation=projectGeneration.get()
         viewModelScope.launch(Dispatchers.IO) {
+            var prepared:ImageImport.Prepared?=null
             try {
-                val source=ImageDecoder.createSource(getApplication<Application>().contentResolver,uri)
-                val bitmap=ImageDecoder.decodeBitmap(source){decoder,info,_->
-                    check(info.size.width.toLong()*info.size.height*4<=64L*1024*1024){"图片超出单图内存预算，请先缩小原图"}
-                    decoder.allocator=ImageDecoder.ALLOCATOR_SOFTWARE
-                }
-                val file=File(root,"assets/"+UUID.randomUUID()+".png").apply{parentFile!!.mkdirs()}
-                file.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+                val image=ImageImport.prepare(getApplication<Application>().contentResolver,uri,projectRoot)
+                prepared=image
                 val assetId=nextAssetId(p)
-                val a=JSONObject().put("id",assetId).put("path","assets/"+file.name).put("width",bitmap.width).put("height",bitmap.height)
-                val l=newLayer("图片",JSONObject().put("kind","image").put("asset",assetId),bitmap.width.toFloat(),bitmap.height.toFloat())
-                bitmap.recycle()
+                val a=JSONObject().put("id",assetId).put("path","assets/"+image.file.name).put("width",image.width).put("height",image.height)
+                val l=newLayer("图片",JSONObject().put("kind","image").put("asset",assetId),image.width.toFloat(),image.height.toFloat())
                 withContext(Dispatchers.Main) {
+                    check(root==projectRoot&&generation==projectGeneration.get()){ "工程已切换" }
                     editBatch(JSONArray().put(JSONObject().put("op","register_asset").put("asset",a)).put(JSONObject().put("op","add").put("layer",l)))
                     selected=l.getLong("id");property="position";panelOpen=true
                 }
-            } catch(e:Throwable){fail(e.message?:"图片导入失败")}
+            } catch(e:Throwable){prepared?.file?.delete();if(generation==projectGeneration.get())fail(e.message?:"图片导入失败")}
         }
     }
     fun addText(text:String) {

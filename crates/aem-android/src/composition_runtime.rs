@@ -348,6 +348,7 @@ pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_sampleFram
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
+            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
             let result = aem_render::composition_plan::build(
                 &mut s.effects,
                 &s.scene,
