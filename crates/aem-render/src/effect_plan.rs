@@ -7,8 +7,8 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 4;
-pub const HEADER_BYTES: usize = 112;
+pub const PLAN_VERSION: u32 = 5;
+pub const HEADER_BYTES: usize = 128;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 10;
 pub fn scratch_bytes(width: u32, height: u32, slots: u32) -> u64 {
@@ -83,6 +83,7 @@ pub struct EffectFramePlan {
     pub sprites: Vec<crate::scene_generator::Sprite>,
     pub generator_stats: crate::scene_generator::GeneratorStats,
     pub vectors: Vec<crate::vector_mesh::VectorMesh>,
+    pub masks: Vec<crate::mask_plan::MaskRaster>,
 }
 impl EffectFramePlan {
     pub fn buffer_bytes(&self, scene: &Scene) -> usize {
@@ -100,6 +101,8 @@ impl EffectFramePlan {
                 .iter()
                 .map(|v| v.vertices.len() * 24)
                 .sum::<usize>()
+            + self.masks.len() * crate::mask_plan::RECORD_BYTES
+            + self.masks.iter().map(|m|m.vertices.len()*24).sum::<usize>()
     }
     pub fn write(&self, scene: &Scene, out: &mut [u8]) -> Result<usize, String> {
         let size = self.buffer_bytes(scene);
@@ -115,6 +118,8 @@ impl EffectFramePlan {
         let vertex_offset = batch_offset + self.batches.len() * 12;
         let vector_offset = vertex_offset + self.vertices.len() * 20;
         let vector_data_offset = vector_offset + self.vectors.len() * 28;
+        let mask_offset = vector_data_offset + self.vectors.iter().map(|v|v.vertices.len()*24).sum::<usize>();
+        let mask_data_offset = mask_offset + self.masks.len()*crate::mask_plan::RECORD_BYTES;
         let header = [
             PLAN_MAGIC,
             PLAN_VERSION,
@@ -144,6 +149,10 @@ impl EffectFramePlan {
             scene.width,
             scene.height,
             28,
+            mask_offset as u32,
+            self.masks.len() as u32,
+            mask_data_offset as u32,
+            crate::mask_plan::RECORD_BYTES as u32,
         ];
         out[..HEADER_BYTES].copy_from_slice(bytemuck::cast_slice(&header));
         for (i, d) in self.draws.iter().enumerate() {
@@ -219,6 +228,7 @@ impl EffectFramePlan {
             out[offset..end].copy_from_slice(bytemuck::cast_slice(&v.vertices));
             offset = end;
         }
+        crate::mask_plan::write(&self.masks,out,mask_offset,mask_data_offset);
         Ok(size)
     }
 }
@@ -251,6 +261,7 @@ pub struct PlanBuilder {
             crate::vector_mesh::VectorMesh,
         ),
     >,
+    mask_cache: crate::mask_plan::MaskCache,
 }
 fn utility(code: &str) -> Result<Arc<shader::CompiledShader>, String> {
     shader::compile(code, "main_fx")
@@ -417,6 +428,7 @@ impl PlanBuilder {
     pub fn new(registry: Registry) -> Result<Self, String> {
         let raster=utility("fn main_fx(p:vec2<f32>)->vec4<f32>{let c=sample_input(p);return vec4(c.rgb*fx.params[0].rgb*fx.params[0].a,c.a*fx.params[0].a);}")?;
         let convert=utility("fn main_fx(p:vec2<f32>)->vec4<f32>{return convert_pixel(sample_input(p),fx.mode.yz,fx.output_mode.xy);}")?;
+        let mask_source=utility(crate::mask_plan::APPLY)?;
         Ok(Self {
             registry,
             device_dimension: 8192,
@@ -434,6 +446,7 @@ impl PlanBuilder {
                     package: None,
                     resources: vec![],
                 },
+                EffectProgram {key:"sdk-mask-source".into(),shader:mask_source,package:None,resources:vec![]},
             ],
             resolved: Vec::new(),
             frame: EffectFramePlan::default(),
@@ -444,13 +457,14 @@ impl PlanBuilder {
             alpha_images: Default::default(),
             generator_scratch: Default::default(),
             vector_cache: Default::default(),
+            mask_cache: Default::default(),
         })
     }
     pub fn set_registry(&mut self, registry: Registry) {
         self.registry = registry;
         self.resolved.clear();
         self.program_errors.clear();
-        self.programs.truncate(2);
+        self.programs.truncate(3);
         self.frame = EffectFramePlan::default();
     }
     pub fn synchronize(&mut self, scene: &Scene) -> Result<(), String> {
@@ -645,6 +659,12 @@ impl PlanBuilder {
             .min(height as f32 / scene.height as f32)
             .min(1.0)
             .max(0.001);
+        self.frame.masks=self.mask_cache.build(scene,scale,preview)?;
+        for mask in &self.frame.masks {
+            if mask.width>self.device_dimension || mask.height>self.device_dimension {
+                return Err(format!("layer {}, mask {}: raster exceeds device dimensions",scene.layers[mask.layer].id,mask.id));
+            }
+        }
         for (layer_index, layer) in scene.layers.iter().enumerate() {
             let scale = if preview && !layer.adjustment && !layer.composition
                 && !scene.effects.iter().enumerate().any(|(i, e)| {
@@ -712,6 +732,20 @@ impl PlanBuilder {
             let mut materialized = false;
             let mut overlay = false;
             let mut additive = false;
+            let has_image_effect=scene.effects.iter().enumerate().any(|(i,e)|e.layer==layer.id&&e.enabled&&self.resolved[i].as_ref().is_some_and(|r|r.definition.renderer==aem_effects::RendererKind::Image));
+            let starts_with_generator=scene.effects.iter().enumerate().find(|(_,e)|e.layer==layer.id&&e.enabled)
+                .is_some_and(|(i,_)|self.resolved[i].as_ref().is_some_and(|r|r.definition.renderer!=aem_effects::RendererKind::Image));
+            if !layer.masks.is_empty() && has_image_effect && !starts_with_generator {
+                let w=(region[2]*scale).ceil().max(1.) as u32;let h=(region[3]*scale).ceil().max(1.) as u32;
+                reserve_scratch(&mut self.frame.scratch_sizes,0,w,h);
+                let mut u=crate::mask_plan::uniform(w,h);
+                u.size=[region[2],region[3],w as f32,h as f32];u.region=region;u.input_region=region;u.source_region=region;
+                u.mode=[0.,0.,0.,1.];u.output_mode=[0.,0.,1.,scale];
+                u.params[0]=[linear(layer.color[0]),linear(layer.color[1]),linear(layer.color[2]),layer.color[3]];
+                self.frame.passes.push(EffectPass {program:2,input:-(asset as i32)-1,source:crate::mask_plan::SOURCE_TOKEN-layer_index as i32,
+                    output:0,width:w,height:h,lut:-1,uniform:u,sprite:false,sprite_start:0,sprite_count:0});
+                self.frame.slots|=1;self.frame.width=self.frame.width.max(w);self.frame.height=self.frame.height.max(h);materialized=true;
+            }
             for (index, e) in scene
                 .effects
                 .iter()
@@ -1186,6 +1220,13 @@ impl PlanBuilder {
                     "adjustment accumulators and effect scratch textures exceed 64 MiB".into(),
                 );
             }
+        }
+        let (mw,mh,slots)=crate::mask_plan::scratch_dimensions(&self.frame.masks);
+        let mask_scratch=u64::from(mw)*u64::from(mh)*slots as u64;
+        let mask_outputs=self.frame.masks.chunk_by(|a,b|a.layer==b.layer).map(|g|u64::from(g[0].width)*u64::from(g[0].height)).sum::<u64>();
+        if mask_outputs>128*1024*1024 {return Err("layer mask outputs exceed 128 MiB".into());}
+        if mask_scratch+scratch_capacity_bytes(&self.frame.scratch_sizes)>aem_effects::SCRATCH_BUDGET {
+            return Err("layer mask and effect scratch textures exceed 64 MiB".into());
         }
         Ok(&self.frame)
     }

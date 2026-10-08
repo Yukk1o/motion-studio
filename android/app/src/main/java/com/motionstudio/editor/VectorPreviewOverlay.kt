@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -111,6 +113,22 @@ private data class VectorHit(val path:Long,val node:Long,val axis:Int,val geomet
     }) {
         val snapshot=sample?:return@Canvas;val p=project?:return@Canvas
         val projection=VectorProjection(snapshot.getJSONArray("mvp"),size.width,size.height,p.getInt("width"),p.getInt("height"))
+        if(vm.maskOpen)snapshot.optJSONArray("paths").objects().forEach{path->
+            val nodes=path.optJSONArray("nodes").objects()
+            if(nodes.size>=2){
+                val outline=Path()
+                fun g(node:JSONObject)=if(draft?.node==node.getLong("id"))draft!!.geometry else node.getJSONArray("geometry")
+                val first=g(nodes[0]);projection.screen(first.getDouble(0).toFloat(),first.getDouble(1).toFloat())?.let{outline.moveTo(it.x,it.y)}
+                val pairs=nodes.zipWithNext()+if(path.optBoolean("closed"))listOf(nodes.last() to nodes.first())else emptyList()
+                pairs.forEach{(a,b)->val aa=g(a);val bb=g(b)
+                    val c=projection.screen((aa.getDouble(0)+aa.getDouble(4)).toFloat(),(aa.getDouble(1)+aa.getDouble(5)).toFloat())
+                    val d=projection.screen((bb.getDouble(0)+bb.getDouble(2)).toFloat(),(bb.getDouble(1)+bb.getDouble(3)).toFloat())
+                    val end=projection.screen(bb.getDouble(0).toFloat(),bb.getDouble(1).toFloat())
+                    if(c!=null&&d!=null&&end!=null)outline.cubicTo(c.x,c.y,d.x,d.y,end.x,end.y)
+                }
+                drawPath(outline,Accent,style=Stroke(1.dp.toPx()))
+            }
+        }
         snapshot.optJSONArray("paths").objects().forEach{path->path.optJSONArray("nodes").objects().forEach{node->
             val selected=path.getLong("id")==vm.vectorPathId&&node.getLong("id")==vm.vectorNodeId
             val g=if(draft?.path==path.getLong("id")&&draft?.node==node.getLong("id"))draft!!.geometry else node.getJSONArray("geometry")
