@@ -15,6 +15,7 @@ the Java-facing adapters; moving an endpoint here does not change its exported
 | `effects.rs` | Effect registry and plugin/editor request dispatch, editor preview and package image reads |
 | `export.rs` | Render-plan descriptions and packed outputs, capture, project packages and source image reads |
 | `geometry.rs` | Hit queries and geometry parameter/vertex outputs |
+| `images.rs` | Image inspection, bounded preview proxy preparation and full-resolution direct-buffer transfer |
 | `snapshot.rs` | State, sampled values, capabilities and preview metrics projected into the existing JSON protocol |
 | `composition.rs` | Composition context, request dispatch, frame bundles and composition rendering |
 | `media_audio.rs` | Media import/probe dispatch, URI access, audio preparation and frozen/live PCM readers |

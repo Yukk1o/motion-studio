@@ -11,6 +11,40 @@ fn image_layer(id: u64, asset: u64) -> Layer {
     l.content = Content::Image { asset };
     l
 }
+
+#[test]
+fn particle_sprite_is_demanded_without_an_image_layer_and_released_when_disabled() {
+    let package = aem_effects::builtin::particle_package().unwrap();
+    let mut project = Project::new(1080, 1920, 30, 60).unwrap();
+    project.assets.push(Asset {
+        id: 7,
+        path: "assets/sprite.png".into(),
+        width: 16,
+        height: 8,
+    });
+    let mut layer = Layer::solid(1, "Particles", [1080., 1920.], [540., 960., 0.], [1.; 4]);
+    let mut effect = aem_core::EffectInstance::new(
+        1,
+        &package.manifest.id,
+        &package.manifest.version,
+        &package.hash,
+        &package.manifest.effects[0],
+        layer.size,
+    );
+    effect.scene.as_mut().unwrap().sprite_asset = Some(7);
+    layer.effects.push(effect);
+    project.layers.push(layer);
+    project.rebuild_plugin_dependencies();
+    project.validate().unwrap();
+    let mut scene = Scene::new(&project);
+    scene.sample(&project, 0., None).unwrap();
+    assert!(scene.layers.iter().all(|layer| layer.asset != Some(7)));
+    assert!(aem_render::image_resources::scene_assets(&scene).contains(&7));
+
+    project.layers[0].effects[0].enabled = false;
+    scene.sample(&project, 1., None).unwrap();
+    assert!(!aem_render::image_resources::scene_assets(&scene).contains(&7));
+}
 #[test]
 fn active_images_share_proxies_with_nested_instances_and_full_output_is_explicit() {
     let root = tempfile::tempdir().unwrap();
