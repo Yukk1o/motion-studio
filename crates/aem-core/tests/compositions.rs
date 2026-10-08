@@ -74,7 +74,7 @@ fn old_projects_migrate_without_losing_contents_and_main_identity_is_stable() {
     old.as_object_mut().unwrap().remove("compositions");
     let p: Project = serde_json::from_value(old).unwrap();
     let migrated = p.clone().migrate().unwrap();
-    assert_eq!(migrated.version, 7);
+    assert_eq!(migrated.version, 8);
     assert_eq!(migrated.layers, p.layers);
     assert_eq!(migrated.composition_id, MAIN_COMPOSITION);
 }
@@ -90,7 +90,7 @@ fn format_six_vectors_and_adjustments_survive_precompose_save_and_reopen() {
     p.layers=vec![shape,adjustment];p.version=6;
     let original=p.layers.clone();
     let mut e=Engine::new(p).unwrap();
-    assert_eq!(e.project().version,7);
+    assert_eq!(e.project().version,8);
     edit(&mut e,MAIN_COMPOSITION,json!({"kind":"precompose","objects":[1,2],"name":"vector child"}));
     let id=e.project().compositions[0].id.clone();
     e.activate_composition(&id).unwrap();
@@ -98,7 +98,7 @@ fn format_six_vectors_and_adjustments_survive_precompose_save_and_reopen() {
     let root=tempfile::tempdir().unwrap();
     aem_core::storage::save(root.path(),e.project()).unwrap();
     let reopened=aem_core::storage::load(root.path()).unwrap();
-    assert_eq!(reopened.version,7);
+    assert_eq!(reopened.version,8);
     assert_eq!(reopened.composition(&id).unwrap().layers,original);
 }
 #[test]
