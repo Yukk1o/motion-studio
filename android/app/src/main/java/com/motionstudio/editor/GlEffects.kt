@@ -114,6 +114,23 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }
     }
     fun resourceBytes():Long=packageBytes
+    /** Sprite PNGs are effect inputs even when the emitting layer has no image source. */
+    fun spriteAssetSlots(plan:ByteBuffer):Set<Int> {
+        val count=plan.getInt(12);val base=plan.getInt(20);val result=HashSet<Int>()
+        check(count>=0&&base>=128&&base.toLong()+count.toLong()*40<=plan.getInt(28)){"粒子图片 pass 表错误"}
+        for(i in 0 until count) {
+            val p=base+i*40;val shaderIndex=plan.getInt(p)
+            check(shaderIndex in shaders.indices){"粒子图片程序索引错误"}
+            if(shaders[shaderIndex].sprite)for(offset in intArrayOf(4,8)) {
+                val index=plan.getInt(p+offset)
+                if(index<0&&index>GlMasks.SOURCE_TOKEN) {
+                    val slot=-index-1;check(slot in assets.indices){"粒子图片索引错误"}
+                    if(slot>0)result.add(slot)
+                }
+            }
+        }
+        return result
+    }
     fun scratchBytes():Long=(0..7).sumOf{i->poolSizes[i*2].toLong()*poolSizes[i*2+1]*(if(i==7)8 else 4)}
     fun texture(slot:Int):Int {check(slot in pool.indices&&pool[slot]!=0){"效果纹理索引错误"};return pool[slot]}
     fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null,maskTexture:((Int)->Int)?=null) {

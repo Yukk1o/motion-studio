@@ -292,6 +292,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
                     check(slot<textures.size){"图片素材表索引失效"};wanted.add(slot)
                 }
             }
+            wanted.addAll(effects!!.spriteAssetSlots(plan))
         }
         for(slot in 1 until textures.size)if(textures[slot]!=0&&slot !in wanted) {
             GLES30.glDeleteTextures(1,intArrayOf(textures[slot]),0);textures[slot]=0

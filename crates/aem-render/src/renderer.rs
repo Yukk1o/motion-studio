@@ -1335,7 +1335,15 @@ impl Renderer {
             }
         }
         let vector_bytes = self.layer_gpu.pending_vector_bytes(scene, &self.effect_gpu.builder.frame.vectors, &self.images);
-        self.trim_image_cache(vector_bytes);
+        let mask_bytes = self.effect_gpu.builder.frame.masks
+            .chunk_by(|a,b|a.layer==b.layer)
+            .map(|group| {
+                let first=&group[0];
+                let cost=u64::from(first.width)*u64::from(first.height);
+                let resident=self.images.get(&TextureKey::Mask(scene.layers[first.layer].id)).map_or(0,|image|image.bytes);
+                cost.saturating_sub(resident)
+            }).sum::<u64>();
+        self.trim_image_cache(vector_bytes+mask_bytes);
         let mask_other=self.video_plane_bytes()+self.effect_gpu.state.resource_bytes;
         let frame = &self.effect_gpu.builder.frame;
         let masks_changed=self.mask_gpu.prepare(&self.device,&self.queue,encoder,&self.image_layout,scene,&frame.masks,
