@@ -8,6 +8,7 @@ object NativeBridge {
     @JvmStatic external fun create(root: String, project: String): Long
     @JvmStatic external fun projectTemplate(kind:Int):String
     @JvmStatic external fun curveGraph(easing:String):String
+    @JvmStatic external fun colorCurveGraph(value:String):String
     @JvmStatic external fun creationError():String
     @JvmStatic external fun newProject(id:Long,project:String):String
     @JvmStatic external fun openProject(id:Long,directory:String):String

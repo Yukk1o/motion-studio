@@ -125,7 +125,7 @@ fn ordered_instances_dependencies_and_gesture_undo_survive_storage() {
     let restored: Project = serde_json::from_str(&text).unwrap();
     restored.validate().unwrap();
     assert_eq!(&restored, engine.project());
-    assert_eq!(restored.version, 7);
+    assert_eq!(restored.version, 8);
     apply(&mut engine, EffectAction::Remove { effect: 1 });
     apply(&mut engine, EffectAction::Remove { effect: 2 });
     assert!(engine.project().plugin_dependencies.is_empty());
@@ -281,7 +281,7 @@ fn version_one_migrates_and_missing_dependency_keeps_all_keys() {
     let mut old = Project::demo();
     old.version = 1;
     let migrated = Engine::new(old).unwrap();
-    assert_eq!(migrated.project().version, 7);
+    assert_eq!(migrated.project().version, 8);
     let (engine, _) = fixture("tint");
     let mut missing = engine.project().clone();
     missing.layers[0].effects[0].hash = "a".repeat(64);

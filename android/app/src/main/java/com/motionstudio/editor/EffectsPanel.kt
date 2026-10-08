@@ -173,6 +173,13 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                                         }
                                     }
                                     if(kind=="curve")EffectCurveObject(vm,objectId,instance,paramId,saved,enabled)
+                                    else if(kind=="color"&&desc.getDouble("min")>=0.0&&desc.getDouble("max")<=1.0&&(0..3).all{value.getDouble(it) in 0.0..1.0}) {
+                                        ColorProperty(vm,desc.optString("name","颜色"),"effect-color-$instance-$paramId",value,enabled,
+                                            alphaEditable=current.getString("plugin")!="com.motionstudio.effects.ae2021",
+                                            range=desc.getDouble("min")..desc.getDouble("max"),onSelect=::select) {rgba,at->
+                                            vm.effectAction(objectId,instance,"set",JSONObject().put("param",paramId).put("frame",at).put("value",rgba),false)
+                                        }
+                                    }
                                     else if(kind !in listOf("bool","enum")) {
                                         val dimensions=when(kind){"vec2"->2;"vec3"->3;"color"->if(current.getString("plugin")=="com.motionstudio.effects.ae2021")3 else 4;else->1}
                                         repeat(dimensions){axis->

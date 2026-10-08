@@ -114,11 +114,17 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
     fun change(block:(JSONObject)->Unit){val next=JSONObject(vector.toString());block(next);vm.replaceVector(next)}
     fun track(value:Any)=JSONObject().put("value",value).put("keys",JSONArray())
     Row(verticalAlignment=Alignment.CenterVertically){Text("填充",Modifier.weight(1f));Switch(vector.optJSONObject("fill")!=null,{enabled->change{it.put("fill",if(enabled)track(JSONArray(listOf(.33,.86,.78,1)))else JSONObject.NULL)}},enabled=vm.editable(),modifier=Modifier.testTag("vector-fill-toggle"))}
-    if(vector.optJSONObject("fill")!=null)listOf("红","绿","蓝","不透明度").forEachIndexed{axis,label->VectorNumber(vm,"vector:fill","填充 · $label",0.0,1.0,axis=axis)}
+    if(vector.optJSONObject("fill")!=null)(vm.sampleValueFor(vm.selected,"vector:fill") as? JSONArray)?.let{value->
+        val objectId=vm.selected
+        ColorProperty(vm,"填充颜色","vector-fill-color",value,vm.editable(),onSelect={vm.selectVectorTrack("vector:fill")}){rgba,at->vm.setPropertyValue(objectId,"vector:fill",at,rgba,false)}
+    }
     Row(verticalAlignment=Alignment.CenterVertically){Text("描边",Modifier.weight(1f));Switch(vector.optJSONObject("stroke")!=null,{enabled->change{it.put("stroke",if(enabled)JSONObject().put("color",track(JSONArray(listOf(1,1,1,1)))).put("width",track(3)).put("cap","round").put("join","round").put("miter_limit",4)else JSONObject.NULL)}},enabled=vm.editable(),modifier=Modifier.testTag("vector-stroke-toggle"))}
     vector.optJSONObject("stroke")?.let{stroke->
         VectorNumber(vm,"vector:stroke_width","描边宽度",0.0,4096.0)
-        listOf("红","绿","蓝","不透明度").forEachIndexed{axis,label->VectorNumber(vm,"vector:stroke_color","描边 · $label",0.0,1.0,axis=axis)}
+        (vm.sampleValueFor(vm.selected,"vector:stroke_color") as? JSONArray)?.let{value->
+            val objectId=vm.selected
+            ColorProperty(vm,"描边颜色","vector-stroke-color",value,vm.editable(),onSelect={vm.selectVectorTrack("vector:stroke_color")}){rgba,at->vm.setPropertyValue(objectId,"vector:stroke_color",at,rgba,false)}
+        }
         VectorOptions("端点",stroke.getString("cap"),listOf("butt" to "平头","round" to "圆头","square" to "方头"),vm.editable()){id->change{it.getJSONObject("stroke").put("cap",id)}}
         VectorOptions("拐角",stroke.getString("join"),listOf("miter" to "尖角","round" to "圆角","bevel" to "斜角"),vm.editable()){id->change{it.getJSONObject("stroke").put("join",id)}}
         if(stroke.getString("join")=="miter") {
