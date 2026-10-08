@@ -29,8 +29,8 @@ internal class PluginEditorHost(private val worker:Handler,private val main:Hand
         return envelope.getJSONObject("data")
     }
     private fun native(request:JSONObject)=CompositionBridge.plugin(handle(),composition(),request)
-    private fun closeOnWorker() {
-        workerToken?.let{token->runCatching{native(JSONObject().put("op","editor_close").put("token",token).put("commit",false))}}
+    private fun closeOnWorker(commit:Boolean=false) {
+        workerToken?.let{token->runCatching{native(JSONObject().put("op","editor_close").put("token",token).put("commit",commit))}}
         workerToken=null
     }
     fun open(objectId:Long,instance:Long) {
@@ -41,7 +41,15 @@ internal class PluginEditorHost(private val worker:Handler,private val main:Hand
                 val connection=data(native(JSONObject().put("op","editor_open").put("object",objectId).put("instance",instance)))
                 val token=connection.getString("token");workerToken=token
                 check(connection.getInt("protocol")==1){"编辑器协议暂不支持"}
-                val definition=connection.getJSONObject("definition");val editor=definition.getJSONObject("editor")
+                val definition=connection.getJSONObject("definition")
+                if(definition.optJSONObject("native_editor")!=null) {
+                    check(definition.getJSONObject("native_editor").getInt("protocol")==1){"原生编辑器协议暂不支持"}
+                    val initial=data(native(JSONObject().put("op","editor_message").put("token",token).put("message",JSONObject().put("op","begin").put("revision",connection.getJSONObject("state").getLong("revision")))))
+                    val result=PluginEditorSession(token,"","",definition,initial,emptyMap())
+                    main.post{if(ticket==generation.get()&&!closed()){session=result;state=initial;gesture=true;loading=false}}
+                    return@post
+                }
+                val editor=definition.getJSONObject("editor")
                 val files=editor.getJSONArray("files");check(files.length() in 1..32){"编辑器资源数量无效"}
                 val assets=linkedMapOf<String,PluginEditorAsset>();var total=0
                 for(i in 0 until files.length()) {
@@ -58,10 +66,10 @@ internal class PluginEditorHost(private val worker:Handler,private val main:Hand
             }catch(e:Throwable){closeOnWorker();main.post{if(ticket==generation.get()){gesture=false;error=e.message?:"编辑器无法打开";loading=false}}}
         }
     }
-    fun close(token:String?=null) {
+    fun close(token:String?=null,commit:Boolean=false) {
         if(token!=null&&session?.token!=token)return
         generation.incrementAndGet();session=null;state=null;loading=false;gesture=false;outstanding.clear()
-        worker.post{closeOnWorker();if(!closed()&&handle()!=0L)changed(false)}
+        worker.post{closeOnWorker(commit);if(!closed()&&handle()!=0L)changed(commit)}
     }
     fun refresh() {
         val ticket=generation.get()
@@ -82,7 +90,7 @@ internal class PluginEditorHost(private val worker:Handler,private val main:Hand
         val request=envelope.optJSONObject("message")?:return
         val op=request.optString("op")
         fun reject(message:String){reply(JSONObject().put("token",current.token).put("id",requestId).put("ok",false).put("error",message))}
-        if(op !in setOf("state","preview","set","animate","curve","scene","seed","transform","begin","commit","cancel")){reject("编辑器操作不支持");return}
+        if(op !in setOf("state","preview","set","animate","key","curve","scene","seed","transform","begin","commit","cancel")){reject("编辑器操作不支持");return}
         if(requestId in outstanding||outstanding.size>=8){reject("请等待当前编辑完成");return}
         if(op=="preview") {
             if(request.optInt("width") !in 1..512||request.optInt("height") !in 1..512){reject("预览尺寸必须是 1～512");return}
@@ -110,5 +118,9 @@ internal class PluginEditorHost(private val worker:Handler,private val main:Hand
                 }
             }
         }
+    }
+    fun request(request:JSONObject,reply:(JSONObject)->Unit) {
+        val current=session?:return
+        message(JSONObject().put("protocol",1).put("token",current.token).put("id",UUID.randomUUID().toString()).put("message",request).toString(),reply)
     }
 }

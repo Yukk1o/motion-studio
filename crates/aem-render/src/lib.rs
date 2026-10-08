@@ -8,6 +8,7 @@ mod presenter;
 mod quality;
 mod renderer;
 pub mod scene_generator;
+mod particle_emitter;
 mod timing;
 mod video_pixels;
 mod video_gpu;

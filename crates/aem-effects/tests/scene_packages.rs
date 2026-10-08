@@ -21,6 +21,33 @@ fn rebuild(package: &EffectPackage, manifest: serde_json::Value, omit: Option<&s
     writer.finish().unwrap().into_inner()
 }
 #[test]
+fn sdk_five_birth_history_requires_an_explicit_version_and_contract() {
+    let package=builtin::particle_package().unwrap();
+    assert_eq!(package.manifest.id,"com.motionstudio.effects.particles");
+    assert_eq!(package.manifest.sdk_version,5);
+    assert_eq!(package.manifest.effects[0].renderer,RendererKind::ParticleEmitter);
+    assert!(package.shaders[&("particle_emitter".into(),0)].sprite);
+    assert!(package.manifest.effects[0].native_editor.is_some());
+    assert!(package.manifest.effects[0].editor.is_none());
+    assert!(package.files.keys().all(|p|!p.ends_with(".js")&&!p.ends_with(".html")));
+    let mut manifest=serde_json::to_value(&package.manifest).unwrap();manifest["sdk_version"]=4.into();
+    assert!(EffectPackage::from_bytes(rebuild(&package,manifest,None)).is_err());
+    let mut manifest=serde_json::to_value(&package.manifest).unwrap();manifest["effects"][0]["params"][0]["animatable"]=true.into();
+    assert!(EffectPackage::from_bytes(rebuild(&package,manifest,None)).is_err());
+    let mut manifest=serde_json::to_value(&package.manifest).unwrap();manifest["effects"][0]["scene"]["particle_space"]=serde_json::Value::Null;
+    assert!(EffectPackage::from_bytes(rebuild(&package,manifest,None)).is_err());
+    let mut manifest=serde_json::to_value(&package.manifest).unwrap();manifest["effects"][0]["required_capabilities"]=serde_json::json!([]);
+    assert!(EffectPackage::from_bytes(rebuild(&package,manifest,None)).is_err());
+}
+#[test]
+fn native_slot_bindings_and_limits_are_validated_before_install() {
+    let package=builtin::particle_package().unwrap();
+    for slots in [serde_json::json!([{"kind":"parameters","params":["missing"]}]),serde_json::json!([{"kind":"preview","max_size":513}]),serde_json::json!([{"kind":"parameters","params":["size","size"]}]),serde_json::json!([{"kind":"timeline"},{"kind":"timeline"}])] {
+        let mut manifest=serde_json::to_value(&package.manifest).unwrap();manifest["effects"][0]["native_editor"]["sections"][0]["slots"]=slots;
+        assert!(EffectPackage::from_bytes(rebuild(&package,manifest,None)).is_err());
+    }
+}
+#[test]
 fn sdk_two_generators_and_independent_editor_assets_compile_portably() {
     let package = builtin::scene_package().unwrap();
     assert_eq!(package.manifest.version, "1.1.0");

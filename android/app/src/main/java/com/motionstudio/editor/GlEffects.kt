@@ -120,11 +120,11 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         val count=plan.getInt(12);check(start>=0&&end in start..count){"效果 pass 范围错误"}
         val base=plan.getInt(20)
         // Materialize the current decoded video texture into the layer's effect chain.
-        fun input(index:Int)=if(index<0){videoTexture?:run{check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}}else texture(index)
+        fun input(index:Int,sprite:Boolean)=if(index<0){(if(sprite)null else videoTexture)?:run{check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}}else texture(index)
         for(i in start until end) {
             val p=base+i*40;check(p>=64&&p+40<=plan.getInt(28)){"效果 pass 地址错误"}
             val shaderIndex=plan.getInt(p);check(shaderIndex in shaders.indices){"效果程序索引错误"}
-            val shader=shaders[shaderIndex];val source=input(plan.getInt(p+8));val previous=input(plan.getInt(p+4))
+            val shader=shaders[shaderIndex];val source=input(plan.getInt(p+8),shader.sprite);val previous=input(plan.getInt(p+4),shader.sprite)
             val targetSlot=plan.getInt(p+12);val target=texture(targetSlot);val w=plan.getInt(p+16);val h=plan.getInt(p+20)
             check(w in 1..poolSizes[targetSlot*2]&&h in 1..poolSizes[targetSlot*2+1]&&target!=source&&target!=previous){"效果输出目标错误"}
             val offset=plan.getInt(p+24);check(offset>=64&&offset+624<=plan.getInt(28)){"效果参数地址错误"}
