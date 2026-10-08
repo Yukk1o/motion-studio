@@ -246,9 +246,10 @@ pub fn probe(
     ex.select(track)?;
     let mut timestamps = Vec::new();
     let started = Instant::now();
+    let scan_budget = aem_media::timestamp_scan_budget(path.metadata().map_err(|e| e.to_string())?.len());
     while !ex.eos() {
         check()?;
-        if started.elapsed() > Duration::from_secs(30) {
+        if started.elapsed() > scan_budget {
             return Err("video timestamp scan timed out".into());
         }
         if unsafe { ffi::AMediaExtractor_getSampleFlags(ex.0.as_ptr()) } & 2 != 0 {

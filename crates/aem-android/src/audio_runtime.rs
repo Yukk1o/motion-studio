@@ -45,9 +45,13 @@ enum Request {
     MediaStatus {
         request_id: String,
     },
+    ExportProject {
+        request_id: String,
+    },
     FinishMediaImport {
         request_id: String,
     },
+    #[serde(alias = "cancel_media_task")]
     CancelMediaImport {
         request_id: String,
     },
@@ -83,6 +87,24 @@ fn with_audio() -> bool {
 }
 fn audio_name() -> String {
     "音频".into()
+}
+
+pub(super) fn package_limits() -> Value {
+    json!({"schema_version":1,
+        "max_source_bytes":aem_core::storage::MAX_MEDIA_ASSET,
+        "max_payload_bytes":aem_core::storage::MAX_PACKAGE,
+        "max_archive_bytes":aem_core::storage::MAX_PACKAGE_ARCHIVE,
+        "transfer_buffer_bytes":aem_core::storage::TRANSFER_BUFFER_BYTES,
+        "async_export":true,"frozen_export":true,"async_import":false,
+        "max_export_tasks_per_session":1,"max_export_workers":2})
+}
+
+/// Available before a session is created, including project recovery/import.
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_packageLimits(
+    mut env: JNIEnv, _class: JClass,
+) -> jstring {
+    string_result(&mut env, || Ok(package_limits()))
 }
 
 fn java_error(env: &mut JNIEnv, error: jni::errors::Error) -> String {
@@ -246,10 +268,17 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_request(
         let request:Request=serde_json::from_value(value).map_err(|e|e.to_string())?;
         match request {
             Request::MediaCapabilities{video_query}=>super::media_capabilities::query(&mut env,video_query),
+            Request::ExportProject{request_id}=>with_session(id,|s|{
+                if s.audio_jobs.contains(&request_id)||s.video_jobs.contains(&request_id)||s.package_jobs.contains(&request_id){return Err("media request id already exists".into());}
+                let snapshot=aem_core::storage::PackageSnapshot::new(&s.root,s.engine.project()).map_err(|e|e.to_string())?;
+                let stamp=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|e|e.to_string())?.as_nanos();
+                let output=s.root.join("exports").join(format!("project-{stamp}.aem"));
+                Ok(json!(s.package_jobs.start_export(&request_id,snapshot,output,s.engine.revision())?))
+            }),
             Request::ImportMedia{request_id,uri,kind,at_frame,name,track,with_audio,audio_track} => {
                 if kind!="audio"&&kind!="video"{return Err("media kind must be audio or video".into());}
                 let name=name.unwrap_or_else(||if kind=="video"{"视频".into()}else{audio_name()});
-                with_session(id,|s|{if s.audio_jobs.contains(&request_id)||s.video_jobs.contains(&request_id){return Err("media request id already exists".into());}Ok(())})?;
+                with_session(id,|s|{if s.audio_jobs.contains(&request_id)||s.video_jobs.contains(&request_id)||s.package_jobs.contains(&request_id){return Err("media request id already exists".into());}Ok(())})?;
                 with_session(id,|s| {if at_frame>=s.engine.project().frames{return Err("audio insertion outside composition".into());}Ok(())})?;
                 let open=uri_opener(&mut env,&context,uri)?;
                 if kind=="video" {return with_session(id,|s|Ok(json!(s.video_jobs.start(open,aem_media::VideoImportOptions{request_id,at_frame,name,track,audio_track,with_audio},false,std::sync::Arc::new(super::video_decode::probe))?)));}
@@ -257,20 +286,21 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_request(
             }
             Request::ProbeMedia{request_id,uri,kind,track,with_audio,audio_track} => {
                 if kind!="audio"&&kind!="video"{return Err("media kind must be audio or video".into());}
-                with_session(id,|s|{if s.audio_jobs.contains(&request_id)||s.video_jobs.contains(&request_id){return Err("media request id already exists".into());}Ok(())})?;
+                with_session(id,|s|{if s.audio_jobs.contains(&request_id)||s.video_jobs.contains(&request_id)||s.package_jobs.contains(&request_id){return Err("media request id already exists".into());}Ok(())})?;
                 let open=uri_opener(&mut env,&context,uri)?;
                 if kind=="video" {return with_session(id,|s|Ok(json!(s.video_jobs.start(open,aem_media::VideoImportOptions{request_id,at_frame:0,name:"视频".into(),track,audio_track,with_audio},true,std::sync::Arc::new(super::video_decode::probe))?)));}
                 with_session(id,|s|Ok(json!(s.audio_jobs.start_with_source(open,ImportOptions{request_id,at_frame:0,name:audio_name(),track},true)?)))
             }
-            Request::MediaStatus{request_id}=>with_session(id,|s|if s.video_jobs.contains(&request_id){Ok(json!(s.video_jobs.status(&request_id)?))}else{Ok(json!(s.audio_jobs.status(&request_id)?))}),
+            Request::MediaStatus{request_id}=>with_session(id,|s|if s.package_jobs.contains(&request_id){Ok(json!(s.package_jobs.status(&request_id)?))}else if s.video_jobs.contains(&request_id){Ok(json!(s.video_jobs.status(&request_id)?))}else{Ok(json!(s.audio_jobs.status(&request_id)?))}),
             Request::FinishMediaImport{request_id}=>with_session(id,|s| {
+                if s.package_jobs.contains(&request_id){return Err("export_project completes automatically; poll media_status".into());}
                 let task=if s.video_jobs.contains(&request_id){json!(s.video_jobs.commit(&request_id,&mut s.engine)?)}else{json!(s.audio_jobs.commit(&request_id,&mut s.engine)?)};s.audio_mixer=None;
                 s.sample()?;Ok(json!({"task":task,"state":s.snapshot()}))
             }),
-            Request::CancelMediaImport{request_id}=>with_session(id,|s|if s.video_jobs.contains(&request_id){Ok(json!(s.video_jobs.cancel(&request_id)?))}else{Ok(json!(s.audio_jobs.cancel(&request_id)?))}),
-            Request::ReleaseMediaTask{request_id}=>with_session(id,|s|{if s.video_jobs.contains(&request_id){s.video_jobs.release(&request_id)?;}else{s.audio_jobs.release(&request_id)?;}s.media_compositions.remove(&request_id);Ok(json!({"released":request_id}))}),
+            Request::CancelMediaImport{request_id}=>with_session(id,|s|if s.package_jobs.contains(&request_id){Ok(json!(s.package_jobs.cancel(&request_id)?))}else if s.video_jobs.contains(&request_id){Ok(json!(s.video_jobs.cancel(&request_id)?))}else{Ok(json!(s.audio_jobs.cancel(&request_id)?))}),
+            Request::ReleaseMediaTask{request_id}=>with_session(id,|s|{if s.package_jobs.contains(&request_id){s.package_jobs.release(&request_id)?;}else if s.video_jobs.contains(&request_id){s.video_jobs.release(&request_id)?;}else{s.audio_jobs.release(&request_id)?;}s.media_compositions.remove(&request_id);Ok(json!({"released":request_id}))}),
             Request::PrepareAudio{request_id,asset}=>with_session(id,|s|{
-                if s.video_jobs.contains(&request_id){return Err("media request id already exists".into());}
+                if s.video_jobs.contains(&request_id)||s.package_jobs.contains(&request_id){return Err("media request id already exists".into());}
                 let asset=s.engine.project().audio_assets.iter().find(|a|a.id==asset).cloned().ok_or("audio asset missing")?;
                 Ok(json!(s.audio_jobs.prepare_cache(&request_id,asset)?))
             }),
@@ -280,7 +310,7 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_request(
                     "buckets":aem_media::read_waveform(&s.root,a,first_bucket,count)?}))
             }),
             Request::PrepareVideo{request_id,asset}=>with_session(id,|s|{
-                if s.audio_jobs.contains(&request_id){return Err("media request id already exists".into());}
+                if s.audio_jobs.contains(&request_id)||s.package_jobs.contains(&request_id){return Err("media request id already exists".into());}
                 let asset=s.engine.project().video_assets.iter().find(|a|a.id==asset).cloned().ok_or("video asset missing")?;
                 s.video_frames.clear();Ok(json!(s.video_jobs.prepare_cache(&request_id,asset,std::sync::Arc::new(super::video_decode::probe))?))
             }),

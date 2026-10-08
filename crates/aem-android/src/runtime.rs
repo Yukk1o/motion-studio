@@ -80,6 +80,7 @@ struct Session {
     video_jobs: aem_media::VideoJobs,
     video_frames: video_frames::VideoFrames,
     audio_jobs: aem_media::AudioJobs,
+    package_jobs: aem_media::PackageJobs,
     audio_mixer: Option<(u64, aem_media::AudioMixer)>,
     audio_pcm: Vec<f32>,
     engine: Engine,
@@ -135,6 +136,8 @@ impl Session {
         self.engine = engine;
         self.audio_jobs = audio_jobs;
         self.video_jobs = video_jobs;
+        // Keep frozen package exports queryable across project replacement.
+        // Their open source handles and output paths belong to the old snapshot.
         self.video_frames.clear();
         self.audio_mixer = None;
         self.root = root;
@@ -179,6 +182,7 @@ impl Session {
             video_jobs: aem_media::VideoJobs::with_audio_decoder(root.clone(), std::sync::Arc::new(audio_decode::decode))?,
             video_frames: video_frames::VideoFrames::default(),
             audio_jobs: aem_media::AudioJobs::with_decoder(root.clone(), aem_media::Limits::default(), std::sync::Arc::new(audio_decode::decode))?,
+            package_jobs: aem_media::PackageJobs::default(),
             audio_mixer: None,
             audio_pcm: Vec::new(),
             engine,
@@ -769,7 +773,7 @@ impl Session {
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
                 "composition":{"fps_range":[1,aem_core::MAX_COMPOSITION_FPS],"fps_presets":[24,25,30,50,60,90,120,144,240],"fps_type":"integer"},
-                "multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":7,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "project_package":audio_runtime::package_limits(),"multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":7,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
                 "video":video_capabilities,
                 "audio":{"supported_formats":["M4A/AAC-LC/ALAC","MP3","FLAC","Ogg/Vorbis/Opus","ADTS/AAC","WAV/PCM8/16/24/32/float","AIFF"],"sample_rates":[8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000],"sample_rate_range":[8000,192000],"channels":[1,2],"device_query":"media_capabilities",
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
