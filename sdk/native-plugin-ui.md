@@ -53,6 +53,24 @@ EffectDefinition 新增可选 `native_editor`；SDK 5 必须声明能力 `native
 
 state 在原有字段之外返回 `frames`、`fps`、`timeline_offset`，以及 `images:[{id,width,height}]`；layers 新增 `particle_source`。params 是工程中的原始轨道，values 是当前帧采样。专属页与外面编辑同一组 EffectInstance.params，不建立额外时间轴或另存插件动画。
 
+### 原生颜色槽与局部取消
+
+`parameters` 中的 `kind=color` 使用宿主共用的颜色参数行和色盘，提供吸管、收藏及用户配置的常用色块。进入色盘覆盖专属页参数区域，保留上方预览和时间轴；采用相同的色板、色环、透明度及 HEX/RGBA 控件。吸管允许在专属页的预览中取色，保留该参数的 Alpha。
+
+专属页已经拥有一次完整的撤销事务，因此选色不会再开启嵌套历史，也不会通过外部编辑命令关闭插件会话。宿主对连续选色保持一项正在发送的请求和一个最新待发送值，避免拖动产生请求堆积；确认或取消等待当前请求完成。
+
+```json
+{"op":"color_begin","revision":12,"param":"color"}
+```
+
+要求已有页面事务、未锁定对象及颜色参数。后端保存此参数的完整原始轨道和当前合成帧；`state.color_edit` 返回 `{param,frame}`，未选色时为 `null`。在选色期间，`set`、`key`、`animate` 只接受该参数和该帧，其它编辑先结束选色。读取 `state` 不受影响。
+
+```json
+{"op":"color_finish","revision":16,"commit":false}
+```
+
+`commit=true` 保留颜色修改；`false` 完整恢复该颜色轨道，包括新增的中间帧关键帧和缓动，保留专属页此前修改的出生速率、精灵及其它参数。它不结束页面事务。完成专属页后仍形成一次撤销；取消整个专属页恢复全部页内编辑。页内定位、播放及时间轴关键帧操作先完成当前选色，再使用同一合成时钟和轨道。
+
 Android PluginEditorHost 在原生页打开时 begin，完成时 editor_close(commit=true)，取消或返回时 commit=false；一次完成形成一个撤销记录。首期撤销/重做通过退出后的主编辑器提供。只允许原生页面经受控播放/定位入口在该事务内移动播放头；旧 WebView 拖动期间仍阻止外部定位。编辑关键帧时暂停播放，先固定当前合成帧，再提交参数请求。
 
 关键帧切换请求：

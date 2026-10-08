@@ -99,7 +99,7 @@ class SceneEffectsTest {
                 assertTrue(NativeBridge.sampleRenderPlanInto(native,7,plan)>0);val expectedBytes=ByteArray(plan.getInt(28));plan.duplicate().apply{position(0);get(expectedBytes)}
                 assertTrue(NativeBridge.sampleRenderPlanInto(native,2,plan)>0);assertTrue(NativeBridge.sampleRenderPlanInto(native,7,plan)>0)
                 val repeated=ByteArray(plan.getInt(28));plan.duplicate().apply{position(0);get(repeated)};assertArrayEquals(expectedBytes,repeated)
-                assertEquals(4,plan.getInt(4));assertTrue(plan.getInt(68)>0)
+                assertEquals(info.getInt("version"),plan.getInt(4));assertTrue(plan.getInt(68)>0)
                 val capture=data(NativeBridge.capture(native));val reference=BitmapFactory.decodeFile(capture.getString("path"),BitmapFactory.Options().apply{inPremultiplied=false;inScaled=false})
                 assertTrue(EGL14.eglMakeCurrent(display,surface,surface,context))
                 val gl=GlEffects(info,native,listOf(white,spriteTexture))

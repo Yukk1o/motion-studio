@@ -86,32 +86,40 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.checkerboard(cell:
 @Composable internal fun ColorProperty(vm:EditorViewModel,label:String,tag:String,value:JSONArray,enabled:Boolean=true,alphaEditable:Boolean=true,
     range:ClosedFloatingPointRange<Double> = 0.0..1.0,docked:Boolean=true,onSelect:()->Unit={},onSet:(JSONArray,Int)->Unit) {
     val rgba=Rgba.from(value)
-    val context=LocalContext.current
-    val bookmarks=remember(context){ColorBookmarks(context)}
-    var favoriteMenu by remember{mutableStateOf(false)}
     fun open(advanced:Boolean=false):ColorEditingSession {
         vm.pause();onSelect();val session=ColorEditingSession(label,tag,rgba,vm.root,vm.compositionId,floor(vm.frame).toInt(),alphaEditable,range,onSet,docked,vm.panelOpen)
         session.advanced=advanced;vm.openColorEditor(session);return session
     }
+    ColorParameterRow(label,tag,rgba,enabled,alphaEditable,range,onOpen={open(it)},onPick={
+        val session=open();vm.beginEyedropper{sample->if(sample!=null&&vm.colorEditor===session)vm.previewColor(session.value.copy(r=sample.r,g=sample.g,b=sample.b))}
+    },onChoose={chosen->vm.pause();onSelect();vm.beginGesture();onSet(chosen.array(),floor(vm.frame).toInt());vm.endGesture()})
+}
+
+/** Shared presentation; the caller owns its editor transaction and preview route. */
+@Composable internal fun ColorParameterRow(label:String,tag:String,rgba:Rgba,enabled:Boolean=true,alphaEditable:Boolean=true,
+    range:ClosedFloatingPointRange<Double> = 0.0..1.0,onOpen:(Boolean)->Unit,onPick:()->Unit,onChoose:(Rgba)->Unit) {
+    val context=LocalContext.current
+    val bookmarks=remember(context){ColorBookmarks(context)}
+    var favoriteMenu by remember{mutableStateOf(false)}
     Row(Modifier.fillMaxWidth().heightIn(min=56.dp).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
-        TextButton(onClick={open()},enabled=enabled,modifier=Modifier.heightIn(min=48.dp).testTag(tag)){
+        TextButton(onClick={onOpen(false)},enabled=enabled,modifier=Modifier.heightIn(min=48.dp).testTag(tag)){
             Canvas(Modifier.size(24.dp)){checkerboard();drawRect(rgba.color())}
             Spacer(Modifier.width(8.dp));Text(label,color=Ink,fontSize=14.sp)
         }
-        IconButton(onClick={val session=open();vm.beginEyedropper{sample->if(sample!=null&&vm.colorEditor===session)vm.previewColor(session.value.copy(r=sample.r,g=sample.g,b=sample.b))}},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-eyedropper")){Icon(Icons.Default.Colorize,"吸管")}
-        IconButton(onClick={open(true)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-palette")){Icon(Icons.Default.Palette,"调色盘")}
+        IconButton(onClick=onPick,enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-eyedropper")){Icon(Icons.Default.Colorize,"吸管")}
+        IconButton(onClick={onOpen(true)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-palette")){Icon(Icons.Default.Palette,"调色盘")}
         Box {
             IconButton(onClick={favoriteMenu=true},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-favorites")){Icon(Icons.Default.Star,"收藏")}
             DropdownMenu(favoriteMenu,{favoriteMenu=false}) {
                 DropdownMenuItem(text={Text("收藏当前颜色")},onClick={bookmarks.add(rgba.hex(),rgba);favoriteMenu=false})
                 bookmarks.list().forEach{entry->DropdownMenuItem(text={Text(entry.name)},enabled=(0 until if(alphaEditable)4 else 3).all{entry.color.component(it) in range},onClick={
-                    favoriteMenu=false;vm.pause();onSelect();vm.beginGesture();onSet((if(alphaEditable)entry.color else entry.color.copy(a=rgba.a)).array(),floor(vm.frame).toInt());vm.endGesture()
+                    favoriteMenu=false;onChoose(if(alphaEditable)entry.color else entry.color.copy(a=rgba.a))
                 })}
             }
         }
         bookmarks.common().forEach{(id,c)->PaletteSwatch(c,c.hex(),"$tag-common-${id.replace(':','-')}",rgba.copy(a=1.0)==c.copy(a=1.0),enabled&&(0 until if(alphaEditable)4 else 3).all{c.component(it) in range}){
             val chosen=if(id.startsWith("favorite:")&&alphaEditable)c else c.copy(a=rgba.a)
-            vm.pause();onSelect();vm.beginGesture();onSet(chosen.array(),floor(vm.frame).toInt());vm.endGesture()
+            onChoose(chosen)
         }}
     }
 }

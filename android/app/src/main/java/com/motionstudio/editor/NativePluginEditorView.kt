@@ -27,16 +27,18 @@ import org.json.JSONObject
     var editing by remember(session.token){mutableStateOf(false)}
     var error by remember(session.token){mutableStateOf<String?>(null)}
     var number by remember(session.token){mutableStateOf<Triple<String,String,(String)->Unit>?>(null)}
-    val enabled=!state.optBoolean("locked")&&!editing
+    val colors=remember(session.token){NativePluginColors(vm,host,session.token)}
+    DisposableEffect(session.token){onDispose{if(host.session?.token!=session.token||vm.isClosed)vm.cancelEyedropper()}}
+    val enabled=!state.optBoolean("locked")&&!editing&&!colors.busy
     val compact=LocalConfiguration.current.screenHeightDp<480
     fun edit(request:JSONObject) {
-        if(!enabled)return
+        if((host.state?:state).optBoolean("locked")||editing||colors.busy||colors.palette!=null)return
         vm.pause()
-        editing=true;request.put("revision",state.getLong("revision"))
+        editing=true;request.put("revision",(host.state?:state).getLong("revision"))
         host.request(request){reply->editing=false;error=if(reply.optBoolean("ok"))null else reply.optString("error")}
     }
     LaunchedEffect(session.token,selectedParam){vm.property="effect:${state.getLong("instance")}:$selectedParam"}
-    fun close(commit:Boolean){vm.pause();host.close(session.token,commit)}
+    fun close(commit:Boolean){vm.pause();colors.finish(commit){host.close(session.token,commit)}}
     BackHandler {close(false)}
     fun numeric(label:String,value:String,low:Double,high:Double,integer:Boolean=false,change:(Double)->Unit) {
         number=Triple(label,value){text->val v=text.toDoubleOrNull()
@@ -52,13 +54,16 @@ import org.json.JSONObject
         if(slots.any{it.getString("kind")=="preview"})preview(Modifier.fillMaxWidth().height(if(compact)96.dp else 180.dp).testTag("native-plugin-preview"))
         val definition=session.definition.getJSONArray("params").objects().firstOrNull{it.getString("id")==selectedParam}
         val keys=state.getJSONObject("params").optJSONObject(selectedParam)?.getJSONObject("track")?.getJSONArray("keys").objects().map{it.getInt("frame")+state.optInt("timeline_offset")}
-        if(slots.any{it.getString("kind")=="timeline"})NativePluginTimeline(vm,state,definition?.getString("name")?:selectedParam,keys,enabled&&definition?.optBoolean("animatable")==true) {
-            edit(JSONObject().put("op","key").put("param",selectedParam))
-        }
+        if(slots.any{it.getString("kind")=="timeline"})NativePluginTimeline(vm,state,definition?.getString("name")?:selectedParam,keys,enabled&&definition?.optBoolean("animatable")==true,
+            transportEnabled=!editing&&!colors.busy,
+            onPlay={colors.finish(true){vm.togglePlay(true)}},onSeek={at->colors.finish(true){vm.seek(at,true)}},
+            onKey={colors.finish(true){edit(JSONObject().put("op","key").put("param",selectedParam))}})
         if(sections.isNotEmpty())ScrollableTabRow(tab.coerceAtMost(sections.lastIndex),edgePadding=0.dp) {
-            sections.forEachIndexed{i,section->Tab(selected=tab==i,onClick={tab=i},modifier=Modifier.heightIn(min=48.dp).testTag("native-slot-tab-${section.getString("id")}"),text={Text(section.getString("title"))})}
+            sections.forEachIndexed{i,section->Tab(selected=tab==i,enabled=colors.palette==null&&!colors.busy,onClick={tab=i},modifier=Modifier.heightIn(min=48.dp).testTag("native-slot-tab-${section.getString("id")}"),text={Text(section.getString("title"))})}
         }
-        Column((if(compact)Modifier else Modifier.weight(1f).verticalScroll(rememberScrollState())).fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        val picker=colors.palette
+        if(picker!=null)key(picker){ColorEditingPanel(picker,(if(compact)Modifier.height(360.dp)else Modifier.weight(1f)).fillMaxWidth(),colors::preview,{colors.finish(it)},colors::pick,vm.eyedropperActive)}
+        else key("parameters",tab){Column((if(compact)Modifier else Modifier.weight(1f).verticalScroll(rememberScrollState())).fillMaxWidth().padding(12.dp).testTag("native-parameters"),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             sections.getOrNull(tab)?.getJSONArray("slots").objects().forEach{slot->when(slot.getString("kind")) {
                 "parameters" -> slot.getJSONArray("params").let{ids->repeat(ids.length()){i->
                     val id=ids.getString(i);val p=session.definition.getJSONArray("params").objects().first{it.getString("id")==id};val value=state.getJSONObject("values").getJSONArray(id)
@@ -67,12 +72,16 @@ import org.json.JSONObject
                         if(p.optBoolean("animatable"))TextButton(onClick={selectedParam=id;edit(JSONObject().put("op","key").put("param",id))},enabled=enabled,modifier=Modifier.heightIn(min=48.dp).testTag("native-param-key-$id")){Text("◆")}
                     }
                     val kind=p.getString("kind")
-                    if(kind=="enum"||kind=="bool") {
+                    if(kind=="color") {
+                        ColorParameterRow(p.getString("name"),"native-param-$id",Rgba.from(value),enabled,range=p.getDouble("min")..p.getDouble("max"),
+                            onOpen={advanced->selectedParam=id;colors.open(p,advanced)},onPick={selectedParam=id;colors.open(p){colors.pick()}},
+                            onChoose={chosen->selectedParam=id;colors.choose(p,chosen)})
+                    }else if(kind=="enum"||kind=="bool") {
                         val options=if(kind=="bool")listOf("关闭","开启")else p.getJSONArray("options").let{a->List(a.length()){a.getString(it)}}
                         NativeChoice(options.mapIndexed{at,label->at.toLong() to label},value.getLong(0),enabled,"native-param-$id"){at->edit(JSONObject().put("op","set").put("param",id).put("value",JSONArray(value.toString()).put(0,at)))}
                     }else Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-                        val count=when(kind){"vec2"->2;"vec3"->3;"color"->4;else->1}
-                        repeat(count){axis->val label=if(count==1)""else if(kind=="color")listOf("R","G","B","A")[axis]else listOf("X","Y","Z")[axis]
+                        val count=when(kind){"vec2"->2;"vec3"->3;else->1}
+                        repeat(count){axis->val label=if(count==1)""else listOf("X","Y","Z")[axis]
                             OutlinedButton(onClick={numeric(p.getString("name")+" $label",value.getDouble(axis).toString(),p.getDouble("min"),p.getDouble("max")){v->
                                 val rate=if(id=="rate")v else state.getJSONObject("values").optJSONArray("rate")?.getDouble(0)?:0.0
                                 val life=if(id=="lifetime")v else state.getJSONObject("values").optJSONArray("lifetime")?.getDouble(0)?:0.0
@@ -100,28 +109,29 @@ import org.json.JSONObject
                 }
                 "note" -> Text(slot.getString("text"),color=Muted,fontSize=13.sp)
             }}
-        }
+        }}
         error?.let{Text(it,Modifier.padding(horizontal=12.dp),color=MaterialTheme.colorScheme.error)}
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
+        colors.error?.let{Text(it,Modifier.padding(horizontal=12.dp).testTag("native-color-error"),color=MaterialTheme.colorScheme.error)}
+        if(picker==null)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
             TextButton(onClick={close(false)},modifier=Modifier.heightIn(min=48.dp).testTag("native-editor-cancel")){Text("取消")}
-            TextButton(onClick={close(true)},enabled=!editing,modifier=Modifier.heightIn(min=48.dp).testTag("native-editor-done")){Text("完成")}
+            TextButton(onClick={close(true)},enabled=!editing&&!colors.busy,modifier=Modifier.heightIn(min=48.dp).testTag("native-editor-done")){Text("完成")}
         }
     }
     number?.let{(title,initial,change)->InputDialog(title,initial,onDismiss={number=null},numeric=true,onConfirm=change)}
 }
 
-@Composable private fun NativePluginTimeline(vm:EditorViewModel,state:JSONObject,label:String,keys:List<Int>,enabled:Boolean,onKey:()->Unit) {
+@Composable private fun NativePluginTimeline(vm:EditorViewModel,state:JSONObject,label:String,keys:List<Int>,enabled:Boolean,transportEnabled:Boolean,onPlay:()->Unit,onSeek:(Double)->Unit,onKey:()->Unit) {
     val frames=state.getInt("frames");val last=(frames-1).coerceAtLeast(1);val current=vm.frame.toInt()
     Column(Modifier.fillMaxWidth().padding(horizontal=12.dp).testTag("native-plugin-timeline")) {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-            TextButton(onClick={vm.togglePlay(true)},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("native-plugin-play"),contentPadding=PaddingValues(4.dp)){Text(if(vm.playing)"暂停"else"播放",maxLines=1)}
-            TextButton(onClick={keys.filter{it<current&&it>=0}.maxOrNull()?.let{vm.seek(it.toDouble(),true)}},enabled=keys.any{it<current&&it>=0},modifier=Modifier.weight(1f).heightIn(min=48.dp),contentPadding=PaddingValues(4.dp)){Text("上一键帧",maxLines=1)}
+            TextButton(onClick=onPlay,enabled=transportEnabled,modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("native-plugin-play"),contentPadding=PaddingValues(4.dp)){Text(if(vm.playing)"暂停"else"播放",maxLines=1)}
+            TextButton(onClick={keys.filter{it<current&&it>=0}.maxOrNull()?.let{onSeek(it.toDouble())}},enabled=transportEnabled&&keys.any{it<current&&it>=0},modifier=Modifier.weight(1f).heightIn(min=48.dp),contentPadding=PaddingValues(4.dp)){Text("上一键帧",maxLines=1)}
             TextButton(onClick=onKey,enabled=enabled,modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("native-plugin-key"),contentPadding=PaddingValues(4.dp)){Text(if(current in keys)"删除键帧"else"添加键帧",maxLines=1)}
-            TextButton(onClick={keys.filter{it>current&&it<frames}.minOrNull()?.let{vm.seek(it.toDouble(),true)}},enabled=keys.any{it>current&&it<frames},modifier=Modifier.weight(1f).heightIn(min=48.dp),contentPadding=PaddingValues(4.dp)){Text("下一键帧",maxLines=1)}
+            TextButton(onClick={keys.filter{it>current&&it<frames}.minOrNull()?.let{onSeek(it.toDouble())}},enabled=transportEnabled&&keys.any{it>current&&it<frames},modifier=Modifier.weight(1f).heightIn(min=48.dp),contentPadding=PaddingValues(4.dp)){Text("下一键帧",maxLines=1)}
         }
         Text("$label · 帧 $current / ${frames-1} · ${state.getInt("fps")} fps",color=Muted,fontSize=12.sp)
         Canvas(Modifier.fillMaxWidth().height(8.dp)){keys.filter{it in 0 until frames}.forEach{drawCircle(Color(0xFF58DCCA),3.dp.toPx(),Offset(it.toFloat()/last*size.width,size.height/2))}}
-        Slider(value=vm.frame.toFloat().coerceIn(0f,last.toFloat()),onValueChange={vm.seek(it.toInt().toDouble(),true)},valueRange=0f..last.toFloat(),enabled=frames>1,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("native-plugin-playhead"))
+        Slider(value=vm.frame.toFloat().coerceIn(0f,last.toFloat()),onValueChange={onSeek(it.toInt().toDouble())},valueRange=0f..last.toFloat(),enabled=transportEnabled&&frames>1,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("native-plugin-playhead"))
     }
 }
 

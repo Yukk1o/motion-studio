@@ -375,6 +375,12 @@ pub enum EffectAction {
         frame: u32,
         value: [f32; 4],
     },
+    /// Restore one literal color's complete track when a scoped picker cancels.
+    RestoreColorTrack {
+        effect: u64,
+        param: String,
+        track: Track<[f32; 4]>,
+    },
     Animate {
         effect: u64,
         param: String,
@@ -436,6 +442,12 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
         clip.edit_frame(f)
     };
     match action {
+        EffectAction::RestoreColorTrack { effect, param, track } => {
+            let p = param_mut(layer, effect, &param)?;
+            ensure(p.kind == ParamKind::Color, "color restoration requires a color parameter")?;
+            p.track = track;
+            p.validate(frames)?;
+        }
         EffectAction::SetScene { effect, scene } => {
             scene
                 .validate()

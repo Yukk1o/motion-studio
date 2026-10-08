@@ -8,6 +8,8 @@ use serde_json::{json, Value};
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EditorRequest {
     State,
+    ColorBegin { revision: u64, param: String },
+    ColorFinish { revision: u64, commit: bool },
     Key { revision: u64, param: String },
     Transform {
         revision: u64,
@@ -53,6 +55,13 @@ pub struct PluginEditorSession {
     pub dependency: crate::PluginDependency,
     pub effect: String,
     pub gesture: bool,
+    color_edit: Option<ColorEdit>,
+}
+#[derive(Clone)]
+struct ColorEdit {
+    param: String,
+    frame: u32,
+    track: crate::Track<[f32; 4]>,
 }
 impl PluginEditorSession {
     pub fn open(
@@ -84,6 +93,7 @@ impl PluginEditorSession {
             dependency: e.dependency(),
             effect: e.effect.clone(),
             gesture: false,
+            color_edit: None,
         })
     }
     fn check<'a>(
@@ -129,6 +139,7 @@ impl PluginEditorSession {
             "fps":engine.project().fps,"frames":engine.project().frames,"timeline_offset":layer.timeline.map_or(0,|t|t.offset_frame),
             "images":engine.project().assets.iter().map(|a|json!({"id":a.id,"width":a.width,"height":a.height})).collect::<Vec<_>>(),
             "locked":layer.locked,"gesture":self.gesture,
+            "color_edit":self.color_edit.as_ref().map(|c|json!({"param":c.param,"frame":c.frame})),
             "layers":engine.project().layers.iter().map(|l|json!({"id":l.id,"name":l.name,"particle_source":!matches!(l.content,crate::Content::Audio { .. })})).collect::<Vec<_>>()}),
         )
     }
@@ -145,6 +156,9 @@ impl PluginEditorSession {
         self.check(engine.project())?;
         let revision = match &request {
             EditorRequest::State => return self.state(engine, frame),
+            EditorRequest::ColorBegin { revision, .. }
+            | EditorRequest::ColorFinish { revision, .. }
+            |
             EditorRequest::Begin { revision }
             | EditorRequest::Commit { revision }
             | EditorRequest::Cancel { revision }
@@ -162,8 +176,36 @@ impl PluginEditorSession {
         )?;
         let (_, e) = self.check(engine.project())?;
         let effect = e.id;
+        if let Some(color) = &self.color_edit {
+            match &request {
+                EditorRequest::ColorFinish { .. } | EditorRequest::Commit { .. } | EditorRequest::Cancel { .. } => {}
+                EditorRequest::Set { param, .. } | EditorRequest::Key { param, .. } | EditorRequest::Animate { param, .. } => {
+                    ensure(*param == color.param && frame == color.frame, "finish active color edit before editing another parameter or frame")?;
+                }
+                _ => return Err(Error::Invalid("finish active color edit first".into())),
+            }
+        }
         let action = match request {
             EditorRequest::State => unreachable!(),
+            EditorRequest::ColorBegin { param, .. } => {
+                ensure(self.gesture, "color picker requires an active editor page gesture")?;
+                let (layer, instance) = self.check(engine.project())?;
+                ensure(!layer.locked, "object is locked")?;
+                let p = instance.params.get(&param).ok_or_else(|| Error::Invalid("editor parameter missing".into()))?;
+                ensure(p.kind == aem_effects::ParamKind::Color, "color picker requires a color parameter")?;
+                self.color_edit = Some(ColorEdit { param, frame, track: p.track.clone() });
+                return self.state(engine, frame);
+            }
+            EditorRequest::ColorFinish { commit, .. } => {
+                let color = self.color_edit.clone().ok_or_else(|| Error::Invalid("no active color picker".into()))?;
+                if !commit {
+                    engine.apply(Command::Effect { object: self.object, action: EffectAction::RestoreColorTrack {
+                        effect, param: color.param, track: color.track,
+                    } })?;
+                }
+                self.color_edit = None;
+                return self.state(engine, frame);
+            }
             EditorRequest::Begin { .. } => {
                 ensure(!self.gesture, "editor gesture already active")?;
                 engine.begin_gesture()?;
@@ -174,6 +216,7 @@ impl PluginEditorSession {
                 ensure(self.gesture, "no active editor gesture")?;
                 engine.end_gesture(matches!(request, EditorRequest::Commit { .. }))?;
                 self.gesture = false;
+                self.color_edit = None;
                 return self.state(engine, frame);
             }
             EditorRequest::Transform {
@@ -240,6 +283,7 @@ impl PluginEditorSession {
             engine.end_gesture(commit)?;
             self.gesture = false;
         }
+        self.color_edit = None;
         Ok(())
     }
 }

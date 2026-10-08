@@ -1336,6 +1336,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun cancelExport() {exporter?.cancelled?.set(true)}
     override fun onCleared() {
         gestureInertia.stop()
+        cancelEyedropper()
         pluginEditor.close()
         closed.set(true);playing=false
         audioPlayer.close();mediaGeneration.incrementAndGet()
