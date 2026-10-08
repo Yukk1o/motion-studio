@@ -223,6 +223,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         }
                     }}
                 }
+                SourceColorProperty(vm)
                 if(vm.property=="rotation") {
                     if(!scrollValues)Spacer(Modifier.weight(1f))
                     RotationRuler(vm,Modifier.height(48.dp).fillMaxWidth())

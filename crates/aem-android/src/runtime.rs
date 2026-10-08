@@ -795,7 +795,7 @@ impl Session {
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
                 "composition":{"fps_range":[1,aem_core::MAX_COMPOSITION_FPS],"fps_presets":[24,25,30,50,60,90,120,144,240],"fps_type":"integer"},
-                "project_package":audio_runtime::package_limits(),"multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":7,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "project_package":audio_runtime::package_limits(),"multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":8,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
                 "video":video_capabilities,
                 "audio":{"supported_formats":["M4A/AAC-LC/ALAC","MP3","FLAC","Ogg/Vorbis/Opus","ADTS/AAC","WAV/PCM8/16/24/32/float","AIFF"],"sample_rates":[8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000],"sample_rate_range":[8000,192000],"channels":[1,2],"device_query":"media_capabilities",
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
@@ -1190,6 +1190,17 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_curveGraph(
         Ok(
             json!({"points": points, "definitionScale": easing.curve.map_or(1.0, |c| c.definition_scale())}),
         )
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_colorCurveGraph(
+    mut env:JNIEnv,_class:JClass,value:JString,
+)->jstring {
+    let value=read_string(&mut env,&value);
+    string_result(&mut env,||{
+        let value:aem_core::CurveObject=serde_json::from_str(&value?).map_err(|e|e.to_string())?;
+        value.validate().map_err(|e|e.to_string())?;
+        Ok(value.graph())
     })
 }
 #[no_mangle]

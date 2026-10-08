@@ -5,6 +5,7 @@ mod camera;
 mod compositor;
 pub mod composition;
 mod curve;
+pub mod color_curves;
 mod editor;
 mod effects;
 mod expressions;
