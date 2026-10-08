@@ -399,12 +399,7 @@ fn output_buffer(
         return Err("PCM output buffer must be writable".into());
     }
     let len = frames as usize * 8;
-    let address = env
-        .get_direct_buffer_address(buffer)
-        .map_err(|e| e.to_string())?;
-    let capacity = env
-        .get_direct_buffer_capacity(buffer)
-        .map_err(|e| e.to_string())?;
+    let (address, capacity) = BufferAccess::address_first(env, buffer)?;
     if capacity < len || address.is_null() {
         return Err("PCM output requires a sufficient direct ByteBuffer".into());
     }
@@ -413,7 +408,7 @@ fn output_buffer(
 fn copy_pcm(address: *mut u8, pcm: &[f32], count: usize, start: u64, total: u64) -> Value {
     for (i, value) in pcm[..count * 2].iter().enumerate() {
         unsafe {
-            std::ptr::copy_nonoverlapping(value.to_le_bytes().as_ptr(), address.add(i * 4), 4);
+            buffers::copy_bytes(address.add(i * 4), &value.to_le_bytes());
         }
     }
     json!({"frames":count,"bytes":count*8,"sample_rate":48000,"channels":2,"format":"f32le_interleaved",
