@@ -472,14 +472,13 @@ impl Session {
             return Ok(false);
         };
         g.renderer.retain_video_instances(&self.scene);
+        g.renderer.set_image_prefetch(aem_render::image_resources::upcoming_assets(self.engine.project(), frame));
         let image_resolution = if self.preview.mode == PreviewMode::High {
             aem_render::image_resources::Resolution::Full
         } else {
             aem_render::image_resources::Resolution::Preview(aem_render::image_resources::MAX_PREVIEW_EDGE)
         };
-        if !g.renderer.prepare_scene_assets(&self.scene, image_resolution, true).map_err(|e| e.to_string())? {
-            return Ok(false);
-        }
+        let images_ready = g.renderer.prepare_scene_assets(&self.scene, image_resolution, true).map_err(|e| e.to_string())?;
         let preparing = Instant::now();
         let frames = self.video_frames.prepare_scene(
             self.engine.project(),
@@ -493,6 +492,10 @@ impl Session {
             self.video_upload_us = 0;
             return Ok(false);
         };
+        if !images_ready {
+            self.video_upload_us = 0;
+            return Ok(false);
+        }
         let uploading = Instant::now();
         for (object, image) in frames {
             let source = self
@@ -627,6 +630,7 @@ impl Session {
         if previous_tier != self.preview.tier() {
             self.view_revision += 1;
         }
+        g.renderer.prefetch_scene_assets(image_resolution).map_err(|e| e.to_string())?;
         self.last_error = None;
         Ok(true)
     }
@@ -665,6 +669,11 @@ impl Session {
             "imageDecodes":self.graphics.as_ref().map_or(0,|g|g.renderer.image_decodes),
             "imageProxyCacheHits":self.graphics.as_ref().map_or(0,|g|g.renderer.image_proxy_cache_hits),
             "imageUploadBytes":self.graphics.as_ref().map_or(0,|g|g.renderer.image_upload_bytes),
+            "imageMemoryCacheHits":self.graphics.as_ref().map_or(0,|g|g.renderer.image_memory_cache_hits),
+            "imageIdleBytes":self.graphics.as_ref().map_or(0,|g|g.renderer.image_idle_bytes()),
+            "imageIdleBudgetBytes":aem_render::image_resources::IDLE_TEXTURE_BYTES,
+            "imagePrefetches":self.graphics.as_ref().map_or(0,|g|g.renderer.image_prefetches),
+            "imagePrefetchSeconds":aem_render::image_resources::PREFETCH_SECONDS,
             "surfaceBounded":self.preview.mode != PreviewMode::High,"gpuTimingActive":self.graphics.as_ref().is_some_and(|g|g.timer.is_some()),
             "profiling":self.recorder.is_some(),"gpuTimestampSupported":self.graphics.as_ref().is_some_and(|g|g.renderer.device.features().contains(wgpu::Features::TIMESTAMP_QUERY)),
             "video":self.video_info()})

@@ -275,6 +275,28 @@ impl GpuState {
             + self.resource_bytes
             + self.luts.len() as u64 * 1024
     }
+    /// Reserve validated package PNGs before uploading, so idle preview images
+    /// cannot turn an otherwise valid active effect into a budget failure.
+    pub fn pending_resource_bytes(&self, builder: &PlanBuilder) -> u64 {
+        let mut seen = std::collections::HashSet::new();
+        let mut bytes = 0;
+        for pass in &builder.frame.passes {
+            let program = &builder.programs[pass.program as usize];
+            if self.resources.contains_key(&pass.program) { continue; }
+            if let Some(package) = &program.package {
+                for path in &program.resources {
+                    let key = (package.hash.clone(), path.clone());
+                    if self.resource_textures.contains_key(&key) || !seen.insert(key) { continue; }
+                    if let Some(data) = package.files.get(path) {
+                        if let Ok(reader) = image::ImageReader::new(std::io::Cursor::new(data)).with_guessed_format() {
+                            if let Ok((w, h)) = reader.into_dimensions() { bytes += u64::from(w) * u64::from(h) * 4; }
+                        }
+                    }
+                }
+            }
+        }
+        bytes
+    }
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,

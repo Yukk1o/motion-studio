@@ -5,12 +5,107 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver},
+        Arc,
+    },
 };
 
 pub const MAX_ENCODED_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_DECODED_BYTES: u64 = 128 * 1024 * 1024;
 pub const MAX_PREVIEW_EDGE: u32 = 2048;
+pub const IDLE_TEXTURE_BYTES: u64 = 32 * 1024 * 1024;
+pub const PREFETCH_SECONDS: f64 = 0.5;
+pub const MAX_PREFETCH_IMAGES: usize = 2;
+
+/// Inspect clip dependencies without sampling expressions or animation. Times
+/// are mapped through nested clips in seconds, including mixed frame rates.
+pub fn upcoming_assets(project: &aem_core::Project, frame: f64) -> Vec<u64> {
+    fn visit(
+        document: &aem_core::Project,
+        layers: &[aem_core::Layer],
+        fps: u32,
+        frames: u32,
+        begin: f64,
+        end: f64,
+        delay: f64,
+        depth: usize,
+        found: &mut std::collections::BTreeMap<u64, f64>,
+    ) {
+        if depth >= aem_core::composition::MAX_COMPOSITION_DEPTH {
+            return;
+        }
+        for layer in layers.iter().filter(|l| l.visible) {
+            let clip = layer.clip(frames);
+            let start = begin.max(f64::from(clip.in_frame)).max(0.);
+            let finish = end.min(f64::from(clip.out_frame)).min(f64::from(frames));
+            if start >= finish {
+                continue;
+            }
+            let wait = delay + (start - begin) / f64::from(fps);
+            match &layer.content {
+                aem_core::Content::Image { asset }
+                | aem_core::Content::Text {
+                    raster_asset: asset,
+                    ..
+                } => {
+                    found
+                        .entry(*asset)
+                        .and_modify(|t| *t = t.min(wait))
+                        .or_insert(wait);
+                }
+                aem_core::Content::Composition { clip } => {
+                    if let Some(child) = document
+                        .compositions
+                        .iter()
+                        .find(|c| c.id == clip.composition)
+                    {
+                        visit(
+                            document,
+                            &child.layers,
+                            child.fps,
+                            child.frames,
+                            clip.source_frame(layer.local_frame(start), fps, child.fps),
+                            clip.source_frame(layer.local_frame(finish), fps, child.fps),
+                            wait,
+                            depth + 1,
+                            found,
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    if !frame.is_finite() || frame < 0. {
+        return vec![];
+    }
+    let mut found = std::collections::BTreeMap::new();
+    visit(
+        project,
+        &project.layers,
+        project.fps,
+        project.frames,
+        frame,
+        frame + f64::from(project.fps) * PREFETCH_SECONDS,
+        0.,
+        0,
+        &mut found,
+    );
+    let mut ordered: Vec<_> = found.into_iter().collect();
+    ordered.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
+    ordered.into_iter().map(|(id, _)| id).collect()
+}
+
+pub(crate) const CANCELLED: &str = "image decode superseded";
+fn check_cancel(cancel: Option<&AtomicBool>) -> Result<(), String> {
+    if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
+        Err(CANCELLED.into())
+    } else {
+        Ok(())
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Resolution {
@@ -113,6 +208,14 @@ pub struct Pixels {
 }
 
 pub fn decode(source: &Source, resolution: Resolution) -> Result<Pixels, String> {
+    decode_cancellable(source, resolution, None)
+}
+fn decode_cancellable(
+    source: &Source,
+    resolution: Resolution,
+    cancel: Option<&AtomicBool>,
+) -> Result<Pixels, String> {
+    check_cancel(cancel)?;
     let (w, h) = resolution.dimensions(source.width, source.height);
     let cost = u64::from(w) * u64::from(h) * 4;
     if cost > MAX_DECODED_BYTES {
@@ -122,7 +225,7 @@ pub fn decode(source: &Source, resolution: Resolution) -> Result<Pixels, String>
     let cache = if matches!(resolution, Resolution::Preview(_))
         && (w, h) != (source.width, source.height)
     {
-        proxy_path(source, w, h)
+        proxy_path(source, w, h, cancel)
     } else {
         None
     };
@@ -136,13 +239,15 @@ pub fn decode(source: &Source, resolution: Resolution) -> Result<Pixels, String>
             });
         }
     }
+    check_cancel(cancel)?;
     let mut pixels = Pixels {
         width: w,
         height: h,
         rgba: vec![0; cost as usize],
         cached: false,
     };
-    decode_into(source, resolution, &mut pixels.rgba)?;
+    decode_into_cancellable(source, resolution, &mut pixels.rgba, cancel)?;
+    check_cancel(cancel)?;
     if let Some(path) = &cache {
         write_proxy(path, &pixels);
     }
@@ -154,7 +259,7 @@ pub fn decode(source: &Source, resolution: Resolution) -> Result<Pixels, String>
 pub const PROXY_CACHE_BYTES: u64 = 64 * 1024 * 1024;
 static CACHE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static CACHE_SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-fn proxy_path(source: &Source, w: u32, h: u32) -> Option<PathBuf> {
+fn proxy_path(source: &Source, w: u32, h: u32, cancel: Option<&AtomicBool>) -> Option<PathBuf> {
     use sha2::{Digest, Sha256};
     source.validate().ok()?;
     let mut hash = Sha256::new();
@@ -165,6 +270,7 @@ fn proxy_path(source: &Source, w: u32, h: u32) -> Option<PathBuf> {
     let mut buffer = [0u8; 64 * 1024];
     let mut bytes = 0;
     loop {
+        check_cancel(cancel).ok()?;
         let n = file.read(&mut buffer).ok()?;
         if n == 0 {
             break;
@@ -285,6 +391,15 @@ pub fn decode_into(
     resolution: Resolution,
     output: &mut [u8],
 ) -> Result<(), String> {
+    decode_into_cancellable(source, resolution, output, None)
+}
+fn decode_into_cancellable(
+    source: &Source,
+    resolution: Resolution,
+    output: &mut [u8],
+    cancel: Option<&AtomicBool>,
+) -> Result<(), String> {
+    check_cancel(cancel)?;
     let format = source.validate()?;
     let (w, h) = resolution.dimensions(source.width, source.height);
     let cost = u64::from(w) * u64::from(h) * 4;
@@ -292,7 +407,7 @@ pub fn decode_into(
         return Err("invalid image output length or 128 MiB budget exceeded".into());
     }
     if format == image::ImageFormat::Png {
-        return png_into(source, w, h, output);
+        return png_into(source, w, h, output, cancel);
     }
     // Existing JPEG resources remain supported. Its decoder needs a full image,
     // so validate that cost before allocating even when requesting a proxy.
@@ -307,12 +422,14 @@ pub fn decode_into(
     limits.max_alloc = Some(MAX_DECODED_BYTES);
     reader.limits(limits);
     let image = reader.decode().map_err(|e| e.to_string())?;
+    check_cancel(cancel)?;
     use image::GenericImageView;
     let lut = linear_lut();
     let mut row = vec![[0.; 4]; w as usize];
     let mut rows = 0;
     let mut y_out = 0;
     for y in 0..source.height {
+        check_cancel(cancel)?;
         for x in 0..source.width {
             accumulate(
                 &mut row[(u64::from(x) * u64::from(w) / u64::from(source.width)) as usize],
@@ -375,7 +492,13 @@ fn finish_row(row: &mut [[f32; 4]], rows: u32, sw: u32, w: u32, output: &mut [u8
         *sum = [0.; 4];
     }
 }
-fn png_into(source: &Source, w: u32, h: u32, output: &mut [u8]) -> Result<(), String> {
+fn png_into(
+    source: &Source,
+    w: u32,
+    h: u32,
+    output: &mut [u8],
+    cancel: Option<&AtomicBool>,
+) -> Result<(), String> {
     let mut decoder = png::Decoder::new(BufReader::new(
         File::open(&source.path).map_err(|e| e.to_string())?,
     ));
@@ -420,6 +543,7 @@ fn png_into(source: &Source, w: u32, h: u32, output: &mut [u8]) -> Result<(), St
                 continue;
             }
             for y in (y0..source.height).step_by(dy) {
+                check_cancel(cancel)?;
                 let row = reader
                     .next_row()
                     .map_err(|e| e.to_string())?
@@ -447,6 +571,7 @@ fn png_into(source: &Source, w: u32, h: u32, output: &mut [u8]) -> Result<(), St
         }
         if !full {
             for y in 0..h {
+                check_cancel(cancel)?;
                 let rows = ((u64::from(y + 1) * u64::from(source.height)).div_ceil(u64::from(h))
                     - (u64::from(y) * u64::from(source.height)).div_ceil(u64::from(h)))
                     as u32;
@@ -462,6 +587,7 @@ fn png_into(source: &Source, w: u32, h: u32, output: &mut [u8]) -> Result<(), St
     } else {
         if (w, h) == (source.width, source.height) {
             for y in 0..source.height {
+                check_cancel(cancel)?;
                 let row = reader
                     .next_row()
                     .map_err(|e| e.to_string())?
@@ -494,6 +620,7 @@ fn png_into(source: &Source, w: u32, h: u32, output: &mut [u8]) -> Result<(), St
         let mut rows = 0;
         let mut yo = 0;
         for y in 0..source.height {
+            check_cancel(cancel)?;
             let row = reader
                 .next_row()
                 .map_err(|e| e.to_string())?
@@ -533,37 +660,78 @@ fn png_into(source: &Source, w: u32, h: u32, output: &mut [u8]) -> Result<(), St
 /// owner using the exact source and requested dimensions.
 #[derive(Default)]
 pub struct DecodeTask {
-    pending: Option<(Source, Resolution, Receiver<Result<Pixels, String>>)>,
+    pending: Option<(
+        Source,
+        Resolution,
+        bool,
+        Arc<AtomicBool>,
+        Receiver<Result<Pixels, String>>,
+    )>,
 }
 impl DecodeTask {
     pub fn busy(&self) -> bool {
         self.pending.is_some()
     }
-    pub fn start(&mut self, source: Source, resolution: Resolution) -> Result<(), String> {
+    pub fn cancel_unwanted(&mut self, wanted: &BTreeSet<u64>, resolution: Resolution) {
+        if let Some((source, mode, _, cancel, _)) = &self.pending {
+            if *mode != resolution || !wanted.contains(&source.id) {
+                cancel.store(true, Ordering::Relaxed);
+            }
+        }
+    }
+    pub fn cancel(&mut self) {
+        if let Some((_, _, _, cancel, _)) = &self.pending {
+            cancel.store(true, Ordering::Relaxed);
+        }
+    }
+    pub fn start(
+        &mut self,
+        source: Source,
+        resolution: Resolution,
+        speculative: bool,
+    ) -> Result<(), String> {
         if self.busy() {
             return Err("an image decode is already pending".into());
         }
         let (send, receive) = mpsc::sync_channel(1);
         let input = source.clone();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let worker_cancel = cancel.clone();
         std::thread::Builder::new()
             .name("motion-image-decode".into())
             .spawn(move || {
-                let result = std::panic::catch_unwind(|| decode(&input, resolution))
-                    .unwrap_or_else(|_| Err("image decoder panicked".into()));
+                let result = std::panic::catch_unwind(|| {
+                    decode_cancellable(&input, resolution, Some(&worker_cancel))
+                })
+                .unwrap_or_else(|_| Err("image decoder panicked".into()));
                 let _ = send.send(result);
             })
             .map_err(|e| e.to_string())?;
-        self.pending = Some((source, resolution, receive));
+        self.pending = Some((source, resolution, speculative, cancel, receive));
         Ok(())
     }
-    pub fn poll(&mut self) -> Option<(Source, Resolution, Result<Pixels, String>)> {
-        let (_, _, receive) = self.pending.as_ref()?;
+    pub fn poll(&mut self) -> Option<(Source, Resolution, bool, Result<Pixels, String>)> {
+        let (_, _, _, _, receive) = self.pending.as_ref()?;
         let result = match receive.try_recv() {
             Ok(result) => result,
             Err(mpsc::TryRecvError::Empty) => return None,
             Err(_) => Err("image decode worker disconnected".into()),
         };
-        let (source, resolution, _) = self.pending.take().unwrap();
-        Some((source, resolution, result))
+        let (source, resolution, speculative, cancel, _) = self.pending.take().unwrap();
+        Some((
+            source,
+            resolution,
+            speculative,
+            if cancel.load(Ordering::Relaxed) {
+                Err(CANCELLED.into())
+            } else {
+                result
+            },
+        ))
+    }
+}
+impl Drop for DecodeTask {
+    fn drop(&mut self) {
+        self.cancel();
     }
 }

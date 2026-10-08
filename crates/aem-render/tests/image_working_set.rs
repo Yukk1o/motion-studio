@@ -142,21 +142,23 @@ fn active_images_share_proxies_with_nested_instances_and_full_output_is_explicit
     assert_eq!(r.image_dimensions(8), Some((2048, 2048)));
     assert_eq!(r.image_dimensions(99), None);
     assert_eq!(r.asset_ids(), [0, 99, 7, 8]);
-    // Drop every reference to asset 7: it releases the shared texture once.
+    // Drop every reference: the proxy stays in the bounded idle GPU cache.
     p.layers.retain(|l| l.id == 2);
     scene.sample(&p, 0., None).unwrap();
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)
         .unwrap();
-    assert_eq!(r.image_dimensions(7), None);
+    assert_eq!(r.image_dimensions(7), Some((2048, 2048)));
     p.layers.push(image_layer(4, 7));
     scene.sample(&p, 0., None).unwrap();
-    let hits = r.image_proxy_cache_hits;
+    let hits = r.image_memory_cache_hits;
+    let uploaded = r.image_upload_bytes;
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)
         .unwrap();
     assert!(
-        r.image_proxy_cache_hits > hits,
-        "reverse seek did not reuse the disk proxy"
+        r.image_memory_cache_hits > hits,
+        "reverse seek did not reuse the resident proxy"
     );
+    assert_eq!(r.image_upload_bytes, uploaded);
     // Project/catalog replacement must not reuse a video stamped with the same
     // object/source/PTS from a different project directory.
     r.upload_video_frame(100, 200, 0, 1, 1, &[255, 0, 0, 255])
