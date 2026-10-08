@@ -27,13 +27,13 @@ impl Session {
             if let Some(g) = &mut self.graphics {
                 if let Err(error) = g
                     .renderer
-                    .synchronize_assets(self.engine.project(), &self.root)
+                    .configure_assets(self.engine.project(), &self.root)
                 {
                     self.engine.undo().map_err(|e| e.to_string())?;
                     g.renderer.clear_assets();
                     let _ = g
                         .renderer
-                        .synchronize_assets(self.engine.project(), &self.root);
+                        .configure_assets(self.engine.project(), &self.root);
                     return Err(error.to_string());
                 }
             }
