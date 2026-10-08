@@ -289,11 +289,18 @@ impl Session {
             let mut renderer =
                 pollster::block_on(Renderer::headless()).map_err(|e| e.to_string())?;
             renderer.set_effect_registry(self.effects.registry.clone());
+            renderer
+                .configure_assets(self.engine.project(), &self.root)
+                .map_err(|e| e.to_string())?;
             self.editor_renderer = Some(renderer);
         }
         let renderer = self.editor_renderer.as_mut().unwrap();
         renderer
-            .synchronize_assets(self.engine.project(), &self.root)
+            .prepare_scene_assets(
+                &self.scene,
+                aem_render::image_resources::Resolution::Preview(1024),
+                false,
+            )
             .map_err(|e| e.to_string())?;
         renderer
             .preflight_effects(&self.scene, width as u32, height as u32)
@@ -364,5 +371,20 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_pluginPixels(
                 .map(|v| v.into_rgba8().into_raw())
                 .map_err(|e| e.to_string())
         })
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_colorCurveGraph(
+    mut env: JNIEnv,
+    _class: JClass,
+    value: JString,
+) -> jstring {
+    let value = read_string(&mut env, &value);
+    string_result(&mut env, || {
+        let value: aem_core::CurveObject =
+            serde_json::from_str(&value?).map_err(|e| e.to_string())?;
+        value.validate().map_err(|e| e.to_string())?;
+        Ok(value.graph())
     })
 }
