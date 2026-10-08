@@ -566,6 +566,8 @@ impl GpuState {
         encoder: &mut wgpu::CommandEncoder,
     ) -> Result<(), RenderError> {
         let p = &frame.passes[index];
+        let source_key = if p.sprite {None} else {source_key};
+        let external = if p.sprite {None} else {external};
         queue.write_buffer(
             &self.buffers[index].buffer,
             0,
@@ -584,6 +586,9 @@ impl GpuState {
         if self.bindings[index].as_ref().is_none_or(|v| v.key != key) {
             let view = |id: i32| -> &wgpu::TextureView {
                 if id < 0 {
+                    if p.sprite {
+                        return &images[&crate::renderer::TextureKey::Static(assets[(-id - 1) as usize])].view;
+                    }
                     if let Some(view) = external {
                         return view;
                     }

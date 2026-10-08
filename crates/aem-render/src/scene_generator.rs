@@ -18,10 +18,19 @@ pub struct GeneratorStats {
     pub alive: u32,
     pub visible: u32,
     pub culled: u32,
+    /// Birth poses actually sampled this call (overlapping history is reused).
+    pub births_sampled: u32,
 }
 #[derive(Default)]
 pub struct GeneratorScratch {
-    sorted: Vec<(f32, i64, Sprite)>,
+    pub(crate) sorted: Vec<(f32, i64, Sprite)>,
+    pub(crate) births: HashMap<(u64, u64), crate::particle_emitter::BirthCache>,
+}
+impl GeneratorScratch {
+    pub(crate) fn retain(&mut self, scene: &Scene) {
+        self.births.retain(|&(layer, instance), _| scene.layers.iter().any(|l| l.id == layer)
+            && scene.effects.iter().any(|e| e.layer == layer && e.instance == instance && e.enabled && e.particle_history.is_some()));
+    }
 }
 pub struct AlphaImage {
     pub width: u32,
@@ -51,7 +60,7 @@ fn param(e: &SampledEffect, id: &str) -> Result<[f32; 4], String> {
         .map(|i| e.values[i])
         .ok_or_else(|| format!("generator parameter {id} missing"))
 }
-fn random(seed: u32, id: u32, channel: u32) -> f32 {
+pub(crate) fn random(seed: u32, id: u32, channel: u32) -> f32 {
     let mut v = seed ^ id.wrapping_mul(0x9e3779b9) ^ channel.wrapping_mul(0x85ebca6b);
     v ^= v >> 16;
     v = v.wrapping_mul(0x7feb352d);
@@ -60,14 +69,14 @@ fn random(seed: u32, id: u32, channel: u32) -> f32 {
     v ^= v >> 16;
     (v >> 8) as f32 / 16777216.
 }
-fn linear(v: f32) -> f32 {
+pub(crate) fn linear(v: f32) -> f32 {
     if v <= 0.04045 {
         v / 12.92
     } else {
         ((v + 0.055) / 1.055).powf(2.4)
     }
 }
-fn visible(rect: [f32; 4]) -> bool {
+pub(crate) fn visible(rect: [f32; 4]) -> bool {
     rect[0] + rect[2] * 0.5 >= -1.
         && rect[0] - rect[2] * 0.5 <= 1.
         && rect[1] + rect[3] * 0.5 >= -1.
@@ -76,8 +85,11 @@ fn visible(rect: [f32; 4]) -> bool {
 pub fn validate_settings(e: &SampledEffect, kind: RendererKind) -> Result<(), String> {
     let settings = e.scene.as_ref().ok_or("scene generator settings missing")?;
     settings.validate().map_err(|e| e.to_string())?;
-    if kind == RendererKind::Particles {
-        if settings.source_layer.is_some() || settings.occlusion || !settings.elements.is_empty() {
+    if kind != RendererKind::ParticleEmitter && (settings.particle_space.is_some() || settings.sprite_asset.is_some()) {
+        return Err("legacy generators cannot use world-birth particle settings".into());
+    }
+    if matches!(kind, RendererKind::Particles | RendererKind::ParticleEmitter) {
+        if (kind == RendererKind::Particles && settings.source_layer.is_some()) || settings.occlusion || !settings.elements.is_empty() {
             return Err("particle generator does not accept lens settings".into());
         }
         let rate = param(e, "rate")?[0] as f64;
@@ -89,6 +101,12 @@ pub fn validate_settings(e: &SampledEffect, kind: RendererKind) -> Result<(), St
             return Err(format!(
                 "particle capacity exceeds {MAX_PARTICLES}; reduce rate or lifetime"
             ));
+        }
+        if kind == RendererKind::ParticleEmitter {
+            if let Some(error) = &e.particle_history_error { return Err(error.clone()); }
+            if settings.particle_space != Some(aem_effects::ParticleSpace::WorldBirth) || e.particle_history.is_none() {
+                return Err("world-birth particle history missing".into());
+            }
         }
     }
     Ok(())
@@ -132,6 +150,9 @@ fn generate_inner(
     scratch: &mut GeneratorScratch,
 ) -> Result<GeneratorStats, String> {
     validate_settings(e, kind)?;
+    if kind == RendererKind::ParticleEmitter {
+        return crate::particle_emitter::generate(scene, layer, e, out, scratch);
+    }
     let settings = e.scene.as_ref().ok_or("scene generator settings missing")?;
     settings.validate().map_err(|e| e.to_string())?;
     let start = out.len();
@@ -219,6 +240,7 @@ fn generate_inner(
                 alive,
                 visible: 0,
                 culled: alive,
+                births_sampled: 0,
             });
         }
         let sampled = &mut scratch.sorted;

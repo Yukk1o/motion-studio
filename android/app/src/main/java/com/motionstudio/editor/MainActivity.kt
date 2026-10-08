@@ -178,6 +178,11 @@ open class MainActivity:ComponentActivity() {
         }}
     }) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).onGloballyPositioned{editorOrigin=it.positionInRoot()}) {
+            val nativeSession=vm.pluginEditor.session?.takeIf{it.definition.optJSONObject("native_editor")!=null}
+            if(nativeSession!=null) {
+                NativePluginEditorView(vm,vm.pluginEditor,nativeSession,Modifier.fillMaxSize()){previewModifier->Preview(vm,previewModifier,interactive=false)}
+                return@BoxWithConstraints
+            }
             val wide=maxWidth>maxHeight
             val availableHeight=maxHeight
             val availableWidth=maxWidth
@@ -388,14 +393,14 @@ open class MainActivity:ComponentActivity() {
     BackHandler(enabled=layoutEditing,onBack=::finishLayout)
 }
 
-@Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
+@Composable private fun Preview(vm:EditorViewModel,modifier:Modifier,interactive:Boolean=true) {
     var menu by remember{mutableStateOf(false)}
     Box(modifier.background(Color(0xFF0B0D10)).clipToBounds()) {
         AndroidView(factory={context->SurfaceView(context).also{view->
             view.holder.addCallback(object:SurfaceHolder.Callback {
                 override fun surfaceCreated(holder:SurfaceHolder) {}
                 override fun surfaceChanged(holder:SurfaceHolder,format:Int,width:Int,height:Int){vm.attach(holder.surface,width,height)}
-                override fun surfaceDestroyed(holder:SurfaceHolder){vm.detach()}
+                override fun surfaceDestroyed(holder:SurfaceHolder){vm.detach(holder.surface)}
             })
         }},modifier=Modifier.fillMaxSize())
         Canvas(Modifier.fillMaxSize().testTag("composition-boundary")) {
@@ -430,9 +435,10 @@ open class MainActivity:ComponentActivity() {
                 }
             }
         }
-        Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(Unit) {
+        Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(interactive) {
             awaitEachGesture {
                 val down=awaitFirstDown()
+                if(!interactive)return@awaitEachGesture
                 if(vm.layerSelectionMode) {
                     var travel=Offset.Zero;var ended=false
                     do {

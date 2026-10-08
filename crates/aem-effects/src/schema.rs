@@ -2,7 +2,7 @@ use crate::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const SDK_VERSION: u32 = 4;
+pub const SDK_VERSION: u32 = 5;
 pub const MAX_PARAMS: usize = 32;
 pub const MAX_PASSES: usize = 8;
 pub const MAX_EFFECTS_PER_LAYER: usize = 16;
@@ -358,6 +358,8 @@ pub struct EffectDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editor: Option<crate::EditorDefinition>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_editor: Option<crate::NativeEditorDefinition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene: Option<crate::SceneSettings>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -432,6 +434,10 @@ impl PluginManifest {
                 ensure(self.sdk_version >= 2, "plugin editors require SDK 2")?;
                 editor.validate()?;
             }
+            if let Some(editor) = &e.native_editor {
+                ensure(self.sdk_version >= 5 && e.editor.is_none() && e.required_capabilities.iter().any(|c|c=="native_plugin_editor"), "native editors require SDK 5, native_plugin_editor and an exclusive presentation")?;
+                editor.validate(&e.params,e.renderer)?;
+            }
             if let Some(scene) = &e.scene {
                 scene.validate()?;
             }
@@ -444,7 +450,15 @@ impl PluginManifest {
             if e.renderer != crate::RendererKind::Image {
                 ensure(self.sdk_version >= 2 && e.passes.len() == 1 && e.working_space == WorkingSpace::Linear && e.alpha_mode == AlphaMode::Premultiplied, "scene generators require SDK 2, one sprite shader and linear premultiplied output")?;
                 ensure(e.scene.is_some(), "scene generator settings missing")?;
-                let required: &[&str] = if e.renderer == crate::RendererKind::Particles {
+                if e.renderer == crate::RendererKind::ParticleEmitter {
+                    ensure(self.sdk_version >= 5
+                        && e.scene.as_ref().and_then(|s| s.particle_space) == Some(crate::ParticleSpace::WorldBirth)
+                        && e.required_capabilities.iter().any(|c| c == "particle_birth_history"),
+                        "world-birth emitters require SDK 5 and particle_birth_history")?;
+                } else {
+                    ensure(e.scene.as_ref().and_then(|s| s.particle_space).is_none(), "legacy generators cannot declare particle space")?;
+                }
+                let required: &[&str] = if matches!(e.renderer, crate::RendererKind::Particles | crate::RendererKind::ParticleEmitter) {
                     &[
                         "rate",
                         "lifetime",
@@ -599,6 +613,8 @@ impl PluginManifest {
                         "sprite_instances",
                         "alpha_occlusion",
                         "plugin_editor",
+                        "particle_birth_history",
+                        "native_plugin_editor",
                     ]
                     .contains(&cap.as_str()),
                     format!("unsupported host capability: {cap}"),

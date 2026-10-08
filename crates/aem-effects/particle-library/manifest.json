@@ -1,0 +1,445 @@
+{
+  "format_version": 1,
+  "sdk_version": 5,
+  "id": "com.motionstudio.effects.particles",
+  "version": "1.0.0",
+  "name": "Motion Studio Particle Effects",
+  "author": "Motion Studio",
+  "license": "MIT",
+  "effects": [
+    {
+      "id": "particle_emitter",
+      "name": "运动粒子",
+      "english_name": "Particle Emitter",
+      "category": "粒子",
+      "renderer": "particle_emitter",
+      "blend": "additive",
+      "params": [
+        {
+          "id": "rate",
+          "name": "出生速率",
+          "kind": "float",
+          "default": [
+            360,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 10000,
+          "step": 0.01,
+          "units": "particles/s",
+          "animatable": false,
+          "options": []
+        },
+        {
+          "id": "lifetime",
+          "name": "寿命",
+          "kind": "float",
+          "default": [
+            2,
+            0,
+            0,
+            0
+          ],
+          "min": 0.001,
+          "max": 120,
+          "step": 0.01,
+          "units": "s",
+          "animatable": false,
+          "options": []
+        },
+        {
+          "id": "position",
+          "name": "发射位置偏移",
+          "kind": "vec3",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -100000,
+          "max": 100000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "direction",
+          "name": "喷射方向",
+          "kind": "vec3",
+          "default": [
+            0,
+            -1,
+            0,
+            0
+          ],
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "喷射速度",
+          "kind": "float",
+          "default": [
+            45,
+            0,
+            0,
+            0
+          ],
+          "min": -10000,
+          "max": 10000,
+          "step": 0.01,
+          "units": "px/s",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "spread",
+          "name": "随机速度",
+          "kind": "float",
+          "default": [
+            12,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 10000,
+          "step": 0.01,
+          "units": "px/s",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "inherit_velocity",
+          "name": "继承发射器速度",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "units": "倍",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "gravity",
+          "name": "重力加速度",
+          "kind": "vec3",
+          "default": [
+            0,
+            30,
+            0,
+            0
+          ],
+          "min": -10000,
+          "max": 10000,
+          "step": 0.01,
+          "units": "px/s²",
+          "animatable": false,
+          "options": []
+        },
+        {
+          "id": "wind",
+          "name": "风速",
+          "kind": "vec3",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -10000,
+          "max": 10000,
+          "step": 0.01,
+          "units": "px/s",
+          "animatable": false,
+          "options": []
+        },
+        {
+          "id": "drag",
+          "name": "空气阻力",
+          "kind": "float",
+          "default": [
+            0.8,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "units": "1/s",
+          "animatable": false,
+          "options": []
+        },
+        {
+          "id": "extent",
+          "name": "发射范围",
+          "kind": "vec3",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 20000,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "shape",
+          "name": "发射器形状",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 0.01,
+          "units": "",
+          "animatable": false,
+          "options": [
+            "点",
+            "盒",
+            "球"
+          ]
+        },
+        {
+          "id": "size",
+          "name": "出生尺寸",
+          "kind": "float",
+          "default": [
+            14,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4096,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "end_size",
+          "name": "结束尺寸",
+          "kind": "float",
+          "default": [
+            2,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4096,
+          "step": 0.01,
+          "units": "px",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "color",
+          "name": "出生颜色",
+          "kind": "color",
+          "default": [
+            0.15,
+            0.8,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "end_color",
+          "name": "结束颜色",
+          "kind": "color",
+          "default": [
+            0.8,
+            0.15,
+            1,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "fade",
+          "name": "淡入淡出比例",
+          "kind": "float",
+          "default": [
+            0.04,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0.5,
+          "step": 0.01,
+          "units": "",
+          "animatable": true,
+          "options": []
+        },
+        {
+          "id": "prewarm",
+          "name": "预热",
+          "kind": "bool",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "units": "",
+          "animatable": false,
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/sprite.wgsl",
+          "entry": "main_sprite"
+        }
+      ],
+      "native_editor": {
+        "id": "com.motionstudio.particle-editor",
+        "protocol": 1,
+        "title": "运动粒子编辑器",
+        "sections": [
+          {
+            "id": "preview",
+            "title": "预览",
+            "slots": [
+              {
+                "kind": "preview",
+                "max_size": 512
+              },
+              {
+                "kind": "timeline"
+              }
+            ]
+          },
+          {
+            "id": "emitter",
+            "title": "发射",
+            "slots": [
+              {
+                "kind": "layer_source"
+              },
+              {
+                "kind": "parameters",
+                "params": [
+                  "position",
+                  "shape",
+                  "extent",
+                  "rate",
+                  "lifetime",
+                  "prewarm"
+                ]
+              },
+              {
+                "kind": "seed"
+              }
+            ]
+          },
+          {
+            "id": "motion",
+            "title": "运动",
+            "slots": [
+              {
+                "kind": "parameters",
+                "params": [
+                  "direction",
+                  "speed",
+                  "spread",
+                  "inherit_velocity",
+                  "gravity",
+                  "wind",
+                  "drag"
+                ]
+              },
+              {
+                "kind": "note",
+                "text": "Y 正向下；出生运动支持关键帧。阻力大于 0 时速度逐渐靠近风速。出生速率、寿命和力场首期固定，历史表达式暂不支持。"
+              }
+            ]
+          },
+          {
+            "id": "appearance",
+            "title": "外观",
+            "slots": [
+              {
+                "kind": "image_sprite"
+              },
+              {
+                "kind": "parameters",
+                "params": [
+                  "size",
+                  "end_size",
+                  "fade",
+                  "color",
+                  "end_color"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "transform",
+            "title": "变换",
+            "slots": [
+              {
+                "kind": "transform"
+              }
+            ]
+          }
+        ]
+      },
+      "scene": {
+        "particle_space": "world_birth",
+        "occlusion": false,
+        "elements": []
+      },
+      "required_capabilities": [
+        "scene_projection",
+        "sprite_instances",
+        "native_plugin_editor",
+        "particle_birth_history"
+      ],
+      "known_differences": [
+        "Independent world-birth emitter inspired by common particle workflows; no Trapcode Particular compatibility claim.",
+        "Fixed rate/lifetime; keyed birth appearance; single project-image sprite; no emitter-history expressions, collision, ribbons, auxiliary or fluid simulation."
+      ]
+    }
+  ]
+}

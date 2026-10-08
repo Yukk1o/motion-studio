@@ -60,7 +60,13 @@ pub fn packages() -> Result<Vec<Arc<EffectPackage>>> {
         package()?,
         legacy_scene_package()?,
         scene_package()?,
+        particle_package()?,
     ])
+}
+pub fn particle_package() -> Result<Arc<EffectPackage>> {
+    static PACKAGE: OnceLock<std::result::Result<Arc<EffectPackage>, String>> = OnceLock::new();
+    PACKAGE.get_or_init(|| EffectPackage::from_bytes(include_bytes!("../particle-library/particle-effects.msfx").to_vec())
+        .map(Arc::new).map_err(|e| e.to_string())).clone().map_err(Error::Invalid)
 }
 fn build() -> Result<EffectPackage> {
     // Every host installs the exact published package bytes, independent of the

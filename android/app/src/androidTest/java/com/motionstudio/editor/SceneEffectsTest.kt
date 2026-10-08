@@ -31,15 +31,15 @@ class SceneEffectsTest {
         l.getJSONObject("transform").getJSONObject("position").put("value",JSONArray("[64,64,0]"))
         return p.put("layers",JSONArray().put(l))
     }
-    private fun pkg(native:Long):JSONObject {
+    private fun pkg(native:Long,particle:Boolean=false):JSONObject {
         val packages=data(NativeBridge.plugin(native,"{\"op\":\"catalogue\"}")).getJSONArray("packages")
         return (0 until packages.length()).map{packages.getJSONObject(it)}.first{
-            it.getJSONObject("manifest").getString("id")=="com.motionstudio.effects.scene" &&
-            it.getJSONObject("manifest").getString("version")=="1.1.0"
+            it.getJSONObject("manifest").getString("id")== (if(particle) "com.motionstudio.effects.particles" else "com.motionstudio.effects.scene") &&
+            it.getJSONObject("manifest").getString("version")== (if(particle) "1.0.0" else "1.1.0")
         }
     }
     private fun add(native:Long,id:String):JSONObject {
-        val p=pkg(native);val m=p.getJSONObject("manifest")
+        val p=pkg(native,id=="particle_emitter");val m=p.getJSONObject("manifest")
         return data(NativeBridge.plugin(native,JSONObject().put("op","add").put("object",2).put("plugin",m.getString("id")).put("version",m.getString("version")).put("hash",p.getString("hash")).put("effect",id).toString()))
     }
     private fun editor(native:Long,token:String,message:JSONObject)=data(NativeBridge.plugin(native,JSONObject().put("op","editor_message").put("token",token).put("message",message).toString()))
@@ -62,8 +62,13 @@ class SceneEffectsTest {
             assertFalse(JSONObject(NativeBridge.plugin(native,JSONObject().put("op","editor_message").put("token",token).put("message",JSONObject("{\"op\":\"state\"}")).toString())).getBoolean("ok"))
         }finally{NativeBridge.destroy(native)}
     }
-    @Test fun sixGeneratorsMatchGlesWithoutVideoEncoding() {
-        val root=root();val native=NativeBridge.create(root.absolutePath,project().toString());assertTrue(NativeBridge.creationError(),native>0)
+    @Test fun sevenGeneratorsMatchGlesWithoutVideoEncoding() {
+        val root=root();val spriteFile=File(root,"assets/particle.png");spriteFile.parentFile!!.mkdirs()
+        val sprite=android.graphics.Bitmap.createBitmap(16,8,android.graphics.Bitmap.Config.ARGB_8888)
+        for(y in 0 until 4)for(x in 0 until 8)sprite.setPixel(x,y,Color.argb(255,255,80,20))
+        spriteFile.outputStream().use{sprite.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};sprite.recycle()
+        val fixture=project().put("assets",JSONArray().put(JSONObject().put("id",1).put("path","assets/particle.png").put("width",16).put("height",8)))
+        val native=NativeBridge.create(root.absolutePath,fixture.toString());assertTrue(NativeBridge.creationError(),native>0)
         val display=EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);var context=EGL14.EGL_NO_CONTEXT;var surface=EGL14.EGL_NO_SURFACE;var white=0;val reports=JSONArray()
         try {
             val versions=IntArray(2);assertTrue(EGL14.eglInitialize(display,versions,0,versions,1))
@@ -75,10 +80,20 @@ class SceneEffectsTest {
             val ids=IntArray(1);GL.glGenTextures(1,ids,0);white=ids[0];GL.glBindTexture(GL.GL_TEXTURE_2D,white)
             GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_MIN_FILTER,GL.GL_LINEAR);GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_MAG_FILTER,GL.GL_LINEAR)
             GL.glTexImage2D(GL.GL_TEXTURE_2D,0,GL.GL_SRGB8_ALPHA8,1,1,0,GL.GL_RGBA,GL.GL_UNSIGNED_BYTE,ByteBuffer.allocateDirect(4).put(byteArrayOf(-1,-1,-1,-1)).apply{flip()})
+            GL.glGenTextures(1,ids,0);val spriteTexture=ids[0];GL.glBindTexture(GL.GL_TEXTURE_2D,spriteTexture)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_MIN_FILTER,GL.GL_LINEAR);GL.glTexParameteri(GL.GL_TEXTURE_2D,GL.GL_TEXTURE_MAG_FILTER,GL.GL_LINEAR)
+            val spritePixels=NativeBridge.assetPixels(native,1)!!
+            GL.glTexImage2D(GL.GL_TEXTURE_2D,0,GL.GL_SRGB8_ALPHA8,16,8,0,GL.GL_RGBA,GL.GL_UNSIGNED_BYTE,ByteBuffer.allocateDirect(spritePixels.size).put(spritePixels).apply{flip()})
             fun decode(v:Double)=if(v<=.04045)v/12.92 else ((v+.055)/1.055).pow(2.4)
             fun encode(v:Double)=if(v<=.0031308)v*12.92 else 1.055*v.pow(1/2.4)-.055
-            for(id in listOf("lens_flare","starfield","sparks","dust","snow","energy")) {
+            for(id in listOf("lens_flare","starfield","sparks","dust","snow","energy","particle_emitter")) {
                 add(native,id)
+                if(id=="particle_emitter") {
+                    data(NativeBridge.command(native,"{\"op\":\"animate\",\"object\":2,\"property\":\"position\",\"frame\":0,\"enabled\":true}"))
+                    data(NativeBridge.command(native,"{\"op\":\"set_vector\",\"object\":2,\"property\":\"position\",\"frame\":0,\"value\":[32,64,0]}"))
+                    data(NativeBridge.command(native,"{\"op\":\"set_vector\",\"object\":2,\"property\":\"position\",\"frame\":7,\"value\":[96,64,0]}"))
+                    data(NativeBridge.command(native,"{\"op\":\"effect\",\"object\":2,\"action\":{\"kind\":\"set_scene\",\"effect\":1,\"scene\":{\"particle_space\":\"world_birth\",\"sprite_asset\":1,\"occlusion\":false,\"elements\":[]}}}"))
+                }
                 if(id!="lens_flare")data(NativeBridge.command(native,JSONObject().put("op","effect").put("object",2).put("action",JSONObject().put("kind","set").put("effect",1).put("param","extent").put("frame",0).put("value",JSONArray("[80,80,40,0]"))).toString()))
                 val info=data(NativeBridge.renderPlanInfo(native));val plan=ByteBuffer.allocateDirect(info.getInt("bufferBytes")).order(ByteOrder.nativeOrder())
                 assertTrue(NativeBridge.sampleRenderPlanInto(native,7,plan)>0);val expectedBytes=ByteArray(plan.getInt(28));plan.duplicate().apply{position(0);get(expectedBytes)}
@@ -87,7 +102,7 @@ class SceneEffectsTest {
                 assertEquals(4,plan.getInt(4));assertTrue(plan.getInt(68)>0)
                 val capture=data(NativeBridge.capture(native));val reference=BitmapFactory.decodeFile(capture.getString("path"),BitmapFactory.Options().apply{inPremultiplied=false;inScaled=false})
                 assertTrue(EGL14.eglMakeCurrent(display,surface,surface,context))
-                val gl=GlEffects(info,native,listOf(white))
+                val gl=GlEffects(info,native,listOf(white,spriteTexture))
                 try {
                     gl.prepare(plan);gl.passes(plan,0,plan.getInt(12));val raw=ByteBuffer.allocateDirect(128*128*4)
                     GL.glReadPixels(0,0,128,128,GL.GL_RGBA,GL.GL_UNSIGNED_BYTE,raw);assertEquals(GL.GL_NO_ERROR,GL.glGetError())
@@ -98,11 +113,12 @@ class SceneEffectsTest {
                         for(c in 0..2){val v=(raw.get(at+c).toInt() and 255)/255.0;val straight=if(a==0.0)0.0 else encode((decode(v)/a).coerceIn(0.0,1.0))*255;rgb+=abs(straight-channels[c])}
                         alpha+=abs(a*255-Color.alpha(pixel))
                     }
-                    val record=JSONObject().put("effect",id).put("rgbMae",rgb/(128*128*3)).put("alphaMae",alpha/(128*128)).put("instances",plan.getInt(68)).put("packageHash",pkg(native).getString("hash"));reports.put(record)
+                    val record=JSONObject().put("effect",id).put("rgbMae",rgb/(128*128*3)).put("alphaMae",alpha/(128*128)).put("instances",plan.getInt(68)).put("packageHash",pkg(native,id=="particle_emitter").getString("hash"));reports.put(record)
                     File(root,"scene-gles-wgpu-report.json").writeText(reports.toString(2));assertTrue(record.toString(),record.getDouble("rgbMae")<=3&&record.getDouble("alphaMae")<=3)
                 }finally{gl.close();reference.recycle()}
                 data(NativeBridge.command(native,"{\"op\":\"effect\",\"object\":2,\"action\":{\"kind\":\"remove\",\"effect\":1}}"))
             }
+            GL.glDeleteTextures(1,intArrayOf(spriteTexture),0)
         }finally {
             GL.glDeleteTextures(1,intArrayOf(white),0);EGL14.eglMakeCurrent(display,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT);EGL14.eglDestroySurface(display,surface);EGL14.eglDestroyContext(display,context);EGL14.eglTerminate(display);NativeBridge.destroy(native)
         }
