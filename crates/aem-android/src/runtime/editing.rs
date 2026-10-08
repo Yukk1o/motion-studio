@@ -153,7 +153,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
 ) -> jstring {
     string_result(&mut env, || {
         with_session(id, |s| {
-            let active = s.engine.project().composition_id.clone();
+            let active=s.engine.project().composition_id.clone();
             match op {
                 0 => {
                     s.engine.undo().map_err(|e| e.to_string())?;
@@ -166,22 +166,15 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_history(
                 4 => s.engine.end_gesture(false).map_err(|e| e.to_string())?,
                 _ => return Err("invalid history operation".into()),
             }
-            if !s.engine.gesture_active() {
-                let target = if s.engine.project().composition_ids().contains(&active) {
-                    active.as_str()
-                } else {
-                    aem_core::MAIN_COMPOSITION
-                };
-                s.engine
-                    .activate_composition(target)
-                    .map_err(|e| e.to_string())?;
+            if !s.engine.gesture_active(){let target=if s.engine.project().composition_ids().contains(&active){active.as_str()}else{aem_core::MAIN_COMPOSITION};s.engine.activate_composition(target).map_err(|e|e.to_string())?;}
+            s.frame=s.frame.min(f64::from(s.engine.project().frames-1));s.audio_mixer=None;s.video_frames.clear();
+            if matches!(op,0|1|4) {
+                s.effects.alpha_images.clear();
+                s.editor_renderer=None;s.editor_target=None;
             }
-            s.frame = s.frame.min(f64::from(s.engine.project().frames - 1));
-            s.audio_mixer = None;
-            s.video_frames.clear();
             if let Some(g) = &mut s.graphics {
                 g.renderer
-                    .synchronize_assets(s.engine.project(), &s.root)
+                    .configure_assets(s.engine.project(), &s.root)
                     .map_err(|e| e.to_string())?;
             }
             if let Err(error) = s.sample() {

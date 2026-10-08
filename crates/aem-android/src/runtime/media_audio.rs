@@ -102,7 +102,8 @@ pub(super) fn package_limits() -> Value {
 /// Available before a session is created, including project recovery/import.
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_packageLimits(
-    mut env: JNIEnv, _class: JClass,
+    mut env: JNIEnv,
+    _class: JClass,
 ) -> jstring {
     string_result(&mut env, || Ok(package_limits()))
 }

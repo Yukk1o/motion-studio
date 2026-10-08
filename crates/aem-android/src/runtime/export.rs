@@ -16,7 +16,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
                 s.effects
                     .preflight_project(&p.composition(&id).map_err(|e| e.to_string())?)?;
             }
-            s.effects.synchronize_alpha(p, &s.root)?;
+            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
@@ -39,12 +39,17 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"sprite":program.shader.sprite,"additive":program.shader.additive,"resources":program.resources.iter().map(|path|{
    let bytes=&program.package.as_ref().unwrap().files[path];let dimensions=image::load_from_memory(bytes).map(|v|(v.width(),v.height())).unwrap_or((0,0));json!({"path":path,"width":dimensions.0,"height":dimensions.1})
   }).collect::<Vec<_>>() })).collect::<Vec<_>>();
+            let mask_programs = aem_render::mask_plan::shaders()?
+                .iter()
+                .enumerate()
+                .map(|(index, shader)| json!({"key":if index==0 {"sdk-mask-gaussian"} else {"sdk-mask-combine"},"glsl":shader.glsl}))
+                .collect::<Vec<_>>();
             let count = p
                 .layers
                 .iter()
                 .map(|l| l.effects.iter().filter(|e| e.enabled).count())
                 .sum::<usize>();
-            let passes = count * 10 + p.layers.len();
+            let passes = count * 10 + p.layers.len() * 2;
             let buffer_bytes = aem_render::effect_plan::HEADER_BYTES
                 + p.layers.len() * 128
                 + passes * (40 + aem_effects::shader::UNIFORM_BYTES)
@@ -53,9 +58,13 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
                 + 8192 * 12
                 + 65536 * 20
                 + aem_core::MAX_LAYERS * 28
+                + 262144 * 24
+                + aem_core::MAX_LAYERS
+                    * aem_core::masks::MAX_MASKS
+                    * aem_render::mask_plan::RECORD_BYTES
                 + 262144 * 24;
             Ok(
-                json!({"version":aem_render::effect_plan::PLAN_VERSION,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"headerBytes":aem_render::effect_plan::HEADER_BYTES,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"maskPrograms":mask_programs,"maskBytes":aem_render::mask_plan::RECORD_BYTES,"maskVertexBytes":24,"maskSourceToken":aem_render::mask_plan::SOURCE_TOKEN,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4,"declaredAssetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>(),"imageResources":{"version":1,"demandLoading":true,"previewMaxEdge":aem_render::image_resources::MAX_PREVIEW_EDGE,"fullResolutionExport":true,"directBuffer":true}}),
             )
         })
     })
@@ -83,7 +92,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_sampleRenderPla
             let assets = std::iter::once(0)
                 .chain(p.assets.iter().map(|a| a.id))
                 .collect::<Vec<_>>();
-            s.effects.synchronize_alpha(p, &s.root)?;
+            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
             let result = (|| {
                 let plan = s
                     .effects
@@ -112,7 +121,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
                 s.effects
                     .preflight_project(&p.composition(&id).map_err(|e| e.to_string())?)?;
             }
-            s.effects.synchronize_alpha(p, &s.root)?;
+            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
             let mut scene = Scene::new(p);
             scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
             let mut temporary = None;
@@ -127,7 +136,11 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
             };
             renderer.set_effect_registry(s.effects.registry.clone());
             renderer
-                .synchronize_assets(p, &s.root)
+                .configure_assets(p, &s.root)
+                .map_err(|e| e.to_string())?;
+            renderer.retain_video_instances(&scene);
+            renderer
+                .prepare_scene_assets(&scene, aem_render::image_resources::Resolution::Full, false)
                 .map_err(|e| e.to_string())?;
             let target = renderer
                 .capture_target(p.width, p.height)
