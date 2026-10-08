@@ -79,12 +79,12 @@ fn legacy_migration_is_in_memory_and_preserves_every_fractional_projection() {
         std::fs::read(tmp.path().join("project.json")).unwrap(),
         original
     );
-    assert_eq!(migrated.version, 7);
+    assert_eq!(migrated.version, 8);
     for f in 0..360 {
         compare(&p, &migrated, f as f64 / 2.0, f as f64 / 2.0, 2, 2);
     }
     let mut unknown = p;
-    unknown.version = 8;
+    unknown.version = 9;
     assert!(Engine::new(unknown).is_err());
 }
 #[test]

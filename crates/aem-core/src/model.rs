@@ -223,7 +223,7 @@ impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 7,
+            version: 8,
             composition_id: crate::MAIN_COMPOSITION.into(),
             compositions: Vec::new(),
             name: "空间练习 01".into(),
@@ -282,7 +282,7 @@ impl Project {
     }
     pub(crate) fn validate_one(&self) -> Result<()> {
         ensure(
-            (1..=7).contains(&self.version),
+            (1..=8).contains(&self.version),
             "unsupported project format",
         )?;
         ensure(
@@ -563,7 +563,7 @@ impl Project {
             }
             self.version = 3;
         }
-        self.version = 7;
+        self.version = 8;
         Ok(self)
     }
     pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {
