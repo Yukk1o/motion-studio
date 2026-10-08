@@ -58,6 +58,7 @@ pub(crate) enum TextureKey {
     Static(u64),
     Video(u64),
     Vector(u64),
+    Mask(u64),
 }
 fn texture_key(layer: &aem_core::DrawLayer) -> TextureKey {
     if layer.vector.is_some() {
@@ -103,6 +104,7 @@ pub struct Renderer {
     pub adapter_info: wgpu::AdapterInfo,
     pipeline: wgpu::RenderPipeline,
     additive_pipeline: wgpu::RenderPipeline,
+    masked_pipeline: wgpu::RenderPipeline,
     image_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     uniform_buffer: wgpu::Buffer,
@@ -118,6 +120,7 @@ pub struct Renderer {
     gpu_failure: Arc<Mutex<Option<String>>>,
     effect_gpu: crate::effect_gpu::EffectGpu,
     layer_gpu: crate::layer_gpu::LayerGpu,
+    mask_gpu: crate::mask_gpu::MaskGpu,
     video_gpu: Option<crate::video_gpu::VideoGpu>,
     pub video_upload_bytes: u64,
     pub video_uploads: u64,
@@ -317,9 +320,16 @@ impl Renderer {
             },
             alpha: wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING.alpha,
         });
+        let mask_shader=device.create_shader_module(wgpu::ShaderModuleDescriptor {label:Some("masked source composite"),source:wgpu::ShaderSource::Wgsl(include_str!("plane_mask.wgsl").into())});
+        let masked_pipeline=device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label:Some("masked layer without effects"),layout:Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {label:None,bind_group_layouts:&[&uniform_layout,&image_layout,&image_layout],push_constant_ranges:&[]})),
+            vertex:wgpu::VertexState {module:&mask_shader,entry_point:Some("vertex_main"),compilation_options:Default::default(),buffers:&[wgpu::VertexBufferLayout {array_stride:std::mem::size_of::<GeometryVertex>() as u64,step_mode:wgpu::VertexStepMode::Vertex,attributes:&wgpu::vertex_attr_array![0=>Float32x3,1=>Float32x2]}]},
+            fragment:Some(wgpu::FragmentState {module:&mask_shader,entry_point:Some("fragment_main"),compilation_options:Default::default(),targets:&[Some(wgpu::ColorTargetState {format,blend:Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),write_mask:wgpu::ColorWrites::ALL})]}),
+            primitive:wgpu::PrimitiveState {cull_mode:None,..Default::default()},depth_stencil:None,multisample:Default::default(),multiview:None,cache:None});
         let effect_gpu = crate::effect_gpu::EffectGpu::new(&device, &queue, &image_layout)?;
         let layer_gpu =
             crate::layer_gpu::LayerGpu::new(&device, &uniform_layout, &image_layout, format);
+        let mask_gpu=crate::mask_gpu::MaskGpu::new(&device,&image_layout)?;
         let mut renderer = Self {
             adapter,
             device,
@@ -327,6 +337,7 @@ impl Renderer {
             adapter_info,
             pipeline,
             additive_pipeline,
+            masked_pipeline,
             image_layout,
             sampler,
             uniform_buffer,
@@ -343,6 +354,7 @@ impl Renderer {
             gpu_failure,
             effect_gpu,
             layer_gpu,
+            mask_gpu,
             video_gpu: None,
             video_upload_bytes: 0,
             video_uploads: 0,
@@ -377,6 +389,7 @@ impl Renderer {
             + self.video_plane_bytes()
             + self.effect_gpu.state.bytes()
             + self.layer_gpu.bytes()
+            + self.mask_gpu.scratch_bytes()
     }
     fn video_plane_bytes(&self) -> u64 {
         self.video_gpu.as_ref().map_or(0, |v| v.bytes())
@@ -786,6 +799,7 @@ impl Renderer {
                     .layers
                     .iter()
                     .any(|l| l.id == *id && matches!(l.content, aem_core::Content::Vector { .. })),
+                TextureKey::Mask(_) => true,
             })
             .collect();
         for id in remove {
@@ -999,6 +1013,7 @@ impl Renderer {
         self.image_access.clear();
         self.image_prefetch.clear();
         self.image_prefetch_failed.clear();
+        self.mask_gpu.clear();
         self.composition_images.clear();
         if let Some(video) = &mut self.video_gpu {
             video.clear();
@@ -1139,13 +1154,20 @@ impl Renderer {
             ));
         }
         let started = Instant::now();
-        if scene.effects.iter().any(|e| e.enabled)
+        if scene.effects.iter().any(|e| e.enabled) || scene.layers.iter().any(|l|!l.masks.is_empty())
             || scene
                 .layers
                 .iter()
                 .any(|l| l.vector.is_some() || l.adjustment)
         {
             return self.encode_effects(scene, view, width, height, encoder, timestamps, preview);
+        }
+        // The last mask may have been disabled without changing source media.
+        // Releasing its coverage must also happen on the direct draw path.
+        let obsolete_masks:Vec<_>=self.images.keys().copied().filter(|k|matches!(k,TextureKey::Mask(_))).collect();
+        if !obsolete_masks.is_empty() {
+            for key in obsolete_masks {self.texture_bytes-=self.images.remove(&key).unwrap().bytes;}
+            self.mask_gpu.clear();self.effect_gpu.state.invalidate();
         }
         self.effect_diagnostics.clear();
         if self.layer_gpu.prepare_vectors(
@@ -1314,7 +1336,13 @@ impl Renderer {
         }
         let vector_bytes = self.layer_gpu.pending_vector_bytes(scene, &self.effect_gpu.builder.frame.vectors, &self.images);
         self.trim_image_cache(vector_bytes);
+        let mask_other=self.video_plane_bytes()+self.effect_gpu.state.resource_bytes;
         let frame = &self.effect_gpu.builder.frame;
+        let masks_changed=self.mask_gpu.prepare(&self.device,&self.queue,encoder,&self.image_layout,scene,&frame.masks,
+            &mut self.images,&mut self.texture_bytes,mask_other)?;
+        if masks_changed {
+            self.effect_gpu.state.invalidate();
+        }
         let vectors_changed = self.layer_gpu.prepare_vectors(
             &self.device,
             encoder,
@@ -1345,7 +1373,7 @@ impl Renderer {
             self.target_format,
             has_adjustment.then_some(composition_size),
         );
-        if vectors_changed || accumulators_changed {
+        if masks_changed || vectors_changed || accumulators_changed {
             self.effect_gpu.state.invalidate();
             self.effect_gpu.state.prepare(
                 &self.device,
@@ -1545,7 +1573,8 @@ impl Renderer {
                 0.0,
                 1.0,
             );
-            pass.set_pipeline(if draw.words[23] > 0.5 {
+            let masked=draw.words[27]<0. && !scene.layers[i].masks.is_empty();
+            pass.set_pipeline(if masked {&self.masked_pipeline} else if draw.words[23] > 0.5 {
                 &self.additive_pipeline
             } else {
                 &self.pipeline
@@ -1558,6 +1587,7 @@ impl Renderer {
                 &self.images[&texture_key(&scene.layers[i])].bind_group
             };
             pass.set_bind_group(1, group, &[]);
+            if masked {pass.set_bind_group(2,&self.images[&TextureKey::Mask(scene.layers[i].id)].bind_group,&[]);}
             pass.draw(batch.vertices.clone(), 0..1);
             composition_draws += 1;
         }

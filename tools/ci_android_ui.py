@@ -12,6 +12,7 @@ classes += [name for name in ["EditorInertiaTest","LayerSelectionTest","Timeline
 classes += [name for name in ["VectorAdjustmentTest","VectorAdjustmentParityTest","VectorFrontendTest","ErrorReportsTest","CompositionBackendApiTest","CompositionParityTest","CompositionFrontendTest","ReleaseUpdatesTest","SpatialEffectsTest"] if (SOURCE/(name+".kt")).exists()]
 classes += [name for name in ["NativeParticleEditorTest","SceneEffectsTest"] if (SOURCE/(name+".kt")).exists()]
 classes += [name for name in ["ColorBookmarksTest","ColorCurvesApiTest","ColorEditingTest"] if (SOURCE/(name+".kt")).exists()]
+classes += [name for name in ["LayerMasksTest"] if (SOURCE/(name+".kt")).exists()]
 expected=sum(1 if "#" in name else len(re.findall(r"@Test\b",(SOURCE/(name+".kt")).read_text(encoding="utf-8"))) for name in classes)
 subprocess.run(["adb","shell","wm","size","1080x1920"],check=True)
 subprocess.run(["adb","shell","wm","density","420"],check=True)

@@ -15,6 +15,8 @@ mod video_pixels;
 mod video_gpu;
 mod vector_mesh;
 mod layer_gpu;
+pub mod mask_plan;
+mod mask_gpu;
 pub use video_pixels::{ChromaLayout, VideoPlane, Yuv420Frame};
 pub use aem_core::Scene;
 pub use measurement::{FrameMeasurement, FrameRecorder};

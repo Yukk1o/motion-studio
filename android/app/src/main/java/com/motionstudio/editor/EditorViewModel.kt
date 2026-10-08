@@ -71,6 +71,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var panelOpen by mutableStateOf(false)
     var effectsOpen by mutableStateOf(false)
     var vectorOpen by mutableStateOf(false)
+    var maskOpen by mutableStateOf(false)
+    var maskId by mutableLongStateOf(0)
     var compositionClipOpen by mutableStateOf(false)
     var vectorTab by mutableStateOf("geometry")
     var vectorDrawMode by mutableStateOf(false)
@@ -415,6 +417,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private fun gestureKey(command:JSONObject):String? {
         val op=command.optString("op")
         if(op=="set_color")return "set_color:${command.getLong("object")}"
+        if(op=="mask") {val action=command.getJSONObject("action");if(action.optString("kind")=="set")return "mask:${command.getLong("object")}:${action.getLong("mask")}:${action.get("property")}:${action.getInt("frame")}"}
         if(op=="effect") {
             val action=command.getJSONObject("action")
             if(action.optString("kind") !in listOf("set","curve","set_curve_object"))return null
@@ -569,6 +572,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         pause()
         if(selected!=objectId) {
             finishColorEditor(false)
+            maskOpen=false
             pluginEditor.close()
             expressionTarget=null
             effectsOpen=false
@@ -579,7 +583,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
         if(openEditor)panelOpen=true
     }
-    fun openProperty(key:String) {finishColorEditor(false);gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;vectorOpen=false;compositionClipOpen=false;
+    fun openProperty(key:String) {finishColorEditor(false);maskOpen=false;gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;vectorOpen=false;compositionClipOpen=false;
         pause()
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
@@ -632,7 +636,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         errors.operation("edit:"+command.optString("op"))
         if(pluginEditor.gesture)return
         if(command.optString("op") in listOf("remove","flags","camera_mode","set_layer_3d"))pluginEditor.close()
-        pause();val routed=(routeVectorCommand(routeEffectCommand(command))?:return).put("composition",compositionId)
+        pause();val routed=(routeMaskCommand(routeVectorCommand(routeEffectCommand(command))?:return)?:return).put("composition",compositionId)
         if(!save&&queueGesture(listOf(routed)))return
         invoke(save){NativeBridge.command(id,routed.toString())}
     }
@@ -640,7 +644,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         if(!colorCommand)finishColorEditor(true)
         errors.operation("batch:"+commands.objects().map{it.optString("op")}.distinct().joinToString(","))
         if(pluginEditor.gesture)return
-        pause();val routed=commands.objects().map{(routeVectorCommand(routeEffectCommand(it))?:return).put("composition",compositionId)}
+        pause();val routed=commands.objects().map{(routeMaskCommand(routeVectorCommand(routeEffectCommand(it))?:return)?:return).put("composition",compositionId)}
         if(!save&&queueGesture(routed))return
         invoke(save){NativeBridge.command(id,JSONArray(routed).toString())}
     }
@@ -672,6 +676,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun timelineLayer(objectId:Long):JSONObject?=state.sample?.optJSONArray("timeline_layers")?.let{a->
         (0 until a.length()).map{a.getJSONObject(it)}.firstOrNull{it.getLong("object")==objectId}}
     fun propertyTrack(objectId:Long=selected,key:String=property):JSONObject? {
+        if(key.startsWith("mask:"))return maskTrackRaw(objectId,key)?.let{raw->JSONObject(raw.toString()).apply{val offset=timelineLayer(objectId)?.optInt("offset_frame")?:0;optJSONArray("keys").objects().forEach{it.put("frame",it.getLong("frame")+offset)}}}
         if(key.startsWith("vector:"))return vectorTrackRaw(objectId,key)?.let{raw->
             JSONObject(raw.toString()).apply{val offset=timelineLayer(objectId)?.optInt("offset_frame")?:0
                 optJSONArray("keys").objects().forEach{it.put("frame",it.getLong("frame")+offset)}}
@@ -732,6 +737,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         return sampleValueFor(selected,property)
     }
     fun sampleValueFor(objectId:Long,key:String):Any? {
+        if(key.startsWith("mask:"))return maskValue(objectId,key)
         if(key.startsWith("vector:"))return vectorValue(objectId,key)
         effectTarget(key)?.let{(instance,param)->
             val saved=effectParam(objectId,instance,param)
@@ -773,6 +779,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val sample=sampleValue()?:return
         val value=if(isSeparated()&&sample is JSONArray)sample.getDouble(activeAxis())else sample
         val t=track()?:return
+        if(property.startsWith("mask:")){edit(channelCommand(if(value is JSONArray)"set_vector"else"set_scalar").put("frame",floor(frame).toInt()).put("value",value).put("animated",true));return}
         if(property.startsWith("vector:")) {
             edit(channelCommand(if(value is JSONArray)"set_vector"else"set_scalar").put("frame",floor(frame).toInt()).put("value",value).put("animated",true));return
         }
@@ -1176,9 +1183,9 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             readCatalogue()
         }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
     }
-    fun closeWorkspace(){finishColorEditor(false);gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;vectorOpen=false;compositionClipOpen=false;panelOpen=false}
+    fun closeWorkspace(){finishColorEditor(false);gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;vectorOpen=false;maskOpen=false;compositionClipOpen=false;panelOpen=false}
     internal fun openCompositionClip(){closeWorkspace();pause();compositionClipOpen=true;panelOpen=true}
-    fun openEffects(){finishColorEditor(false);gestureInertia.stop();pluginEditor.close();expressionTarget=null;vectorOpen=false;compositionClipOpen=false;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun openEffects(){finishColorEditor(false);gestureInertia.stop();pluginEditor.close();expressionTarget=null;vectorOpen=false;maskOpen=false;compositionClipOpen=false;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
     fun openPluginEditor(instance:Long){pause();expressionTarget=null;pluginEditor.open(selected,instance)}
     fun expressionTargetForCurrent(axis:Int?=null):JSONObject? {
         if(state.sample?.optJSONObject("capabilities")?.optJSONObject("property_expressions")?.optBoolean("supported")!=true)return null

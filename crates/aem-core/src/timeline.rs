@@ -71,6 +71,20 @@ pub struct TimelineLayer {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub video: Option<TimelineVideo>,
     pub properties: TimelineProperties,
+    pub masks: Vec<TimelineMask>,
+}
+#[derive(Debug, Serialize)]
+pub struct TimelineMask {
+    pub id: u64,
+    pub opacity: TimelineTrack<f32>,
+    pub feather: TimelineTrack<[f32; 2]>,
+    pub expansion: TimelineTrack<f32>,
+    pub nodes: Vec<TimelineMaskNode>,
+}
+#[derive(Debug, Serialize)]
+pub struct TimelineMaskNode {
+    pub id: u64,
+    pub geometry: TimelineTrack<[f32; 6]>,
 }
 #[derive(Debug, Serialize)]
 pub struct TimelineAudio {
@@ -154,6 +168,11 @@ impl Project {
                         scale: t.scale.timeline(clip.offset_frame),
                         opacity: t.opacity.timeline(clip.offset_frame),
                     },
+                    masks: l.masks.iter().map(|m| TimelineMask {
+                        id: m.id, opacity: m.opacity.timeline(clip.offset_frame),
+                        feather: m.feather.timeline(clip.offset_frame), expansion: m.expansion.timeline(clip.offset_frame),
+                        nodes: m.path.nodes.iter().map(|n| TimelineMaskNode { id:n.id, geometry:n.geometry.timeline(clip.offset_frame) }).collect(),
+                    }).collect(),
                 }
             })
             .collect()
