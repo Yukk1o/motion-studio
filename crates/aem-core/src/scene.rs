@@ -23,6 +23,7 @@ pub struct DrawLayer {
     pub asset: Option<u64>,
     pub video: Option<crate::VideoSample>,
     pub vector: Option<std::sync::Arc<crate::vector::SampledVector>>,
+    pub masks: std::sync::Arc<Vec<crate::masks::SampledMask>>,
     pub adjustment: bool,
     pub composition: bool,
     pub depth: f32,
@@ -60,6 +61,7 @@ pub struct Scene {
             std::sync::Arc<crate::vector::SampledVector>,
         ),
     >,
+    mask_cache: std::collections::HashMap<u64, (Vec<crate::masks::LayerMask>, Option<f64>, std::sync::Arc<Vec<crate::masks::SampledMask>>)>,
 }
 #[derive(Clone, Debug)]
 pub struct NestedScene {
@@ -89,6 +91,7 @@ impl Scene {
             source_objects:Vec::new(),
             evaluated_project: None,
             vector_cache: Default::default(),
+            mask_cache: Default::default(),
         }
     }
     pub fn sample(
@@ -191,6 +194,7 @@ impl Scene {
         self.height = project.height;
         self.background = project.background;
         self.layers.clear();
+        self.mask_cache.retain(|id,_| project.layers.iter().any(|l| l.id == *id));
         self.vector_cache.retain(|id, _| {
             project
                 .layers
@@ -291,6 +295,14 @@ impl Scene {
                 None
             };
             let mut size = layer.size;
+            let mask_time = layer.masks.iter().any(|m| m.animated()).then_some(layer.local_frame(frame));
+            if self.mask_cache.get(&layer.id).is_none_or(|(m,t,_)| m != &layer.masks || *t != mask_time) {
+                let masks = layer.masks.iter().map(|m| m.sample(layer.local_frame(frame)))
+                    .collect::<Result<Vec<_>>>().map_err(|e| crate::Error::Invalid(format!("layer {} masks at frame {frame}: {e}",layer.id)))?
+                    .into_iter().flatten().collect();
+                self.mask_cache.insert(layer.id,(layer.masks.clone(),mask_time,std::sync::Arc::new(masks)));
+            }
+            let masks = self.mask_cache[&layer.id].2.clone();
             if let Some(v) = &vector {
                 let pad = v.stroke.map_or(0., |s| {
                     s.1 * 0.5
@@ -326,6 +338,7 @@ impl Scene {
                 asset,
                 video,
                 vector,
+                masks,
                 adjustment: matches!(layer.content, Content::Adjustment),
                 composition: matches!(layer.content,Content::Composition {..}),
                 depth: (center - self.camera.eye).dot(forward),
