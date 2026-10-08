@@ -90,7 +90,7 @@ internal class PluginEditorHost(private val worker:Handler,private val main:Hand
         val request=envelope.optJSONObject("message")?:return
         val op=request.optString("op")
         fun reject(message:String){reply(JSONObject().put("token",current.token).put("id",requestId).put("ok",false).put("error",message))}
-        if(op !in setOf("state","preview","set","animate","key","curve","scene","seed","transform","begin","commit","cancel")){reject("编辑器操作不支持");return}
+        if(op !in setOf("state","preview","set","animate","key","curve","scene","seed","transform","begin","commit","cancel","color_begin","color_finish")){reject("编辑器操作不支持");return}
         if(requestId in outstanding||outstanding.size>=8){reject("请等待当前编辑完成");return}
         if(op=="preview") {
             if(request.optInt("width") !in 1..512||request.optInt("height") !in 1..512){reject("预览尺寸必须是 1～512");return}

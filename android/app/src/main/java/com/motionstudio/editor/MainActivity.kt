@@ -445,8 +445,8 @@ open class MainActivity:ComponentActivity() {
         Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(interactive) {
             awaitEachGesture {
                 val down=awaitFirstDown()
-                if(!interactive)return@awaitEachGesture
                 if(vm.eyedropperActive){down.consume();vm.pickPreviewColor(down.position.x,down.position.y,size.width.toFloat(),size.height.toFloat());return@awaitEachGesture}
+                if(!interactive)return@awaitEachGesture
                 if(vm.colorEditor!=null)vm.finishColorEditor(true)
                 if(vm.layerSelectionMode) {
                     var travel=Offset.Zero;var ended=false

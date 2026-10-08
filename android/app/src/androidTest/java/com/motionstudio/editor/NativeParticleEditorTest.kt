@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -70,5 +71,69 @@ class NativeParticleEditorTest {
         compose.waitUntil(10000){vm.effectParam(2,1,"rate")!!.getJSONObject("track").getJSONArray("value").getDouble(0)==500.0}
         compose.onNodeWithTag("native-editor-cancel").performClick();compose.waitUntil(10000){vm.pluginEditor.session==null&&vm.effectParam(2,1,"rate")!!.toString()==before}
         assertFalse(vm.playing);assertNull(vm.state.error)
+    }
+    @Test fun nativeColorPaletteKeepsPreviewAndTimelineAndCancelsOnlyItsOwnTrack() {
+        fun openPalette(){
+            val button=compose.onNodeWithTag("native-param-color-palette")
+            repeat(5){
+                val bounds=button.fetchSemanticsNode().boundsInRoot
+                val visible=compose.onNodeWithTag("native-parameters").fetchSemanticsNode().boundsInRoot
+                if(bounds.top>=visible.top&&bounds.bottom<=visible.bottom&&bounds.height>0){button.assertIsDisplayed().performClick();return}
+                compose.onNodeWithTag("native-parameters").performTouchInput{swipeUp()}
+            }
+            button.assertIsDisplayed().performClick()
+        }
+        fun paletteReady(){
+            try {compose.waitUntil(10000){compose.onAllNodesWithTag("color-palette").fetchSemanticsNodes().size==1||compose.onAllNodesWithTag("native-color-error").fetchSemanticsNodes().isNotEmpty()}}
+            catch(failure:Throwable){File(root,"native-color-failure.json").writeText(JSONObject().put("state",vm.pluginEditor.state).put("error",vm.state.error).put("tree",compose.onRoot().printToString()).toString(2));photo("native-color-failure");throw failure}
+            val errors=compose.onAllNodesWithTag("native-color-error").fetchSemanticsNodes().flatMap{it.config[SemanticsProperties.Text]}
+            assertTrue("Color errors=$errors, revision=${vm.pluginEditor.state?.optLong("revision")}, scope=${vm.pluginEditor.state?.opt("color_edit")}",errors.isEmpty())
+        }
+        val original=vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()
+        val token=vm.pluginEditor.session!!.token
+        compose.onNodeWithTag("native-param-rate-0").performScrollTo().performClick()
+        compose.onNode(hasSetTextAction()).performTextReplacement("500");compose.onNodeWithText("确定").performClick()
+        compose.waitUntil(10000){vm.effectParam(2,1,"rate")!!.getJSONObject("track").getJSONArray("value").getDouble(0)==500.0}
+        compose.onNodeWithTag("native-slot-tab-appearance").performClick()
+        compose.onNodeWithTag("native-param-color-0").assertDoesNotExist()
+        val preview=compose.onNodeWithTag("native-plugin-preview").fetchSemanticsNode().boundsInRoot
+        val timeline=compose.onNodeWithTag("native-plugin-timeline").fetchSemanticsNode().boundsInRoot
+        openPalette()
+        paletteReady()
+        compose.onNodeWithTag("color-palette").assertIsDisplayed()
+        assertEquals(preview,compose.onNodeWithTag("native-plugin-preview").fetchSemanticsNode().boundsInRoot)
+        assertEquals(timeline,compose.onNodeWithTag("native-plugin-timeline").fetchSemanticsNode().boundsInRoot)
+        compose.onNodeWithTag("color-code").performClick()
+        compose.onNodeWithTag("color-hex").performScrollTo().performTextReplacement("#FF804080")
+        compose.waitUntil(10000){kotlin.math.abs(vm.effectParam(2,1,"color")!!.getJSONObject("track").getJSONArray("value").getDouble(3)-128.0/255)<.001}
+        assertEquals(token,vm.pluginEditor.session!!.token);assertTrue(vm.pluginEditor.gesture);assertNull(vm.colorEditor)
+        compose.onNodeWithTag("color-values-back").performClick();photo("native-particle-color-palette")
+        compose.onNodeWithTag("color-eyedropper").performClick();compose.waitUntil(10000){vm.eyedropperActive}
+        compose.onNodeWithTag("preview-gesture").performTouchInput{click(center)}
+        compose.waitUntil(10000){!vm.eyedropperActive}
+        assertEquals(128.0/255,vm.effectParam(2,1,"color")!!.getJSONObject("track").getJSONArray("value").getDouble(3),.001)
+        compose.onNodeWithTag("color-cancel").performClick()
+        compose.waitUntil(10000){vm.pluginEditor.state?.optJSONObject("color_edit")==null&&vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()==original}
+        assertEquals(500.0,vm.effectParam(2,1,"rate")!!.getJSONObject("track").getJSONArray("value").getDouble(0),0.0)
+        openPalette()
+        paletteReady()
+        compose.onNodeWithTag("color-code").performClick();compose.onNodeWithTag("color-hex").performScrollTo().performTextReplacement("#FF804080")
+        compose.onNodeWithTag("color-confirm").performClick()
+        compose.waitUntil(10000){vm.pluginEditor.state?.optJSONObject("color_edit")==null&&vm.effectParam(2,1,"color")!!.getJSONObject("track").getJSONArray("value").getDouble(0)==1.0}
+        compose.onNodeWithTag("native-plugin-key").performClick()
+        compose.waitUntil(10000){vm.effectParam(2,1,"color")!!.getJSONObject("track").getJSONArray("keys").length()==1}
+        scenario.onActivity{vm.seek(30.0,true)};compose.waitUntil(10000){vm.pluginEditor.state?.getInt("frame")==30}
+        val beforeIntermediate=vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()
+        openPalette()
+        paletteReady()
+        compose.onNodeWithTag("color-code").performClick();compose.onNodeWithTag("color-hex").performScrollTo().performTextReplacement("#00AAFFFF")
+        compose.waitUntil(10000){vm.effectParam(2,1,"color")!!.getJSONObject("track").getJSONArray("keys").length()==2}
+        compose.onNodeWithTag("color-cancel").performClick()
+        compose.waitUntil(10000){vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()==beforeIntermediate}
+        compose.onNodeWithTag("native-editor-done").performClick();compose.waitUntil(10000){vm.pluginEditor.session==null&&vm.state.saved}
+        scenario.onActivity{vm.undo()};compose.waitUntil(10000){vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()==original}
+        assertEquals(360.0,vm.effectParam(2,1,"rate")!!.getJSONObject("track").getJSONArray("value").getDouble(0),0.0)
+        scenario.onActivity{vm.redo()};compose.waitUntil(10000){vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()==beforeIntermediate}
+        assertNull(vm.state.error)
     }
 }
