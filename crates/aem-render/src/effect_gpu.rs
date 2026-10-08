@@ -583,6 +583,10 @@ impl GpuState {
         );
         if self.bindings[index].as_ref().is_none_or(|v| v.key != key) {
             let view = |id: i32| -> &wgpu::TextureView {
+                if id <= crate::mask_plan::SOURCE_TOKEN {
+                    let owner=(crate::mask_plan::SOURCE_TOKEN-id) as usize;
+                    return &images[&crate::renderer::TextureKey::Mask(frame.draws[owner].layer)].view;
+                }
                 if id < 0 {
                     if let Some(view) = external {
                         return view;

@@ -184,7 +184,7 @@ open class MainActivity:ComponentActivity() {
             val split=wide&&availableWidth>=552.dp
             val sideWidth=if(split)editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.48f).coerceIn(248.dp,320.dp).value,248f,(availableWidth-304.dp).value).dp else 0.dp
-            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.vectorOpen||vm.compositionClipOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
+            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.vectorOpen||vm.maskOpen||vm.compositionClipOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
             val effectWidth=if(split)sideWidth else editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.5f).coerceAtMost(320.dp).value,200f,(availableWidth-256.dp).value).dp
             val dragDensity=LocalDensity.current.density
@@ -230,7 +230,8 @@ open class MainActivity:ComponentActivity() {
                     }
                     Column(Modifier.width(if(effectEditing)effectWidth else sideWidth).fillMaxHeight()) {
                         if(effectEditing) {
-                            if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing)
+                            if(vm.maskOpen)MaskPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it})
+                            else if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing)
                             else if(vm.compositionClipOpen)CompositionClipPanel(vm,Modifier.fillMaxSize())
                             else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it})
                             else EffectsPanel(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
@@ -245,7 +246,8 @@ open class MainActivity:ComponentActivity() {
                     Transport(vm)
                     Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)focusedTimelineHeight else timelineHeight),focused=effectEditing)
                     if(effectEditing) {
-                        if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing)
+                        if(vm.maskOpen)MaskPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it})
+                        else if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing)
                         else if(vm.compositionClipOpen)CompositionClipPanel(vm,Modifier.fillMaxWidth().height(effectHeight))
                         else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it})
                         else EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
@@ -532,7 +534,7 @@ open class MainActivity:ComponentActivity() {
                 if(!active&&!observing)picked?.let{vm.select(it,false)}
             }
         })
-        if(vm.vectorOpen&&!vm.playing&&!vm.state.observing&&vm.vectorData()?.getJSONObject("source")?.optString("kind")=="paths")VectorPreviewOverlay(vm)
+        if((vm.vectorOpen||vm.maskOpen)&&!vm.playing&&!vm.state.observing&&vm.vectorData()?.getJSONObject("source")?.optString("kind")=="paths")VectorPreviewOverlay(vm)
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
             TextButton(onClick={menu=true},modifier=Modifier.heightIn(min=48.dp).background(Background.copy(alpha=.8f),RoundedCornerShape(10.dp))) {
                 Text(if(vm.state.observing)"空间观察" else if(vm.hasCamera())"成片摄影机"else"合成视图",color=Ink,fontSize=12.sp)

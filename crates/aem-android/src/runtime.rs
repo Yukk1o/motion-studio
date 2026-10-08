@@ -723,6 +723,17 @@ impl Session {
                 }
             }
         }
+        let mask_layers:Vec<_>=self.scene.layers.iter().filter_map(|layer| {
+            let stored=p.layers.iter().find(|l|l.id==layer.id)?;
+            if stored.masks.is_empty(){return None;}
+            let local=stored.local_frame(f);
+            let masks:Vec<_>=stored.masks.iter().map(|m|{
+                let nodes:Vec<_>=m.path.nodes.iter().map(|n|json!({"id":n.id,"geometry":n.geometry.sample(local)})).collect();
+                json!({"id":m.id,"opacity":m.opacity.sample(local).clamp(0.,100.),"feather":m.feather.sample(local).map(|v|v.clamp(0.,aem_core::masks::MAX_MASK_DISTANCE)),"expansion":m.expansion.sample(local),
+                    "path":{"id":m.path.id,"closed":m.path.closed,"nodes":nodes}})
+            }).collect();
+            Some(json!({"id":layer.id,"mvp":(layer.view_projection*layer.model).to_cols_array(),"masks":masks}))
+        }).collect();
         let vector_layers: Vec<_> = self.scene.layers.iter().filter_map(|layer| {
             let vector=layer.vector.as_ref()?;
             let stored=p.layers.iter().find(|l|l.id==layer.id).and_then(|l|match &l.content {
@@ -763,13 +774,14 @@ impl Session {
         json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "main_composition":"comp-main","composition":p.composition_id,"compositions":p.composition_list(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),
             "composition_context":self.composition_context_snapshot(),
-            "vector_layers":vector_layers,
+            "vector_layers":vector_layers,"mask_layers":mask_layers,
             "capabilities":{"adjustment_layers":{"supported":true,"command":"add_adjustment","composite":"lower_layers","mask":"transformed_rectangle","background":"excluded","three_d":false},"vector_drawing":{"supported":true,"protocol":1,"command":"vector","coordinates":"centered_canvas_pixels_y_down","max_paths":aem_core::vector::MAX_PATHS,"max_nodes":aem_core::vector::MAX_NODES,"fill_rules":["non_zero","even_odd"],"stroke_caps":["butt","round","square"],"stroke_joins":["miter","round","bevel"],"shape_catalog":aem_core::vector::shape_catalog()},"scene_effects":{"sdk_version":2,"plugin_editor_protocol":1,"max_particles_per_effect":20000,"max_sprites_per_frame":65536,"occlusion":"source_alpha_planes","simulation":"analytic_local_space"},"property_expressions":{"supported":true,"profile":aem_core::EXPRESSION_PROFILE,"engine":"QuickJS-NG","source_max_bytes":8192,"max_expressions":aem_core::MAX_EXPRESSIONS,"cross_property_references":false,"opacity_unit":"percent"},"layer_clips":true,"layer_3d":{"supported":true,"default":false,"activation":"explicit","command":"set_layer_3d"},
                 "planar_intersections":{"supported":true,"method":"bsp","geometry_api":"sampleGeometryInto","max_batches":8192,"max_vertices":65536},
                 "separate_dimensions":{"supported":true,"activation":"explicit",
                 "layer_properties":["position","rotation","scale"],"camera_properties":camera_properties,"axes":["x","y","z"]},
                 "composition":{"fps_range":[1,aem_core::MAX_COMPOSITION_FPS],"fps_presets":[24,25,30,50,60,90,120,144,240],"fps_type":"integer"},
-                "multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":7,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "multiple_compositions":true,"precompose":true,"composition_api":{"version":1,"project_format":8,"max_compositions":32,"max_depth":8,"max_instances":64,"reference_3d":true,"collapse_transformations":false,"precompose_modes":["move_all_attributes"],"precompose_range":["composition"],"precompose_contiguous":true,"precompose_3d":false,"history_scope":"project"},"video_import":true,"audio_import":true,"model_import":false,"prerender":false,
+                "layer_masks":{"version":1,"supported":true,"space":"source_pixels_y_down","stage":"before_image_effects","max_masks":16,"max_nodes":2048,"modes":["none","add","subtract","intersect","lighten","darken","difference"],"animated":["path","opacity","feather","expansion"],"variable_feather":false,"adjustment_masks":false},
                 "video":video_capabilities,
                 "audio":{"supported_formats":["M4A/AAC-LC/ALAC","MP3","FLAC","Ogg/Vorbis/Opus","ADTS/AAC","WAV/PCM8/16/24/32/float","AIFF"],"sample_rates":[8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000],"sample_rate_range":[8000,192000],"channels":[1,2],"device_query":"media_capabilities",
                 "output_rate":48000,"output_channels":2,"pcm":"f32le_interleaved","waveform_bucket_us":10000,
@@ -1016,19 +1028,26 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
             let programs=s.effects.programs.iter().map(|program|json!({"key":program.key,"glsl":program.shader.glsl,"sprite":program.shader.sprite,"additive":program.shader.additive,"resources":program.resources.iter().map(|path|{
    let bytes=&program.package.as_ref().unwrap().files[path];let dimensions=image::load_from_memory(bytes).map(|v|(v.width(),v.height())).unwrap_or((0,0));json!({"path":path,"width":dimensions.0,"height":dimensions.1})
   }).collect::<Vec<_>>() })).collect::<Vec<_>>();
+            let mask_programs = aem_render::mask_plan::shaders()?
+                .iter()
+                .enumerate()
+                .map(|(index, shader)| json!({"key":if index==0 {"sdk-mask-gaussian"} else {"sdk-mask-combine"},"glsl":shader.glsl}))
+                .collect::<Vec<_>>();
             let count = p
                 .layers
                 .iter()
                 .map(|l| l.effects.iter().filter(|e| e.enabled).count())
                 .sum::<usize>();
-            let passes = count * 10 + p.layers.len();
+            let passes = count * 10 + p.layers.len() * 2;
             let buffer_bytes = aem_render::effect_plan::HEADER_BYTES
                 + p.layers.len() * 128
                 + passes * (40 + aem_effects::shader::UNIFORM_BYTES)
                 + count * 1024
-                + aem_effects::MAX_SPRITES * 48 + 8192 * 12 + 65536 * 20 + aem_core::MAX_LAYERS*28 + 262144*24;
+                + aem_effects::MAX_SPRITES * 48 + 8192 * 12 + 65536 * 20 + aem_core::MAX_LAYERS*28 + 262144*24
+                + aem_core::MAX_LAYERS * aem_core::masks::MAX_MASKS * aem_render::mask_plan::RECORD_BYTES
+                + 262144 * 24;
             Ok(
-                json!({"version":aem_render::effect_plan::PLAN_VERSION,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"headerBytes":aem_render::effect_plan::HEADER_BYTES,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"maskPrograms":mask_programs,"maskBytes":aem_render::mask_plan::RECORD_BYTES,"maskVertexBytes":24,"maskSourceToken":aem_render::mask_plan::SOURCE_TOKEN,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>()}),
             )
         })
     })

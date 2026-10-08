@@ -124,6 +124,8 @@ pub struct Layer {
     pub parent: Option<ParentLink>,
     #[serde(default)]
     pub effects: Vec<crate::EffectInstance>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub masks: Vec<crate::masks::LayerMask>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeline: Option<LayerTimeline>,
 }
@@ -140,6 +142,7 @@ impl Layer {
             three_d: false,
             parent: None,
             effects: Vec::new(),
+            masks: Vec::new(),
             timeline: None,
         }
     }
@@ -223,7 +226,7 @@ impl Project {
     pub fn new(width: u32, height: u32, fps: u32, frames: u32) -> Result<Self> {
         ensure(width > 0 && height > 0, "composition size must be positive")?;
         let mut project = Self {
-            version: 7,
+            version: 8,
             composition_id: crate::MAIN_COMPOSITION.into(),
             compositions: Vec::new(),
             name: "空间练习 01".into(),
@@ -282,7 +285,7 @@ impl Project {
     }
     pub(crate) fn validate_one(&self) -> Result<()> {
         ensure(
-            (1..=7).contains(&self.version),
+            (1..=8).contains(&self.version),
             "unsupported project format",
         )?;
         ensure(
@@ -399,6 +402,10 @@ impl Project {
         }
         let mut ids = HashSet::new();
         for layer in &self.layers {
+            ensure(self.version >= 8 || layer.masks.is_empty(), "layer masks require project format eight")?;
+            crate::masks::validate(&layer.masks).map_err(|e| crate::Error::Invalid(format!("layer {}: {e}",layer.id)))?;
+            ensure(layer.masks.is_empty() || !matches!(layer.content, Content::Null | Content::Audio {..} | Content::Adjustment),
+                "source masks require an ordinary visual layer; adjustment masks require composition compositing")?;
             ensure(
                 layer.id != 0 && ids.insert(layer.id),
                 "layer IDs must be unique and nonzero",
@@ -563,7 +570,7 @@ impl Project {
             }
             self.version = 3;
         }
-        self.version = 7;
+        self.version = 8;
         Ok(self)
     }
     pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {

@@ -38,6 +38,7 @@ pub enum Command {
         object: u64,
         action: crate::vector::VectorAction,
     },
+    Mask { object: u64, action: crate::masks::MaskAction },
     InComposition { composition: String, command: Box<Command> },
     Composition { action: crate::CompositionAction },
     RegisterAudioAsset {
@@ -442,7 +443,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 .iter()
                 .any(|l| l.effects.iter().any(|e| e.scene.is_some()))
             {
-                project.version = 4;
+                project.version = project.version.max(4);
             }
             if let Some(from) = copy {
                 let to = project.layer_mut(object)?.effects.last().unwrap().id;
@@ -718,6 +719,13 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 layer.size,
                 layer.timeline.map_or(0, |t| t.offset_frame),
             )?;
+        }
+        Command::Mask { object, action } => {
+            for frame in action.frames() { valid_frame(frame)?; }
+            project.version = 8;
+            let layer = project.layer_mut(object)?;
+            if layer.locked { return Err(Error::Locked(object)); }
+            crate::masks::edit(&mut layer.masks, action, layer.timeline.map_or(0, |t| t.offset_frame))?;
         }
         Command::RegisterAsset { asset } => project.assets.push(asset),
         Command::Content {
