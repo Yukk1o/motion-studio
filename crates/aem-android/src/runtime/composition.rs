@@ -323,7 +323,7 @@ pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_sampleFram
     frame: jdouble,
     buffer: JByteBuffer,
 ) -> jint {
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<i32> {
+    integer_result(|| -> Result<i32> {
         let composition = read_string(&mut env, &composition)?;
         if env
             .call_method(&buffer, "isReadOnly", "()Z", &[])
@@ -332,12 +332,7 @@ pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_sampleFram
         {
             return Err("frame bundle buffer is read-only".into());
         }
-        let capacity = env
-            .get_direct_buffer_capacity(&buffer)
-            .map_err(|e| e.to_string())?;
-        let address = env
-            .get_direct_buffer_address(&buffer)
-            .map_err(|e| e.to_string())?;
+        let (address, capacity) = BufferAccess::capacity_first(&env, &buffer)?;
         with_session(id, |s| {
             if composition != s.engine.project().composition_id {
                 return Err("composition context mismatch".into());
@@ -367,12 +362,11 @@ pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_sampleFram
                 return Err("invalid direct buffer".into());
             }
             unsafe {
-                std::ptr::copy_nonoverlapping(s.composition_bundle.as_ptr(), address, len);
+                buffers::copy_bytes(address, &s.composition_bundle);
             }
             Ok(len as i32)
         })
-    }));
-    result.ok().and_then(std::result::Result::ok).unwrap_or(-1)
+    })
 }
 
 #[no_mangle]
