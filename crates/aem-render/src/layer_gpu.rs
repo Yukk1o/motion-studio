@@ -163,6 +163,20 @@ impl LayerGpu {
                 .map(|((w, h), _)| u64::from(*w) * u64::from(*h) * 16)
                 .sum::<u64>()
     }
+    pub fn pending_vector_bytes(&self, scene: &aem_core::Scene, meshes: &[crate::vector_mesh::VectorMesh], images: &HashMap<TextureKey, GpuImage>) -> u64 {
+        let mut scratch: std::collections::HashSet<_> = self.raster_scratch.keys().copied()
+            .filter(|size| meshes.iter().any(|m| *size == (m.width, m.height))).collect();
+        let mut bytes = scratch.iter().map(|(w, h)| u64::from(*w) * u64::from(*h) * 16).sum();
+        for mesh in meshes {
+            let id = scene.layers[mesh.layer].id;
+            let old = images.get(&TextureKey::Vector(id));
+            if self.fingerprints.get(&id) == Some(&mesh.fingerprint) && old.is_some_and(|i| i.size == (mesh.width, mesh.height)) { continue; }
+            let cost = u64::from(mesh.width) * u64::from(mesh.height) * 4;
+            if old.is_none_or(|i| i.size != (mesh.width, mesh.height)) { bytes += cost; }
+            if scratch.insert((mesh.width, mesh.height)) { bytes += cost * 4; }
+        }
+        bytes
+    }
     pub fn prepare_vectors(
         &mut self,
         device: &wgpu::Device,

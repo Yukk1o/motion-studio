@@ -25,6 +25,94 @@ fn png(root: &std::path::Path, name: &str, w: u32, h: u32, pixels: &[u8]) -> Sou
 }
 
 #[test]
+fn upcoming_clips_map_nested_time_without_sampling_or_loading_media() {
+    use aem_core::{Composition, CompositionClip, Content, Layer, LayerTimeline, Project};
+    let mut p = Project::new(64, 64, 30, 90).unwrap();
+    let clip = |id, asset, start, end| {
+        let mut layer = Layer::solid(id, "image", [64.; 2], [0.; 3], [1.; 4]);
+        layer.content = Content::Image { asset };
+        layer.timeline = Some(LayerTimeline {
+            in_frame: start,
+            out_frame: end,
+            offset_frame: 0,
+        });
+        layer
+    };
+    p.layers = vec![clip(1, 1, 0, 10), clip(2, 2, 10, 20), clip(5, 5, 31, 40)];
+    let mut hidden = clip(6, 6, 1, 3);
+    hidden.visible = false;
+    p.layers.push(hidden);
+    p.compositions.push(Composition {
+        id: "child".into(),
+        name: "child".into(),
+        width: 64,
+        height: 64,
+        fps: 60,
+        frames: 90,
+        background: [0.; 4],
+        camera: p.camera.clone(),
+        layers: vec![clip(1, 3, 24, 40), clip(2, 4, 35, 45)],
+        expressions: vec![],
+    });
+    let mut nested = clip(9, 0, 5, 30);
+    nested.timeline.as_mut().unwrap().offset_frame = 5;
+    let mut source = CompositionClip::new("child".into());
+    source.source_start_frame = 15;
+    nested.content = Content::Composition { clip: source };
+    p.layers.push(nested);
+    assert_eq!(images::upcoming_assets(&p, 0.), [1, 3, 2]);
+    assert!(images::upcoming_assets(&p, f64::NAN).is_empty());
+    assert!(images::upcoming_assets(&p, 89.).is_empty());
+    // A negative child offset does not prefetch its frame zero before it enters
+    // the lookahead interval; a two-level reference preserves the same rule.
+    if let Content::Composition { clip } = &mut p.layers.last_mut().unwrap().content {
+        clip.source_start_frame = -60;
+    }
+    assert_eq!(images::upcoming_assets(&p, 0.), [1, 2]);
+}
+
+#[test]
+fn cancelling_a_decode_releases_its_only_job_without_delivering_stale_pixels() {
+    let root = tempfile::tempdir().unwrap();
+    let source = png(
+        root.path(),
+        "cancel.png",
+        64,
+        64,
+        &[60, 20, 100, 255].repeat(64 * 64),
+    );
+    let mut worker = images::DecodeTask::default();
+    worker
+        .start(source.clone(), Resolution::Full, true)
+        .unwrap();
+    assert!(worker
+        .start(source.clone(), Resolution::Full, false)
+        .is_err());
+    worker.cancel();
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        if let Some((_, _, speculative, result)) = worker.poll() {
+            assert!(speculative);
+            assert_eq!(result.err().unwrap(), "image decode superseded");
+            assert!(!worker.busy());
+            break;
+        }
+        assert!(std::time::Instant::now() < end);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    worker.start(source, Resolution::Full, false).unwrap();
+    loop {
+        if let Some((_, _, speculative, result)) = worker.poll() {
+            assert!(!speculative);
+            assert_eq!(result.unwrap().rgba.len(), 64 * 64 * 4);
+            break;
+        }
+        assert!(std::time::Instant::now() < end);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+#[test]
 fn box_proxy_averages_linear_premultiplied_color_and_preserves_original() {
     let root = tempfile::tempdir().unwrap();
     let pixels = [
