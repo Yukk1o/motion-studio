@@ -52,11 +52,17 @@ pub fn packages() -> Result<Vec<Arc<EffectPackage>>> {
         EffectPackage::from_bytes(include_bytes!("../library/legacy/core-effects-1.3.0.msfx").to_vec())
             .map(Arc::new).map_err(|e| e.to_string())
     }).clone().map_err(Error::Invalid)?;
+    static SPATIAL: OnceLock<std::result::Result<Arc<EffectPackage>, String>> = OnceLock::new();
+    let spatial = SPATIAL.get_or_init(|| {
+        EffectPackage::from_bytes(include_bytes!("../library/legacy/core-effects-1.4.0.msfx").to_vec())
+            .map(Arc::new).map_err(|e| e.to_string())
+    }).clone().map_err(Error::Invalid)?;
     Ok(vec![
         previous,
         creative,
         common,
         tiling,
+        spatial,
         package()?,
         legacy_scene_package()?,
         scene_package()?,
