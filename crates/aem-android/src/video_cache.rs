@@ -1,11 +1,12 @@
 //! Source-sized caches: small streams retain the existing 8 MiB budget.
-//! Large streams reserve room for one RGBA frame, bounded at 36 MiB each.
+//! Prefetch reserves up to five frames, bounded at 36 MiB per stream.
+//! Actual YUV/RGBA byte counts determine how many frames fit.
 //! Decoder/ImageReader buffers and an in-flight pack are counted separately.
 use crate::video_frame::DecodedFrame;
 use std::{collections::VecDeque, sync::Arc};
 pub const CACHE_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_CACHE_BYTES: usize = 36 * 1024 * 1024;
-pub const LOOKAHEAD: usize = 2;
+pub const LOOKAHEAD: usize = 4;
 pub struct FrameCache {
     frames: VecDeque<Arc<DecodedFrame>>,
     bytes: usize,
@@ -22,7 +23,7 @@ impl FrameCache {
     pub fn for_size(width: u32, height: u32) -> Self {
         let mut cache = Self::new();
         cache.budget = (u64::from(width) * u64::from(height))
-            .saturating_mul(4)
+            .saturating_mul(4 * (LOOKAHEAD as u64 + 1))
             .clamp(CACHE_BYTES as u64, MAX_CACHE_BYTES as u64) as usize;
         cache
     }
@@ -125,5 +126,25 @@ mod tests {
         assert_eq!(cache.len(), 1);
         assert!(cache.budget() <= MAX_CACHE_BYTES);
         assert_eq!(FrameCache::for_size(256, 144).budget(), CACHE_BYTES);
+    }
+    #[test]
+    fn full_hd_prefetch_and_four_k_yuv_use_actual_bytes_with_same_memory_ceiling() {
+        let mut hd = FrameCache::for_size(1920, 1080);
+        let bytes = 1920 * 1080 * 3 / 2;
+        for i in 0..=LOOKAHEAD {
+            assert!(hd.can_prefetch(bytes));
+            assert!(hd.insert(frame(i as u64, i as u64 + 1, bytes), 0));
+        }
+        assert!(!hd.can_prefetch(bytes));
+        assert_eq!(hd.len(), 5);
+        let mut uhd = FrameCache::for_size(3840, 2160);
+        let bytes = 3840 * 2160 * 3 / 2;
+        for i in 0..3 {
+            assert!(uhd.can_prefetch(bytes));
+            assert!(uhd.insert(frame(i, i + 1, bytes), 0));
+        }
+        assert!(!uhd.can_prefetch(bytes));
+        assert_eq!(uhd.len(), 3);
+        assert!(uhd.bytes() <= MAX_CACHE_BYTES);
     }
 }

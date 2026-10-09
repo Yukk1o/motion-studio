@@ -384,6 +384,12 @@ impl Renderer {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::from_env_or_default());
         Self::new(&instance, None, TARGET_FORMAT).await
     }
+    pub fn effect_plan_builds(&self) -> u64 {
+        self.effect_gpu.builder.preview_plan_builds
+    }
+    pub fn effect_plan_cache_hits(&self) -> u64 {
+        self.effect_gpu.builder.preview_cache_hits
+    }
     pub fn texture_bytes(&self) -> u64 {
         self.texture_bytes
             + self.video_plane_bytes()
