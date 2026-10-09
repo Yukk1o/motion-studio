@@ -26,6 +26,18 @@ fn entire_library_compiles_to_wgsl_and_es300() {
         .all(|e| e.compatibility == aem_effects::Compatibility::Approximate));
 }
 #[test]
+fn bundled_core_shader_sources_match_checkout() {
+    let package = builtin::package().unwrap();
+    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("library");
+    let paths: std::collections::BTreeSet<_> = package.manifest.effects.iter()
+        .flat_map(|e| e.passes.iter().map(|p| &p.shader)).collect();
+    for path in paths {
+        let checkout = std::fs::read_to_string(library.join(path)).unwrap().replace("\r\n", "\n");
+        let bundled = std::str::from_utf8(&package.files[path]).unwrap().replace("\r\n", "\n");
+        assert_eq!(checkout, bundled, "stale bundled shader: {path}; run effect_tool pack");
+    }
+}
+#[test]
 fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
     let packages = builtin::packages().unwrap();
     let old = packages
@@ -33,7 +45,10 @@ fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
         .find(|p| p.manifest.version == "1.0.0")
         .unwrap();
     let latest = builtin::package().unwrap();
-    assert_eq!(latest.manifest.version, "1.4.0");
+    assert_eq!(latest.manifest.version, "1.4.1");
+    let spatial = packages.iter().find(|p| p.manifest.id == builtin::PLUGIN_ID && p.manifest.version == "1.4.0").unwrap();
+    assert_eq!(spatial.hash, "0a0d38bf1c01aafca75416c93bbf0bd615cabd9246be2b8a041c3bdfde4c4ef9");
+    assert_eq!(latest.manifest.effects, spatial.manifest.effects);
     let current = packages.iter().find(|p| p.manifest.version == "1.3.0").unwrap();
     assert_eq!(current.manifest.version, "1.3.0");
     assert_eq!(current.hash, "a2655482198ebc3a1e75b569a8d5e14d8232c9ad2445c24fc9badfb6274aa454");

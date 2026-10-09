@@ -9,7 +9,7 @@ use std::{
     time::Instant,
 };
 
-const TEXTURE_BUDGET: u64 = 128 * 1024 * 1024;
+pub(crate) const TEXTURE_BUDGET: u64 = 128 * 1024 * 1024;
 const CAPTURE_PIXEL_LIMIT: u64 = 16 * 1024 * 1024;
 const DRAW_SIZE: u64 = std::mem::size_of::<DrawUniform>() as u64;
 const TARGET_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
