@@ -12,8 +12,11 @@ pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_hitCandidates
     string_result(&mut env, || {
         with_session(id, |s| {
             s.sample()?;
-            let candidates = s
-                .scene
+            let mut picking=s.scene.clone();
+            for layer in &mut picking.layers {
+                *layer=aem_core::selection_geometry::picking_layer(layer,&s.scene,&s.effects.registry);
+            }
+            let candidates = picking
                 .hit_candidates([x as f32, y as f32])
                 .map_err(|e| e.to_string())?;
             Ok(

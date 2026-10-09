@@ -15,6 +15,7 @@ pub mod particle_history;
 pub mod masks;
 pub mod plugin_editor;
 mod scene;
+pub mod selection_geometry;
 pub mod storage;
 mod timeline;
 mod video;

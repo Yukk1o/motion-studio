@@ -68,6 +68,11 @@ fn shake_moves_the_complete_plane_outside_the_original_bounds_without_editing_tr
     let (a, c) = mass_and_center(&original, 192);
     let shifted = render(&mut r, &p, 17., 192);
     let (b, d) = mass_and_center(&shifted, 192);
+    let shifted_scene=scene(&p,17.);
+    let registry=aem_effects::Registry::new_with_builtins().unwrap();
+    let outline=aem_core::selection_geometry::polygon(&shifted_scene.layers[0],&shifted_scene,&registry).unwrap();
+    let selection_center=[outline.iter().map(|v|v[0] as f64).sum::<f64>()/4.,outline.iter().map(|v|v[1] as f64).sum::<f64>()/4.];
+    assert!((selection_center[0]-d[0]-0.5).abs()<1. && (selection_center[1]-d[1]-0.5).abs()<1., "selection {:?} differs from rendered pixel center {:?}",selection_center,d);
     assert!((a - b).abs() / a < 0.04, "source coverage lost: {a} -> {b}");
     assert!(
         (c[0] - d[0]).abs().max((c[1] - d[1]).abs()) > 2.,
