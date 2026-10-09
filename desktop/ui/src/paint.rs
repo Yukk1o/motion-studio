@@ -164,7 +164,7 @@ impl Painter {
             label: Some("panel shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/panel.wgsl").into()),
         });
-        let uniform_entry = |label| wgpu::BindGroupLayoutEntry {
+        let uniform_entry = || wgpu::BindGroupLayoutEntry {
             binding: 0,
             visibility: wgpu::ShaderStages::VERTEX,
             ty: wgpu::BindingType::Buffer {
@@ -176,12 +176,12 @@ impl Painter {
         };
         let solid_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("solid layout"),
-            entries: &[uniform_entry(())],
+            entries: &[uniform_entry()],
         });
         let glyph_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("glyph layout"),
             entries: &[
-                uniform_entry(()),
+                uniform_entry(),
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStages::FRAGMENT,

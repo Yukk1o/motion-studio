@@ -347,7 +347,8 @@ pub fn hit(placements: &[Placement], point: [f32; 2]) -> Option<DockId> {
         .map(|p| p.id)
 }
 
-/// The minimum sizes a solved layout must respect, used when dragging.
+/// Clamp a proposed split ratio so no dock can be collapsed or pushed off
+/// screen. The minimum is expressed in pixels, so it holds at any window size.
 pub fn clamp_split(edge: Edge, split: f32, area: Rect) -> f32 {
     let minimum = if edge.is_horizontal() {
         metrics::MIN_DOCK
@@ -362,7 +363,8 @@ pub fn clamp_split(edge: Edge, split: f32, area: Rect) -> f32 {
     if extent <= 0.0 {
         return 0.5;
     }
-    (minimum / extent).clamp(0.05, 0.95)
+    let floor = (minimum / extent).clamp(0.05, 0.95);
+    split.clamp(floor, 1.0 - floor)
 }
 
 #[cfg(test)]
@@ -463,7 +465,16 @@ mod tests {
     fn splits_clamp_so_a_dock_cannot_be_collapsed() {
         let area = Rect::new(0.0, 0.0, 400.0, 400.0);
         assert!(clamp_split(Edge::Right, 0.0, area) >= metrics::MIN_DOCK / 400.0);
-        assert!(clamp_split(Edge::Bottom, 1.0, area) <= 0.95);
+        assert!(clamp_split(Edge::Right, 1.0, area) <= 1.0 - metrics::MIN_DOCK / 400.0);
         assert!((clamp_split(Edge::Right, 0.5, area) - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn clamping_is_symmetric_so_neither_side_can_be_hidden() {
+        let area = Rect::new(0.0, 0.0, 400.0, 400.0);
+        assert_eq!(
+            clamp_split(Edge::Bottom, 0.01, area) + clamp_split(Edge::Bottom, 0.99, area),
+            1.0
+        );
     }
 }

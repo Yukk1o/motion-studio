@@ -34,7 +34,6 @@ struct Stream {
     asset: VideoAsset,
     pts: Arc<Vec<u64>>,
     shared: Arc<(Mutex<State>, Condvar)>,
-    platform: Arc<dyn crate::platform::Platform>,
 }
 fn job(s: &State, pts: &[u64]) -> Option<(u64, bool)> {
     let r = s.desired?;
@@ -181,12 +180,7 @@ impl Stream {
                 }
             })
             .map_err(|e| e.to_string())?;
-        Ok(Self {
-            asset,
-            pts,
-            shared,
-            platform,
-        })
+        Ok(Self { asset, pts, shared })
     }
     fn key(&self, time: u64) -> Result<(u64, usize)> {
         if time < self.asset.video_start_us || time >= self.asset.video_end_us {

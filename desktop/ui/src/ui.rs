@@ -4,7 +4,7 @@
 //! Keeping the API in terms of logical pixels means the same panel code serves
 //! a 100% and a 200% display without branching.
 
-use crate::input::{Event, Input, Key, Modifiers, MouseButton, Rect, Scroll};
+use crate::input::{Event, Input, Key, MouseButton, Rect};
 use crate::paint::{self, PaintList};
 use crate::theme::{palette, Color, metrics};
 
@@ -147,10 +147,10 @@ impl ScrubField {
         self.editing = false;
     }
 
-    /// Value change for a horizontal drag of `delta` logical pixels.
-    pub fn scrub(&self, value: f32, delta: f32, range: (f32, f32), step: f32) -> f32 {
-        let raw = self.drag_origin + delta * step;
-        raw.clamp(range.0, range.1)
+    /// Value for a horizontal drag of `delta` logical pixels from where the
+    /// drag started, clamped to the property's range.
+    pub fn scrub(&self, delta: f32, range: (f32, f32), step: f32) -> f32 {
+        (self.drag_origin + delta * step).clamp(range.0, range.1)
     }
 }
 
@@ -598,6 +598,7 @@ impl Default for Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::input::{Modifiers, Scroll};
 
     #[test]
     fn values_format_without_trailing_noise() {
@@ -613,16 +614,16 @@ mod tests {
         let mut field = ScrubField::default();
         field.begin(10.0);
         // A second update mid-drag must not compound.
-        assert_eq!(field.scrub(10.0, 100.0, (-1000.0, 1000.0), 0.5), 60.0);
-        assert_eq!(field.scrub(10.0, 100.0, (-1000.0, 1000.0), 0.5), 60.0);
+        assert_eq!(field.scrub(100.0, (-1000.0, 1000.0), 0.5), 60.0);
+        assert_eq!(field.scrub(100.0, (-1000.0, 1000.0), 0.5), 60.0);
     }
 
     #[test]
     fn scrubbing_respects_the_declared_range() {
         let mut field = ScrubField::default();
         field.begin(0.0);
-        assert_eq!(field.scrub(0.0, 10_000.0, (0.0, 360.0), 1.0), 360.0);
-        assert_eq!(field.scrub(0.0, -10_000.0, (0.0, 360.0), 1.0), 0.0);
+        assert_eq!(field.scrub(10_000.0, (0.0, 360.0), 1.0), 360.0);
+        assert_eq!(field.scrub(-10_000.0, (0.0, 360.0), 1.0), 0.0);
     }
 
     #[test]

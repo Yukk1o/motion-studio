@@ -5,7 +5,7 @@
 //! platform UI face and falls back to any installed font, so the shell renders
 //! on a machine with no fonts of its own.
 
-use ab_glyph::{Font, FontArc, PxScale, PxScaleFont, ScaleFont};
+use ab_glyph::{FontArc, PxScale, PxScaleFont, ScaleFont};
 
 /// One rendered glyph in the atlas.
 #[derive(Clone, Copy)]
@@ -41,8 +41,7 @@ impl Default for AtlasConfig {
 /// multiplies it by the per-glyph colour, so a glyph only ever costs one texel
 /// read regardless of how many times it is drawn.
 pub struct TextAtlas {
-    font: FontArc,
-    scale: f32,
+    font: PxScaleFont<FontArc>,
     config: AtlasConfig,
     pixels: Vec<u8>,
     entries: std::collections::HashMap<char, GlyphEntry>,
@@ -63,14 +62,16 @@ impl TextAtlas {
     }
 
     pub fn new(font: FontArc, scale: f32, families: Vec<String>) -> Self {
-        let scaled = PxScaleFont::from(font.clone()).with_scale(PxScale::from(scale));
-        let line_height = scaled.height().max(scale);
-        let ascent = scaled.ascent();
+        let font = PxScaleFont {
+            font,
+            scale: PxScale::from(scale),
+        };
+        let line_height = font.height().max(scale);
+        let ascent = font.ascent();
         let config = AtlasConfig::default();
         let pixels = vec![0u8; (config.width * config.height * 4) as usize];
         Self {
             font,
-            scale,
             config,
             pixels,
             entries: std::collections::HashMap::new(),
@@ -84,10 +85,13 @@ impl TextAtlas {
 
     /// Scale the rasterisation size, for example after a display scale change.
     pub fn set_scale(&mut self, scale: f32) {
-        if (scale - self.scale).abs() < f32::EPSILON {
+        let current = self.font.scale.to_pt();
+        if (scale - current).abs() < f32::EPSILON {
             return;
         }
-        self.scale = scale;
+        self.font.scale = PxScale::from(scale);
+        self.ascent = self.font.ascent();
+        self.line_height = self.font.height().max(scale);
         self.clear();
     }
 
@@ -112,14 +116,15 @@ impl TextAtlas {
     }
 
     /// Advance width of a character, without rasterising it.
+    ///
+    /// Unmapped code points take a fixed width so a layout never collapses when
+    /// a label contains a character the system font lacks.
     fn advance(&self, character: char) -> f32 {
-        let scaled = PxScaleFont::from(self.font.clone()).with_scale(PxScale::from(self.scale));
-        let id = scaled.glyph_id(character);
+        let id = self.font.glyph_id(character);
         if id.0 == 0 {
-            // Unmapped code points take a fixed width so layout stays stable.
-            return self.scale * 0.5;
+            return self.font.scale.to_pt() * 0.5;
         }
-        scaled.h_advance(id)
+        self.font.h_advance(id)
     }
 
     /// Rasterise a character if it is not already cached.
@@ -127,38 +132,31 @@ impl TextAtlas {
         if let Some(entry) = self.entries.get(&character) {
             return *entry;
         }
-        let scaled = PxScaleFont::from(self.font.clone()).with_scale(PxScale::from(self.scale));
-        let id = scaled.glyph_id(character);
-        let advance = if id.0 == 0 {
-            self.scale * 0.5
-        } else {
-            scaled.h_advance(id)
+        let advance = self.advance(character);
+        let blank = GlyphEntry {
+            uv: [0.0; 4],
+            offset: [0.0, 0.0],
+            advance,
         };
+        let id = self.font.glyph_id(character);
         if id.0 == 0 {
-            let entry = GlyphEntry {
-                uv: [0.0; 4],
-                offset: [0.0, 0.0],
-                advance,
-            };
-            self.entries.insert(character, entry);
-            return entry;
+            self.entries.insert(character, blank);
+            return blank;
         }
-        let glyph = scaled.scaled_glyph(character);
-        let bounds = scaled.glyph_bounds(&glyph);
-        let width = bounds.max.x - bounds.min.x;
-        let height = bounds.max.y - bounds.min.y;
-        if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
+        let Some(outlined) = self.font.outline_glyph(self.font.scaled_glyph(character)) else {
+            self.entries.insert(character, blank);
+            return blank;
+        };
+        // Pixel bounds are integers and exactly match what `draw` reports, so
+        // the atlas rectangle and the draw coordinates agree without rounding.
+        let bounds = outlined.px_bounds();
+        let width = (bounds.max.x - bounds.min.x) as u32;
+        let height = (bounds.max.y - bounds.min.y) as u32;
+        if width == 0 || height == 0 {
             // Whitespace advances without a bitmap.
-            let entry = GlyphEntry {
-                uv: [0.0; 4],
-                offset: [0.0, 0.0],
-                advance,
-            };
-            self.entries.insert(character, entry);
-            return entry;
+            self.entries.insert(character, blank);
+            return blank;
         }
-        let width = width.ceil() as u32;
-        let height = height.ceil() as u32;
         let padding = self.config.padding;
         let row_height = self.line_height.ceil() as u32;
         if self.cursor[0] + width as f32 + padding as f32 > self.config.width as f32 {
@@ -173,24 +171,17 @@ impl TextAtlas {
         }
         let x = self.cursor[0] as u32;
         let y = self.cursor[1] as u32;
-        if let Some(outlined) = scaled.outline_glyph(glyph) {
-            let stride = self.config.width as usize;
-            outlined.draw(|px, py, coverage| {
-                // The outline is positioned in absolute pixel space; shift it
-                // into the atlas rectangle this glyph occupies.
-                let column = (px - bounds.min.x) as i64;
-                let row = (py - bounds.min.y) as i64;
-                if column < 0 || row < 0 {
-                    return;
-                }
-                let (column, row) = (column as usize, row as usize);
-                if column >= width as usize || row >= height as usize {
-                    return;
-                }
-                let index = ((y as usize + row) * stride + x as usize + column) * 4;
-                self.pixels[index..index + 4].fill(coverage);
-            });
-        }
+        let stride = self.config.width as usize;
+        let pixels = &mut self.pixels;
+        outlined.draw(|column, row, coverage| {
+            let local_column = column - bounds.min.x;
+            let local_row = row - bounds.min.y;
+            if local_column >= width || local_row >= height {
+                return;
+            }
+            let index = ((y + local_row) as usize * stride + x as usize + local_column as usize) * 4;
+            pixels[index..index + 4].fill((coverage.clamp(0.0, 1.0) * 255.0).round() as u8);
+        });
         self.cursor[0] += width as f32 + padding as f32;
         let entry = GlyphEntry {
             uv: [
@@ -201,8 +192,8 @@ impl TextAtlas {
             ],
             // Atlas rows advance downward; glyph space advances upward.
             offset: [
-                bounds.min.x,
-                (self.ascent - bounds.min.y).round(),
+                bounds.min.x as f32,
+                (self.ascent - bounds.min.y as f32).round(),
             ],
             advance,
         };
