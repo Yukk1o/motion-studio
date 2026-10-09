@@ -1,6 +1,6 @@
 # 运动粒子与原生编辑器验收记录
 
-日期：2026-10-07。基线 `2644f9cf5e210b4911493e3cd573ae656045a676`，分支 `codex/particle-emitter-trails-20261007`。实现范围和调用契约见 [粒子交接](particle-emitter.md)、[原生 UI 插槽](native-plugin-ui.md)。
+日期：2026-10-07。基线 `2644f9cf5e210b4911493e3cd573ae656045a676`，分支 `codex/particle-emitter-trails-20261007`。实现范围和调用契约见 [粒子交接](../host-api/particle-emitter.md)、[原生 UI 插槽](../host-api/native-plugin-ui.md)。
 
 ## 构建与回归
 

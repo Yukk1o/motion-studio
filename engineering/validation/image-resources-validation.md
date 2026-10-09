@@ -71,4 +71,4 @@ adb shell am instrument -w -r -e class com.motionstudio.editor.ImagePreviewCache
 
 本批移除了打开工程时整库图片解码/上传和大 PNG 的 Bitmap 64 MiB 限制，提供代理、DirectByteBuffer 输出及后续补充的近期纹理复用/片段预取。原图/活动纹理的 128 MiB 预算、效果临时纹理 64 MiB 预算及设备尺寸限制仍会影响复杂正式输出。超过预算时仍然明确失败；没有实现超大效果层的分块渲染、跨 Renderer 共享、非 sRGB/HDR 色彩管理或任意大图 JPEG 流式解码。0.5 秒的预取窗口不能保证任意冷缓存素材都在片段开始前准备好。
 
-测试 APK 包含主分支及本 PR；2 GiB 视频/异步工程包能力来自另一个独立 PR，需合并后进行组合验证。接口与前端接入规则见 [host-image-resources.md](host-image-resources.md)。本地原始日志、报告与安装包位于工作区 `artifacts/image-demand-resources/`，该目录被 Git 忽略。
+测试 APK 包含主分支及本 PR；2 GiB 视频/异步工程包能力来自另一个独立 PR，需合并后进行组合验证。接口与前端接入规则见 [host-image-resources.md](../host-api/host-image-resources.md)。本地原始日志、报告与安装包位于工作区 `artifacts/image-demand-resources/`，该目录被 Git 忽略。
