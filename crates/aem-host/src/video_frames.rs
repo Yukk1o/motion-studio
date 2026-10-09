@@ -1,5 +1,5 @@
 //! Exact PTS lookup with bounded forward prefetch, independent of render ticks.
-use super::video_decode::Decoder;
+use crate::platform::VideoDecoder;
 use crate::video_cache::{FrameCache, LOOKAHEAD};
 use crate::video_frame::DecodedFrame;
 use aem_core::{Content, Project, Scene, VideoAsset};
@@ -34,6 +34,7 @@ struct Stream {
     asset: VideoAsset,
     pts: Arc<Vec<u64>>,
     shared: Arc<(Mutex<State>, Condvar)>,
+    platform: Arc<dyn crate::platform::Platform>,
 }
 fn job(s: &State, pts: &[u64]) -> Option<(u64, bool)> {
     let r = s.desired?;
@@ -54,7 +55,11 @@ fn job(s: &State, pts: &[u64]) -> Option<(u64, bool)> {
         .map(|t| (*t, true))
 }
 impl Stream {
-    fn new(root: PathBuf, asset: VideoAsset) -> Result<Self> {
+    fn new(
+        root: PathBuf,
+        asset: VideoAsset,
+        platform: Arc<dyn crate::platform::Platform>,
+    ) -> Result<Self> {
         let pts = Arc::new(aem_media::load_video_index(&root, &asset)?);
         let shared = Arc::new((
             Mutex::new(State {
@@ -75,6 +80,7 @@ impl Stream {
         let copy = shared.clone();
         let times = pts.clone();
         let media = asset.clone();
+        let backend = platform.clone();
         std::thread::Builder::new()
             .name("motion-video-frames".into())
             .spawn(move || {
@@ -105,7 +111,7 @@ impl Stream {
                             Ok(())
                         }
                     };
-                    let previous_seeks = decoder.as_ref().map_or(0, |d: &Decoder| d.seeks);
+                    let previous_seeks = decoder.as_ref().map_or(0, |d: &dyn VideoDecoder| d.seeks());
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
                         || -> Result<Arc<DecodedFrame>> {
                             check()?;
@@ -121,7 +127,7 @@ impl Stream {
                                 {
                                     return Err("owned video source missing or changed".into());
                                 }
-                                decoder = Some(Decoder::new(
+                                decoder = Some(backend.open_decoder(
                                     &source,
                                     media.clone(),
                                     times.as_ref().clone(),
@@ -132,7 +138,10 @@ impl Stream {
                     ))
                     .unwrap_or_else(|_| Err("video decoder worker failed".into()));
                     let mut s = copy.0.lock().unwrap_or_else(|e| e.into_inner());
-                    s.seeks += decoder.as_ref().map_or(0, |d| d.seeks).saturating_sub(previous_seeks);
+                    s.seeks += decoder
+                        .as_ref()
+                        .map_or(0, |d: &dyn VideoDecoder| d.seeks())
+                        .saturating_sub(previous_seeks);
                     if s.stop {
                         return;
                     }
@@ -172,7 +181,12 @@ impl Stream {
                 }
             })
             .map_err(|e| e.to_string())?;
-        Ok(Self { asset, pts, shared })
+        Ok(Self {
+            asset,
+            pts,
+            shared,
+            platform,
+        })
     }
     fn key(&self, time: u64) -> Result<(u64, usize)> {
         if time < self.asset.video_start_us || time >= self.asset.video_end_us {
@@ -274,8 +288,20 @@ pub struct VideoFrames {
     // Public sequences never share a namespace with automatic preview generations.
     sequences: HashMap<u64, (u64, f64, u64)>,
     counter: u64,
+    platform: Option<Arc<dyn crate::platform::Platform>>,
 }
 impl VideoFrames {
+    pub fn new(platform: Arc<dyn crate::platform::Platform>) -> Self {
+        Self {
+            platform: Some(platform),
+            ..Default::default()
+        }
+    }
+    fn backend(&self) -> Result<Arc<dyn crate::platform::Platform>> {
+        self.platform
+            .clone()
+            .ok_or("video frames require a host platform")
+    }
     pub fn clear(&mut self) {
         self.streams.clear();
         self.sequences.clear();
@@ -370,8 +396,10 @@ impl VideoFrames {
             if self.streams.len() >= 4 {
                 return Err("at most four video instances per reader; release idle frames".into());
             }
-            self.streams
-                .insert(object, Stream::new(root.into(), asset.clone())?);
+            self.streams.insert(
+                object,
+                Stream::new(root.into(), asset.clone(), self.backend()?)?,
+            );
         }
         let mut result = self.streams[&object].request(source, generation, prefetch)?;
         result["object"] = json!(object);

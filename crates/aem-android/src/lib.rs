@@ -1,13 +1,34 @@
-//! Android platform boundary. Native runtime integration is the next implementation step.
+//! Android platform adapter.
+//!
+//! All JNI marshalling lives in [`jni_api`]; this crate otherwise contains the
+//! Android media and surface backends that implement [`aem_host::Platform`].
+//! On non-Android targets the crate is empty, because the desktop application
+//! provides its own backends. Every editing operation lives in `aem-host`, which
+//! is why the desktop application cannot drift behind the Android SDK surface.
 #![recursion_limit = "256"]
+
 pub use aem_core::Engine;
-#[cfg(any(target_os = "android", test))]
-#[cfg_attr(not(target_os = "android"), allow(dead_code))]
-mod video_frame;
-#[cfg(any(target_os = "android", test))]
-mod video_cache;
-#[cfg(any(target_os = "android", test))]
-#[cfg_attr(not(target_os = "android"), allow(dead_code))]
-mod video_decode_policy;
+pub use aem_host::{Platform, Session};
+
 #[cfg(target_os = "android")]
-mod runtime;
+mod android_window;
+#[cfg(target_os = "android")]
+mod audio_decode;
+#[cfg(target_os = "android")]
+mod bridge;
+#[cfg(target_os = "android")]
+mod media_capabilities;
+#[cfg(target_os = "android")]
+mod platform;
+#[cfg(target_os = "android")]
+mod uri;
+#[cfg(target_os = "android")]
+mod video_decode;
+
+#[cfg(target_os = "android")]
+mod jni_api;
+
+#[cfg(target_os = "android")]
+pub use android_window::AndroidWindow;
+#[cfg(target_os = "android")]
+pub use platform::{current, install, AndroidPlatform};

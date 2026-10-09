@@ -1,0 +1,33 @@
+[package]
+name = "aem-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Motion Studio desktop application"
+
+[[bin]]
+name = "motion-studio"
+path = "src/main.rs"
+
+[features]
+default = []
+ffmpeg = ["aem-desktop-media/ffmpeg"]
+
+[dependencies]
+aem-host = { path = "../../crates/aem-host" }
+aem-core = { path = "../../crates/aem-core" }
+aem-render = { path = "../../crates/aem-render" }
+aem-media = { path = "../../crates/aem-media" }
+aem-desktop-media = { path = "../../crates/aem-desktop-media" }
+aem-ui = { path = "../ui" }
+serde.workspace = true
+serde_json.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+raw-window-handle = "0.6"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+winit = "0.30"
+
+[dev-dependencies]
+tempfile = "3"

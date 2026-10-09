@@ -1,9 +1,9 @@
 //! Android MediaExtractor / MediaCodec. Every native object stays on its worker.
 use aem_core::VideoAsset;
 use aem_media::{Result, VideoProbe};
-use crate::video_frame::{DecodedFrame, VideoPixels};
+use aem_host::video_frame::{DecodedFrame, VideoPixels};
 use aem_render::{VideoPlane, Yuv420Frame};
-use ndk::media::{
+pub(crate) use ndk::media::{
     image_reader::{AcquireResult, Image, ImageFormat, ImageReader},
     media_codec::{
         DequeuedInputBufferResult as Input, DequeuedOutputBufferInfoResult as Output, MediaCodec,
@@ -25,7 +25,7 @@ static JVM: std::sync::OnceLock<jni::JavaVM> = std::sync::OnceLock::new();
 pub fn set_vm(vm: jni::JavaVM) {
     let _ = JVM.set(vm);
 }
-pub(super) fn attach() -> Result<jni::AttachGuard<'static>> {
+pub(crate) fn attach() -> Result<jni::AttachGuard<'static>> {
     JVM.get()
         .ok_or("video Java VM not initialized")?
         .attach_current_thread()
@@ -49,8 +49,8 @@ impl Drop for Permit {
         CODECS.fetch_sub(1, Ordering::AcqRel);
     }
 }
-pub(super) struct Extractor(pub(super) NonNull<ffi::AMediaExtractor>);
-impl Extractor {
+pub(crate) struct Extractor(pub(crate) NonNull<ffi::AMediaExtractor>);
+pub(crate) impl Extractor {
     pub(super) fn open(path: &Path) -> Result<Self> {
         let file = File::open(path).map_err(|e| e.to_string())?;
         let bytes = file.metadata().map_err(|e| e.to_string())?.len();

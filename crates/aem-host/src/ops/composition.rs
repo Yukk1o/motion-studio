@@ -1,15 +1,11 @@
 //! Versioned composition context and transaction API; no widget/UI ownership.
-use super::*;
+use super::parse_request;
+use crate::session::{Result, Session};
 use aem_core::{CompositionAction, MAIN_COMPOSITION};
-#[derive(Clone, Default)]
-pub(super) struct CompositionContext {
-    pub frame: f64,
-    pub selection: Vec<u64>,
-    pub timeline: Value,
-    pub path: Vec<String>,
-}
+use serde_json::{json, Value};
+
 impl Session {
-    pub(super) fn composition_context_snapshot(&self) -> Value {
+    pub fn composition_context_snapshot(&self) -> Value {
         let p = self.engine.project();
         let Some(context) = self.composition_contexts.get(&p.composition_id) else {
             return json!({"frame":self.frame,"selection":[],"timeline":null,"path":[p.composition_id]});
@@ -22,10 +18,19 @@ impl Session {
             .collect();
         let valid_path = context.path.last() == Some(&p.composition_id)
             && context.path.windows(2).all(|pair| {
-                let layers = if pair[0] == p.composition_id { Some(&p.layers) }
-                    else { p.compositions.iter().find(|c| c.id == pair[0]).map(|c| &c.layers) };
-                layers.is_some_and(|layers| layers.iter().any(|l|
-                    matches!(&l.content,aem_core::Content::Composition{clip} if clip.composition==pair[1])))
+                let layers = if pair[0] == p.composition_id {
+                    Some(&p.layers)
+                } else {
+                    p.compositions
+                        .iter()
+                        .find(|c| c.id == pair[0])
+                        .map(|c| &c.layers)
+                };
+                layers.is_some_and(|layers| {
+                    layers.iter().any(|l| {
+                        matches!(&l.content, aem_core::Content::Composition { clip } if clip.composition == pair[1])
+                    })
+                })
             });
         let path = if valid_path {
             context.path.clone()
@@ -34,15 +39,7 @@ impl Session {
         };
         json!({"frame":self.frame,"selection":selection,"timeline":context.timeline,"path":path})
     }
-    pub(super) fn composition_error(&self, code: &str, message: &str, details: Value) -> String {
-        aem_core::composition::CompositionError {
-            code: code.into(),
-            composition: self.engine.project().composition_id.clone(),
-            message: message.into(),
-            details,
-        }
-        .to_string()
-    }
+
     fn open_composition(&mut self, id: &str, path: Option<Vec<String>>) -> Result<()> {
         if self.engine.gesture_active() || self.editor.is_some() {
             return Err(self.composition_error(
@@ -72,7 +69,15 @@ impl Session {
                     .project()
                     .composition(&pair[0])
                     .map_err(|e| e.to_string())?;
-                if !p.layers.iter().any(|l|matches!(&l.content,aem_core::Content::Composition{clip} if clip.composition==pair[1])) {return Err(self.composition_error("invalid_path","Breadcrumb contains a missing reference",json!({"path":path})));}
+                if !p.layers.iter().any(|l| {
+                    matches!(&l.content, aem_core::Content::Composition { clip } if clip.composition == pair[1])
+                }) {
+                    return Err(self.composition_error(
+                        "invalid_path",
+                        "Breadcrumb contains a missing reference",
+                        json!({"path":path}),
+                    ));
+                }
             }
             path
         } else {
@@ -92,8 +97,11 @@ impl Session {
             (*id == 0 && self.engine.project().camera.created)
                 || self.engine.project().layers.iter().any(|l| l.id == *id)
         });
-        self.scene = Scene::new(self.engine.project());
-        self.observer = Observer::new(self.engine.project().width, self.engine.project().height);
+        self.scene = aem_core::Scene::new(self.engine.project());
+        self.observer = aem_core::Observer::new(
+            self.engine.project().width,
+            self.engine.project().height,
+        );
         self.observing = false;
         self.audio_mixer = None;
         self.video_frames.clear();
@@ -104,7 +112,8 @@ impl Session {
         }
         Ok(())
     }
-    pub(super) fn composition_request(&mut self, v: Value) -> Result<Value> {
+
+    pub fn composition_request(&mut self, v: Value) -> Result<Value> {
         if v["version"].as_u64() != Some(1) {
             return Err(self.composition_error(
                 "unsupported_version",
@@ -120,42 +129,38 @@ impl Session {
         let op = v["op"].as_str().ok_or("missing composition operation")?;
         match op {
             "list" => {
-                return Ok(
-                    json!({"version":1,"compositions":self.engine.project().composition_list(),"revision":self.engine.revision()}),
-                )
+                return Ok(json!({"version":1,"compositions":self.engine.project().composition_list(),"revision":self.engine.revision()}))
             }
             "info" => {
-                return Ok(
-                    json!({"composition":self.engine.project().composition_list().into_iter().find(|c|c["id"]==id),"revision":self.engine.revision()}),
-                )
+                return Ok(json!({"composition":self.engine.project().composition_list().into_iter().find(|c|c["id"]==id),"revision":self.engine.revision()}))
             }
             "reference_candidates" => {
-                let results = self.engine.project().composition_reference_candidates(id)
+                let results = self
+                    .engine
+                    .project()
+                    .composition_reference_candidates(id)
                     .map_err(|e| e.to_string())?;
                 return Ok(json!({"compositions":results}));
             }
             "delete_check" => {
-                return Ok(
-                    json!({"references":self.engine.project().composition_references(id),"can_delete":id!=MAIN_COMPOSITION&&id!=self.engine.project().composition_id&&self.engine.project().composition_references(id).is_empty()}),
-                )
+                return Ok(json!({"references":self.engine.project().composition_references(id),
+                    "can_delete":id!=MAIN_COMPOSITION&&id!=self.engine.project().composition_id&&self.engine.project().composition_references(id).is_empty()}))
             }
             "settings_preview" => {
                 let settings =
                     serde_json::from_value(v["settings"].clone()).map_err(|e| e.to_string())?;
-                let mut test = Engine::new(self.engine.snapshot()).map_err(|e| e.to_string())?;
-                let command = Command::InComposition {
+                let mut test =
+                    aem_core::Engine::new(self.engine.snapshot()).map_err(|e| e.to_string())?;
+                let command = aem_core::Command::InComposition {
                     composition: id.into(),
-                    command: Box::new(Command::Composition {
+                    command: Box::new(aem_core::Command::Composition {
                         action: CompositionAction::Settings { settings },
                     }),
                 };
                 return match test.apply_batch(vec![command]) {
-                    Ok(result) => Ok(
-                        json!({"valid":true,"expected_revision":self.engine.revision(),"results":result}),
-                    ),
-                    Err(e) => Ok(
-                        json!({"valid":false,"expected_revision":self.engine.revision(),"error":e.to_string(),"error_detail":e.to_string().strip_prefix("composition_error:").and_then(|s|serde_json::from_str::<Value>(s).ok())}),
-                    ),
+                    Ok(result) => Ok(json!({"valid":true,"expected_revision":self.engine.revision(),"results":result})),
+                    Err(e) => Ok(json!({"valid":false,"expected_revision":self.engine.revision(),"error":e.to_string(),
+                        "error_detail":e.to_string().strip_prefix("composition_error:").and_then(|s|serde_json::from_str::<Value>(s).ok())})),
                 };
             }
             "open" => {
@@ -180,8 +185,8 @@ impl Session {
                         return Ok(json!({"composition":id,"revision":self.engine.revision()}))
                     }
                     "context" => {
-                        let selection: Vec<u64> = serde_json::from_value(v["selection"].clone())
-                            .map_err(|e| e.to_string())?;
+                        let selection: Vec<u64> =
+                            serde_json::from_value(v["selection"].clone()).map_err(|e| e.to_string())?;
                         if selection.iter().any(|id| {
                             !(*id == 0 && self.engine.project().camera.created)
                                 && !self.engine.project().layers.iter().any(|l| l.id == *id)
@@ -232,14 +237,14 @@ impl Session {
                                     .map_err(|e| e.to_string())?,
                             }
                         } else {
-                            serde_json::from_value(v["action"].clone())
-                                .map_err(|e| e.to_string())?
+                            serde_json::from_value(v["action"].clone()).map_err(|e| e.to_string())?
                         };
                         let results = self
                             .engine
-                            .apply_batch(vec![Command::Composition { action }])
+                            .apply_batch(vec![aem_core::Command::Composition { action }])
                             .map_err(|e| e.to_string())?;
-                        if let Some(aem_core::EditResult::Composition { result }) = results.last() {
+                        if let Some(aem_core::EditResult::Composition { result }) = results.last()
+                        {
                             if let Some(selection) = result["selection"].as_array() {
                                 self.composition_contexts
                                     .entry(id.into())
@@ -272,118 +277,64 @@ impl Session {
         Ok(self.snapshot())
     }
 }
-#[no_mangle]
-pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_request(
-    mut env: JNIEnv,
-    _class: JClass,
-    id: jlong,
-    text: JString,
-) -> jstring {
-    let text = read_string(&mut env, &text);
-    string_result(&mut env, || {
-        let text = text?;
-        if text.len() > 256 * 1024 {
-            return Err("composition request too large".into());
+
+/// Serialize the versioned composition bundle used by frozen export readers.
+pub fn frame_bundle(
+    id: i64,
+    composition: &str,
+    frame: f64,
+    out: &mut Vec<u8>,
+) -> Result<usize> {
+    crate::session::with_session(id, |s| {
+        if composition != s.engine.project().composition_id {
+            return Err("composition context mismatch".into());
         }
-        let v = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-        with_session(id, |s| {
-            s.composition_request(v).map_err(|e| {
-                if e.starts_with("composition_error:") {
-                    e
-                } else {
-                    s.composition_error("invalid_request", &e, json!({}))
-                }
-            })
-        })
-    })
-}
-#[no_mangle]
-pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_sampleFrameBundleInto(
-    mut env: JNIEnv,
-    _class: JClass,
-    id: jlong,
-    composition: JString,
-    frame: jdouble,
-    buffer: JByteBuffer,
-) -> jint {
-    integer_result(|| -> Result<i32> {
-        let composition = read_string(&mut env, &composition)?;
-        if env
-            .call_method(&buffer, "isReadOnly", "()Z", &[])
-            .and_then(|v| v.z())
-            .map_err(|e| e.to_string())?
-        {
-            return Err("frame bundle buffer is read-only".into());
-        }
-        let (address, capacity) = BufferAccess::capacity_first(&env, &buffer)?;
-        with_session(id, |s| {
-            if composition != s.engine.project().composition_id {
-                return Err("composition context mismatch".into());
-            }
-            s.frame = frame;
-            s.sample()?;
-            let p = s.engine.project();
-            let assets = std::iter::once(0)
-                .chain(p.assets.iter().map(|a| a.id))
-                .collect::<Vec<_>>();
-            s.effects.synchronize_scene_alpha(&s.scene, p, &s.root)?;
-            let result = aem_render::composition_plan::build(
-                &mut s.effects,
-                &s.scene,
-                p,
-                &assets,
-                &mut s.composition_bundle,
-            );
-            if let Err(e) = result {
-                s.last_error = Some(e.clone());
-                return Err(e);
-            }
-            let len = s.composition_bundle.len();
-            if capacity < len {
-                return Ok(-(len as i32));
-            }
-            if address.is_null() {
-                return Err("invalid direct buffer".into());
-            }
-            unsafe {
-                buffers::copy_bytes(address, &s.composition_bundle);
-            }
-            Ok(len as i32)
-        })
+        s.frame = frame;
+        s.sample()?;
+        let p = s.engine.project();
+        let assets = std::iter::once(0)
+            .chain(p.assets.iter().map(|a| a.id))
+            .collect::<Vec<_>>();
+        s.effects
+            .synchronize_scene_alpha(&s.scene, p, &s.root)?;
+        aem_render::composition_plan::build(
+            &mut s.effects,
+            &s.scene,
+            p,
+            &assets,
+            out,
+        )?;
+        Ok(out.len())
     })
 }
 
-#[no_mangle]
-pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_render(
-    mut env: JNIEnv,
-    _class: JClass,
-    id: jlong,
-    composition: JString,
-    frame: jdouble,
-) -> jboolean {
-    let composition = read_string(&mut env, &composition);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        with_session(id, |s| {
-            let result = (|| {
-                if composition?.as_str() != s.engine.project().composition_id {
-                    return Err(s.composition_error(
-                        "context_mismatch",
-                        "Open the requested composition before rendering",
-                        json!({}),
-                    ));
-                }
-                s.render(frame)
-            })();
-            if let Err(e) = &result {
-                s.last_error = Some(e.clone());
-            }
-            result
-        })
-    }));
-    u8::from(
+pub fn render(id: i64, composition: &str, frame: f64) -> Result<bool> {
+    crate::session::with_session(id, |s| {
+        let result = if composition != s.engine.project().composition_id {
+            Err(s.composition_error(
+                "context_mismatch",
+                "Open the requested composition before rendering",
+                json!({}),
+            ))
+        } else {
+            s.render(frame)
+        };
+        if let Err(e) = &result {
+            s.last_error = Some(e.clone());
+        }
         result
-            .ok()
-            .and_then(std::result::Result::ok)
-            .unwrap_or(false),
-    )
+    })
+}
+
+pub fn request(id: i64, text: &str) -> Result<Value> {
+    let value = parse_request(text, 256 * 1024, "composition request")?;
+    crate::session::with_session(id, |s| {
+        s.composition_request(value).map_err(|e| {
+            if e.starts_with("composition_error:") {
+                e
+            } else {
+                s.composition_error("invalid_request", &e, json!({}))
+            }
+        })
+    })
 }

@@ -1,5 +1,5 @@
 //! Android audio fallback for Opus, HE-AAC and platform demuxers. No UI ownership.
-use super::video_decode::{attach, Extractor};
+use crate::video_decode::{attach, Extractor};
 use aem_core::AudioAsset;
 use aem_media::Result;
 use ndk::media::media_codec::{
@@ -122,7 +122,7 @@ fn native(
     let mut channels = f.i32("channel-count").unwrap_or(0) as u32;
     let valid = |r, c| (8000..=192000).contains(&r) && matches!(c, 1 | 2);
     if !valid(rate, channels) {
-        return Err("audio requires mono/stereo at 8â€“192 kHz".into());
+        return Err("audio requires mono/stereo at 8â€?92 kHz".into());
     }
     let declared = f.i64("durationUs").unwrap_or(0);
     if declared > 3_600_000_000 {

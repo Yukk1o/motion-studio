@@ -1,8 +1,12 @@
-//! Effect package and plugin editor request dispatch; no Activity ownership.
-use super::*;
+//! Effect package, plugin editor and color curve operations.
+use crate::session::{next_token, Result, Session};
+use aem_core::Command;
+use aem_render::Renderer;
+use serde_json::{json, Value};
+use std::path::PathBuf;
 
 impl Session {
-    fn plugin_request(&mut self, request: &str) -> Result<Value> {
+    pub fn plugin_request(&mut self, request: &str) -> Result<Value> {
         if request.len() > 256 * 1024 {
             return Err("plugin request exceeds 256 KiB".into());
         }
@@ -170,6 +174,7 @@ impl Session {
         self.last_presented_frame = None;
         Ok(self.snapshot())
     }
+
     fn editor_operation(&mut self, v: &Value) -> Result<Value> {
         let op = v["op"].as_str().ok_or("missing editor operation")?;
         if op == "editor_open" {
@@ -203,15 +208,9 @@ impl Session {
             let state = editor
                 .state(&self.engine, self.frame.floor() as u32)
                 .map_err(|e| e.to_string())?;
-            self.editor_token = format!(
-                "editor-{}-{}",
-                NEXT.fetch_add(1, Ordering::Relaxed),
-                self.engine.revision()
-            );
+            self.editor_token = format!("editor-{}-{}", next_token(), self.engine.revision());
             self.editor = Some(editor);
-            return Ok(
-                json!({"protocol":1,"token":self.editor_token,"definition":definition,"state":state}),
-            );
+            return Ok(json!({"protocol":1,"token":self.editor_token,"definition":definition,"state":state}));
         }
         if self.editor.is_none() || v["token"].as_str() != Some(self.editor_token.as_str()) {
             return Err("plugin editor session is stale or missing".into());
@@ -240,7 +239,7 @@ impl Session {
                     return Err("asset is outside this plugin editor".into());
                 }
                 let bytes = package.files.get(path).ok_or("editor asset missing")?;
-                Ok(json!({"mime":aem_effects::editor_mime(path),"base64":encode_base64(bytes)}))
+                Ok(json!({"mime":aem_effects::editor_mime(path),"base64":crate::encode_base64(bytes)}))
             }
             "editor_close" => {
                 let mut editor = self.editor.take().unwrap();
@@ -273,6 +272,7 @@ impl Session {
             _ => Err("unknown editor operation".into()),
         }
     }
+
     fn editor_preview(&mut self, message: &Value) -> Result<Value> {
         self.editor
             .as_ref()
@@ -289,7 +289,9 @@ impl Session {
             let mut renderer =
                 pollster::block_on(Renderer::headless()).map_err(|e| e.to_string())?;
             renderer.set_effect_registry(self.effects.registry.clone());
-            renderer.set_scratch_budget(self.effects.scratch_budget()).map_err(|e| e.to_string())?;
+            renderer
+                .set_scratch_budget(self.effects.scratch_budget())
+                .map_err(|e| e.to_string())?;
             renderer
                 .configure_assets(self.engine.project(), &self.root)
                 .map_err(|e| e.to_string())?;
@@ -329,63 +331,38 @@ impl Session {
             image::ExtendedColorType::Rgba8,
         )
         .map_err(|e| e.to_string())?;
-        Ok(
-            json!({"width":width,"height":height,"png":encode_base64(&png),"revision":self.engine.revision(),"frame":self.frame,"instances":{"alive":stats.particles_alive,"visible":stats.particles_visible,"culled":stats.particles_culled,"upload_bytes":stats.instance_upload_bytes}}),
-        )
+        Ok(json!({"width":width,"height":height,"png":crate::encode_base64(&png),
+            "revision":self.engine.revision(),"frame":self.frame,
+            "instances":{"alive":stats.particles_alive,"visible":stats.particles_visible,
+                "culled":stats.particles_culled,"upload_bytes":stats.instance_upload_bytes}}))
     }
 }
 
-#[no_mangle]
-pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_plugin(
-    mut env: JNIEnv,
-    _class: JClass,
-    id: jlong,
-    request: JString,
-) -> jstring {
-    let request = read_string(&mut env, &request);
-    string_result(&mut env, || {
-        with_session(id, |s| s.plugin_request(&request?))
+pub fn plugin(id: i64, request: &str) -> Result<Value> {
+    crate::session::with_session(id, |s| s.plugin_request(request))
+}
+
+pub fn plugin_pixels(id: i64, program: i32, resource: i32) -> Result<Vec<u8>> {
+    crate::session::with_session(id, |s| {
+        let program = s
+            .effects
+            .programs
+            .get(program as usize)
+            .ok_or("unknown program")?;
+        let path = program
+            .resources
+            .get(resource as usize)
+            .ok_or("unknown resource")?;
+        let package = program.package.as_ref().ok_or("program has no resources")?;
+        image::load_from_memory(&package.files[path])
+            .map(|v| v.into_rgba8().into_raw())
+            .map_err(|e| e.to_string())
     })
 }
 
-#[no_mangle]
-pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_pluginPixels(
-    env: JNIEnv,
-    _class: JClass,
-    id: jlong,
-    program: jint,
-    resource: jint,
-) -> jbyteArray {
-    bytes_result(&env, || {
-        with_session(id, |s| {
-            let program = s
-                .effects
-                .programs
-                .get(program as usize)
-                .ok_or("unknown program")?;
-            let path = program
-                .resources
-                .get(resource as usize)
-                .ok_or("unknown resource")?;
-            let package = program.package.as_ref().ok_or("program has no resources")?;
-            image::load_from_memory(&package.files[path])
-                .map(|v| v.into_rgba8().into_raw())
-                .map_err(|e| e.to_string())
-        })
-    })
-}
-
-#[no_mangle]
-pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_colorCurveGraph(
-    mut env: JNIEnv,
-    _class: JClass,
-    value: JString,
-) -> jstring {
-    let value = read_string(&mut env, &value);
-    string_result(&mut env, || {
-        let value: aem_core::CurveObject =
-            serde_json::from_str(&value?).map_err(|e| e.to_string())?;
-        value.validate().map_err(|e| e.to_string())?;
-        Ok(value.graph())
-    })
+/// Sample a five-channel colour curve object into its graph.
+pub fn color_curve_graph(text: &str) -> Result<Value> {
+    let value: aem_core::CurveObject = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    value.validate().map_err(|e| e.to_string())?;
+    Ok(value.graph())
 }

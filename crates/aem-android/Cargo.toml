@@ -3,6 +3,7 @@ name = "aem-android"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Android JNI adapter over the shared editing host"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -12,20 +13,16 @@ default = []
 diagnostics = []
 
 [dependencies]
+aem-host = { path = "../aem-host" }
 aem-effects = { path = "../aem-effects" }
 aem-core = { path = "../aem-core" }
 aem-render = { path = "../aem-render" }
 aem-media = { path = "../aem-media" }
-serde.workspace = true
 serde_json.workspace = true
-pollster.workspace = true
 wgpu.workspace = true
-image.workspace = true
-bytemuck.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 ndk = { version = "0.9", features = ["media", "api-level-29"] }
 ndk-sys = { version = "0.6", features = ["media"] }
-raw-window-handle = "0.6"
 libc = "0.2"
