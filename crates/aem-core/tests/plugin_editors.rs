@@ -73,7 +73,7 @@ fn editor_transform_values_use_sampled_local_keyframe_time() {
 #[test]
 fn custom_editor_gesture_commit_cancel_and_storage_preserve_components() {
     let (mut engine, registry) = setup();
-    assert_eq!(engine.project().version, 4);
+    assert_eq!(engine.project().version, 8);
     let mut editor = PluginEditorSession::open(engine.project(), &registry, 1, 1).unwrap();
     let original = engine.snapshot();
     editor

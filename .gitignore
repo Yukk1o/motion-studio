@@ -16,6 +16,20 @@ __pycache__/
 refer/
 reference/
 
+# Project reconstruction inputs and private analysis stay local.
+*.aep
+*.aepx
+/tools/ae_project_audit.py
+/tools/ae_export_project.jsx
+/tools/test_ae_project_audit.py
+/tools/test_ae_export_project.js
+/tools/ae_source_graph.py
+/tools/test_ae_source_graph.py
+/tools/ae-source-requirements.txt
+/sdk/host-ae-project-audit.md
+/sdk/host-ae-source-graph.md
+/sdk/perlica-capabilities-integration.md
+
 # Local reference material is excluded from version control.
 /design/ardot-handoff.json
 /docs/am-interaction-study.md

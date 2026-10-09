@@ -23,6 +23,7 @@ pub struct DrawLayer {
     pub asset: Option<u64>,
     pub video: Option<crate::VideoSample>,
     pub vector: Option<std::sync::Arc<crate::vector::SampledVector>>,
+    pub masks: std::sync::Arc<Vec<crate::masks::SampledMask>>,
     pub adjustment: bool,
     pub composition: bool,
     pub depth: f32,
@@ -42,6 +43,7 @@ pub struct Scene {
     pub curve_luts: Vec<crate::CurveLut>,
     pub frame: f64,
     pub fps: u32,
+    pub sprite_assets: std::collections::HashMap<u64, [u32;2]>,
     pub composition_id: String,
     pub nested: Vec<NestedScene>,
     node_world: Vec<Mat4>,
@@ -59,6 +61,7 @@ pub struct Scene {
             std::sync::Arc<crate::vector::SampledVector>,
         ),
     >,
+    mask_cache: std::collections::HashMap<u64, (Vec<crate::masks::LayerMask>, Option<f64>, std::sync::Arc<Vec<crate::masks::SampledMask>>)>,
 }
 #[derive(Clone, Debug)]
 pub struct NestedScene {
@@ -78,6 +81,7 @@ impl Scene {
             curve_luts: Vec::new(),
             frame: 0.0,
             fps: project.fps,
+            sprite_assets: Default::default(),
             composition_id: project.composition_id.clone(),
             nested: Vec::new(),
             node_world: Vec::with_capacity(crate::MAX_LAYERS + 1),
@@ -87,6 +91,7 @@ impl Scene {
             source_objects:Vec::new(),
             evaluated_project: None,
             vector_cache: Default::default(),
+            mask_cache: Default::default(),
         }
     }
     pub fn sample(
@@ -110,10 +115,13 @@ impl Scene {
             frame.is_finite() && frame >= 0.0 && frame < f64::from(project.frames),
             "invalid sample time",
         )?;
+        let original = project;
         let evaluated = project.evaluated_at(frame)?;
         let project = evaluated.as_ref();
         self.frame = frame;
         self.fps = project.fps;
+        self.sprite_assets.clear();
+        self.sprite_assets.extend(project.assets.iter().map(|a| (a.id,[a.width,a.height])));
         self.composition_id.clone_from(&project.composition_id);
         self.nested.clear();
         self.source_objects.clear();
@@ -132,6 +140,17 @@ impl Scene {
                 sampled.seed = e.seed;
                 sampled.scene = e.scene.clone();
                 sampled.lut = None;
+                sampled.particle_history_error = None;
+                if e.enabled && e.scene.as_ref().is_some_and(|s| s.particle_space.is_some()) {
+                    let raw_layer = original.layers.iter().find(|l| l.id == layer.id).unwrap();
+                    let raw_effect = raw_layer.effects.iter().find(|v| v.id == e.id).unwrap();
+                    match crate::particle_history::ParticleHistory::capture(original, raw_layer, raw_effect, sampled.particle_history.as_ref()) {
+                        Ok(history) => sampled.particle_history = Some(history),
+                        Err(error) => { sampled.particle_history = None; sampled.particle_history_error = Some(error.to_string()); }
+                    }
+                } else {
+                    sampled.particle_history = None;
+                }
                 for (i, p) in e.params.values().enumerate() {
                     sampled.values[i] = p.sample(sampled.local_frame);
                     if let Some(c) = p.curve.as_ref().filter(|_| e.enabled) {
@@ -175,6 +194,7 @@ impl Scene {
         self.height = project.height;
         self.background = project.background;
         self.layers.clear();
+        self.mask_cache.retain(|id,_| project.layers.iter().any(|l| l.id == *id));
         self.vector_cache.retain(|id, _| {
             project
                 .layers
@@ -275,6 +295,14 @@ impl Scene {
                 None
             };
             let mut size = layer.size;
+            let mask_time = layer.masks.iter().any(|m| m.animated()).then_some(layer.local_frame(frame));
+            if self.mask_cache.get(&layer.id).is_none_or(|(m,t,_)| m != &layer.masks || *t != mask_time) {
+                let masks = layer.masks.iter().map(|m| m.sample(layer.local_frame(frame)))
+                    .collect::<Result<Vec<_>>>().map_err(|e| crate::Error::Invalid(format!("layer {} masks at frame {frame}: {e}",layer.id)))?
+                    .into_iter().flatten().collect();
+                self.mask_cache.insert(layer.id,(layer.masks.clone(),mask_time,std::sync::Arc::new(masks)));
+            }
+            let masks = self.mask_cache[&layer.id].2.clone();
             if let Some(v) = &vector {
                 let pad = v.stroke.map_or(0., |s| {
                     s.1 * 0.5
@@ -310,6 +338,7 @@ impl Scene {
                 asset,
                 video,
                 vector,
+                masks,
                 adjustment: matches!(layer.content, Content::Adjustment),
                 composition: matches!(layer.content,Content::Composition {..}),
                 depth: (center - self.camera.eye).dot(forward),

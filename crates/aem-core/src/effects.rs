@@ -15,6 +15,10 @@ pub struct PluginDependency {
 #[serde(deny_unknown_fields)]
 pub struct CurveObject {
     pub channels: [Vec<[f32; 2]>; 5],
+    #[serde(default="crate::color_curves::legacy_modes")]
+    pub interpolation: [crate::color_curves::ColorInterpolation;5],
+    #[serde(default,skip_serializing_if="crate::color_curves::no_overrides")]
+    pub channel_luts: [Option<Vec<f32>>;5],
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sampled_lut: Option<Vec<[f32; 4]>>,
 }
@@ -23,11 +27,16 @@ impl Default for CurveObject {
         Self {
             channels: std::array::from_fn(|_| vec![[0.0, 0.0], [1.0, 1.0]]),
             sampled_lut: None,
+            interpolation: [crate::color_curves::ColorInterpolation::NaturalCubic;5],
+            channel_luts: std::array::from_fn(|_|None),
         }
     }
 }
 impl CurveObject {
     pub fn validate(&self) -> Result<()> {
+        for lut in self.channel_luts.iter().flatten() {
+            ensure(lut.len()==256&&lut.iter().all(|v|v.is_finite()&&(0. ..=1.).contains(v)),"invalid channel curve LUT")?;
+        }
         if let Some(lut) = &self.sampled_lut {
             ensure(
                 lut.len() == 256
@@ -57,29 +66,45 @@ impl CurveObject {
         }
         Ok(())
     }
-    fn at(&self, channel: usize, v: f32) -> f32 {
-        let points = &self.channels[channel];
-        let i = points
-            .partition_point(|p| p[0] <= v)
-            .clamp(1, points.len() - 1);
-        let a = points[i - 1];
-        let b = points[i];
-        a[1] + (b[1] - a[1]) * ((v - a[0]) / (b[0] - a[0])).clamp(0.0, 1.0)
-    }
     pub fn lut(&self) -> CurveLut {
         if let Some(lut) = &self.sampled_lut {
             return std::array::from_fn(|i| lut[i]);
         }
+        let curves:[crate::color_curves::Transfer;5]=std::array::from_fn(|i|crate::color_curves::Transfer::new(&self.channels[i],self.interpolation[i],self.channel_luts[i].as_deref()));
         std::array::from_fn(|i| {
             let v = i as f32 / 255.0;
-            let master = self.at(0, v);
+            let master = curves[0].at(v);
             [
-                self.at(1, master),
-                self.at(2, master),
-                self.at(3, master),
-                self.at(4, v),
+                curves[1].at(master),
+                curves[2].at(master),
+                curves[3].at(master),
+                curves[4].at(v),
             ]
         })
+    }
+    /// Turn a frozen/interpolated LUT into independently editable channels.
+    /// Untouched channels retain their exact 256 values rather than being fitted.
+    pub fn editable(&self)->Self {
+        let Some(lut)=&self.sampled_lut else{return self.clone();};
+        let mut result=Self::default();result.interpolation=crate::color_curves::legacy_modes();
+        for channel in 1..5 {
+            let values:Vec<_>=lut.iter().map(|row|row[channel-1]).collect();
+            result.channels[channel]=(0..64).map(|i|{let index=if i==63{255}else{i*4};[index as f32/255.,values[index]]}).collect();
+            result.channel_luts[channel]=Some(values);
+        }
+        result
+    }
+    pub fn graph(&self)->serde_json::Value {
+        let value=self.editable();
+        let names=["RGB","R","G","B","Alpha"];
+        let curves:Vec<_>=(0..5).map(|i|{
+            let curve=crate::color_curves::Transfer::new(&value.channels[i],value.interpolation[i],value.channel_luts[i].as_deref());
+            serde_json::json!({"channel":i,"name":names[i],"interpolation":value.interpolation[i],
+                "lookup":value.channel_luts[i].is_some(),"points":value.channels[i],"segments":curve.segments(),
+                "samples":(0..256).map(|j|[j as f32/255.,curve.at(j as f32/255.)]).collect::<Vec<_>>()})
+        }).collect();
+        serde_json::json!({"version":1,"channels":curves,"editableValue":value,"outputLut":self.lut().to_vec(),
+            "preparedFromLut":self.sampled_lut.is_some(),"colorMapping":"channel(master(input))","alphaMapping":"alpha(input_alpha)"})
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -350,6 +375,12 @@ pub enum EffectAction {
         frame: u32,
         value: [f32; 4],
     },
+    /// Restore one literal color's complete track when a scoped picker cancels.
+    RestoreColorTrack {
+        effect: u64,
+        param: String,
+        track: Track<[f32; 4]>,
+    },
     Animate {
         effect: u64,
         param: String,
@@ -411,6 +442,12 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
         clip.edit_frame(f)
     };
     match action {
+        EffectAction::RestoreColorTrack { effect, param, track } => {
+            let p = param_mut(layer, effect, &param)?;
+            ensure(p.kind == ParamKind::Color, "color restoration requires a color parameter")?;
+            p.track = track;
+            p.validate(frames)?;
+        }
         EffectAction::SetScene { effect, scene } => {
             scene
                 .validate()
@@ -667,6 +704,8 @@ pub struct SampledEffect {
     pub values: [[f32; 4]; MAX_PARAMS],
     pub lut: Option<usize>,
     pub scene: Option<aem_effects::SceneSettings>,
+    pub particle_history: Option<std::sync::Arc<crate::particle_history::ParticleHistory>>,
+    pub particle_history_error: Option<String>,
 }
 impl SampledEffect {
     pub(crate) fn new(layer: u64, e: &EffectInstance) -> Self {
@@ -684,6 +723,8 @@ impl SampledEffect {
             values: [[0.0; 4]; MAX_PARAMS],
             lut: None,
             scene: e.scene.clone(),
+            particle_history: None,
+            particle_history_error: None,
         }
     }
     pub(crate) fn matches(&self, layer: u64, e: &EffectInstance) -> bool {

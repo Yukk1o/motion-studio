@@ -11,6 +11,8 @@ import android.os.HandlerThread
 import android.os.PowerManager
 import android.view.Choreographer
 import android.view.Surface
+import android.view.PixelCopy
+import android.graphics.Rect
 import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
@@ -69,6 +71,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var panelOpen by mutableStateOf(false)
     var effectsOpen by mutableStateOf(false)
     var vectorOpen by mutableStateOf(false)
+    var maskOpen by mutableStateOf(false)
+    var maskId by mutableLongStateOf(0)
     var compositionClipOpen by mutableStateOf(false)
     var vectorTab by mutableStateOf("geometry")
     var vectorDrawMode by mutableStateOf(false)
@@ -130,6 +134,66 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     private val dirty = AtomicBoolean(true)
     private val foreground=AtomicBoolean(true)
     private var currentSurface:Surface?=null
+    var eyedropperActive by mutableStateOf(false);private set
+    private var eyedropperCallback:((Rgba?)->Unit)?=null
+    private var eyedropperGeneration=0L
+    private var eyedropperReading=false
+    internal fun beginEyedropper(callback:(Rgba?)->Unit){cancelEyedropper();pause();eyedropperCallback=callback;eyedropperActive=true}
+    internal var colorEditor by mutableStateOf<ColorEditingSession?>(null);private set
+    private var colorCommand=false
+    internal fun openColorEditor(session:ColorEditingSession){finishColorEditor(false);pause();colorEditor=session;panelOpen=true}
+    internal fun previewColor(value:Rgba) {
+        val session=colorEditor?:return
+        if(root!=session.root||compositionId!=session.composition){finishColorEditor(false);return}
+        if((0 until if(session.alphaEditable)4 else 3).any{value.component(it) !in session.range})return
+        session.value=value
+        colorCommand=true
+        try {
+            if(!session.started&&value!=session.original){beginGesture();session.started=true}
+            if(session.started)session.onSet(value.array(),session.frame)
+        }finally{colorCommand=false}
+    }
+    internal fun finishColorEditor(commit:Boolean) {
+        val session=colorEditor?:return
+        if(eyedropperActive)cancelEyedropper()
+        colorEditor=null
+        panelOpen=session.previousPanelOpen
+        if(session.started&&root==session.root&&compositionId==session.composition){
+            if(commit&&session.value!=session.original)endGesture()else cancelGesture()
+        }
+    }
+    fun cancelEyedropper(){eyedropperGeneration++;eyedropperReading=false;eyedropperActive=false;val callback=eyedropperCallback;eyedropperCallback=null;callback?.invoke(null)}
+    fun pickPreviewColor(x:Float,y:Float,width:Float,height:Float) {
+        if(!eyedropperActive||eyedropperReading||width<=0||height<=0)return
+        val project=state.project?:return
+        val fit=min(width/project.getInt("width"),height/project.getInt("height"));val left=(width-project.getInt("width")*fit)/2;val top=(height-project.getInt("height")*fit)/2
+        if(x !in left..width-left||y !in top..height-top)return
+        val bitmap=Bitmap.createBitmap(1,1,Bitmap.Config.ARGB_8888)
+        val generation=eyedropperGeneration
+        eyedropperReading=true
+        fun finish(result:Int) {
+            val c=if(result==PixelCopy.SUCCESS)bitmap.getPixel(0,0).let{Rgba((it shr 16 and 255)/255.0,(it shr 8 and 255)/255.0,(it and 255)/255.0,1.0)}else null
+            bitmap.recycle()
+            if(generation==eyedropperGeneration){
+                eyedropperReading=false;eyedropperActive=false;val callback=eyedropperCallback;eyedropperCallback=null;callback?.invoke(c)
+                if(c==null)showOperationError("画面尚未准备好取色，请在预览显示后重试")
+            }
+        }
+        // Opening the dock can resize/rebind the Surface. Wait for its first
+        // buffer rather than silently discarding a tap during that transition.
+        fun read(attempt:Int) {
+            if(generation!=eyedropperGeneration){bitmap.recycle();return}
+            val surface=currentSurface?.takeIf{it.isValid&&surfaceWidth>0&&surfaceHeight>0&&surfaceReady.get()}
+            if(surface==null){if(attempt<12)main.postDelayed({read(attempt+1)},32)else finish(PixelCopy.ERROR_SOURCE_INVALID);return}
+            val px=(x*surfaceWidth/width).toInt().coerceIn(0,surfaceWidth-1);val py=(y*surfaceHeight/height).toInt().coerceIn(0,surfaceHeight-1)
+            try {PixelCopy.request(surface,Rect(px,py,px+1,py+1),bitmap,{result->
+                if(generation!=eyedropperGeneration){bitmap.recycle();return@request}
+                if(result in listOf(PixelCopy.ERROR_SOURCE_NO_DATA,PixelCopy.ERROR_TIMEOUT)&&attempt<12)main.postDelayed({read(attempt+1)},32)
+                else finish(result)
+            },main)}catch(_:IllegalArgumentException){if(attempt<12)main.postDelayed({read(attempt+1)},32)else finish(PixelCopy.ERROR_SOURCE_INVALID)}
+        }
+        main.post{read(0)}
+    }
     private var surfaceWidth=0
     private var surfaceHeight=0
     private var startNanos = 0L
@@ -352,6 +416,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     /** Only absolute assignments can replace earlier updates in one gesture. */
     private fun gestureKey(command:JSONObject):String? {
         val op=command.optString("op")
+        if(op=="set_color")return "set_color:${command.getLong("object")}"
+        if(op=="mask") {val action=command.getJSONObject("action");if(action.optString("kind")=="set")return "mask:${command.getLong("object")}:${action.getLong("mask")}:${action.get("property")}:${action.getInt("frame")}"}
         if(op=="effect") {
             val action=command.getJSONObject("action")
             if(action.optString("kind") !in listOf("set","curve","set_curve_object"))return null
@@ -396,7 +462,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }catch(error:Throwable){if(request==surfaceRequest.get())fail(error.message?:"预览初始化失败",request)}
         }
     }
-    fun detach() {
+    fun detach(surface:Surface?=null) {
+        if(surface!=null&&currentSurface!==surface)return
         val request=surfaceRequest.incrementAndGet()
         currentSurface=null
         surfaceReady.set(false)
@@ -470,9 +537,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }catch(e:Throwable){fail(e.message?:"打开工程失败")}
         }
     }
-    fun togglePlay() {
+    fun togglePlay()=togglePlay(false)
+    fun togglePlay(fromNativePlugin:Boolean) {
+        finishColorEditor(true);if(eyedropperActive)cancelEyedropper()
         gestureInertia.stop()
-        if(pluginEditor.gesture)return
+        if(pluginEditor.gesture&&!(fromNativePlugin&&pluginEditor.session?.definition?.optJSONObject("native_editor")!=null))return
         if(playing)pause() else if(state.project!=null) {
             val p=state.project!!
             val hasSound=state.sample?.optBoolean("has_audio")==true
@@ -488,9 +557,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             }catch(e:Throwable){fail(e.message?:"声音播放失败")}}
         }
     }
-    fun seek(value:Double) {
-        if(pluginEditor.gesture)return
+    fun seek(value:Double)=seek(value,false)
+    fun seek(value:Double,fromNativePlugin:Boolean) {
+        if(pluginEditor.gesture&&!(fromNativePlugin&&pluginEditor.session?.definition?.optJSONObject("native_editor")!=null))return
         if(!value.isFinite()){fail("帧位置无效");return}
+        if(colorEditor!=null&&floor(value).toInt()!=colorEditor?.frame)finishColorEditor(true)
         pause();val p=state.project?:return
         frame=value.coerceIn(0.0,p.getInt("frames")-1.0)
         val f=frame;invoke {CompositionBridge.seek(id,engineComposition,f)}
@@ -500,6 +571,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         gestureInertia.stop();finishLayerSelection()
         pause()
         if(selected!=objectId) {
+            finishColorEditor(false)
+            maskOpen=false
             pluginEditor.close()
             expressionTarget=null
             effectsOpen=false
@@ -510,7 +583,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
         if(openEditor)panelOpen=true
     }
-    fun openProperty(key:String) {gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;vectorOpen=false;compositionClipOpen=false;
+    fun openProperty(key:String) {finishColorEditor(false);maskOpen=false;gestureInertia.stop();pluginEditor.close();expressionTarget=null;effectsOpen=false;vectorOpen=false;compositionClipOpen=false;
         pause()
         property=if(selected==0L&&key=="position"&&state.project?.optJSONObject("camera")?.optString("mode")=="orbit")"radius" else key
         panelOpen=true
@@ -539,7 +612,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     internal fun openComposition(target:String,path:List<String> = listOf(target)) {
         if(importTask!=null||exporting){fail("请先完成或取消导入、导出，再切换合成");return}
         if(state.busy)return
-        gestureInertia.stop();if(gestureUpdates!=null)endGesture();closeWorkspace();pause()
+        finishColorEditor(false);gestureInertia.stop();if(gestureUpdates!=null)endGesture();closeWorkspace();pause()
         val previous=compositionId
         val selection=if(layerSelectionMode)selectedLayerIds.toList()else listOf(selected).filter{it!=0L||hasCamera()}
         val timeline=JSONObject(compositionTimeline.toString()).put("zoom",timelineScale)
@@ -559,23 +632,25 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     }
     fun editable():Boolean=!state.busy&&(if(selected==0L)hasCamera()else layer(selected)?.optBoolean("locked")==false)
     fun edit(command:JSONObject,save:Boolean=true) {
+        if(!colorCommand)finishColorEditor(true)
         errors.operation("edit:"+command.optString("op"))
         if(pluginEditor.gesture)return
         if(command.optString("op") in listOf("remove","flags","camera_mode","set_layer_3d"))pluginEditor.close()
-        pause();val routed=(routeVectorCommand(routeEffectCommand(command))?:return).put("composition",compositionId)
+        pause();val routed=(routeMaskCommand(routeVectorCommand(routeEffectCommand(command))?:return)?:return).put("composition",compositionId)
         if(!save&&queueGesture(listOf(routed)))return
         invoke(save){NativeBridge.command(id,routed.toString())}
     }
     fun editBatch(commands:JSONArray,save:Boolean=true) {
+        if(!colorCommand)finishColorEditor(true)
         errors.operation("batch:"+commands.objects().map{it.optString("op")}.distinct().joinToString(","))
         if(pluginEditor.gesture)return
-        pause();val routed=commands.objects().map{(routeVectorCommand(routeEffectCommand(it))?:return).put("composition",compositionId)}
+        pause();val routed=commands.objects().map{(routeMaskCommand(routeVectorCommand(routeEffectCommand(it))?:return)?:return).put("composition",compositionId)}
         if(!save&&queueGesture(routed))return
         invoke(save){NativeBridge.command(id,JSONArray(routed).toString())}
     }
-    fun undo() {errors.operation("undo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){CompositionBridge.history(id,engineComposition,0)}}
-    fun redo() {errors.operation("redo");gestureInertia.stop();if(pluginEditor.gesture)return;pause();invoke(true){CompositionBridge.history(id,engineComposition,1)}}
-    fun beginGesture() {gestureInertia.stop();pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{CompositionBridge.history(id,engineComposition,2)}}
+    fun undo() {errors.operation("undo");gestureInertia.stop();if(pluginEditor.gesture)return;if(colorEditor?.started==true){finishColorEditor(false);return};finishColorEditor(false);pause();invoke(true){CompositionBridge.history(id,engineComposition,0)}}
+    fun redo() {errors.operation("redo");gestureInertia.stop();if(pluginEditor.gesture)return;finishColorEditor(false);pause();invoke(true){CompositionBridge.history(id,engineComposition,1)}}
+    fun beginGesture() {if(!colorCommand)finishColorEditor(true);gestureInertia.stop();pluginEditor.close();pause();gestureUpdates=GestureUpdates();invoke{CompositionBridge.history(id,engineComposition,2)}}
     fun endGesture(onComplete:()->Unit={}) {
         val pending=gestureUpdates?.take().orEmpty();gestureUpdates=null
         invoke(true,onComplete=onComplete) {
@@ -601,6 +676,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun timelineLayer(objectId:Long):JSONObject?=state.sample?.optJSONArray("timeline_layers")?.let{a->
         (0 until a.length()).map{a.getJSONObject(it)}.firstOrNull{it.getLong("object")==objectId}}
     fun propertyTrack(objectId:Long=selected,key:String=property):JSONObject? {
+        if(key.startsWith("mask:"))return maskTrackRaw(objectId,key)?.let{raw->JSONObject(raw.toString()).apply{val offset=timelineLayer(objectId)?.optInt("offset_frame")?:0;optJSONArray("keys").objects().forEach{it.put("frame",it.getLong("frame")+offset)}}}
         if(key.startsWith("vector:"))return vectorTrackRaw(objectId,key)?.let{raw->
             JSONObject(raw.toString()).apply{val offset=timelineLayer(objectId)?.optInt("offset_frame")?:0
                 optJSONArray("keys").objects().forEach{it.put("frame",it.getLong("frame")+offset)}}
@@ -661,6 +737,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         return sampleValueFor(selected,property)
     }
     fun sampleValueFor(objectId:Long,key:String):Any? {
+        if(key.startsWith("mask:"))return maskValue(objectId,key)
         if(key.startsWith("vector:"))return vectorValue(objectId,key)
         effectTarget(key)?.let{(instance,param)->
             val saved=effectParam(objectId,instance,param)
@@ -669,7 +746,8 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                 val keys=track.optJSONArray("keys").objects()
                 val value=keys.lastOrNull{it.getDouble("frame")<=frame}?.getJSONObject("value")?:keys.firstOrNull()?.getJSONObject("value")?:track.getJSONObject("value")
                 val result=JSONObject(value.toString())
-                state.sample?.optJSONArray("sampledEffects").objects().firstOrNull{it.getLong("layer")==objectId&&it.getLong("instance")==instance}?.optJSONArray("curve_lut")?.let{result.put("sampled_lut",it)}
+                val interpolated=keys.size>1&&frame>keys.first().getDouble("frame")&&frame<keys.last().getDouble("frame")&&keys.none{it.getDouble("frame")==frame}
+                if(interpolated)state.sample?.optJSONArray("sampledEffects").objects().firstOrNull{it.getLong("layer")==objectId&&it.getLong("instance")==instance}?.optJSONArray("curve_lut")?.let{result.put("sampled_lut",it)}
                 return result
             }
             return state.sample?.optJSONArray("sampledEffects").objects().firstOrNull{it.getLong("layer")==objectId&&it.getLong("instance")==instance}
@@ -701,6 +779,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         val sample=sampleValue()?:return
         val value=if(isSeparated()&&sample is JSONArray)sample.getDouble(activeAxis())else sample
         val t=track()?:return
+        if(property.startsWith("mask:")){edit(channelCommand(if(value is JSONArray)"set_vector"else"set_scalar").put("frame",floor(frame).toInt()).put("value",value).put("animated",true));return}
         if(property.startsWith("vector:")) {
             edit(channelCommand(if(value is JSONArray)"set_vector"else"set_scalar").put("frame",floor(frame).toInt()).put("value",value).put("animated",true));return
         }
@@ -916,24 +995,21 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun setParent(parent:Long?){edit(JSONObject().put("op","parent").put("object",selected).put("parent",parent?:JSONObject.NULL).put("frame",floor(frame).toInt()))}
     fun importImage(uri:Uri) {
         val p=state.project?:return;pause();state=state.copy(busy=true)
+        val projectRoot=root;val generation=projectGeneration.get()
         viewModelScope.launch(Dispatchers.IO) {
+            var prepared:ImageImport.Prepared?=null
             try {
-                val source=ImageDecoder.createSource(getApplication<Application>().contentResolver,uri)
-                val bitmap=ImageDecoder.decodeBitmap(source){decoder,info,_->
-                    check(info.size.width.toLong()*info.size.height*4<=64L*1024*1024){"图片超出单图内存预算，请先缩小原图"}
-                    decoder.allocator=ImageDecoder.ALLOCATOR_SOFTWARE
-                }
-                val file=File(root,"assets/"+UUID.randomUUID()+".png").apply{parentFile!!.mkdirs()}
-                file.outputStream().use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+                val image=ImageImport.prepare(getApplication<Application>().contentResolver,uri,projectRoot)
+                prepared=image
                 val assetId=nextAssetId(p)
-                val a=JSONObject().put("id",assetId).put("path","assets/"+file.name).put("width",bitmap.width).put("height",bitmap.height)
-                val l=newLayer("图片",JSONObject().put("kind","image").put("asset",assetId),bitmap.width.toFloat(),bitmap.height.toFloat())
-                bitmap.recycle()
+                val a=JSONObject().put("id",assetId).put("path","assets/"+image.file.name).put("width",image.width).put("height",image.height)
+                val l=newLayer("图片",JSONObject().put("kind","image").put("asset",assetId),image.width.toFloat(),image.height.toFloat())
                 withContext(Dispatchers.Main) {
+                    check(root==projectRoot&&generation==projectGeneration.get()){ "工程已切换" }
                     editBatch(JSONArray().put(JSONObject().put("op","register_asset").put("asset",a)).put(JSONObject().put("op","add").put("layer",l)))
                     selected=l.getLong("id");property="position";panelOpen=true
                 }
-            } catch(e:Throwable){fail(e.message?:"图片导入失败")}
+            } catch(e:Throwable){prepared?.file?.delete();if(generation==projectGeneration.get())fail(e.message?:"图片导入失败")}
         }
     }
     fun addText(text:String) {
@@ -1016,9 +1092,11 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             try {
                 val file=File(root.parentFile,"incoming-"+UUID.randomUUID()+".motion")
                 try {
+                    val limits=nativeData(MediaBridge.packageLimits())
+                    val archiveLimit=limits.getLong("max_archive_bytes")
                     getApplication<Application>().contentResolver.openInputStream(uri)?.use{input->file.outputStream().use{out->
-                        val buffer=ByteArray(32*1024);var total=0L
-                        while(true){val read=input.read(buffer);if(read<0)break;total+=read;check(total<=512L*1024*1024){"工程包超过 512 MiB"};out.write(buffer,0,read)}
+                        val buffer=ByteArray(limits.getInt("transfer_buffer_bytes"));var total=0L
+                        while(true){val read=input.read(buffer);if(read<0)break;total+=read;check(total<=archiveLimit){"工程包超过 ${archiveLimit/1024/1024} MiB"};out.write(buffer,0,read)}
                     }}?:error("无法打开工程文件")
                 }catch(error:Throwable){file.delete();throw error}
                 worker.post {
@@ -1105,9 +1183,9 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             readCatalogue()
         }catch(e:Throwable){fail(e.message?:"效果操作失败")}}
     }
-    fun closeWorkspace(){gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;vectorOpen=false;compositionClipOpen=false;panelOpen=false}
+    fun closeWorkspace(){finishColorEditor(false);gestureInertia.stop();expressionTarget=null;pluginEditor.close();effectsOpen=false;vectorOpen=false;maskOpen=false;compositionClipOpen=false;panelOpen=false}
     internal fun openCompositionClip(){closeWorkspace();pause();compositionClipOpen=true;panelOpen=true}
-    fun openEffects(){gestureInertia.stop();pluginEditor.close();expressionTarget=null;vectorOpen=false;compositionClipOpen=false;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
+    fun openEffects(){finishColorEditor(false);gestureInertia.stop();pluginEditor.close();expressionTarget=null;vectorOpen=false;maskOpen=false;compositionClipOpen=false;pause();panelOpen=true;property="position";refreshCatalogue();effectsOpen=true}
     fun openPluginEditor(instance:Long){pause();expressionTarget=null;pluginEditor.open(selected,instance)}
     fun expressionTargetForCurrent(axis:Int?=null):JSONObject? {
         if(state.sample?.optJSONObject("capabilities")?.optJSONObject("property_expressions")?.optBoolean("supported")!=true)return null
@@ -1258,6 +1336,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun cancelExport() {exporter?.cancelled?.set(true)}
     override fun onCleared() {
         gestureInertia.stop()
+        cancelEyedropper()
         pluginEditor.close()
         closed.set(true);playing=false
         audioPlayer.close();mediaGeneration.incrementAndGet()

@@ -13,6 +13,8 @@ pub enum RendererKind {
     #[default]
     Image,
     Particles,
+    /// SDK 5: birth-time world poses, independently moving particles.
+    ParticleEmitter,
     LensFlare,
 }
 
@@ -111,6 +113,11 @@ pub struct LensElement {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SceneSettings {
+    /// A shared project image; particles preserve its aspect ratio and alpha.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sprite_asset: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub particle_space: Option<ParticleSpace>,
     /// Follow a layer/null's world-space pivot instead of the position parameter.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_layer: Option<u64>,
@@ -119,10 +126,15 @@ pub struct SceneSettings {
     #[serde(default)]
     pub elements: Vec<LensElement>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ParticleSpace {
+    WorldBirth,
+}
 impl SceneSettings {
     pub fn validate(&self) -> Result<()> {
         ensure(
-            self.source_layer != Some(0) && self.elements.len() <= 64,
+            self.source_layer != Some(0) && self.sprite_asset != Some(0) && self.elements.len() <= 64,
             "invalid scene source or too many lens elements",
         )?;
         let mut ids = BTreeSet::new();
@@ -168,6 +180,27 @@ pub(crate) fn validate_generator_contract(
             ("spread", Float, 0., 10000., false),
             ("gravity", Vec3, -10000., 10000., false),
             ("extent", Vec3, 0., 20000., false),
+            ("shape", Enum, 0., 2., false),
+            ("size", Float, 0., 4096., true),
+            ("end_size", Float, 0., 4096., true),
+            ("color", Color, 0., 1., true),
+            ("end_color", Color, 0., 1., true),
+            ("fade", Float, 0., 0.5, true),
+            ("prewarm", Bool, 0., 1., false),
+        ]
+    } else if kind == RendererKind::ParticleEmitter {
+        &[
+            ("rate", Float, 0., 10000., false),
+            ("lifetime", Float, 0.001, 120., false),
+            ("position", Vec3, -100000., 100000., true),
+            ("direction", Vec3, -1., 1., true),
+            ("speed", Float, -10000., 10000., true),
+            ("spread", Float, 0., 10000., true),
+            ("inherit_velocity", Float, 0., 4., true),
+            ("gravity", Vec3, -10000., 10000., false),
+            ("wind", Vec3, -10000., 10000., false),
+            ("drag", Float, 0., 100., false),
+            ("extent", Vec3, 0., 20000., true),
             ("shape", Enum, 0., 2., false),
             ("size", Float, 0., 4096., true),
             ("end_size", Float, 0., 4096., true),

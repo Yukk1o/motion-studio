@@ -275,6 +275,28 @@ impl GpuState {
             + self.resource_bytes
             + self.luts.len() as u64 * 1024
     }
+    /// Reserve validated package PNGs before uploading, so idle preview images
+    /// cannot turn an otherwise valid active effect into a budget failure.
+    pub fn pending_resource_bytes(&self, builder: &PlanBuilder) -> u64 {
+        let mut seen = std::collections::HashSet::new();
+        let mut bytes = 0;
+        for pass in &builder.frame.passes {
+            let program = &builder.programs[pass.program as usize];
+            if self.resources.contains_key(&pass.program) { continue; }
+            if let Some(package) = &program.package {
+                for path in &program.resources {
+                    let key = (package.hash.clone(), path.clone());
+                    if self.resource_textures.contains_key(&key) || !seen.insert(key) { continue; }
+                    if let Some(data) = package.files.get(path) {
+                        if let Ok(reader) = image::ImageReader::new(std::io::Cursor::new(data)).with_guessed_format() {
+                            if let Ok((w, h)) = reader.into_dimensions() { bytes += u64::from(w) * u64::from(h) * 4; }
+                        }
+                    }
+                }
+            }
+        }
+        bytes
+    }
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,
@@ -566,6 +588,8 @@ impl GpuState {
         encoder: &mut wgpu::CommandEncoder,
     ) -> Result<(), RenderError> {
         let p = &frame.passes[index];
+        let source_key = if p.sprite {None} else {source_key};
+        let external = if p.sprite {None} else {external};
         queue.write_buffer(
             &self.buffers[index].buffer,
             0,
@@ -583,7 +607,14 @@ impl GpuState {
         );
         if self.bindings[index].as_ref().is_none_or(|v| v.key != key) {
             let view = |id: i32| -> &wgpu::TextureView {
+                if id <= crate::mask_plan::SOURCE_TOKEN {
+                    let owner=(crate::mask_plan::SOURCE_TOKEN-id) as usize;
+                    return &images[&crate::renderer::TextureKey::Mask(frame.draws[owner].layer)].view;
+                }
                 if id < 0 {
+                    if p.sprite {
+                        return &images[&crate::renderer::TextureKey::Static(assets[(-id - 1) as usize])].view;
+                    }
                     if let Some(view) = external {
                         return view;
                     }

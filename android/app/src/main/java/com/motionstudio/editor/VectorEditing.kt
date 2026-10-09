@@ -4,8 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.floor
 
-internal fun EditorViewModel.vectorData(objectId:Long=selected)=layer(objectId)?.optJSONObject("content")?.optJSONObject("vector")
-internal fun EditorViewModel.vectorSample(objectId:Long=selected)=state.sample?.optJSONArray("vector_layers").objects().firstOrNull{it.getLong("id")==objectId}
+internal fun EditorViewModel.vectorData(objectId:Long=selected)=if(maskOpen)maskVectorData(objectId)else layer(objectId)?.optJSONObject("content")?.optJSONObject("vector")
+internal fun EditorViewModel.vectorSample(objectId:Long=selected)=if(maskOpen)maskVectorSample(objectId)else state.sample?.optJSONArray("vector_layers").objects().firstOrNull{it.getLong("id")==objectId}
 internal fun EditorViewModel.shapeCatalogue()=state.sample?.optJSONObject("capabilities")?.optJSONObject("vector_drawing")?.optJSONArray("shape_catalog").objects()
 internal fun EditorViewModel.vectorTrackRaw(objectId:Long,key:String):JSONObject? {
     val vector=vectorData(objectId)?:return null
@@ -93,10 +93,11 @@ internal fun EditorViewModel.routeVectorCommand(command:JSONObject):JSONObject? 
     }catch(error:Throwable){showOperationError(error.message?:"矢量编辑失败");return null}
 }
 
-internal fun EditorViewModel.vectorAction(action:JSONObject,save:Boolean=true,objectId:Long=selected)=
-    edit(JSONObject().put("op","vector").put("object",objectId).put("action",action),save)
+internal fun EditorViewModel.vectorAction(action:JSONObject,save:Boolean=true,objectId:Long=selected) {
+    if(maskOpen)maskVectorAction(action,save,objectId)else edit(JSONObject().put("op","vector").put("object",objectId).put("action",action),save)
+}
 internal fun EditorViewModel.replaceVector(vector:JSONObject,save:Boolean=true)=vectorAction(JSONObject().put("action","replace").put("vector",vector),save)
-internal fun EditorViewModel.selectVectorTrack(key:String){if(!vectorOpen)closeWorkspace();pause();property=key;panelOpen=true;vectorOpen=true}
+internal fun EditorViewModel.selectVectorTrack(key:String){if(maskOpen){pause();property="mask:$maskId:node:${key.substringAfterLast(':')}";panelOpen=true;return};if(!vectorOpen)closeWorkspace();pause();property=key;panelOpen=true;vectorOpen=true}
 internal fun EditorViewModel.openVector(tab:String="geometry") {
     closeWorkspace();pause();vectorOpen=true;panelOpen=true;vectorTab=tab
     if(!property.startsWith("vector:"))property=if(tab=="style")"vector:fill"else{

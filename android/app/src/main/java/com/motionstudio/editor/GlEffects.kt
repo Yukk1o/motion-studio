@@ -18,7 +18,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
     private var framebuffer=0;private var uniform=0;private var sprites=0;private var spriteVao=0
     init {
         try {
-            check(info.getInt("version")==4&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
+            check(info.getInt("version")==5&&info.getInt("headerBytes")==128&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
             val ids=IntArray(1);GL.glGenFramebuffers(1,ids,0);framebuffer=ids[0]
             GL.glGenBuffers(1,ids,0);uniform=ids[0];GL.glBindBuffer(GL.GL_UNIFORM_BUFFER,uniform)
             GL.glBufferData(GL.GL_UNIFORM_BUFFER,624,null,GL.GL_DYNAMIC_DRAW)
@@ -72,10 +72,10 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer) {
-        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==4){"不兼容的帧计划"}
-        check(plan.getInt(28) in 80..plan.capacity()){"帧计划长度错误"}
+        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==5){"不兼容的帧计划"}
+        check(plan.getInt(28) in 128..plan.capacity()){"帧计划长度错误"}
         val spriteOffset=plan.getInt(64);val spriteCount=plan.getInt(68)
-        check(plan.getInt(72)==48&&spriteCount in 0..65536&&spriteOffset>=80&&spriteOffset.toLong()+spriteCount.toLong()*48<=plan.getInt(28)){"粒子实例范围错误"}
+        check(plan.getInt(72)==48&&spriteCount in 0..65536&&spriteOffset>=128&&spriteOffset.toLong()+spriteCount.toLong()*48<=plan.getInt(28)){"粒子实例范围错误"}
         if(spriteCount>0) {
             val data=plan.duplicate().order(ByteOrder.nativeOrder()).apply{position(spriteOffset);limit(spriteOffset+spriteCount*48)}.slice()
             GL.glBindBuffer(GL.GL_ARRAY_BUFFER,sprites);GL.glBufferSubData(GL.GL_ARRAY_BUFFER,0,spriteCount*48,data)
@@ -84,7 +84,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         check(mask and 255==mask&&w>=0&&h>=0){"效果纹理描述错误"}
         // Capacities are derived from the existing v2 pass table, identically to Rust.
         val sizes=IntArray(16);val passBase=plan.getInt(20);val passCount=plan.getInt(12)
-        check(passCount>=0&&passBase>=64&&passBase.toLong()+passCount.toLong()*40<=plan.getInt(28)){"效果 pass 表错误"}
+        check(passCount>=0&&passBase>=128&&passBase.toLong()+passCount.toLong()*40<=plan.getInt(28)){"效果 pass 表错误"}
         var actualMask=0
         for(i in 0 until passCount) {
             val p=passBase+i*40;val slot=plan.getInt(p+12);val pw=plan.getInt(p+16);val ph=plan.getInt(p+20)
@@ -114,20 +114,41 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }
     }
     fun resourceBytes():Long=packageBytes
+    /** Sprite PNGs are effect inputs even when the emitting layer has no image source. */
+    fun spriteAssetSlots(plan:ByteBuffer):Set<Int> {
+        val count=plan.getInt(12);val base=plan.getInt(20);val result=HashSet<Int>()
+        check(count>=0&&base>=128&&base.toLong()+count.toLong()*40<=plan.getInt(28)){"粒子图片 pass 表错误"}
+        for(i in 0 until count) {
+            val p=base+i*40;val shaderIndex=plan.getInt(p)
+            check(shaderIndex in shaders.indices){"粒子图片程序索引错误"}
+            if(shaders[shaderIndex].sprite)for(offset in intArrayOf(4,8)) {
+                val index=plan.getInt(p+offset)
+                if(index<0&&index>GlMasks.SOURCE_TOKEN) {
+                    val slot=-index-1;check(slot in assets.indices){"粒子图片索引错误"}
+                    if(slot>0)result.add(slot)
+                }
+            }
+        }
+        return result
+    }
     fun scratchBytes():Long=(0..7).sumOf{i->poolSizes[i*2].toLong()*poolSizes[i*2+1]*(if(i==7)8 else 4)}
     fun texture(slot:Int):Int {check(slot in pool.indices&&pool[slot]!=0){"效果纹理索引错误"};return pool[slot]}
-    fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null) {
+    fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null,maskTexture:((Int)->Int)?=null) {
         val count=plan.getInt(12);check(start>=0&&end in start..count){"效果 pass 范围错误"}
         val base=plan.getInt(20)
         // Materialize the current decoded video texture into the layer's effect chain.
-        fun input(index:Int)=if(index<0){videoTexture?:run{check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}}else texture(index)
+        fun input(index:Int,sprite:Boolean)=when {
+            index<=GlMasks.SOURCE_TOKEN->maskTexture?.invoke((GlMasks.SOURCE_TOKEN.toLong()-index).toInt())?:error("效果蒙版源缺失")
+            index<0->(if(sprite)null else videoTexture)?:run{check(-index-1 in assets.indices){"效果图片索引错误"};assets[-index-1]}
+            else->texture(index)
+        }
         for(i in start until end) {
-            val p=base+i*40;check(p>=64&&p+40<=plan.getInt(28)){"效果 pass 地址错误"}
+            val p=base+i*40;check(p>=128&&p+40<=plan.getInt(28)){"效果 pass 地址错误"}
             val shaderIndex=plan.getInt(p);check(shaderIndex in shaders.indices){"效果程序索引错误"}
-            val shader=shaders[shaderIndex];val source=input(plan.getInt(p+8));val previous=input(plan.getInt(p+4))
+            val shader=shaders[shaderIndex];val source=input(plan.getInt(p+8),shader.sprite);val previous=input(plan.getInt(p+4),shader.sprite)
             val targetSlot=plan.getInt(p+12);val target=texture(targetSlot);val w=plan.getInt(p+16);val h=plan.getInt(p+20)
             check(w in 1..poolSizes[targetSlot*2]&&h in 1..poolSizes[targetSlot*2+1]&&target!=source&&target!=previous){"效果输出目标错误"}
-            val offset=plan.getInt(p+24);check(offset>=64&&offset+624<=plan.getInt(28)){"效果参数地址错误"}
+            val offset=plan.getInt(p+24);check(offset>=128&&offset+624<=plan.getInt(28)){"效果参数地址错误"}
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,framebuffer)
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,target,0)
             check(GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER)==GL.GL_FRAMEBUFFER_COMPLETE){"效果离屏目标不可用"}

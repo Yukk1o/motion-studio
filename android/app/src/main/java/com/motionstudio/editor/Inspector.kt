@@ -61,6 +61,7 @@ import kotlin.math.*
                             vm.openProperty(if(vm.property in listOf("position","rotation","scale","opacity"))vm.property else "position")
                         }
                         if(kind in listOf("solid","image","text","video","vector","adjustment","composition"))LayerCategory("效果","open-effects",vm::openEffects)
+                        if(kind in listOf("solid","image","text","video","vector","composition"))LayerCategory("蒙版","open-masks",vm::openMasks)
                         if(kind=="vector") {
                             LayerCategory(if(vm.vectorData()?.getJSONObject("source")?.optString("kind")=="shape")"形状"else"路径","footer-vector"){vm.openVector()}
                             LayerCategory("样式","footer-vector-style"){vm.openVector("style")}
@@ -223,6 +224,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
                         }
                     }}
                 }
+                SourceColorProperty(vm)
                 if(vm.property=="rotation") {
                     if(!scrollValues)Spacer(Modifier.weight(1f))
                     RotationRuler(vm,Modifier.height(48.dp).fillMaxWidth())

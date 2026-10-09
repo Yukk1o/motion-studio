@@ -228,13 +228,13 @@ impl VideoJobs {
             let _worker=worker;
             let result=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||->Result<Prepared>{
                 update(&t,"opening",0.0)?;let(mut reader,size)=open()?;
-                if size.is_some_and(|s|s>aem_core::storage::MAX_MEDIA_ASSET){return Err("video exceeds 512 MiB".into());}
+                if size.is_some_and(|s|s>aem_core::storage::MAX_MEDIA_ASSET){return Err("video exceeds 2 GiB".into());}
                 if fs2::available_space(&root).map_err(|e|e.to_string())?<size.unwrap_or(0).saturating_add(1024*1024){return Err("insufficient video source storage".into());}
                 let stage=Stage::new(&root)?;let source=stage.0.join("source.mp4");let mut file=File::create(&source).map_err(|e|e.to_string())?;
-                let mut buf=[0u8;65536];let mut bytes=0u64;
+                let mut buf=[0u8;aem_core::storage::TRANSFER_BUFFER_BYTES];let mut bytes=0u64;
                 loop {update(&t,"copying",size.map_or(0.0,|s|bytes as f64/s.max(1) as f64))?;
                     let n=reader.read(&mut buf).map_err(|e|e.to_string())?;if n==0{break;}bytes+=n as u64;
-                    if bytes>aem_core::storage::MAX_MEDIA_ASSET{return Err("video exceeds 512 MiB".into());}
+                    if bytes>aem_core::storage::MAX_MEDIA_ASSET{return Err("video exceeds 2 GiB".into());}
                     if bytes%(1024*1024)<n as u64&&fs2::available_space(&root).map_err(|e|e.to_string())?<1024*1024{return Err("insufficient video import storage".into());}
                     file.write_all(&buf[..n]).map_err(|e|e.to_string())?;
                 }
