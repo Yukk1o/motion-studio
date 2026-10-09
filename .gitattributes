@@ -16,3 +16,4 @@
 *.html text eol=lf
 *.js text eol=lf
 *.css text eol=lf
+vendor/naga/** whitespace=-space-before-tab

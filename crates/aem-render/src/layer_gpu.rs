@@ -8,6 +8,7 @@ use wgpu::util::DeviceExt;
 pub(crate) struct LayerGpu {
     vector: wgpu::RenderPipeline,
     vector_clear: wgpu::RenderPipeline,
+    vector_resolve: wgpu::RenderPipeline,
     clear_vertices: wgpu::Buffer,
     pub adjustment: wgpu::RenderPipeline,
     pub present: wgpu::RenderPipeline,
@@ -15,6 +16,7 @@ pub(crate) struct LayerGpu {
     size: [u32; 2],
     fingerprints: HashMap<u64, u64>,
     raster_scratch: HashMap<(u32, u32), wgpu::Texture>,
+    raster_resolve: HashMap<(u32, u32), FxTexture>,
 }
 impl LayerGpu {
     pub fn new(
@@ -51,7 +53,7 @@ impl LayerGpu {
                 entry_point: Some("fs"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
                     blend,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -67,6 +69,21 @@ impl LayerGpu {
         });
         let vector=make_vector(Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING));
         let vector_clear=make_vector(None);
+        let copy_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("linear vector resolve"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("linear_resolve.wgsl").into()),
+        });
+        let vector_resolve = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("linear vector resolve to sRGB"),
+            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None, bind_group_layouts: &[image], push_constant_ranges: &[],
+            })),
+            vertex: wgpu::VertexState { module: &copy_shader, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[] },
+            fragment: Some(wgpu::FragmentState { module: &copy_shader, entry_point: Some("fs"), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState {
+                format: wgpu::TextureFormat::Rgba8UnormSrgb, blend: None, write_mask: wgpu::ColorWrites::ALL,
+            })] }),
+            primitive: Default::default(), depth_stencil: None, multisample: Default::default(), multiview: None, cache: None,
+        });
         let clear_vertices=device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label:Some("transparent vector scratch clear"),
             contents:bytemuck::cast_slice(&[
@@ -116,6 +133,7 @@ impl LayerGpu {
         Self {
             vector,
             vector_clear,
+            vector_resolve,
             clear_vertices,
             adjustment: make("adjust", None, &[uniform, image, image]),
             present: make(
@@ -127,6 +145,7 @@ impl LayerGpu {
             size: [0; 2],
             fingerprints: HashMap::new(),
             raster_scratch: HashMap::new(),
+            raster_resolve: HashMap::new(),
         }
     }
     pub fn prepare_accumulators(
@@ -160,20 +179,20 @@ impl LayerGpu {
             + self
                 .raster_scratch
                 .iter()
-                .map(|((w, h), _)| u64::from(*w) * u64::from(*h) * 16)
+                .map(|((w, h), _)| u64::from(*w) * u64::from(*h) * 20)
                 .sum::<u64>()
     }
     pub fn pending_vector_bytes(&self, scene: &aem_core::Scene, meshes: &[crate::vector_mesh::VectorMesh], images: &HashMap<TextureKey, GpuImage>) -> u64 {
         let mut scratch: std::collections::HashSet<_> = self.raster_scratch.keys().copied()
             .filter(|size| meshes.iter().any(|m| *size == (m.width, m.height))).collect();
-        let mut bytes = scratch.iter().map(|(w, h)| u64::from(*w) * u64::from(*h) * 16).sum();
+        let mut bytes = scratch.iter().map(|(w, h)| u64::from(*w) * u64::from(*h) * 20).sum();
         for mesh in meshes {
             let id = scene.layers[mesh.layer].id;
             let old = images.get(&TextureKey::Vector(id));
             if self.fingerprints.get(&id) == Some(&mesh.fingerprint) && old.is_some_and(|i| i.size == (mesh.width, mesh.height)) { continue; }
             let cost = u64::from(mesh.width) * u64::from(mesh.height) * 4;
             if old.is_none_or(|i| i.size != (mesh.width, mesh.height)) { bytes += cost; }
-            if scratch.insert((mesh.width, mesh.height)) { bytes += cost * 4; }
+            if scratch.insert((mesh.width, mesh.height)) { bytes += cost * 5; }
         }
         bytes
     }
@@ -212,6 +231,8 @@ impl LayerGpu {
             .retain(|id, _| images.contains_key(&TextureKey::Vector(*id)));
         self.raster_scratch
             .retain(|size, _| meshes.iter().any(|m| *size == (m.width, m.height)));
+        self.raster_resolve
+            .retain(|size, _| meshes.iter().any(|m| *size == (m.width, m.height)));
         for mesh in meshes {
             let id = scene.layers[mesh.layer].id;
             let key = TextureKey::Vector(id);
@@ -231,12 +252,12 @@ impl LayerGpu {
             let msaa_bytes = self
                 .raster_scratch
                 .iter()
-                .map(|((w, h), _)| u64::from(*w) * u64::from(*h) * 16)
+                .map(|((w, h), _)| u64::from(*w) * u64::from(*h) * 20)
                 .sum::<u64>();
             let new_scratch = if self.raster_scratch.contains_key(&(mesh.width, mesh.height)) {
                 0
             } else {
-                cost * 4
+                cost * 5
             };
             if *bytes + new_source + msaa_bytes + new_scratch + resource_bytes > 128 * 1024 * 1024 {
                 return Err(RenderError::Invalid(format!(
@@ -280,12 +301,15 @@ impl LayerGpu {
                         mip_level_count: 1,
                         sample_count: 4,
                         dimension: wgpu::TextureDimension::D2,
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
                         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                         view_formats: &[],
                     })
                 });
             let view = multisample.create_view(&Default::default());
+            let resolved = self.raster_resolve.entry((mesh.width, mesh.height)).or_insert_with(|| {
+                crate::effect_gpu::texture(device, image, sampler, mesh.width, mesh.height, wgpu::TextureFormat::Rgba8Unorm)
+            });
             let vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("cached vector raster triangles"),
                 contents: if mesh.vertices.is_empty() {
@@ -300,7 +324,7 @@ impl LayerGpu {
                     label: Some("materialize vector source"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &view,
-                        resolve_target: Some(&images[&key].view),
+                        resolve_target: Some(&resolved.view),
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                             store: wgpu::StoreOp::Discard,
@@ -320,6 +344,19 @@ impl LayerGpu {
                 if !mesh.vertices.is_empty() {
                     pass.draw(0..mesh.vertices.len() as u32, 0..1);
                 }
+            }
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("encode resolved vector color"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &images[&key].view, resolve_target: None,
+                        ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
+                    })],
+                    depth_stencil_attachment: None, timestamp_writes: None, occlusion_query_set: None,
+                });
+                pass.set_pipeline(&self.vector_resolve);
+                pass.set_bind_group(0, &resolved.composite, &[]);
+                pass.draw(0..3, 0..1);
             }
             self.fingerprints.insert(id, mesh.fingerprint);
         }
