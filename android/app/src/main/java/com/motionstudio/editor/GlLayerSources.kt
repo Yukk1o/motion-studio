@@ -4,7 +4,7 @@ import android.opengl.GLES30 as GL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** Backend adapter for plan v4. No editor UI or project mutation lives here. */
+/** Backend adapter for plan v5. No editor UI or project mutation lives here. */
 internal class GlLayerSources {
     private data class Source(val texture:Int,val width:Int,val height:Int,val fingerprint:Long)
     private val vectors=HashMap<Int,Source>()
@@ -38,9 +38,9 @@ internal class GlLayerSources {
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer,hasAdjustment:Boolean,w:Int,h:Int,assetBytes:Long,scratchBytes:Long) {
-        check(plan.getInt(4)==4&&plan.getInt(96)==24&&plan.getInt(108)==28){"不兼容的矢量计划"}
+        check(plan.getInt(4)==5&&plan.getInt(96)==24&&plan.getInt(108)==28){"不兼容的矢量计划"}
         val table=plan.getInt(84);val count=plan.getInt(88);val total=plan.getInt(28)
-        check(count in 0..128&&table>=112&&table.toLong()+count*28<=total){"矢量资源表失效"}
+        check(count in 0..128&&table>=128&&table.toLong()+count*28<=total){"矢量资源表失效"}
         if(count>0&&!msaaProbed) {
             val samples=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_SAMPLES,samples,0);check(samples[0]>=4){"矢量描边需要 4x MSAA"}
             msaaDrawClear=!probeMsaaClear();graphicsCapabilityReadbackBytes=4;msaaProbed=true
@@ -105,6 +105,8 @@ internal class GlLayerSources {
         }
     }
     fun vector(layer:Int)=vectors[layer]?.texture?:error("矢量源缺失")
+    fun resourceBytes():Long=vectors.values.sumOf{it.width.toLong()*it.height*4}+rasterScratch.keys.sumOf{it.first.toLong()*it.second*16}
+    fun accumulatorBytes():Long=if(accumulators[0]!=0)width.toLong()*height*8 else 0L
     /** One synthetic pixel on first vector use; never reads animation frames back. */
     private fun probeMsaaClear():Boolean {
         val ids=IntArray(1);var renderbuffer=0;var image=0

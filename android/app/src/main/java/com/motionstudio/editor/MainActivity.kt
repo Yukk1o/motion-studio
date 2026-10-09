@@ -178,13 +178,18 @@ open class MainActivity:ComponentActivity() {
         }}
     }) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).onGloballyPositioned{editorOrigin=it.positionInRoot()}) {
+            val nativeSession=vm.pluginEditor.session?.takeIf{it.definition.optJSONObject("native_editor")!=null}
+            if(nativeSession!=null) {
+                NativePluginEditorView(vm,vm.pluginEditor,nativeSession,Modifier.fillMaxSize()){previewModifier->Preview(vm,previewModifier,interactive=false)}
+                return@BoxWithConstraints
+            }
             val wide=maxWidth>maxHeight
             val availableHeight=maxHeight
             val availableWidth=maxWidth
             val split=wide&&availableWidth>=552.dp
             val sideWidth=if(split)editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.48f).coerceIn(248.dp,320.dp).value,248f,(availableWidth-304.dp).value).dp else 0.dp
-            val effectEditing=vm.panelOpen&&(vm.effectsOpen||vm.vectorOpen||vm.compositionClipOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
+            val effectEditing=vm.colorEditor?.docked==true||vm.panelOpen&&(vm.effectsOpen||vm.vectorOpen||vm.maskOpen||vm.compositionClipOpen||vm.expressionTarget!=null)&&(vm.selected!=0L||vm.hasCamera())
             val effectWidth=if(split)sideWidth else editorLayout.value("landscape.side",availableWidth.value,
                 (availableWidth*.5f).coerceAtMost(320.dp).value,200f,(availableWidth-256.dp).value).dp
             val dragDensity=LocalDensity.current.density
@@ -230,7 +235,9 @@ open class MainActivity:ComponentActivity() {
                     }
                     Column(Modifier.width(if(effectEditing)effectWidth else sideWidth).fillMaxHeight()) {
                         if(effectEditing) {
-                            if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing)
+                            if(vm.colorEditor!=null)ColorEditingPanel(vm,Modifier.fillMaxSize())
+                            else if(vm.maskOpen)MaskPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it})
+                            else if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing)
                             else if(vm.compositionClipOpen)CompositionClipPanel(vm,Modifier.fillMaxSize())
                             else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxSize(),onCurveMode={curveExpanded=it})
                             else EffectsPanel(vm,Modifier.fillMaxSize(),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
@@ -245,7 +252,9 @@ open class MainActivity:ComponentActivity() {
                     Transport(vm)
                     Timeline(vm,Modifier.fillMaxWidth().height(if(effectEditing)focusedTimelineHeight else timelineHeight),focused=effectEditing)
                     if(effectEditing) {
-                        if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing)
+                        if(vm.colorEditor!=null)ColorEditingPanel(vm,Modifier.fillMaxWidth().height(effectHeight))
+                        else if(vm.maskOpen)MaskPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it})
+                        else if(vm.expressionTarget!=null)ExpressionWorkspace(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing)
                         else if(vm.compositionClipOpen)CompositionClipPanel(vm,Modifier.fillMaxWidth().height(effectHeight))
                         else if(vm.vectorOpen)VectorPanel(vm,Modifier.fillMaxWidth().height(effectHeight),onCurveMode={curveExpanded=it})
                         else EffectsPanel(vm,Modifier.fillMaxWidth().height(effectHeight),backEnabled=!layoutEditing,onCurveMode={curveExpanded=it},onDismiss=::closeEffects)
@@ -274,7 +283,8 @@ open class MainActivity:ComponentActivity() {
                 modifier=Modifier.align(if(wide)Alignment.BottomEnd else Alignment.BottomCenter),
                 enter=if(wide)slideInHorizontally{it}+fadeIn() else slideInVertically{it}+fadeIn(),
                 exit=if(wide)slideOutHorizontally{it}+fadeOut() else slideOutVertically{it}+fadeOut()) {
-                Properties(vm,propertyBounds,backEnabled=!layoutEditing,onCurveMode={curveExpanded=it})
+                if(vm.colorEditor!=null)ColorEditingPanel(vm,propertyBounds)
+                else Properties(vm,propertyBounds,backEnabled=!layoutEditing,onCurveMode={curveExpanded=it})
             }
             if(layoutEditing&&vm.state.project!=null)previewBounds?.let{bounds->
                 if(split||(wide&&effectEditing))LayoutGrip(bounds,editorOrigin,true,"调整左右布局比例","layout-resize-side",editorLayout) {delta->
@@ -344,8 +354,10 @@ open class MainActivity:ComponentActivity() {
         text={Column{LinearProgressIndicator(progress={vm.exportProgress},modifier=Modifier.fillMaxWidth(),color=Accent)
             Spacer(Modifier.height(12.dp));Text((vm.exportProgress*100).toInt().toString()+"% · 本机编码")}},
         confirmButton={},dismissButton={TextButton(onClick=vm::cancelExport){Text("取消导出")}})
+    LaunchedEffect(vm.colorEditor){if(vm.colorEditor!=null)settings=false}
     if(settings)AlertDialog(onDismissRequest={settings=false},title={Text("Motion Studio · 合成")},
         text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
+            BackgroundColorProperty(vm)
             Text(vm.state.project?.let{it.getInt("width").toString()+" × "+it.getInt("height")+"\n"+
                 it.getInt("fps")+" fps · "+String.format(Locale.US,"%.2f",it.getInt("frames").toDouble()/it.getInt("fps"))+" 秒"}?:"加载中")
             TextButton(onClick={settings=false;vm.pause();vm.finishLayerSelection();home=true}){Text("打开工程")}
@@ -388,14 +400,14 @@ open class MainActivity:ComponentActivity() {
     BackHandler(enabled=layoutEditing,onBack=::finishLayout)
 }
 
-@Composable private fun Preview(vm:EditorViewModel,modifier:Modifier) {
+@Composable private fun Preview(vm:EditorViewModel,modifier:Modifier,interactive:Boolean=true) {
     var menu by remember{mutableStateOf(false)}
     Box(modifier.background(Color(0xFF0B0D10)).clipToBounds()) {
         AndroidView(factory={context->SurfaceView(context).also{view->
             view.holder.addCallback(object:SurfaceHolder.Callback {
                 override fun surfaceCreated(holder:SurfaceHolder) {}
                 override fun surfaceChanged(holder:SurfaceHolder,format:Int,width:Int,height:Int){vm.attach(holder.surface,width,height)}
-                override fun surfaceDestroyed(holder:SurfaceHolder){vm.detach()}
+                override fun surfaceDestroyed(holder:SurfaceHolder){vm.detach(holder.surface)}
             })
         }},modifier=Modifier.fillMaxSize())
         Canvas(Modifier.fillMaxSize().testTag("composition-boundary")) {
@@ -430,9 +442,12 @@ open class MainActivity:ComponentActivity() {
                 }
             }
         }
-        Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(Unit) {
+        Box(Modifier.fillMaxSize().testTag("preview-gesture").pointerInput(interactive) {
             awaitEachGesture {
                 val down=awaitFirstDown()
+                if(vm.eyedropperActive){down.consume();vm.pickPreviewColor(down.position.x,down.position.y,size.width.toFloat(),size.height.toFloat());return@awaitEachGesture}
+                if(!interactive)return@awaitEachGesture
+                if(vm.colorEditor!=null)vm.finishColorEditor(true)
                 if(vm.layerSelectionMode) {
                     var travel=Offset.Zero;var ended=false
                     do {
@@ -532,7 +547,11 @@ open class MainActivity:ComponentActivity() {
                 if(!active&&!observing)picked?.let{vm.select(it,false)}
             }
         })
-        if(vm.vectorOpen&&!vm.playing&&!vm.state.observing&&vm.vectorData()?.getJSONObject("source")?.optString("kind")=="paths")VectorPreviewOverlay(vm)
+        if(vm.eyedropperActive)Row(Modifier.align(Alignment.TopCenter).background(Panel).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+            Text("点选画面取色",color=Ink,fontSize=13.sp)
+            TextButton(onClick=vm::cancelEyedropper,modifier=Modifier.heightIn(min=48.dp).testTag("eyedropper-cancel")){Text("取消")}
+        }
+        if((vm.vectorOpen||vm.maskOpen)&&vm.colorEditor==null&&!vm.eyedropperActive&&!vm.playing&&!vm.state.observing&&vm.vectorData()?.getJSONObject("source")?.optString("kind")=="paths")VectorPreviewOverlay(vm)
         Box(Modifier.padding(start=12.dp,top=4.dp)) {
             TextButton(onClick={menu=true},modifier=Modifier.heightIn(min=48.dp).background(Background.copy(alpha=.8f),RoundedCornerShape(10.dp))) {
                 Text(if(vm.state.observing)"空间观察" else if(vm.hasCamera())"成片摄影机"else"合成视图",color=Ink,fontSize=12.sp)

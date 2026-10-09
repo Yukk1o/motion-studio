@@ -67,6 +67,14 @@ pub fn matrices(
     }
     Ok(())
 }
+/// Sample just one ancestry chain; particle births do not need unrelated nodes
+/// or the composition camera unless it is an explicit spatial parent.
+pub(crate) fn matrix_for(p: &Project, frame: f64, index: usize, world: &mut Vec<Mat4>, states: &mut Vec<u8>) -> Result<Mat4> {
+    world.resize(p.layers.len() + 1, Mat4::IDENTITY);
+    states.resize(p.layers.len() + 1, 0);
+    states.fill(0);
+    node(p, frame, index, world, states)
+}
 fn node(
     p: &Project,
     frame: f64,

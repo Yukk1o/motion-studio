@@ -163,7 +163,7 @@ pub fn query(env: &mut JNIEnv, target: Option<VideoQuery>) -> Result<Value> {
                 "platform_formats":["Opus","ADTS/AAC","HE-AAC","AMR-NB","AMR-WB"],"native_mime_types":aem_media::NATIVE_AUDIO_MIMES,
                 "min_sample_rate":8000,"max_sample_rate":192000,"channels":[1,2],"output_rate":48000,"output_channels":2},
             "requires_probe":true,"probe_operation":"probe_media","decoder_presence_guarantees_file_support":false,
-            "max_source_bytes":aem_core::storage::MAX_MEDIA_ASSET,"max_duration_seconds":3600,"max_pcm_cache_bytes":aem_media::Limits::default().cache_bytes}))
+            "project_package":super::audio_runtime::package_limits(),"max_source_bytes":aem_core::storage::MAX_MEDIA_ASSET,"max_duration_seconds":3600,"max_pcm_cache_bytes":aem_media::Limits::default().cache_bytes}))
     })();
     if env.exception_check().unwrap_or(false) {
         let _ = env.exception_clear();

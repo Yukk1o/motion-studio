@@ -274,7 +274,7 @@ impl AudioJobs {
                         let stage = Stage::new(&root)?;
                         let source = stage.path.join("source");
                         let mut out = File::create(&source).map_err(|e| e.to_string())?;
-                        let mut buffer = vec![0; 64 * 1024];
+                        let mut buffer = vec![0; aem_core::storage::TRANSFER_BUFFER_BYTES];
                         let mut bytes = 0u64;
                         loop {
                             update(

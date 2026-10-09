@@ -23,6 +23,9 @@ pub enum Property {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    /// Zero edits the active composition background. Visual layer source
+    /// colors remain static; animated color uses a color effect or vector paint.
+    SetColor { object:u64, value:[f32;4] },
     AddAdjustment {
         id: u64,
         name: String,
@@ -38,6 +41,7 @@ pub enum Command {
         object: u64,
         action: crate::vector::VectorAction,
     },
+    Mask { object: u64, action: crate::masks::MaskAction },
     InComposition { composition: String, command: Box<Command> },
     Composition { action: crate::CompositionAction },
     RegisterAudioAsset {
@@ -378,6 +382,17 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
     match command {
         Command::InComposition { .. } => unreachable!(),
         Command::Composition { action } => result=Some(EditResult::Composition { result: project.edit_composition(action)? }),
+        Command::SetColor {object,value} => {
+            ensure(value.iter().all(|v|v.is_finite()&&(0. ..=1.).contains(v)),"color requires four normalized 0..1 components")?;
+            if object==0 {project.background=value;}else {
+                let layer=project.layer_mut(object)?;
+                ensure(!layer.locked,"color layer is locked")?;
+                match &mut layer.content {
+                    Content::Solid {color} | Content::Text {color,..} => *color=value,
+                    _=>return Err(Error::Invalid("layer has no editable source color".into())),
+                }
+            }
+        }
         Command::RegisterAudioAsset { asset } => project.audio_assets.push(asset),
         Command::RegisterVideoAsset { asset } => project.video_assets.push(asset),
         Command::SetAudio {
@@ -442,7 +457,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 .iter()
                 .any(|l| l.effects.iter().any(|e| e.scene.is_some()))
             {
-                project.version = 4;
+                project.version = project.version.max(4);
             }
             if let Some(from) = copy {
                 let to = project.layer_mut(object)?.effects.last().unwrap().id;
@@ -718,6 +733,13 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 layer.size,
                 layer.timeline.map_or(0, |t| t.offset_frame),
             )?;
+        }
+        Command::Mask { object, action } => {
+            for frame in action.frames() { valid_frame(frame)?; }
+            project.version = 8;
+            let layer = project.layer_mut(object)?;
+            if layer.locked { return Err(Error::Locked(object)); }
+            crate::masks::edit(&mut layer.masks, action, layer.timeline.map_or(0, |t| t.offset_frame))?;
         }
         Command::RegisterAsset { asset } => project.assets.push(asset),
         Command::Content {

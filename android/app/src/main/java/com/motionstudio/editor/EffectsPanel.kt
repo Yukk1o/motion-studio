@@ -92,7 +92,7 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                 if(current!=null)Box {
                     Tool(Icons.Default.MoreHoriz,"效果详情与版本"){details=true}
                     DropdownMenu(details,{details=false}) {
-                        if(definition?.optJSONObject("editor")!=null)DropdownMenuItem(text={Text("专用编辑器")},modifier=Modifier.testTag("open-plugin-editor"),onClick={details=false;vm.openPluginEditor(current.getLong("id"))})
+                        if(definition?.optJSONObject("editor")!=null||definition?.optJSONObject("native_editor")!=null)DropdownMenuItem(text={Text("专用编辑器")},modifier=Modifier.testTag("open-plugin-editor"),onClick={details=false;vm.openPluginEditor(current.getLong("id"))})
                         vm.expressionTargetForCurrent()?.let{target->DropdownMenuItem(text={Text("当前参数表达式")},modifier=Modifier.testTag("open-effect-expression"),onClick={details=false;vm.openExpression(target)})}
                         DropdownMenuItem(text={Text("效果说明 · "+current.getString("version"))},onClick={details=false;information=true})
                         effectPackages(vm).filter{it.optBoolean("enabled")&&it.getJSONObject("manifest").getString("id")==current.getString("plugin")}.forEach{pkg->
@@ -117,7 +117,7 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                     if(instances.isEmpty())Text("尚未添加效果",Modifier.padding(vertical=20.dp),color=Muted)
                     instances.forEachIndexed{index,e->
                         Row(Modifier.fillMaxWidth().heightIn(min=56.dp).testTag("effect-instance-${e.getLong("id")}"),verticalAlignment=Alignment.CenterVertically) {
-                            TextButton(onClick={instanceId=e.getLong("id")},modifier=Modifier.weight(1f)) {
+                            TextButton(onClick={instanceId=e.getLong("id");if(vm.effectDefinition(e)?.optJSONObject("native_editor")!=null)vm.openPluginEditor(e.getLong("id"))},modifier=Modifier.weight(1f).testTag("effect-open-${e.getLong("id")}")) {
                                 Column(Modifier.fillMaxWidth()) {
                                     Text(effectLabel(vm,e),color=Ink,fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                                     if(vm.effectDefinition(e)==null)Text("固定版本缺失 · ${e.getString("version")}",color=Muted,fontSize=12.sp)
@@ -173,6 +173,13 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                                         }
                                     }
                                     if(kind=="curve")EffectCurveObject(vm,objectId,instance,paramId,saved,enabled)
+                                    else if(kind=="color"&&desc.getDouble("min")>=0.0&&desc.getDouble("max")<=1.0&&(0..3).all{value.getDouble(it) in 0.0..1.0}) {
+                                        ColorProperty(vm,desc.optString("name","颜色"),"effect-color-$instance-$paramId",value,enabled,
+                                            alphaEditable=current.getString("plugin")!="com.motionstudio.effects.ae2021",
+                                            range=desc.getDouble("min")..desc.getDouble("max"),onSelect=::select) {rgba,at->
+                                            vm.effectAction(objectId,instance,"set",JSONObject().put("param",paramId).put("frame",at).put("value",rgba),false)
+                                        }
+                                    }
                                     else if(kind !in listOf("bool","enum")) {
                                         val dimensions=when(kind){"vec2"->2;"vec3"->3;"color"->if(current.getString("plugin")=="com.motionstudio.effects.ae2021")3 else 4;else->1}
                                         repeat(dimensions){axis->

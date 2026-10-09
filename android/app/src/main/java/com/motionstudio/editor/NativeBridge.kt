@@ -8,6 +8,7 @@ object NativeBridge {
     @JvmStatic external fun create(root: String, project: String): Long
     @JvmStatic external fun projectTemplate(kind:Int):String
     @JvmStatic external fun curveGraph(easing:String):String
+    @JvmStatic external fun colorCurveGraph(value:String):String
     @JvmStatic external fun creationError():String
     @JvmStatic external fun newProject(id:Long,project:String):String
     @JvmStatic external fun openProject(id:Long,directory:String):String
@@ -34,6 +35,11 @@ object NativeBridge {
     @JvmStatic external fun importProject(id: Long, path: String): String
     @JvmStatic external fun sampleInto(id: Long, frame: Int, buffer: ByteBuffer): Int
     @JvmStatic external fun assetPixels(id: Long, asset: Long): ByteArray?
+    @JvmStatic external fun assetPixelsInto(id: Long, asset: Long, buffer: ByteBuffer): String
+    /** Stateless header inspection, safe on the URI import I/O thread. */
+    @JvmStatic external fun imageInfo(path: String): String
+    /** Decode validation and proxy warming; stateless, call on an I/O worker. */
+    @JvmStatic external fun prepareImage(root: String, path: String): String
     @JvmStatic external fun plugin(id:Long,request:String):String
     @JvmStatic external fun renderPlanInfo(id:Long):String
     @JvmStatic external fun sampleRenderPlanInto(id:Long,frame:Int,buffer:ByteBuffer):Int

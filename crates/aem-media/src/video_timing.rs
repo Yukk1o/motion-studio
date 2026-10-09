@@ -1,3 +1,12 @@
+/// Extractors may read compressed packets even when only scanning timestamps.
+/// Retain a bounded deadline without treating a multi-GiB cold read as a hang.
+pub fn timestamp_scan_budget(source_bytes: u64) -> std::time::Duration {
+    let chunks = source_bytes
+        .min(aem_core::storage::MAX_MEDIA_ASSET)
+        .div_ceil(16 * 1024 * 1024);
+    std::time::Duration::from_secs(30 + chunks)
+}
+
 /// Correct rounded container frame-rate hints using constant-rate source PTS.
 /// Variable-rate streams keep a declared nominal rate; their sampling uses PTS.
 pub fn source_frame_rate(declared: f64, pts: &[u64], step: u64, variable: bool) -> f64 {
@@ -31,6 +40,18 @@ pub fn source_frame_rate(declared: f64, pts: &[u64], step: u64, variable: bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn timestamp_scan_has_a_size_sensitive_bounded_deadline() {
+        assert_eq!(timestamp_scan_budget(0).as_secs(), 30);
+        assert_eq!(timestamp_scan_budget(16 * 1024 * 1024).as_secs(), 31);
+        assert_eq!(timestamp_scan_budget(16 * 1024 * 1024 + 1).as_secs(), 32);
+        assert_eq!(timestamp_scan_budget(512 * 1024 * 1024).as_secs(), 62);
+        assert_eq!(
+            timestamp_scan_budget(aem_core::storage::MAX_MEDIA_ASSET).as_secs(),
+            158
+        );
+        assert_eq!(timestamp_scan_budget(u64::MAX).as_secs(), 158);
+    }
     fn pts(fps: f64) -> Vec<u64> {
         (0..24)
             .map(|n| (n as f64 * 1_000_000.0 / fps).round() as u64)
