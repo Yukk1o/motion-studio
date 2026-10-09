@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.sp
 
 @Composable internal fun PaletteSwatch(color:Rgba,label:String,tag:String,selected:Boolean=false,enabled:Boolean=true,onClick:()->Unit) {
     Surface(onClick=onClick,enabled=enabled,modifier=Modifier.size(48.dp).testTag(tag).semantics{contentDescription=label},color=Color.Transparent,shape=RoundedCornerShape(8.dp)) {
-        Canvas(Modifier.fillMaxSize().padding(6.dp)){checkerboard();drawRoundRect(color.color(),cornerRadius=androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()));
+        Canvas(Modifier.fillMaxSize().padding(6.dp)){drawRoundRect(color.color(alpha=false),cornerRadius=androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()));
             drawRoundRect(if(selected)Ink else Muted.copy(alpha=.25f),cornerRadius=androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()),style=Stroke(if(selected)2.dp.toPx()else 1.dp.toPx()))}
     }
 }
@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
     var rename by remember{mutableStateOf<ColorBookmark?>(null)}
     var managing by remember{mutableStateOf(false)}
     var common by remember{mutableStateOf(store.commonIds())}
+    fun allowed(value:Rgba)=(0 until if(session.alphaEditable)4 else 3).all{value.component(it) in session.range}
     LaunchedEffect(session.advanced){if(!session.advanced){favorites=store.list();common=store.commonIds()}}
     BackHandler {if(session.advanced)session.advanced=false else onFinish(false)}
     if(session.advanced) {
@@ -64,17 +65,28 @@ import androidx.compose.ui.unit.sp
                 TextButton(onClick={add=true},modifier=Modifier.heightIn(min=48.dp).testTag("color-bookmark-add")){Text("收藏当前颜色")}
                 TextButton(onClick={managing=!managing},modifier=Modifier.heightIn(min=48.dp).testTag("color-common-manage")){Text(if(managing)"完成常用设置"else"设置常用色块")}
             }
+            if(!managing&&common.isNotEmpty()) {
+                Text("常用",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=8.dp))
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("color-common-colors")) {
+                    store.common().forEach{(id,c)->
+                        val chosen=if(id.startsWith("favorite:")&&session.alphaEditable)c else c.copy(a=session.value.a)
+                        PaletteSwatch(c,c.hex(),"color-common-$id",session.value==chosen,allowed(chosen)){onPreview(chosen)}
+                    }
+                }
+            }
+            Text("内置",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=8.dp))
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val columns=(maxWidth.value/48).toInt().coerceAtLeast(1)
-                Column {builtInColors.chunked(columns).forEach{row->Row {row.forEach{c->PaletteSwatch(c,c.hex(),"color-preset-${c.hex().drop(1)}",selected=if(managing)"builtin:${c.hex()}" in common else session.value.copy(a=1.0)==c){
+                Column {builtInColors.chunked(columns).forEach{row->Row {row.forEach{c->PaletteSwatch(c,c.hex(),"color-preset-${c.hex().drop(1)}",selected=if(managing)"builtin:${c.hex()}" in common else session.value.copy(a=1.0)==c,enabled=managing||allowed(c.copy(a=session.value.a))){
                     if(managing){store.toggleCommon("builtin:${c.hex()}");common=store.commonIds()}else onPreview(c.copy(a=session.value.a))
                 }}}}}
             }
-            if(favorites.isNotEmpty()) {
-                Text("收藏",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=8.dp))
+            Text("收藏",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=8.dp))
+            if(favorites.isEmpty())Text("还没有收藏颜色",color=Muted,fontSize=12.sp,modifier=Modifier.padding(vertical=8.dp))
+            else {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {favorites.forEach{bookmark->
                     Column(horizontalAlignment=Alignment.CenterHorizontally) {
-                        PaletteSwatch(bookmark.color,bookmark.name,"color-bookmark-${bookmark.id}",selected=managing&&"favorite:${bookmark.id}" in common){
+                        PaletteSwatch(bookmark.color,bookmark.name,"color-bookmark-${bookmark.id}",selected=managing&&"favorite:${bookmark.id}" in common,enabled=managing||allowed(if(session.alphaEditable)bookmark.color else bookmark.color.copy(a=session.value.a))){
                             if(managing){store.toggleCommon("favorite:${bookmark.id}");common=store.commonIds()}else onPreview(if(session.alphaEditable)bookmark.color else bookmark.color.copy(a=session.value.a))
                         }
                         TextButton(onClick={menu=bookmark},modifier=Modifier.heightIn(min=48.dp)){Text(bookmark.name.take(10),fontSize=11.sp)}

@@ -100,7 +100,7 @@ import kotlin.math.*
                     IconButton(onClick={stopTyping();onEyedropper{sample->update(liveValue.copy(r=sample.r,g=sample.g,b=sample.b))}},modifier=Modifier.size(48.dp).testTag("color-eyedropper")){Icon(Icons.Default.Colorize,"吸管")}
                     Surface(onClick={numbers=true},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("color-code"),color=Background,shape=RoundedCornerShape(12.dp)) {
                         Row(Modifier.padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                            if(!narrow)Canvas(Modifier.size(24.dp).clip(RoundedCornerShape(6.dp))){checkerboard();drawRect(value.color())}
+                            if(!narrow)Canvas(Modifier.size(24.dp).clip(RoundedCornerShape(6.dp))){drawRect(value.color(alpha=false))}
                             Text(value.hex(false),color=Ink,fontSize=12.sp,maxLines=1)
                         }
                     }

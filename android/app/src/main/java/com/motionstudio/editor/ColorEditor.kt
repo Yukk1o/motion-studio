@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import org.json.JSONArray
 import java.util.Locale
 import kotlin.math.*
@@ -84,43 +85,48 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.checkerboard(cell:
 
 /** Literal color row: four numeric channel rows are presented as one swatch. */
 @Composable internal fun ColorProperty(vm:EditorViewModel,label:String,tag:String,value:JSONArray,enabled:Boolean=true,alphaEditable:Boolean=true,
-    range:ClosedFloatingPointRange<Double> = 0.0..1.0,docked:Boolean=true,onSelect:()->Unit={},onSet:(JSONArray,Int)->Unit) {
+    range:ClosedFloatingPointRange<Double> = 0.0..1.0,docked:Boolean=true,labelContent:(@Composable RowScope.()->Unit)?=null,onSelect:()->Unit={},onSet:(JSONArray,Int)->Unit) {
     val rgba=Rgba.from(value)
     fun open(advanced:Boolean=false):ColorEditingSession {
-        vm.pause();onSelect();val session=ColorEditingSession(label,tag,rgba,vm.root,vm.compositionId,floor(vm.frame).toInt(),alphaEditable,range,onSet,docked,vm.panelOpen)
+        vm.cancelEyedropper();vm.pause();onSelect();val session=ColorEditingSession(label,tag,rgba,vm.root,vm.compositionId,floor(vm.frame).toInt(),alphaEditable,range,onSet,docked,vm.panelOpen)
         session.advanced=advanced;vm.openColorEditor(session);return session
     }
-    ColorParameterRow(label,tag,rgba,enabled,alphaEditable,range,onOpen={open(it)},onPick={
-        val session=open();vm.beginEyedropper{sample->if(sample!=null&&vm.colorEditor===session)vm.previewColor(session.value.copy(r=sample.r,g=sample.g,b=sample.b))}
-    },onChoose={chosen->vm.pause();onSelect();vm.beginGesture();onSet(chosen.array(),floor(vm.frame).toInt());vm.endGesture()})
+    fun choose(chosen:Rgba,at:Int=floor(vm.frame).toInt()) {
+        vm.cancelEyedropper();vm.pause();onSelect();vm.beginGesture();onSet(chosen.array(),at);vm.endGesture()
+    }
+    ColorParameterRow(label,tag,rgba,enabled,alphaEditable,range,labelContent,onSelect=onSelect,onOpen={open(it)},onPick={
+        vm.pause();onSelect()
+        val root=vm.root;val composition=vm.compositionId;val objectId=vm.selected;val at=floor(vm.frame).toInt()
+        vm.beginEyedropper{sample->
+            if(sample!=null&&vm.root==root&&vm.compositionId==composition&&vm.selected==objectId&&floor(vm.frame).toInt()==at&&!vm.state.busy&&(objectId==0L||vm.editable())) {
+                val chosen=rgba.copy(r=sample.r,g=sample.g,b=sample.b)
+                if((0 until if(alphaEditable)4 else 3).all{chosen.component(it) in range})choose(chosen,at)
+            }
+        }
+    },onChoose={choose(it)})
 }
 
 /** Shared presentation; the caller owns its editor transaction and preview route. */
 @Composable internal fun ColorParameterRow(label:String,tag:String,rgba:Rgba,enabled:Boolean=true,alphaEditable:Boolean=true,
-    range:ClosedFloatingPointRange<Double> = 0.0..1.0,onOpen:(Boolean)->Unit,onPick:()->Unit,onChoose:(Rgba)->Unit) {
+    range:ClosedFloatingPointRange<Double> = 0.0..1.0,labelContent:(@Composable RowScope.()->Unit)?=null,onSelect:()->Unit={},onOpen:(Boolean)->Unit,onPick:()->Unit,onChoose:(Rgba)->Unit) {
     val context=LocalContext.current
     val bookmarks=remember(context){ColorBookmarks(context)}
-    var favoriteMenu by remember{mutableStateOf(false)}
-    Row(Modifier.fillMaxWidth().heightIn(min=56.dp).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
-        TextButton(onClick={onOpen(false)},enabled=enabled,modifier=Modifier.heightIn(min=48.dp).testTag(tag)){
-            Canvas(Modifier.size(24.dp)){checkerboard();drawRect(rgba.color())}
-            Spacer(Modifier.width(8.dp));Text(label,color=Ink,fontSize=14.sp)
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("$tag-actions"),verticalAlignment=Alignment.CenterVertically) {
+            if(labelContent!=null)labelContent() else TextButton(onClick=onSelect,enabled=enabled,modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("$tag-label"),contentPadding=PaddingValues(0.dp)) {
+                Text(label,Modifier.fillMaxWidth(),color=Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+            }
+            PaletteSwatch(rgba,"编辑$label · ${rgba.hex(alphaEditable)}",tag,enabled=enabled){onOpen(true)}
+            IconButton(onClick=onPick,enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-eyedropper")){Icon(Icons.Default.Colorize,"吸管")}
+            IconButton(onClick={onOpen(true)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-palette")){Icon(Icons.Default.Palette,"调色盘")}
+            IconButton(onClick={onOpen(false)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-favorites")){Icon(Icons.Default.Star,"常用色与收藏颜色")}
         }
-        IconButton(onClick=onPick,enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-eyedropper")){Icon(Icons.Default.Colorize,"吸管")}
-        IconButton(onClick={onOpen(true)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-palette")){Icon(Icons.Default.Palette,"调色盘")}
-        Box {
-            IconButton(onClick={favoriteMenu=true},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-favorites")){Icon(Icons.Default.Star,"收藏")}
-            DropdownMenu(favoriteMenu,{favoriteMenu=false}) {
-                DropdownMenuItem(text={Text("收藏当前颜色")},onClick={bookmarks.add(rgba.hex(),rgba);favoriteMenu=false})
-                bookmarks.list().forEach{entry->DropdownMenuItem(text={Text(entry.name)},enabled=(0 until if(alphaEditable)4 else 3).all{entry.color.component(it) in range},onClick={
-                    favoriteMenu=false;onChoose(if(alphaEditable)entry.color else entry.color.copy(a=rgba.a))
-                })}
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("$tag-common"),verticalAlignment=Alignment.CenterVertically) {
+            bookmarks.common().forEach{(id,c)->
+                val chosen=if(id.startsWith("favorite:")&&alphaEditable)c else c.copy(a=rgba.a)
+                PaletteSwatch(c,c.hex(),"$tag-common-${id.replace(':','-')}",rgba.copy(a=1.0)==c.copy(a=1.0),enabled&&(0 until if(alphaEditable)4 else 3).all{chosen.component(it) in range}){onChoose(chosen)}
             }
         }
-        bookmarks.common().forEach{(id,c)->PaletteSwatch(c,c.hex(),"$tag-common-${id.replace(':','-')}",rgba.copy(a=1.0)==c.copy(a=1.0),enabled&&(0 until if(alphaEditable)4 else 3).all{c.component(it) in range}){
-            val chosen=if(id.startsWith("favorite:")&&alphaEditable)c else c.copy(a=rgba.a)
-            onChoose(chosen)
-        }}
     }
 }
 

@@ -354,7 +354,7 @@ open class MainActivity:ComponentActivity() {
         text={Column{LinearProgressIndicator(progress={vm.exportProgress},modifier=Modifier.fillMaxWidth(),color=Accent)
             Spacer(Modifier.height(12.dp));Text((vm.exportProgress*100).toInt().toString()+"% · 本机编码")}},
         confirmButton={},dismissButton={TextButton(onClick=vm::cancelExport){Text("取消导出")}})
-    LaunchedEffect(vm.colorEditor){if(vm.colorEditor!=null)settings=false}
+    LaunchedEffect(vm.colorEditor,vm.eyedropperActive){if(vm.colorEditor!=null||vm.eyedropperActive)settings=false}
     if(settings)AlertDialog(onDismissRequest={settings=false},title={Text("Motion Studio · 合成")},
         text={Column(Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) {
             BackgroundColorProperty(vm)

@@ -57,6 +57,24 @@ class ExpressionAndPluginUiTest {
         compose.onNodeWithTag("expression-source").performScrollTo().performTextReplacement(source)
         compose.onNodeWithTag("expression-apply").performScrollTo().performClick()
     }
+    @Test fun effectToolbarOpensExpressionForTheSelectedColorParameter() {
+        val pkg=vm.catalogue!!.getJSONArray("packages").objects().first{it.getJSONObject("manifest").getJSONArray("effects").objects().any{e->e.getString("id")=="tint"}}
+        val manifest=pkg.getJSONObject("manifest")
+        val param=manifest.getJSONArray("effects").objects().first{it.getString("id")=="tint"}.getJSONArray("params").objects().first{it.getString("kind")=="color"}.getString("id")
+        scenario.onActivity{vm.openEffects();vm.pluginOperation(JSONObject().put("op","add").put("object",2).put("plugin",manifest.getString("id")).put("version",manifest.getString("version")).put("hash",pkg.getString("hash")).put("effect","tint"),true)}
+        compose.waitUntil(10000){vm.effectParam(2,1,param)!=null&&vm.state.saved}
+        compose.onNodeWithTag("effect-open-1").performScrollTo().performClick()
+        compose.onNodeWithTag("effect-select-$param").performScrollTo().performClick()
+        photo("effect-color-toolbar")
+        compose.onNodeWithTag("effect-expression").performClick()
+        compose.onNodeWithTag("expression-workspace").assertIsDisplayed()
+        assertEquals("effect",vm.expressionTarget!!.getString("kind"))
+        assertEquals(param,vm.expressionTarget!!.getString("param"))
+        assertEquals(1L,vm.expressionTarget!!.getLong("effect"))
+        visibleWorkspace("expression-workspace")
+        scenario.onActivity{vm.closeExpression()}
+        assertNull(vm.state.error)
+    }
     @Test fun expressionEditsBaseValuePreservesInvalidDraftAndSupportsAxesUndo() {
         scenario.onActivity{vm.openProperty("position")}
         compose.onNodeWithContentDescription("图层操作").performClick()
