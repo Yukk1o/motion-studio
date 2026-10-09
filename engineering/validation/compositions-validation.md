@@ -1,7 +1,7 @@
 # 子合成与预合成验收记录
 
 日期：2026-10-07。分支：`codex/nested-compositions`，最新基线：`main@55830ed`。
-接口和首期限制见 [前端接入契约](host-compositions.md)。
+接口和首期限制见 [前端接入契约](../host-api/host-compositions.md)。
 
 ## 同步主分支后的补充验证
 

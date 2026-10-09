@@ -19,4 +19,4 @@
 
 原始结果：`artifacts/layer-masks-workspace-tests-final.log`、`layer-masks-final-build.log`、`layer-masks-combined-confirmation.log`、`layer-masks-ui-isolated-tests.log`、`layer-masks-parity-isolated-tests.log`。源工程、参考素材、截图、日志与 APK 不提交到 Git。
 
-完整契约见 [host-layer-masks.md](host-layer-masks.md)。轨道遮罩、调整图层区域蒙版、混合模式及 AE 参考帧验收尚未交付，不计入本批完成项或“佩丽卡已还原”。
+完整契约见 [host-layer-masks.md](../host-api/host-layer-masks.md)。轨道遮罩、调整图层区域蒙版、混合模式及 AE 参考帧验收尚未交付，不计入本批完成项或“佩丽卡已还原”。

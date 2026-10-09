@@ -91,4 +91,4 @@ JSON 使用 Deflate，已编码图片、视频和音频使用 Stored，并预留
 
 大图片目前仍可能在导入的 64 MiB 解码检查或集中上传的 128 MiB GPU 预算处失败。下一批单独实现按需加载、稳定素材索引、预览代理及正式输出原尺寸读取；本批不声称目标 AE 工程已全部可导入或已还原。
 
-验证结果与复现命令见 [资源改造验证记录](large-media-packages-validation.md)。
+验证结果与复现命令见 [资源改造验证记录](../validation/large-media-packages-validation.md)。

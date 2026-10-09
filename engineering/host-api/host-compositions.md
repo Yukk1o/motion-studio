@@ -4,7 +4,7 @@
 `CompositionBridge.request(engine, json)`，必须在引擎所属线程调用。
 工程格式为 7；单节点效果计划为 v4，嵌套 GPU 执行包为 v1。
 预渲染尚未实现，`prerender=false`。子合成接口不依赖预渲染。
-测试范围、结果与设备边界见 [验收记录](compositions-validation.md)。
+测试范围、结果与设备边界见 [验收记录](../validation/compositions-validation.md)。
 
 ## 能力、身份与作用域
 

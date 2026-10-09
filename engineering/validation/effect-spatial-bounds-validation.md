@@ -2,7 +2,7 @@
 
 ## 已验证的范围
 
-本轮修复包含输出矩形原点传递、Core Effects 1.4.0 的 Shake / Transform Motion Blur / Polar Coordinates，以及显式保留参数升级。通用前端效果面板没有改动，接入约定见 [空间边界文档](host-effect-spatial-bounds.md)。
+本轮修复包含输出矩形原点传递、Core Effects 1.4.0 的 Shake / Transform Motion Blur / Polar Coordinates，以及显式保留参数升级。通用前端效果面板没有改动，接入约定见 [空间边界文档](../host-api/host-effect-spatial-bounds.md)。
 
 Windows DX12 后端执行整个 workspace：**156 项测试通过，0 失败**。
 
