@@ -23,11 +23,25 @@ impl Session {
         if self.editor.as_ref().is_some_and(|e| e.gesture) && v["op"] != "catalogue" {
             return Err("finish the plugin editor gesture before other plugin operations".into());
         }
+        if text("op")?.starts_with("font_") {return self.font_request(&v);}
         let registry = &mut self.effects.registry;
         match text("op")? {
+            "image_input" => {
+                let object=v["object"].as_u64().ok_or("missing object")?;
+                let instance=v["instance"].as_u64().ok_or("missing instance")?;
+                let layer=self.engine.project().layers.iter().find(|l|l.id==object).ok_or("layer does not exist")?;
+                let e=layer.effects.iter().find(|e|e.id==instance).ok_or("effect instance does not exist")?;
+                let p=registry.resolve(&e.plugin,&e.version,&e.hash).map_err(|e|e.to_string())?;
+                if !p.manifest.effects.iter().find(|d|d.id==e.effect).is_some_and(|d|d.required_capabilities.iter().any(|c|c=="image_input")) {
+                    return Err("effect does not accept an image input".into());
+                }
+                let input:Option<aem_core::EffectImageInput>=serde_json::from_value(v["input"].clone()).map_err(|e|e.to_string())?;
+                self.engine.apply(Command::Effect {object,action:aem_core::EffectAction::SetImageInput {effect:instance,input}}).map_err(|e|e.to_string())?;
+                self.sample()?;return Ok(self.snapshot());
+            }
             "catalogue" => {
                 return Ok(
-                    json!({"packages":registry.packages.iter().map(|(key,p)|json!({"manifest":p.manifest,"hash":p.hash,"enabled":!registry.disabled.contains(key)})).collect::<Vec<_>>(),"errors":registry.diagnostics}),
+                    json!({"packages":registry.packages.iter().map(|(key,p)|json!({"manifest":p.manifest,"hash":p.hash,"enabled":!registry.disabled.contains(key)})).collect::<Vec<_>>(),"aliases":aem_effects::builtin::effect_aliases(),"errors":registry.diagnostics}),
                 )
             }
             "install" => {
@@ -132,6 +146,7 @@ impl Session {
                     effect.seed = old.seed;
                     effect.enabled = old.enabled;
                     effect.scene = old.scene.clone();
+                    effect.image_input = old.image_input;
                 }
                 let mut cmds = Vec::new();
                 if upgrading {

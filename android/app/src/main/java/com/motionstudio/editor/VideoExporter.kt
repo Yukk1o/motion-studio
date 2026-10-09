@@ -300,6 +300,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
                 }
             }
             wanted.addAll(effects!!.spriteAssetSlots(plan))
+            wanted.addAll(effects!!.imageAssetSlots(plan))
         }
         for(slot in 1 until textures.size)if(textures[slot]!=0&&slot !in wanted) {
             GLES30.glDeleteTextures(1,intArrayOf(textures[slot]),0);textures[slot]=0
@@ -359,6 +360,8 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         val values=buffer.asFloatBuffer()
         val hasAdjustment=(0 until buffer.getInt(8)).any{values.get(buffer.getInt(16)/4+it*32+31)==2f&&values.get(buffer.getInt(16)/4+it*32+28)<values.get(buffer.getInt(16)/4+it*32+29)}
         layerSources!!.prepare(buffer,hasAdjustment,w,h,imageBytes+effects!!.resourceBytes()+maskBudget.outputs,effects!!.scratchBytes()+maskBudget.scratch)
+        val sourceOrder=effects!!.imageInputOrder(buffer)
+        layerSources!!.prepareEffectInputs(buffer,sourceOrder,imageBytes+effects!!.resourceBytes()+maskBudget.outputs)
         masks!!.prepare(buffer,imageBytes+effects!!.resourceBytes()+layerSources!!.resourceBytes(),effects!!.scratchBytes()+layerSources!!.accumulatorBytes())
         var accumulator=0
         if(hasAdjustment)layerSources!!.target(layerSources!!.accumulator(0),w,h,true)
@@ -371,6 +374,21 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         }
         GLES30.glDisable(GLES30.GL_DEPTH_TEST);GLES30.glDisable(GLES30.GL_CULL_FACE)
         var materialized=-1
+        fun sourceTexture(inputLayer:Int,post:Boolean):Int {
+            if(post)return layerSources!!.effectInput(inputLayer)
+            check(inputLayer in 0 until buffer.getInt(8)){"效果输入图层索引失效"}
+            val sourceBase=buffer.getInt(16)/4+inputLayer*32;val sourceAsset=values.get(sourceBase+24).toInt()
+            return when(values.get(sourceBase+31).toInt()) {
+                1->layerSources!!.vector(inputLayer)
+                2->error("调整图层不能作为原始图片输入")
+                else->if(sourceAsset<0)dynamic[sourceAsset]?:error("效果输入视频未就绪")else textures[sourceAsset]
+            }
+        }
+        for(inputLayer in sourceOrder) {
+            val base=buffer.getInt(16)/4+inputLayer*32
+            effects!!.passes(buffer,values.get(base+28).toInt(),values.get(base+29).toInt(),sourceTexture(inputLayer,false),masks!!::textureFor,::sourceTexture)
+            layerSources!!.copyEffectInput(inputLayer,effects!!.texture(0))
+        }
         val batchOffset=buffer.getInt(52);val count=buffer.getInt(56)
         check(batchOffset>=128&&count in 0..8192&&batchOffset.toLong()+count*12<=vertexOffset){"几何批次范围失效"}
         for(i in 0 until count) {
@@ -380,13 +398,16 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
             val sourceKind=values.get(base+31).toInt()
             val asset=values.get(base+24).toInt();if(sourceKind==0&&asset in skippedSlots)continue
             val passStart=values.get(base+28).toInt();val passEnd=values.get(base+29).toInt()
+            if(materialized!=layer&&layerSources!!.hasEffectInput(layer)) {
+                layerSources!!.restoreEffectInput(layer,effects!!.texture(0));materialized=layer
+            }
             if(passStart<passEnd&&materialized!=layer) {
                 val video=when(sourceKind){
                     2->layerSources!!.input(accumulator)
                     1->layerSources!!.vector(layer)
                     else->if(asset<0)dynamic[asset]?:error("视频画面未就绪")else null
                 }
-                effects!!.passes(buffer,passStart,passEnd,video,masks!!::textureFor);materialized=layer
+                effects!!.passes(buffer,passStart,passEnd,video,masks!!::textureFor,::sourceTexture);materialized=layer
             }
             if(sourceKind==2) {
                 if(passStart<passEnd&&values.get(base+22)>0f)accumulator=layerSources!!.adjust(accumulator,effects!!.texture(0),buffer,base)

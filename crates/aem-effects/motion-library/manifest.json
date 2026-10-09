@@ -1,0 +1,6283 @@
+{
+  "format_version": 1,
+  "sdk_version": 6,
+  "id": "com.motionstudio.effects.motion",
+  "version": "1.0.0",
+  "name": "Motion Studio 创作效果",
+  "author": "motion-studio contributors",
+  "license": "MIT",
+  "effects": [
+    {
+      "id": "solarize",
+      "name": "曝光反转",
+      "english_name": "Solarize",
+      "category": "调色",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "threshold",
+          "name": "阈值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "strength",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/solarize.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "vignette",
+      "name": "暗角",
+      "english_name": "Vignette",
+      "category": "调色",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "radius",
+          "name": "半径",
+          "kind": "vec2",
+          "default": [
+            320,
+            320,
+            0,
+            0
+          ],
+          "min": 0.001,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [],
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "feather",
+          "name": "羽化",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0.001,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "amount",
+          "name": "明暗",
+          "kind": "float",
+          "default": [
+            0.65,
+            0,
+            0,
+            0
+          ],
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/vignette.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "vibrance",
+      "name": "自然饱和度",
+      "english_name": "Vibrance",
+      "category": "调色",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "amount",
+          "name": "饱和度",
+          "kind": "float",
+          "default": [
+            0.4,
+            0,
+            0,
+            0
+          ],
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "protection",
+          "name": "饱和色保护",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/vibrance.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Adds explicit saturated-color protection to the adapted vibrance formula; no automatic skin classification."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "flip",
+      "name": "翻转",
+      "english_name": "Flip",
+      "category": "变形",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "axis",
+          "name": "轴",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "水平",
+            "垂直",
+            "双轴"
+          ]
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/flip.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "halftone",
+      "name": "半色调网点",
+      "english_name": "Halftone",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "size",
+          "name": "网格尺寸",
+          "kind": "float",
+          "default": [
+            8,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "角度",
+          "kind": "float",
+          "default": [
+            15,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "ink",
+          "name": "墨色",
+          "kind": "color",
+          "default": [
+            0.04,
+            0.04,
+            0.04,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "paper",
+          "name": "纸色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            0.95,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "shape",
+          "name": "图案",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "圆点",
+            "线条"
+          ]
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/halftone.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "dither",
+      "name": "抖动量化",
+      "english_name": "Dither",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "levels",
+          "name": "色阶",
+          "kind": "float",
+          "default": [
+            8,
+            0,
+            0,
+            0
+          ],
+          "min": 2,
+          "max": 256,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "amount",
+          "name": "抖动强度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "pattern",
+          "name": "图案",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "Bayer 4×4",
+            "蓝噪",
+            "白噪"
+          ]
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/dither.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [
+        "assets/blue-noise.png"
+      ],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "gradient_map",
+      "name": "渐变映射",
+      "english_name": "Gradient Map",
+      "category": "调色",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color0",
+          "name": "色标 1",
+          "kind": "color",
+          "default": [
+            0.05,
+            0.03,
+            0.15,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color1",
+          "name": "色标 2",
+          "kind": "color",
+          "default": [
+            0.4,
+            0.1,
+            0.8,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color2",
+          "name": "色标 3",
+          "kind": "color",
+          "default": [
+            1,
+            0.35,
+            0.18,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color3",
+          "name": "色标 4",
+          "kind": "color",
+          "default": [
+            1,
+            0.95,
+            0.65,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "black",
+          "name": "黑点",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "white",
+          "name": "白点",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "contrast",
+          "name": "对比度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "phase",
+          "name": "色标偏移",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -4,
+          "max": 4,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/gradient_map.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "gradient",
+      "name": "渐变",
+      "english_name": "Gradient",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color0",
+          "name": "色标 1",
+          "kind": "color",
+          "default": [
+            0.05,
+            0.03,
+            0.15,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color1",
+          "name": "色标 2",
+          "kind": "color",
+          "default": [
+            0.4,
+            0.1,
+            0.8,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color2",
+          "name": "色标 3",
+          "kind": "color",
+          "default": [
+            1,
+            0.35,
+            0.18,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color3",
+          "name": "色标 4",
+          "kind": "color",
+          "default": [
+            1,
+            0.95,
+            0.65,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "shape",
+          "name": "形状",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 5,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "线性",
+            "径向",
+            "锥形",
+            "菱形",
+            "HSV 色轮",
+            "方向彩虹"
+          ]
+        },
+        {
+          "id": "start",
+          "name": "起点",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.25,
+            0.5
+          ]
+        },
+        {
+          "id": "end",
+          "name": "终点",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.75,
+            0.5
+          ]
+        },
+        {
+          "id": "angle",
+          "name": "角度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "repeat",
+          "name": "延伸",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "钳制",
+            "重复",
+            "镜像"
+          ]
+        },
+        {
+          "id": "phase",
+          "name": "相位",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -100,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/gradient.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Four evenly spaced, animatable premultiplied color stops; HSV wheel is distinct from directional rainbow."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "multi_point_gradient",
+      "name": "多点渐变",
+      "english_name": "Multi-point Gradient",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point0",
+          "name": "位置 1",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.2,
+            0.2
+          ]
+        },
+        {
+          "id": "color0",
+          "name": "颜色 1",
+          "kind": "color",
+          "default": [
+            0.1,
+            0.1,
+            0.8,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point1",
+          "name": "位置 2",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.8,
+            0.2
+          ]
+        },
+        {
+          "id": "color1",
+          "name": "颜色 2",
+          "kind": "color",
+          "default": [
+            0.9,
+            0.1,
+            0.5,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point2",
+          "name": "位置 3",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "color2",
+          "name": "颜色 3",
+          "kind": "color",
+          "default": [
+            0.2,
+            0.9,
+            0.7,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point3",
+          "name": "位置 4",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.2,
+            0.8
+          ]
+        },
+        {
+          "id": "color3",
+          "name": "颜色 4",
+          "kind": "color",
+          "default": [
+            0.8,
+            0.4,
+            0.1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point4",
+          "name": "位置 5",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.8,
+            0.8
+          ]
+        },
+        {
+          "id": "color4",
+          "name": "颜色 5",
+          "kind": "color",
+          "default": [
+            0.5,
+            0.1,
+            0.8,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "power",
+          "name": "距离指数",
+          "kind": "float",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 6,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/multi_point_gradient.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "flow_gradient",
+      "name": "流动渐变",
+      "english_name": "Flow Gradient",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point0",
+          "name": "位置 1",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.2,
+            0.2
+          ]
+        },
+        {
+          "id": "color0",
+          "name": "颜色 1",
+          "kind": "color",
+          "default": [
+            0.1,
+            0.1,
+            0.8,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point1",
+          "name": "位置 2",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.8,
+            0.2
+          ]
+        },
+        {
+          "id": "color1",
+          "name": "颜色 2",
+          "kind": "color",
+          "default": [
+            0.9,
+            0.1,
+            0.5,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point2",
+          "name": "位置 3",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "color2",
+          "name": "颜色 3",
+          "kind": "color",
+          "default": [
+            0.2,
+            0.9,
+            0.7,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point3",
+          "name": "位置 4",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.2,
+            0.8
+          ]
+        },
+        {
+          "id": "color3",
+          "name": "颜色 4",
+          "kind": "color",
+          "default": [
+            0.8,
+            0.4,
+            0.1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "point4",
+          "name": "位置 5",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.8,
+            0.8
+          ]
+        },
+        {
+          "id": "color4",
+          "name": "颜色 5",
+          "kind": "color",
+          "default": [
+            0.5,
+            0.1,
+            0.8,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "power",
+          "name": "距离指数",
+          "kind": "float",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 6,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "速度",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "drift",
+          "name": "漂移距离",
+          "kind": "float",
+          "default": [
+            80,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/flow_gradient.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Five deterministic animated points; not a free curved mesh or an exact port of upstream MeshGradient."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "grid_gradient",
+      "name": "网格渐变",
+      "english_name": "Grid Gradient",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color0",
+          "name": "顶点 1·1",
+          "kind": "color",
+          "default": [
+            0.0,
+            0.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color1",
+          "name": "顶点 1·2",
+          "kind": "color",
+          "default": [
+            0.3333333333333333,
+            0.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color2",
+          "name": "顶点 1·3",
+          "kind": "color",
+          "default": [
+            0.6666666666666666,
+            0.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color3",
+          "name": "顶点 1·4",
+          "kind": "color",
+          "default": [
+            1.0,
+            0.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color4",
+          "name": "顶点 2·1",
+          "kind": "color",
+          "default": [
+            0.0,
+            0.3333333333333333,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color5",
+          "name": "顶点 2·2",
+          "kind": "color",
+          "default": [
+            0.3333333333333333,
+            0.3333333333333333,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color6",
+          "name": "顶点 2·3",
+          "kind": "color",
+          "default": [
+            0.6666666666666666,
+            0.3333333333333333,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color7",
+          "name": "顶点 2·4",
+          "kind": "color",
+          "default": [
+            1.0,
+            0.3333333333333333,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color8",
+          "name": "顶点 3·1",
+          "kind": "color",
+          "default": [
+            0.0,
+            0.6666666666666666,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color9",
+          "name": "顶点 3·2",
+          "kind": "color",
+          "default": [
+            0.3333333333333333,
+            0.6666666666666666,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color10",
+          "name": "顶点 3·3",
+          "kind": "color",
+          "default": [
+            0.6666666666666666,
+            0.6666666666666666,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color11",
+          "name": "顶点 3·4",
+          "kind": "color",
+          "default": [
+            1.0,
+            0.6666666666666666,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color12",
+          "name": "顶点 4·1",
+          "kind": "color",
+          "default": [
+            0.0,
+            1.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color13",
+          "name": "顶点 4·2",
+          "kind": "color",
+          "default": [
+            0.3333333333333333,
+            1.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color14",
+          "name": "顶点 4·3",
+          "kind": "color",
+          "default": [
+            0.6666666666666666,
+            1.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color15",
+          "name": "顶点 4·4",
+          "kind": "color",
+          "default": [
+            1.0,
+            1.0,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/grid_gradient.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Fixed 4×4 regular grid with bilinear color interpolation; vertices and grid curves are not freely movable."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "noise_dissolve",
+      "name": "噪声溶解",
+      "english_name": "Noise Dissolve",
+      "category": "过渡",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "progress",
+          "name": "进度",
+          "kind": "float",
+          "default": [
+            0.4,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scale",
+          "name": "噪声尺度",
+          "kind": "float",
+          "default": [
+            24,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4096,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "feather",
+          "name": "羽化",
+          "kind": "float",
+          "default": [
+            0.08,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0.5,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/noise_dissolve.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "contour_lines",
+      "name": "等高线",
+      "english_name": "Contour Lines",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "levels",
+          "name": "层数",
+          "kind": "float",
+          "default": [
+            8,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 128,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "width",
+          "name": "线宽",
+          "kind": "float",
+          "default": [
+            0.08,
+            0,
+            0,
+            0
+          ],
+          "min": 0.001,
+          "max": 0.5,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color",
+          "name": "线色",
+          "kind": "color",
+          "default": [
+            0.1,
+            0.9,
+            0.7,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "amount",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/contour_lines.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "noise_generator",
+      "name": "噪声生成器",
+      "english_name": "Noise Generator",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "basis",
+          "name": "算法",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 5,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "Perlin",
+            "Simplex",
+            "Voronoi",
+            "Gabor",
+            "块噪声",
+            "蓝噪"
+          ]
+        },
+        {
+          "id": "scale",
+          "name": "尺度",
+          "kind": "float",
+          "default": [
+            80,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4096,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "octaves",
+          "name": "细节",
+          "kind": "float",
+          "default": [
+            4,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 8,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "演化速度",
+          "kind": "float",
+          "default": [
+            0.3,
+            0,
+            0,
+            0
+          ],
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "Gabor 方向",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "low",
+          "name": "暗色",
+          "kind": "color",
+          "default": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "high",
+          "name": "亮色",
+          "kind": "color",
+          "default": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/noise_generator.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [
+        "assets/blue-noise.png"
+      ],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Independent seeded kernels, not MaterialX-compatible hashes. Blue mode uses a spectrally checked static tile; octaves apply to Perlin."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "curl_noise",
+      "name": "旋流噪声",
+      "english_name": "Curl Noise",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scale",
+          "name": "尺度",
+          "kind": "float",
+          "default": [
+            80,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4096,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "演化速度",
+          "kind": "float",
+          "default": [
+            0.3,
+            0,
+            0,
+            0
+          ],
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "gain",
+          "name": "向量编码增益",
+          "kind": "float",
+          "default": [
+            0.2,
+            0,
+            0,
+            0
+          ],
+          "min": 0.01,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "output",
+          "name": "输出",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "RG 向量",
+            "流速"
+          ]
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/curl_noise.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "RG stores the analytic 2D curl in display-RGB data channels, neutral 0.5; clipping, RGBA8 quantization and texture interpolation can alter the encoded field."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "marble",
+      "name": "大理石",
+      "english_name": "Marble",
+      "category": "材质",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scale",
+          "name": "尺度",
+          "kind": "float",
+          "default": [
+            80,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4096,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "distortion",
+          "name": "扭曲",
+          "kind": "float",
+          "default": [
+            4,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 20,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "演化",
+          "kind": "float",
+          "default": [
+            0.1,
+            0,
+            0,
+            0
+          ],
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "base",
+          "name": "基色",
+          "kind": "color",
+          "default": [
+            0.9,
+            0.88,
+            0.8,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "vein",
+          "name": "脉络",
+          "kind": "color",
+          "default": [
+            0.12,
+            0.14,
+            0.16,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/marble.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "paper",
+      "name": "纸张",
+      "english_name": "Paper",
+      "category": "材质",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "grain",
+          "name": "颗粒尺度",
+          "kind": "float",
+          "default": [
+            2,
+            0,
+            0,
+            0
+          ],
+          "min": 0.2,
+          "max": 64,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "roughness",
+          "name": "粗糙度",
+          "kind": "float",
+          "default": [
+            0.3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "displacement",
+          "name": "纤维位移",
+          "kind": "float",
+          "default": [
+            0.3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 16,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/paper.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "wool",
+      "name": "毛织物",
+      "english_name": "Wool",
+      "category": "材质",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scale",
+          "name": "纤维尺度",
+          "kind": "float",
+          "default": [
+            4,
+            0,
+            0,
+            0
+          ],
+          "min": 0.2,
+          "max": 256,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color",
+          "name": "颜色",
+          "kind": "color",
+          "default": [
+            0.7,
+            0.35,
+            0.24,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "roughness",
+          "name": "粗糙度",
+          "kind": "float",
+          "default": [
+            0.6,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/wool.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "weave",
+      "name": "编织",
+      "english_name": "Weave",
+      "category": "材质",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scale",
+          "name": "网格尺寸",
+          "kind": "float",
+          "default": [
+            12,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "角度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "warp",
+          "name": "经线",
+          "kind": "color",
+          "default": [
+            0.72,
+            0.56,
+            0.3,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "weft",
+          "name": "纬线",
+          "kind": "color",
+          "default": [
+            0.2,
+            0.35,
+            0.48,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/weave.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "carbon_fiber",
+      "name": "碳纤维",
+      "english_name": "Carbon Fiber",
+      "category": "材质",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scale",
+          "name": "编织尺寸",
+          "kind": "float",
+          "default": [
+            10,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "角度",
+          "kind": "float",
+          "default": [
+            45,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "gloss",
+          "name": "清漆高光",
+          "kind": "float",
+          "default": [
+            0.6,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color",
+          "name": "颜色",
+          "kind": "color",
+          "default": [
+            0.12,
+            0.14,
+            0.16,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/carbon_fiber.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "2D woven surface and clearcoat approximation, not shape-aware physical lighting."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "brushed_metal",
+      "name": "拉丝金属",
+      "english_name": "Brushed Metal",
+      "category": "材质",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "grain",
+          "name": "拉丝尺度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0.2,
+          "max": 64,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "roughness",
+          "name": "粗糙度",
+          "kind": "float",
+          "default": [
+            0.4,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "highlight",
+          "name": "高光",
+          "kind": "float",
+          "default": [
+            0.65,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color",
+          "name": "金属色",
+          "kind": "color",
+          "default": [
+            0.6,
+            0.65,
+            0.7,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/brushed_metal.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "2D directional surface; no scene light or shape-bound normal input."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "swirl_pattern",
+      "name": "旋涡纹理",
+      "english_name": "Swirl Pattern",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "scale",
+          "name": "尺度",
+          "kind": "float",
+          "default": [
+            160,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4096,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "twist",
+          "name": "旋转强度",
+          "kind": "float",
+          "default": [
+            5,
+            0,
+            0,
+            0
+          ],
+          "min": -20,
+          "max": 20,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "速度",
+          "kind": "float",
+          "default": [
+            0.3,
+            0,
+            0,
+            0
+          ],
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "low",
+          "name": "暗色",
+          "kind": "color",
+          "default": [
+            0.06,
+            0.02,
+            0.12,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "high",
+          "name": "亮色",
+          "kind": "color",
+          "default": [
+            0.55,
+            0.2,
+            0.85,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/swirl_pattern.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "aurora",
+      "name": "极光",
+      "english_name": "Aurora",
+      "category": "生成",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scale",
+          "name": "尺度",
+          "kind": "float",
+          "default": [
+            160,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 4096,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "速度",
+          "kind": "float",
+          "default": [
+            0.25,
+            0,
+            0,
+            0
+          ],
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "intensity",
+          "name": "亮度",
+          "kind": "float",
+          "default": [
+            0.8,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color",
+          "name": "光色",
+          "kind": "color",
+          "default": [
+            0.1,
+            0.95,
+            0.6,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "height",
+          "name": "高度",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/aurora.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Bounded procedural curtain field, independently implemented; no volumetric scene integration."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "bend",
+      "name": "弯曲",
+      "english_name": "Bend",
+      "category": "变形",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "strength",
+          "name": "曲率",
+          "kind": "float",
+          "default": [
+            0.4,
+            0,
+            0,
+            0
+          ],
+          "min": -1,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "falloff",
+          "name": "中心平坦区",
+          "kind": "float",
+          "default": [
+            0.2,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "轴角度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/bend.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Adapted inverse parabolic-sheet projection; no integration with the scene's 3D mesh or camera."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "stretch",
+      "name": "拉伸",
+      "english_name": "Stretch",
+      "category": "变形",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "center",
+          "name": "中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "factor",
+          "name": "拉伸倍率",
+          "kind": "float",
+          "default": [
+            1.8,
+            0,
+            0,
+            0
+          ],
+          "min": 0.1,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "width",
+          "name": "影响宽度",
+          "kind": "float",
+          "default": [
+            120,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/stretch.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Local directional stretch with Gaussian falloff, independent of layer transform scale."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "corner_pin",
+      "name": "四角定位",
+      "english_name": "Corner Pin",
+      "category": "变形",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "tl",
+          "name": "左上",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0,
+            0
+          ]
+        },
+        {
+          "id": "tr",
+          "name": "右上",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            1,
+            0
+          ]
+        },
+        {
+          "id": "br",
+          "name": "右下",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            1,
+            1
+          ]
+        },
+        {
+          "id": "bl",
+          "name": "左下",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0,
+            1
+          ]
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/corner_pin.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "min",
+          "a": {
+            "op": "min",
+            "a": {
+              "op": "min",
+              "a": {
+                "op": "parameter",
+                "id": "tl",
+                "component": 0
+              },
+              "b": {
+                "op": "parameter",
+                "id": "tr",
+                "component": 0
+              }
+            },
+            "b": {
+              "op": "parameter",
+              "id": "br",
+              "component": 0
+            }
+          },
+          "b": {
+            "op": "parameter",
+            "id": "bl",
+            "component": 0
+          }
+        },
+        "y": {
+          "op": "min",
+          "a": {
+            "op": "min",
+            "a": {
+              "op": "min",
+              "a": {
+                "op": "parameter",
+                "id": "tl",
+                "component": 1
+              },
+              "b": {
+                "op": "parameter",
+                "id": "tr",
+                "component": 1
+              }
+            },
+            "b": {
+              "op": "parameter",
+              "id": "br",
+              "component": 1
+            }
+          },
+          "b": {
+            "op": "parameter",
+            "id": "bl",
+            "component": 1
+          }
+        },
+        "width": {
+          "op": "max",
+          "a": {
+            "op": "add",
+            "a": {
+              "op": "max",
+              "a": {
+                "op": "max",
+                "a": {
+                  "op": "max",
+                  "a": {
+                    "op": "parameter",
+                    "id": "tl",
+                    "component": 0
+                  },
+                  "b": {
+                    "op": "parameter",
+                    "id": "tr",
+                    "component": 0
+                  }
+                },
+                "b": {
+                  "op": "parameter",
+                  "id": "br",
+                  "component": 0
+                }
+              },
+              "b": {
+                "op": "parameter",
+                "id": "bl",
+                "component": 0
+              }
+            },
+            "b": {
+              "op": "multiply",
+              "a": {
+                "op": "constant",
+                "value": -1
+              },
+              "b": {
+                "op": "min",
+                "a": {
+                  "op": "min",
+                  "a": {
+                    "op": "min",
+                    "a": {
+                      "op": "parameter",
+                      "id": "tl",
+                      "component": 0
+                    },
+                    "b": {
+                      "op": "parameter",
+                      "id": "tr",
+                      "component": 0
+                    }
+                  },
+                  "b": {
+                    "op": "parameter",
+                    "id": "br",
+                    "component": 0
+                  }
+                },
+                "b": {
+                  "op": "parameter",
+                  "id": "bl",
+                  "component": 0
+                }
+              }
+            }
+          },
+          "b": {
+            "op": "constant",
+            "value": 1
+          }
+        },
+        "height": {
+          "op": "max",
+          "a": {
+            "op": "add",
+            "a": {
+              "op": "max",
+              "a": {
+                "op": "max",
+                "a": {
+                  "op": "max",
+                  "a": {
+                    "op": "parameter",
+                    "id": "tl",
+                    "component": 1
+                  },
+                  "b": {
+                    "op": "parameter",
+                    "id": "tr",
+                    "component": 1
+                  }
+                },
+                "b": {
+                  "op": "parameter",
+                  "id": "br",
+                  "component": 1
+                }
+              },
+              "b": {
+                "op": "parameter",
+                "id": "bl",
+                "component": 1
+              }
+            },
+            "b": {
+              "op": "multiply",
+              "a": {
+                "op": "constant",
+                "value": -1
+              },
+              "b": {
+                "op": "min",
+                "a": {
+                  "op": "min",
+                  "a": {
+                    "op": "min",
+                    "a": {
+                      "op": "parameter",
+                      "id": "tl",
+                      "component": 1
+                    },
+                    "b": {
+                      "op": "parameter",
+                      "id": "tr",
+                      "component": 1
+                    }
+                  },
+                  "b": {
+                    "op": "parameter",
+                    "id": "br",
+                    "component": 1
+                  }
+                },
+                "b": {
+                  "op": "parameter",
+                  "id": "bl",
+                  "component": 1
+                }
+              }
+            }
+          },
+          "b": {
+            "op": "constant",
+            "value": 1
+          }
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Convex perspective quads; degenerate and self-intersecting quads produce transparent output."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "fluted_glass",
+      "name": "条纹玻璃",
+      "english_name": "Fluted Glass",
+      "category": "变形",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "pitch",
+          "name": "条纹宽度",
+          "kind": "float",
+          "default": [
+            24,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 2048,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "refraction",
+          "name": "折射",
+          "kind": "float",
+          "default": [
+            8,
+            0,
+            0,
+            0
+          ],
+          "min": -256,
+          "max": 256,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "angle",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "aberration",
+          "name": "色散",
+          "kind": "float",
+          "default": [
+            0.2,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "highlight",
+          "name": "高光",
+          "kind": "float",
+          "default": [
+            0.15,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "速度",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -10,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/fluted_glass.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "mirror",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "crt_screen",
+      "name": "CRT 显像管",
+      "english_name": "CRT Screen",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "scanlines",
+          "name": "扫描线",
+          "kind": "float",
+          "default": [
+            0.35,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "pitch",
+          "name": "荫罩间距",
+          "kind": "float",
+          "default": [
+            3,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 128,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "aberration",
+          "name": "色散",
+          "kind": "float",
+          "default": [
+            1.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "curvature",
+          "name": "球面曲率",
+          "kind": "float",
+          "default": [
+            0.1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "glow",
+          "name": "辉光",
+          "kind": "float",
+          "default": [
+            0.15,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "vignette",
+          "name": "暗角",
+          "kind": "float",
+          "default": [
+            0.3,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/crt_screen.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Includes barrel curvature and a fixed four-neighbour glow approximation; alpha follows warped source."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "vhs",
+      "name": "VHS 磁带",
+      "english_name": "VHS",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "wobble",
+          "name": "抖动",
+          "kind": "float",
+          "default": [
+            2,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 64,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "smear",
+          "name": "色度渗漏",
+          "kind": "float",
+          "default": [
+            6,
+            0,
+            0,
+            0
+          ],
+          "min": -64,
+          "max": 64,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "noise",
+          "name": "行噪声",
+          "kind": "float",
+          "default": [
+            0.12,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "speed",
+          "name": "速度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 10,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/vhs.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "clamp",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "ascii",
+      "name": "字符画",
+      "english_name": "ASCII",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "cell",
+          "name": "字符高度",
+          "kind": "float",
+          "default": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "min": 4,
+          "max": 128,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color_mode",
+          "name": "颜色",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "原图颜色",
+            "自定义颜色"
+          ]
+        },
+        {
+          "id": "foreground",
+          "name": "前景",
+          "kind": "color",
+          "default": [
+            0.3,
+            1,
+            0.7,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "background",
+          "name": "背景",
+          "kind": "color",
+          "default": [
+            0.01,
+            0.02,
+            0.03,
+            1
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "glyph_count",
+          "name": "图集字符数",
+          "kind": "float",
+          "default": [
+            10,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 256,
+          "step": 0.01,
+          "animatable": false,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "glyph_aspect",
+          "name": "图集字符宽高比",
+          "kind": "float",
+          "default": [
+            0.6666666666666666,
+            0,
+            0,
+            0
+          ],
+          "min": 0.1,
+          "max": 10,
+          "step": 0.01,
+          "animatable": false,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/ascii.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [
+        "assets/ascii.png"
+      ],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Shared font rasterizer can supply a coverage-sorted custom atlas; original ten-glyph bitmap atlas is the default."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds",
+        "image_input"
+      ]
+    },
+    {
+      "id": "drop_shadow",
+      "name": "投影",
+      "english_name": "Drop Shadow",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "offset",
+          "name": "偏移",
+          "kind": "vec2",
+          "default": [
+            12,
+            12,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "radius",
+          "name": "模糊半径",
+          "kind": "float",
+          "default": [
+            12,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "color",
+          "name": "阴影色",
+          "kind": "color",
+          "default": [
+            0,
+            0,
+            0,
+            0.65
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "mode",
+          "name": "输出",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "图像和阴影",
+            "仅阴影"
+          ]
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/drop_shadow.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/drop_shadow.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/drop_shadow.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "add",
+          "a": {
+            "op": "input_origin",
+            "component": 0
+          },
+          "b": {
+            "op": "multiply",
+            "a": {
+              "op": "constant",
+              "value": -1
+            },
+            "b": {
+              "op": "add",
+              "a": {
+                "op": "ceil",
+                "value": {
+                  "op": "parameter",
+                  "id": "radius",
+                  "component": 0
+                }
+              },
+              "b": {
+                "op": "max",
+                "a": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 0
+                  }
+                },
+                "b": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "y": {
+          "op": "add",
+          "a": {
+            "op": "input_origin",
+            "component": 1
+          },
+          "b": {
+            "op": "multiply",
+            "a": {
+              "op": "constant",
+              "value": -1
+            },
+            "b": {
+              "op": "add",
+              "a": {
+                "op": "ceil",
+                "value": {
+                  "op": "parameter",
+                  "id": "radius",
+                  "component": 0
+                }
+              },
+              "b": {
+                "op": "max",
+                "a": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 0
+                  }
+                },
+                "b": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "width": {
+          "op": "add",
+          "a": {
+            "op": "input_size",
+            "component": 0
+          },
+          "b": {
+            "op": "multiply",
+            "a": {
+              "op": "constant",
+              "value": 2
+            },
+            "b": {
+              "op": "add",
+              "a": {
+                "op": "ceil",
+                "value": {
+                  "op": "parameter",
+                  "id": "radius",
+                  "component": 0
+                }
+              },
+              "b": {
+                "op": "max",
+                "a": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 0
+                  }
+                },
+                "b": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "height": {
+          "op": "add",
+          "a": {
+            "op": "input_size",
+            "component": 1
+          },
+          "b": {
+            "op": "multiply",
+            "a": {
+              "op": "constant",
+              "value": 2
+            },
+            "b": {
+              "op": "add",
+              "a": {
+                "op": "ceil",
+                "value": {
+                  "op": "parameter",
+                  "id": "radius",
+                  "component": 0
+                }
+              },
+              "b": {
+                "op": "max",
+                "a": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 0
+                  }
+                },
+                "b": {
+                  "op": "abs",
+                  "value": {
+                    "op": "parameter",
+                    "id": "offset",
+                    "component": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Finite Gaussian support with up to 33 taps per axis; bounds include offset and full blur support."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "channel_blur",
+      "name": "通道模糊",
+      "english_name": "Channel Blur",
+      "category": "模糊",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "red",
+          "name": "红色半径",
+          "kind": "float",
+          "default": [
+            4,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "green",
+          "name": "绿色半径",
+          "kind": "float",
+          "default": [
+            12,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "blue",
+          "name": "蓝色半径",
+          "kind": "float",
+          "default": [
+            24,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/channel_blur.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/channel_blur.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "clamp",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Separate Gaussian radius and sampling for each RGB channel; alpha preserved, transparent samples coverage-normalised."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "region_blur",
+      "name": "区域模糊",
+      "english_name": "Region Blur",
+      "category": "模糊",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "mode",
+          "name": "模式",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "渐进模糊",
+            "移轴"
+          ]
+        },
+        {
+          "id": "center",
+          "name": "清晰中心",
+          "kind": "vec2",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -32768,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "pixels",
+          "options": [],
+          "relative_default": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "id": "angle",
+          "name": "方向",
+          "kind": "float",
+          "default": [
+            90,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "width",
+          "name": "清晰带半宽",
+          "kind": "float",
+          "default": [
+            60,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "transition",
+          "name": "过渡距离",
+          "kind": "float",
+          "default": [
+            120,
+            0,
+            0,
+            0
+          ],
+          "min": 1,
+          "max": 32768,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "radius",
+          "name": "最大半径",
+          "kind": "float",
+          "default": [
+            24,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/region_blur.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/region_blur.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "clamp",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Separable spatially varying Gaussian approximation; final pass restores exact source pixels inside the focus band."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "bokeh_blur",
+      "name": "散景模糊",
+      "english_name": "Bokeh Blur",
+      "category": "模糊",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "radius",
+          "name": "半径",
+          "kind": "float",
+          "default": [
+            16,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 512,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "aperture",
+          "name": "光圈",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "圆形",
+            "六边形",
+            "八边形"
+          ]
+        },
+        {
+          "id": "quality",
+          "name": "采样",
+          "kind": "enum",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 2,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "16",
+            "32",
+            "64"
+          ]
+        },
+        {
+          "id": "rotation",
+          "name": "旋转",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": -360,
+          "max": 360,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "highlights",
+          "name": "高光增强",
+          "kind": "float",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 4,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/bokeh_blur.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "clamp",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "16/32/64 deterministic aperture taps; polygon and circular apertures, no temporal accumulation or cat-eye model."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    },
+    {
+      "id": "displacement_map",
+      "name": "置换贴图",
+      "english_name": "Displacement Map",
+      "category": "变形",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "amount",
+          "name": "XY 位移",
+          "kind": "vec2",
+          "default": [
+            12,
+            12,
+            0,
+            0
+          ],
+          "min": -4096,
+          "max": 4096,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "channels",
+          "name": "通道",
+          "kind": "enum",
+          "default": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 1,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": [
+            "RG",
+            "亮度"
+          ]
+        },
+        {
+          "id": "midpoint",
+          "name": "中性值",
+          "kind": "float",
+          "default": [
+            0.5,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/displacement_map.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [
+        "assets/displacement.png"
+      ],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "transparent",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Layer input defaults to same-frame masked/effected pixels; optional source stage excludes masks/effects. Transforms/opacity are excluded; input is stretched to the destination source rectangle; inactive source is neutral."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds",
+        "image_input"
+      ]
+    },
+    {
+      "id": "compression_artifacts",
+      "name": "压缩失真",
+      "english_name": "Compression Artifacts",
+      "category": "风格化",
+      "params": [
+        {
+          "id": "effect_opacity",
+          "name": "效果不透明度",
+          "kind": "float",
+          "default": [
+            100,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 100,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "quality",
+          "name": "画质",
+          "kind": "float",
+          "default": [
+            0.45,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        },
+        {
+          "id": "strength",
+          "name": "强度",
+          "kind": "float",
+          "default": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "animatable": true,
+          "implemented": true,
+          "units": "",
+          "options": []
+        }
+      ],
+      "passes": [
+        {
+          "shader": "shaders/compression_artifacts.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/compression_artifacts.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/compression_artifacts.wgsl",
+          "entry": "main_fx"
+        },
+        {
+          "shader": "shaders/compression_artifacts.wgsl",
+          "entry": "main_fx"
+        }
+      ],
+      "resources": [],
+      "working_space": "srgb",
+      "alpha_mode": "straight",
+      "edge_mode": "clamp",
+      "output_bounds": {
+        "x": {
+          "op": "input_origin",
+          "component": 0
+        },
+        "y": {
+          "op": "input_origin",
+          "component": 1
+        },
+        "width": {
+          "op": "input_size",
+          "component": 0
+        },
+        "height": {
+          "op": "input_size",
+          "component": 1
+        }
+      },
+      "padding": {
+        "op": "constant",
+        "value": 0
+      },
+      "reference_version": "Motion Studio native; unverified",
+      "compatibility": "approximate",
+      "compatibility_profile": "motion-native-v1",
+      "known_differences": [
+        "Same-frame separable 8×8 DCT/quantization, RGBA8 coefficient precision; not full JPEG encoding or exact codec parity."
+      ],
+      "required_capabilities": [
+        "single_frame",
+        "spatial_bounds"
+      ]
+    }
+  ]
+}

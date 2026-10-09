@@ -1,5 +1,6 @@
 //! Owned asynchronous media import, video caches and bounded PCM mixing. No UI dependencies.
 mod avc;
+pub mod fonts;
 mod decode;
 mod formats;
 mod matroska;

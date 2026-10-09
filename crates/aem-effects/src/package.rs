@@ -11,7 +11,7 @@ use std::{
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
 const MAX_PACKAGE: usize = 16 * 1024 * 1024;
-const MAX_MANIFEST: usize = 256 * 1024;
+const MAX_MANIFEST: usize = 512 * 1024;
 const MAX_SHADER: usize = 256 * 1024;
 pub struct EffectPackage {
     pub manifest: PluginManifest,
@@ -116,7 +116,8 @@ impl EffectPackage {
                     })?)
                     .map_err(|_| Error::Invalid("shader must be UTF-8".into()))?;
                 let compiled = if effect.output_bounds.is_some() {
-                    if manifest.sdk_version >= 4 { shader::compile_spatial_image(source, &pass.entry) }
+                    if manifest.sdk_version >= 6 { shader::compile_spatial_v6(source, &pass.entry) }
+                    else if manifest.sdk_version >= 4 { shader::compile_spatial_image(source, &pass.entry) }
                     else { shader::compile_rect_image(source, &pass.entry) }
                 } else {
                     shader::compile_mode(

@@ -153,6 +153,7 @@ impl Scene {
                 sampled.local_frame = layer.local_frame(frame);
                 sampled.enabled = e.enabled;
                 sampled.seed = e.seed;
+                sampled.image_input = e.image_input;
                 sampled.scene = e.scene.clone();
                 sampled.lut = None;
                 sampled.particle_history_error = None;
@@ -229,15 +230,17 @@ impl Scene {
             if matches!(layer.content, Content::Null | Content::Audio { .. }) {
                 continue;
             }
-            if !layer.active(frame, project.frames) {
+            let referenced = self.effects.iter().any(|e| e.enabled && e.image_input.and_then(crate::EffectImageInput::layer) == Some(layer.id));
+            let clip=layer.clip(project.frames);
+            if frame<f64::from(clip.in_frame)||frame>=f64::from(clip.out_frame)||(!layer.visible&&!referenced) {
                 continue;
             }
-            let opacity = layer
+            let opacity = if !layer.visible {0.}else{layer
                 .transform
                 .opacity
                 .sample(layer.local_frame(frame))
-                .clamp(0.0, 1.0);
-            if opacity <= 0.0 {
+                .clamp(0.0, 1.0)};
+            if opacity <= 0.0 && !referenced {
                 continue;
             }
             let center = self.node_world[order].w_axis.truncate();
@@ -406,6 +409,7 @@ impl Scene {
         for l in &mut self.layers {l.id=mapping[&l.id];}
         for e in &mut self.effects {
             e.layer=mapping[&e.layer];
+            if let Some(crate::EffectImageInput::Layer { layer, .. }) = &mut e.image_input { *layer=mapping[layer]; }
             if let Some(source)=e.scene.as_mut().and_then(|s|s.source_layer.as_mut()) { *source=mapping[source]; }
         }
         for n in &mut self.nested {n.layer=mapping[&n.layer];n.scene.assign_instance_ids(used,next);}
@@ -485,6 +489,7 @@ impl Scene {
             };
             let group_start = hits.len();
             for l in &self.layers[start..end] {
+                if l.opacity <= 0.0 { continue; }
                 let mvp = (l.view_projection * l.model).as_dmat4();
                 if mvp.determinant().abs() < 1e-20 {
                     continue;

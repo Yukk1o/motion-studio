@@ -137,6 +137,8 @@ impl Resolution {
 pub fn scene_assets(scene: &Scene) -> BTreeSet<u64> {
     fn collect(scene: &Scene, ids: &mut BTreeSet<u64>) {
         ids.extend(scene.layers.iter().filter_map(|l| l.asset));
+        ids.extend(scene.effects.iter().filter(|e| e.enabled && scene.layers.iter().any(|l|l.id==e.layer))
+            .filter_map(|e| match e.image_input { Some(aem_core::EffectImageInput::Asset {asset}) => Some(asset), _ => None }));
         ids.extend(scene.effects.iter()
             .filter(|effect| effect.enabled && scene.layers.iter().any(|layer| layer.id == effect.layer))
             .filter_map(|effect| effect.scene.as_ref().and_then(|settings| settings.sprite_asset)));

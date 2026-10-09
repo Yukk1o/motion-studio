@@ -43,6 +43,7 @@ mod bridge;
 mod buffers;
 mod editing;
 mod effects;
+mod fonts;
 mod export;
 mod geometry;
 mod images;
@@ -91,6 +92,7 @@ struct Session {
     package_jobs: aem_media::PackageJobs,
     audio_mixer: Option<(u64, aem_media::AudioMixer)>,
     audio_pcm: Vec<f32>,
+    font_store: Option<aem_media::fonts::FontStore>,
     engine: Engine,
     scene: Scene,
     geometry: aem_core::PlaneCompositor,
@@ -157,6 +159,7 @@ impl Session {
         self.video_frames.clear();
         self.audio_mixer = None;
         self.root = root;
+        self.font_store = None;
         self.frame = 0.0;
         self.observing = false;
         self.last_presented_frame = None;
@@ -210,6 +213,7 @@ impl Session {
             package_jobs: aem_media::PackageJobs::default(),
             audio_mixer: None,
             audio_pcm: Vec::new(),
+            font_store: None,
             engine,
             scene,
             geometry: aem_core::PlaneCompositor::new(),

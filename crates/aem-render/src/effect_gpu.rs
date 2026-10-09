@@ -60,6 +60,7 @@ pub(crate) struct GpuState {
     buffers: Vec<Buffer>,
     sprite_buffer: wgpu::Buffer,
     bindings: Vec<Option<Binding>>,
+    input_resources: Vec<Option<(u32, usize, wgpu::BindGroup)>>,
 }
 pub(crate) fn texture(
     device: &wgpu::Device,
@@ -82,7 +83,7 @@ pub(crate) fn texture(
         format,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
             | wgpu::TextureUsages::TEXTURE_BINDING
-            | wgpu::TextureUsages::COPY_DST,
+            | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     });
     let view = texture.create_view(&Default::default());
@@ -238,6 +239,7 @@ impl EffectGpu {
                     mapped_at_creation: false,
                 }),
                 bindings: Vec::new(),
+                input_resources: Vec::new(),
             },
         })
     }
@@ -257,6 +259,7 @@ impl GpuState {
     pub fn invalidate(&mut self) {
         self.epoch += 1;
         self.bindings.clear();
+        self.input_resources.clear();
     }
     pub fn release_scratch(&mut self) {
         if self.pool_slots != 0 {
@@ -395,6 +398,7 @@ impl GpuState {
             self.buffers.push(Buffer { buffer, group });
         }
         self.bindings.resize_with(frame.passes.len(), || None);
+        self.input_resources.resize_with(frame.passes.len(), || None);
         if !frame.sprites.is_empty() {
             queue.write_buffer(&self.sprite_buffer, 0, bytemuck::cast_slice(&frame.sprites));
         }
@@ -669,6 +673,30 @@ impl GpuState {
             });
         }
         let target = &self.pool[p.output as usize].as_ref().unwrap().view;
+        if p.resource_input != 0 {
+            use crate::renderer::TextureKey;
+            let image = if p.resource_input < 0 {
+                TextureKey::Static(assets[(-p.resource_input-1) as usize])
+            } else {
+                let draw=&frame.draws[(p.resource_input-1) as usize];
+                if p.uniform.params[30][1]>0.5 {TextureKey::EffectInput(draw.layer)}
+                else if draw.words[31]==1. {TextureKey::Vector(draw.layer)}
+                else if draw.words[24]<0. {TextureKey::Video(draw.layer)}
+                else {TextureKey::Static(assets[draw.words[24] as usize])}
+            };
+            let view=&images.get(&image).ok_or_else(||RenderError::Invalid("effect image input is not available".into()))?.view;
+            let pointer=view as *const _ as usize;
+            if self.input_resources[index].as_ref().is_none_or(|(program,old,_)|*program!=p.program||*old!=pointer) {
+                let mut entries=Vec::new();
+                for slot in 0..4 {
+                    entries.push(wgpu::BindGroupEntry {binding:slot*2,resource:wgpu::BindingResource::TextureView(if slot==0 {view}else{&self.white.view})});
+                    entries.push(wgpu::BindGroupEntry {binding:slot*2+1,resource:wgpu::BindingResource::Sampler(&self.sampler)});
+                }
+                self.input_resources[index]=Some((p.program,pointer,device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label:Some("effect image input"),layout:&self.resource_layout,entries:&entries
+                })));
+            }
+        }
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("motion-studio effect"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -698,7 +726,8 @@ impl GpuState {
         );
         pass.set_bind_group(0, &self.buffers[index].group, &[]);
         pass.set_bind_group(1, &self.bindings[index].as_ref().unwrap().group, &[]);
-        pass.set_bind_group(2, &self.resources[&p.program], &[]);
+        let resources=if p.resource_input!=0 {&self.input_resources[index].as_ref().unwrap().2} else {&self.resources[&p.program]};
+        pass.set_bind_group(2, resources, &[]);
         if p.sprite {
             pass.set_vertex_buffer(0, self.sprite_buffer.slice(..));
             pass.draw(0..6, p.sprite_start..p.sprite_start + p.sprite_count);

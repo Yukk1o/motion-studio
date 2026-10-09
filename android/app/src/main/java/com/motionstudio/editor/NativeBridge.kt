@@ -5,6 +5,9 @@ import android.content.Context
 import java.nio.ByteBuffer
 
 object NativeBridge {
+    @JvmStatic fun systemFonts():String=SystemFonts.catalogue()
+    @JvmStatic fun importFont(id:Long,context:Context,uri:android.net.Uri,faceIndex:Int=0,license:String="User-provided font; original licensing applies"):String=
+        SystemFonts.importUri(id,context,uri,faceIndex,license)
     init { System.loadLibrary("motion_engine") }
     @JvmStatic external fun create(root: String, project: String): Long
     @JvmStatic external fun configureMemory(id:Long,totalMem:Long,guarded:Boolean):String

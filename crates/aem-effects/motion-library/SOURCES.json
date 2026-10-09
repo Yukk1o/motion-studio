@@ -1,0 +1,51 @@
+{
+  "repository": "https://github.com/shader-effects-inc/shaders",
+  "revision": "d49008cc2d6b547f216ca09bc13ae8f44572f040",
+  "license": "MIT",
+  "adapted_formulas": {
+    "solarize": "gpu/kit/colorOps.ts#solarize",
+    "vibrance": "gpu/kit/colorOps.ts#vibrance",
+    "gradient_map": "gpu/kit/colorOps.ts#gradientMapT",
+    "bend": "gpu/kit/warpMaps.ts#bendRemap"
+  },
+  "independent_kernels": [
+    "vignette",
+    "flip",
+    "halftone",
+    "dither",
+    "gradient",
+    "multi_point_gradient",
+    "flow_gradient",
+    "grid_gradient",
+    "noise_dissolve",
+    "contour_lines",
+    "noise_generator",
+    "curl_noise",
+    "marble",
+    "paper",
+    "wool",
+    "weave",
+    "carbon_fiber",
+    "brushed_metal",
+    "swirl_pattern",
+    "aurora",
+    "stretch",
+    "corner_pin",
+    "fluted_glass",
+    "crt_screen",
+    "vhs",
+    "ascii",
+    "drop_shadow",
+    "channel_blur",
+    "region_blur",
+    "bokeh_blur",
+    "displacement_map",
+    "compression_artifacts"
+  ],
+  "notes": [
+    "Adapted formulas are rewritten for Motion Studio parameter, coordinate, alpha, time and bounds contracts.",
+    "Other kernels are independently implemented; they are not exact ports of the upstream components.",
+    "No MaterialX implementation, upstream web engine or preset assets are included.",
+    "The full Shaders MIT notice is embedded in the distributed WGSL sources and included in APK notices."
+  ]
+}

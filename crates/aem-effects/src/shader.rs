@@ -156,14 +156,17 @@ pub fn compile_mode(
     sprite: bool,
     additive: bool,
 ) -> Result<CompiledShader> {
-    compile_internal(source, entry, sprite, additive, false, false)
+    compile_internal(source, entry, sprite, additive, false, false, false)
 }
 /// SDK 3 rectangles may write directly to the host's composition target.
 pub(crate) fn compile_rect_image(source: &str, entry: &str) -> Result<CompiledShader> {
-    compile_internal(source, entry, false, false, true, false)
+    compile_internal(source, entry, false, false, true, false, false)
 }
 pub(crate) fn compile_spatial_image(source: &str, entry: &str) -> Result<CompiledShader> {
-    compile_internal(source, entry, false, false, true, true)
+    compile_internal(source, entry, false, false, true, true, false)
+}
+pub(crate) fn compile_spatial_v6(source:&str,entry:&str)->Result<CompiledShader> {
+    compile_internal(source,entry,false,false,true,true,true)
 }
 fn compile_internal(
     source: &str,
@@ -172,6 +175,7 @@ fn compile_internal(
     additive: bool,
     convert_output: bool,
     finite_source: bool,
+    coverage_mix: bool,
 ) -> Result<CompiledShader> {
     let loop_work = portable_source(source)?;
     ensure(
@@ -189,7 +193,10 @@ fn compile_internal(
         let original = if finite_source {
             "select(sample_source(p),vec4(0.0),any(p<fx.source_region.xy)||any(p>fx.source_region.xy+fx.source_region.zw))"
         } else { "sample_source(p)" };
-        format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;let c=mix({original},{entry}(p),fx.output_mode.z);if all(fx.mode.yz==fx.output_mode.xy) {{return c;}} return convert_pixel(c,fx.mode.yz,fx.output_mode.xy);}}\n")
+        let mix=if coverage_mix {
+            format!("let original={original};let filtered={entry}(p);var c=mix(original,filtered,fx.output_mode.z);if fx.mode.z>0.5 {{let alpha=c.a;let rgb=mix(original.rgb*original.a,filtered.rgb*filtered.a,fx.output_mode.z);c=vec4(rgb/max(alpha,0.000001),alpha);}}")
+        }else{format!("let c=mix({original},{entry}(p),fx.output_mode.z);")};
+        format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;{mix}if all(fx.mode.yz==fx.output_mode.xy) {{return c;}} return convert_pixel(c,fx.mode.yz,fx.output_mode.xy);}}\n")
     } else {
         format!("{HEADER}\n{source}\n@fragment fn sdk_fragment(input:EffectVertex)->@location(0) vec4<f32>{{let p=fx.region.xy+input.uv*fx.region.zw;return mix(sample_source(p),{entry}(p),fx.output_mode.z);}}\n")
     };

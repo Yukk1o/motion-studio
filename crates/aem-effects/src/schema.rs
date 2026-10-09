@@ -2,7 +2,7 @@ use crate::{ensure, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const SDK_VERSION: u32 = 5;
+pub const SDK_VERSION: u32 = 6;
 pub const MAX_PARAMS: usize = 32;
 pub const MAX_PASSES: usize = 8;
 pub const MAX_EFFECTS_PER_LAYER: usize = 16;
@@ -409,7 +409,7 @@ impl PluginManifest {
             "plugin metadata too long",
         )?;
         ensure(
-            !self.effects.is_empty() && self.effects.len() <= 64,
+            !self.effects.is_empty() && self.effects.len() <= if self.sdk_version >= 6 {128}else{64},
             "invalid effect count",
         )?;
         let mut ids = BTreeSet::new();
@@ -432,6 +432,11 @@ impl PluginManifest {
                 e.resources.len() <= 4,
                 "at most four resource textures are supported",
             )?;
+            if e.required_capabilities.iter().any(|c| c == "image_input") {
+                ensure(self.sdk_version >= 6 && e.renderer == crate::RendererKind::Image
+                    && e.params.len() <= 30 && e.resources.len() == 1,
+                    "image inputs require SDK 6, an image effect, a resource texture and two reserved parameter slots")?;
+            }
             if let Some(editor) = &e.editor {
                 ensure(self.sdk_version >= 2, "plugin editors require SDK 2")?;
                 editor.validate()?;
@@ -617,6 +622,7 @@ impl PluginManifest {
                         "plugin_editor",
                         "particle_birth_history",
                         "native_plugin_editor",
+                        "image_input",
                     ]
                     .contains(&cap.as_str()),
                     format!("unsupported host capability: {cap}"),

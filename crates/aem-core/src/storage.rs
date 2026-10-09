@@ -48,6 +48,7 @@ pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
         .assets
         .iter()
         .map(|a| (&a.path, MAX_ASSET, None))
+        .chain(project.fonts.iter().map(|a| (&a.path, 32*1024*1024, None)))
         .chain(
             project
                 .audio_assets
@@ -67,13 +68,12 @@ pub fn validate_assets(root: &Path, project: &Project) -> Result<()> {
         {
             ensure(
                 previous_path == asset_path
-                    && *previous_limit == MAX_MEDIA_ASSET
-                    && limit == MAX_MEDIA_ASSET
                     && *previous_bytes == bytes
-                    && project
+                    && ((*previous_limit == 32*1024*1024 && limit == 32*1024*1024 && project.fonts.iter().any(|f|f.path==*asset_path))
+                        || (*previous_limit == MAX_MEDIA_ASSET && limit == MAX_MEDIA_ASSET && project
                         .video_assets
                         .iter()
-                        .any(|v| v.path == *asset_path && v.audio_asset.is_some()),
+                        .any(|v| v.path == *asset_path && v.audio_asset.is_some()))),
                 "duplicate asset path",
             )?;
             continue;
@@ -175,6 +175,7 @@ impl PackageSnapshot {
             .assets
             .iter()
             .map(|a| (&a.path, MAX_ASSET, None))
+        .chain(project.fonts.iter().map(|a| (&a.path, 32*1024*1024, None)))
             .chain(
                 project
                     .audio_assets
@@ -423,6 +424,7 @@ pub fn import_package_with_progress(
         .map(|a| a.path.to_lowercase())
         .chain(project.audio_assets.iter().map(|a| a.path.to_lowercase()))
         .chain(project.video_assets.iter().map(|a| a.path.to_lowercase()))
+        .chain(project.fonts.iter().map(|a| a.path.to_lowercase()))
         .chain(std::iter::once("project.json".into()))
         .collect();
     ensure(

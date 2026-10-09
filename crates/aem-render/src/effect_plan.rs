@@ -7,7 +7,7 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 6;
+pub const PLAN_VERSION: u32 = 7;
 pub const HEADER_BYTES: usize = 128;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 10;
@@ -50,6 +50,8 @@ pub struct EffectProgram {
 }
 #[derive(Clone, Copy, Debug)]
 pub struct EffectPass {
+    /// v7 reuses non-sprite word 8: 0=package, >0=draw+1, <0=asset slot.
+    pub resource_input: i32,
     pub program: u32,
     pub input: i32,
     pub source: i32,
@@ -86,6 +88,49 @@ pub struct EffectFramePlan {
     pub vectors: Vec<crate::vector_mesh::VectorMesh>,
     pub masks: Vec<crate::mask_plan::MaskRaster>,
 }
+/// GPU snapshots are evaluated once in dependency order, before compositing.
+pub fn image_input_order(frame: &EffectFramePlan) -> Result<Vec<usize>, String> {
+    fn visit(
+        frame: &EffectFramePlan,
+        node: usize,
+        marks: &mut [u8],
+        order: &mut Vec<usize>,
+    ) -> Result<(), String> {
+        if node >= marks.len() {
+            return Err("effect image input index is invalid".into());
+        }
+        if marks[node] == 1 {
+            return Err("effect image input cycle".into());
+        }
+        if marks[node] == 2 {
+            return Ok(());
+        }
+        marks[node] = 1;
+        let draw = &frame.draws[node];
+        for p in &frame.passes[draw.pass_start..draw.pass_end] {
+            if p.resource_input > 0 && p.uniform.params[30][1] > 0.5 {
+                visit(frame, (p.resource_input - 1) as usize, marks, order)?;
+            }
+        }
+        marks[node] = 2;
+        order.push(node);
+        Ok(())
+    }
+    let mut order = Vec::new();
+    let mut marks = vec![0; frame.draws.len()];
+    for pass in &frame.passes {
+        if pass.resource_input > 0 && pass.uniform.params[30][1] > 0.5 {
+            visit(
+                frame,
+                (pass.resource_input - 1) as usize,
+                &mut marks,
+                &mut order,
+            )?;
+        }
+    }
+    Ok(order)
+}
+
 impl EffectFramePlan {
     pub fn buffer_bytes(&self, scene: &Scene) -> usize {
         HEADER_BYTES
@@ -174,7 +219,7 @@ impl EffectFramePlan {
                 } else {
                     (lut_offset + p.lut as usize * 1024) as u32
                 },
-                p.sprite_start,
+                if p.sprite {p.sprite_start} else {p.resource_input as u32},
                 p.sprite_count,
             ];
             out[pass_offset + i * 40..pass_offset + (i + 1) * 40]
@@ -769,8 +814,12 @@ impl PlanBuilder {
                 return Err(format!("layer {}, mask {}: raster exceeds device dimensions",scene.layers[mask.layer].id,mask.id));
             }
         }
+        let post_sources:std::collections::HashSet<_>=scene.effects.iter().filter(|e|e.enabled&&scene.layers.iter().any(|l|l.id==e.layer))
+            .filter_map(|e| match e.image_input {Some(aem_core::EffectImageInput::Layer{layer,stage:aem_core::EffectImageStage::Effects})=>Some(layer),_=>None}).collect();
+        let image_sources:std::collections::HashSet<_>=scene.effects.iter().filter(|e|e.enabled)
+            .filter_map(|e|e.image_input.and_then(aem_core::EffectImageInput::layer)).collect();
         for (layer_index, layer) in scene.layers.iter().enumerate() {
-            let scale = if preview && !layer.adjustment && !layer.composition
+            let scale = if preview && !layer.adjustment && !layer.composition && !image_sources.contains(&layer.id)
                 && !scene.effects.iter().enumerate().any(|(i, e)| {
                     e.layer == layer.id && e.enabled && self.resolved[i].as_ref().is_some_and(|r| {
                         r.definition.renderer != aem_effects::RendererKind::Image
@@ -846,7 +895,7 @@ impl PlanBuilder {
                 u.size=[region[2],region[3],w as f32,h as f32];u.region=region;u.input_region=region;u.source_region=region;
                 u.mode=[0.,0.,0.,1.];u.output_mode=[0.,0.,1.,scale];
                 u.params[0]=[linear(layer.color[0]),linear(layer.color[1]),linear(layer.color[2]),layer.color[3]];
-                self.frame.passes.push(EffectPass {program:2,input:-(asset as i32)-1,source:crate::mask_plan::SOURCE_TOKEN-layer_index as i32,
+                self.frame.passes.push(EffectPass {resource_input:0,program:2,input:-(asset as i32)-1,source:crate::mask_plan::SOURCE_TOKEN-layer_index as i32,
                     output:0,width:w,height:h,lut:-1,uniform:u,sprite:false,sprite_start:0,sprite_count:0});
                 self.pass_clocks.push(None);
                 self.frame.slots|=1;self.frame.width=self.frame.width.max(w);self.frame.height=self.frame.height.max(h);materialized=true;
@@ -882,6 +931,27 @@ impl PlanBuilder {
                             return Err(format!("AE parameter {} is not implemented", p.id));
                         }
                         params[i] = v;
+                    }
+                    let mut resource_input=0;
+                    if let Some(input)=e.image_input {
+                        if !def.required_capabilities.iter().any(|c|c=="image_input") {
+                            return Err("effect does not accept an image input".into());
+                        }
+                        match input {
+                            aem_core::EffectImageInput::Asset { asset } => {
+                                let slot=assets.iter().position(|id|*id==asset).ok_or("effect image asset is not loaded")?;
+                                resource_input=-(slot as i32)-1;params[30][0]=3.;
+                            }
+                            aem_core::EffectImageInput::Layer { layer: source, stage } => {
+                                if let Some((index,l))=scene.layers.iter().enumerate().find(|(_,l)|l.id==source) {
+                                    resource_input=index as i32+1;
+                                    params[30]=[1.,0.,0.,if l.vector.is_some()||l.composition {1.}else{0.}];
+                                    params[31]=[linear(l.color[0]),linear(l.color[1]),linear(l.color[2]),l.color[3]];
+                                    if stage==aem_core::EffectImageStage::Effects {params[30][1]=1.;params[30][3]=1.;params[31]=[1.;4];}
+                                } else {params[30][0]=2.;}
+                            }
+                            aem_core::EffectImageInput::Empty => params[30][0]=2.,
+                        }
                     }
                     // The SDK wrapper mixes the final result with the original input.
                     // Zero opacity is an exact identity: avoid all conversions, padding,
@@ -934,6 +1004,7 @@ impl PlanBuilder {
                             assets.iter().position(|id| *id == image).ok_or_else(||format!("particle sprite image {image} is not loaded"))?
                         } else {asset};
                         self.frame.passes.push(EffectPass {
+                            resource_input: 0,
                             program: resolved.programs[0],
                             input: -(sprite_asset as i32) - 1,
                             source: -(sprite_asset as i32) - 1,
@@ -968,6 +1039,7 @@ impl PlanBuilder {
                         let mut conversion = self.frame.passes.last().unwrap().uniform;
                         conversion.output_mode = [0., 0., 1., scale];
                         self.frame.passes.push(EffectPass {
+                            resource_input: 0,
                             program: 1,
                             input: 7,
                             source: 7,
@@ -1108,6 +1180,7 @@ impl PlanBuilder {
                                 u: EffectUniform,
                                 lut: i32| {
                         frame.passes.push(EffectPass {
+                            resource_input: 0,
                             program,
                             input,
                             source,
@@ -1174,6 +1247,7 @@ impl PlanBuilder {
                             u,
                             e.lut.map_or(-1, |v| v as i32),
                         );
+                        self.frame.passes.last_mut().unwrap().resource_input=resource_input;
                         input = output as i32;
                         input_region = next;
                     }
@@ -1201,6 +1275,19 @@ impl PlanBuilder {
                     }
                     self.frame.diagnostics.push(message);
                 }
+            }
+            if post_sources.contains(&layer.id)&&!materialized {
+                let w=(region[2]*scale).ceil().max(1.) as u32;let h=(region[3]*scale).ceil().max(1.) as u32;
+                reserve_scratch(&mut self.frame.scratch_sizes,0,w,h);
+                Self::check_scratch(&self.frame.scratch_sizes,self.device_dimension,self.scratch_budget,&mut self.last_scratch_request)?;
+                let mut u=crate::mask_plan::uniform(w,h);u.size=[source_size[0],source_size[1],w as f32,h as f32];
+                u.region=region;u.input_region=region;u.source_region=region;u.mode=[0.,0.,0.,1.];u.output_mode=[0.,0.,1.,scale];
+                u.params[0]=[linear(layer.color[0]),linear(layer.color[1]),linear(layer.color[2]),layer.color[3]];
+                let masked=!layer.masks.is_empty();
+                self.frame.passes.push(EffectPass {resource_input:0,program:if masked{2}else{0},input:-(asset as i32)-1,
+                    source:if masked{crate::mask_plan::SOURCE_TOKEN-layer_index as i32}else{-(asset as i32)-1},output:0,width:w,height:h,
+                    lut:-1,uniform:u,sprite:false,sprite_start:0,sprite_count:0});
+                self.pass_clocks.push(None);self.frame.slots|=1;self.frame.width=self.frame.width.max(w);self.frame.height=self.frame.height.max(h);materialized=true;
             }
             let mut words = [0.0; 32];
             self.overlays.push(overlay);

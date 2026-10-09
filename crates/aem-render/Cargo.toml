@@ -19,5 +19,6 @@ serde_json.workspace = true
 lyon_tessellation = "1.0.22"
 
 [dev-dependencies]
+aem-media = { path = "../aem-media" }
 serde.workspace = true
 tempfile = "3.17"
