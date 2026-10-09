@@ -161,7 +161,8 @@ class ColorEditingTest {
         compose.onNodeWithTag("color-common-remove-builtin:#FFFFFF").performScrollTo().performClick()
         photo("color-common-settings")
         compose.onNodeWithTag("color-confirm").performClick()
-        compose.onNodeWithTag("source-color-favorites").performScrollTo().performClick()
+        compose.onNodeWithTag("source-color").performScrollTo().performClick()
+        compose.onNodeWithTag("source-color-favorites").assertDoesNotExist()
         compose.onNodeWithTag("color-selection-panel").assertIsDisplayed()
         compose.onNodeWithTag("color-common-colors").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("color-bookmark-${favorite.id}").performScrollTo().assertIsDisplayed()
@@ -172,8 +173,11 @@ class ColorEditingTest {
         assertTrue(InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("motion-color-palette",Context.MODE_PRIVATE).edit().commit())
         scenario.recreate();compose.waitForIdle()
         assertEquals(expected,ColorBookmarks(InstrumentationRegistry.getInstrumentation().targetContext).commonIds())
-        compose.onNodeWithTag("source-color-common-favorite-${favorite.id}").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("source-color-common-builtin-#FFD600").assertDoesNotExist()
+        compose.onNodeWithTag("source-color").performScrollTo().performClick()
+        compose.onNodeWithTag("color-selection-panel").assertIsDisplayed()
+        compose.onNodeWithTag("color-palette").assertDoesNotExist()
+        compose.onNodeWithTag("color-common-favorite:${favorite.id}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("color-common-builtin:#FFD600").assertDoesNotExist()
         photo("color-common-row")
     }
     @Test fun eyedropperSamplesCompositionWhileKeepingAlphaAndWheelWorksInLandscape() {

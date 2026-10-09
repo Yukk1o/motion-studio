@@ -53,7 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
     }
     Column(modifier.background(Panel).padding(horizontal=10.dp).testTag("color-selection-panel")) {
         Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(session.title,Modifier.weight(1f),color=Ink,fontSize=15.sp)
+            Text("颜色库 · ${session.title}",Modifier.weight(1f),color=Ink,fontSize=15.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
             Text(session.value.hex(session.alphaEditable),color=Muted,fontSize=12.sp)
             TextButton(onClick={onFinish(false)},modifier=Modifier.heightIn(min=48.dp).testTag("color-cancel")){Text("取消")}
             TextButton(onClick={onFinish(true)},modifier=Modifier.heightIn(min=48.dp).testTag("color-confirm")){Text("完成")}

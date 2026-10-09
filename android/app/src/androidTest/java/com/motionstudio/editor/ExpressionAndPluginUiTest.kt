@@ -65,6 +65,10 @@ class ExpressionAndPluginUiTest {
         compose.waitUntil(10000){vm.effectParam(2,1,param)!=null&&vm.state.saved}
         compose.onNodeWithTag("effect-open-1").performScrollTo().performClick()
         compose.onNodeWithTag("effect-select-$param").performScrollTo().performClick()
+        compose.onNodeWithTag("effect-color-1-$param").performClick()
+        compose.onNodeWithTag("color-selection-panel").assertIsDisplayed()
+        compose.onNodeWithTag("effect-color-1-$param-favorites").assertDoesNotExist()
+        compose.onNodeWithTag("color-confirm").performClick()
         photo("effect-color-toolbar")
         compose.onNodeWithTag("effect-expression").performClick()
         compose.onNodeWithTag("expression-workspace").assertIsDisplayed()

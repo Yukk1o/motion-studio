@@ -80,9 +80,8 @@ import org.json.JSONObject
                         if(kind!="color"&&p.optBoolean("animatable"))TextButton(onClick={selectedParam=id;edit(JSONObject().put("op","key").put("param",id))},enabled=enabled,modifier=Modifier.size(48.dp).testTag("native-param-key-$id"),contentPadding=PaddingValues(0.dp)){Text("◆")}
                     }
                     if(kind=="color") {
-                        ColorParameterRow(p.getString("name"),"native-param-$id",Rgba.from(value),enabled,range=p.getDouble("min")..p.getDouble("max"),labelContent=propertyHeader,
-                            onOpen={advanced->selectedParam=id;colors.open(p,advanced)},onPick={selectedParam=id;colors.pick(p)},
-                            onChoose={chosen->selectedParam=id;colors.choose(p,chosen)})
+                        ColorParameterRow(p.getString("name"),"native-param-$id",Rgba.from(value),enabled,labelContent=propertyHeader,
+                            onOpen={advanced->selectedParam=id;colors.open(p,advanced)},onPick={selectedParam=id;colors.pick(p)})
                     }else {
                         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically,content=propertyHeader)
                         if(kind=="enum"||kind=="bool") {

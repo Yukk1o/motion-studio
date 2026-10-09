@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -94,7 +92,7 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.checkerboard(cell:
     fun choose(chosen:Rgba,at:Int=floor(vm.frame).toInt()) {
         vm.cancelEyedropper();vm.pause();onSelect();vm.beginGesture();onSet(chosen.array(),at);vm.endGesture()
     }
-    ColorParameterRow(label,tag,rgba,enabled,alphaEditable,range,labelContent,onSelect=onSelect,onOpen={open(it)},onPick={
+    ColorParameterRow(label,tag,rgba,enabled,alphaEditable,labelContent,onSelect=onSelect,onOpen={open(it)},onPick={
         vm.pause();onSelect()
         val root=vm.root;val composition=vm.compositionId;val objectId=vm.selected;val at=floor(vm.frame).toInt()
         vm.beginEyedropper{sample->
@@ -103,35 +101,26 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.checkerboard(cell:
                 if((0 until if(alphaEditable)4 else 3).all{chosen.component(it) in range})choose(chosen,at)
             }
         }
-    },onChoose={choose(it)})
+    })
 }
 
 /** Shared presentation; the caller owns its editor transaction and preview route. */
 @Composable internal fun ColorParameterRow(label:String,tag:String,rgba:Rgba,enabled:Boolean=true,alphaEditable:Boolean=true,
-    range:ClosedFloatingPointRange<Double> = 0.0..1.0,labelContent:(@Composable RowScope.()->Unit)?=null,onSelect:()->Unit={},onOpen:(Boolean)->Unit,onPick:()->Unit,onChoose:(Rgba)->Unit) {
-    val context=LocalContext.current
-    val bookmarks=remember(context){ColorBookmarks(context)}
+    labelContent:(@Composable RowScope.()->Unit)?=null,onSelect:()->Unit={},onOpen:(Boolean)->Unit,onPick:()->Unit) {
     Column(Modifier.fillMaxWidth()) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val labelWidth=(maxWidth-192.dp).coerceAtLeast(0.dp)
+        val labelWidth=(maxWidth-144.dp).coerceAtLeast(0.dp)
         Row(Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("$tag-actions"),verticalAlignment=Alignment.CenterVertically) {
             Row(Modifier.widthIn(max=labelWidth)) {
                 if(labelContent!=null)labelContent() else TextButton(onClick=onSelect,enabled=enabled,modifier=Modifier.heightIn(min=48.dp).testTag("$tag-label"),contentPadding=PaddingValues(0.dp)) {
                     Text(label,color=Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                 }
             }
-            PaletteSwatch(rgba,"编辑$label · ${rgba.hex(alphaEditable)}",tag,enabled=enabled){onOpen(true)}
+            PaletteSwatch(rgba,"$label · ${rgba.hex(alphaEditable)} · 颜色库",tag,enabled=enabled){onOpen(false)}
             Spacer(Modifier.weight(1f))
             IconButton(onClick=onPick,enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-eyedropper")){Icon(Icons.Default.Colorize,"吸管")}
             IconButton(onClick={onOpen(true)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-palette")){Icon(Icons.Default.Palette,"调色盘")}
-            IconButton(onClick={onOpen(false)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-favorites")){Icon(Icons.Default.Star,"常用色与收藏颜色")}
         }
-        }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("$tag-common"),verticalAlignment=Alignment.CenterVertically) {
-            bookmarks.common().forEach{(id,c)->
-                val chosen=if(id.startsWith("favorite:")&&alphaEditable)c else c.copy(a=rgba.a)
-                PaletteSwatch(c,c.hex(),"$tag-common-${id.replace(':','-')}",rgba.copy(a=1.0)==c.copy(a=1.0),enabled&&(0 until if(alphaEditable)4 else 3).all{chosen.component(it) in range}){onChoose(chosen)}
-            }
         }
     }
 }
