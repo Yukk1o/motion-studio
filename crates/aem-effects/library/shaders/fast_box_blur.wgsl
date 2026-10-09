@@ -16,5 +16,6 @@ fn main_fx(p:vec2<f32>)->vec4<f32>{let c=sample_input(p);
 let radius=fx.params[1].x;if radius<=0.0||fx.params[2].x<=0.0{return c;}let axis=select(vec2(1.0,0.0),vec2(0.0,1.0),fx.clock.z>0.5);
  if (fx.params[3].x==2.0&&fx.clock.z>0.5)||(fx.params[3].x==3.0&&fx.clock.z<0.5){return c;}
  let spread=radius*sqrt(max(fx.params[2].x,1.0));let step=max(1.0,spread/128.0);var sum=vec4(0.0);var weight=0.0;
- for(var i:i32=-128;i<=128;i=i+1){let d=f32(i)*step;if abs(d)<=ceil(spread){let w=select(1.0,exp(-1.5*d*d/max(spread*spread,0.0001)),fx.params[2].x>1.0);sum+=sample_input(p+axis*d)*w;weight+=w;}}return sum/max(weight,0.0001);
+ let n=min(128,i32(ceil(spread)));
+ for(var tap:i32=0;tap<=256;tap=tap+1){if tap>2*n{break;}let i=tap-n;let d=f32(i)*step;if abs(d)<=ceil(spread){let w=select(1.0,exp(-1.5*d*d/max(spread*spread,0.0001)),fx.params[2].x>1.0);sum+=sample_input(p+axis*d)*w;weight+=w;}}return sum/max(weight,0.0001);
 }

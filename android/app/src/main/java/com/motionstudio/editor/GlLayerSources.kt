@@ -106,7 +106,8 @@ internal class GlLayerSources {
             }catch(error:Throwable){if(resize)GL.glDeleteTextures(1,intArrayOf(target),0);throw error}finally{GL.glBindVertexArray(0)}
         }
         val accumulatorBytes=if(hasAdjustment)w.toLong()*h*8 else 0
-        check(scratchBytes+accumulatorBytes<=64L*1024*1024){"调整图层与效果临时纹理超过 64 MiB"}
+        check(accumulatorBytes<=128L*1024*1024){"调整图层累加器 ${accumulatorBytes/1048576.0} MiB 超过合成预算 128 MiB"}
+        check(scratchBytes<=64L*1024*1024){"效果临时纹理 ${scratchBytes/1048576.0} MiB 超过临时纹理预算 64 MiB"}
         if(!hasAdjustment||width!=w||height!=h) {
             GL.glDeleteTextures(2,accumulators,0);accumulators.fill(0);width=0;height=0
             if(hasAdjustment){width=w;height=h;for(i in 0..1)accumulators[i]=texture(w,h,false)}

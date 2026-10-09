@@ -1245,12 +1245,11 @@ impl PlanBuilder {
                 * u64::from((scene.width as f32 * scale).ceil() as u32)
                 * u64::from((scene.height as f32 * scale).ceil() as u32)
                 * 4;
-            if scratch_capacity_bytes(&self.frame.scratch_sizes) + accumulator
-                > aem_effects::SCRATCH_BUDGET
-            {
-                return Err(
-                    "adjustment accumulators and effect scratch textures exceed 64 MiB".into(),
-                );
+            if accumulator > crate::renderer::TEXTURE_BUDGET {
+                return Err(format!(
+                    "adjustment accumulators require {:.2} MiB; composite budget is 128 MiB",
+                    accumulator as f64 / 1048576.0
+                ).into());
             }
         }
         let (mw,mh,slots)=crate::mask_plan::scratch_dimensions(&self.frame.masks);

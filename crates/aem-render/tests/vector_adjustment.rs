@@ -17,6 +17,32 @@ fn base() -> Project {
     p.background = [0.; 4];
     p
 }
+#[test]
+fn four_k_adjustment_uses_composite_budget_separate_from_effect_scratch() {
+    // Plan validation needs no 4K GPU allocation.
+    let mut p = Project::new(3840, 2160, 30, 60).unwrap();
+    let mut a = Layer::solid(1, "4K adjustment", [3840., 2160.], [1920., 1080., 0.], [1.; 4]);
+    a.content = Content::Adjustment;
+    a.effects.push(effect("motion_tile", 1));
+    p.layers.push(a);
+    p.rebuild_plugin_dependencies();
+    let mut scene = Scene::new(&p);
+    scene.sample(&p, 0., None).unwrap();
+    let mut b = PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    let frame = b.build(&scene, &[0], 3840, 2160, true).unwrap();
+    assert!(!frame.passes.is_empty());
+    assert!(frame.diagnostics.is_empty());
+
+    // A multi-pass effect still exceeds its own 64 MiB pool at full 4K;
+    // raising the accumulator allowance must not waive that check.
+    p.layers[0].effects = vec![effect("gaussian_blur", 1)];
+    p.rebuild_plugin_dependencies();
+    scene.sample(&p, 0., None).unwrap();
+    let error = b.build(&scene, &[0], 3840, 2160, true).err().unwrap();
+    assert!(error.contains("effect scratch textures"), "{error}");
+    assert!(error.contains("64 MiB"), "{error}");
+    assert!(!error.contains("accumulators"), "{error}");
+}
 fn capture(r: &mut Renderer, p: &Project) -> Vec<u8> {
     let mut s = Scene::new(p);
     s.sample(p, 0., None).unwrap();
