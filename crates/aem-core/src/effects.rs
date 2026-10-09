@@ -741,9 +741,9 @@ impl SampledEffect {
                 .eq(e.params.keys().map(String::as_str))
     }
 }
-pub(crate) fn dependencies(layers: &[Layer]) -> Vec<PluginDependency> {
+pub(crate) fn dependencies<'a>(layers: impl IntoIterator<Item = &'a Layer>) -> Vec<PluginDependency> {
     layers
-        .iter()
+        .into_iter()
         .flat_map(|l| l.effects.iter().map(EffectInstance::dependency))
         .collect::<BTreeSet<_>>()
         .into_iter()
