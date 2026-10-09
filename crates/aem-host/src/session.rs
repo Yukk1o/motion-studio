@@ -6,7 +6,7 @@
 //! surface creation and media decoding through [`crate::platform::Platform`].
 use crate::platform::{Platform, SurfaceTarget};
 use crate::video_frames::VideoFrames;
-use aem_core::{Command, Engine, Observer, Project, Scene};
+use aem_core::{Engine, Observer, Project, Scene};
 use aem_media::{AudioJobs, AudioMixer, Limits, PackageJobs, VideoJobs};
 use aem_render::{
     FrameMeasurement, FrameRecorder, GpuTimer, Presenter, PreviewMode, PreviewPolicy, RenderTarget,

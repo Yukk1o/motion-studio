@@ -100,7 +100,7 @@ pub fn sample_render_plan_into(id: i64, frame: i32, out: &mut [u8]) -> Result<us
 }
 
 pub fn sample_render_plan_into_inner(
-    s: &mut Session,
+    s: &mut crate::session::Session,
     frame: i32,
     out: &mut [u8],
 ) -> Result<usize> {

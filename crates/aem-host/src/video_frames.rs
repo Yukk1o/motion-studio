@@ -84,7 +84,7 @@ impl Stream {
         std::thread::Builder::new()
             .name("motion-video-frames".into())
             .spawn(move || {
-                let mut decoder = None;
+                let mut decoder: Option<Box<dyn VideoDecoder>> = None;
                 loop {
                     let (target, speculative) = {
                         let (lock, cv) = &*copy;
@@ -300,7 +300,7 @@ impl VideoFrames {
     fn backend(&self) -> Result<Arc<dyn crate::platform::Platform>> {
         self.platform
             .clone()
-            .ok_or("video frames require a host platform")
+            .ok_or_else(|| "video frames require a host platform".to_owned())
     }
     pub fn clear(&mut self) {
         self.streams.clear();

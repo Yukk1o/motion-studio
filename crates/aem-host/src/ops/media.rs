@@ -4,7 +4,7 @@
 //! encodes video with MediaCodec. The desktop host resolves real paths and
 //! encodes with libav. Both reach this module through the same request enum, so
 //! the import pipeline, task state machine and cache layout are shared.
-use crate::session::{Result, Session};
+use crate::session::Result;
 use aem_core::Scene;
 use aem_media::{AudioMixer, ImportOptions, MAX_BLOCK_FRAMES};
 use serde::Deserialize;
@@ -270,7 +270,6 @@ pub fn request(id: i64, mut value: Value, open: Option<Opener>) -> Result<Value>
             with_audio,
             audio_track,
         } => {
-            let _ = (track, with_audio, audio_track);
             if kind != "audio" && kind != "video" {
                 return Err("media kind must be audio or video".into());
             }

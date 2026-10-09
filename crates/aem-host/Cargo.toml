@@ -10,6 +10,10 @@ crate-type = ["rlib"]
 
 [features]
 default = []
+# Reports GPU fault-injection availability in the state snapshot. The Android
+# adapter gates actual injection on its own `diagnostics` feature; the host only
+# advertises it, so an acceptance build on either platform reports the same key.
+diagnostics = []
 
 [dependencies]
 aem-effects = { path = "../aem-effects" }

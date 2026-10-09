@@ -31,7 +31,10 @@ pub mod video_frame;
 pub mod video_frames;
 
 pub use platform::{Platform, SurfaceTarget, VideoDecoder, VideoQuery};
-pub use session::{Session, SessionError};
+pub use session::Session;
+
+/// Error type alias used across the host surface.
+pub type SessionError = String;
 
 /// Base64 for plugin editor assets and legacy HTML editor pages.
 ///
@@ -60,6 +63,3 @@ pub fn encode_base64(bytes: &[u8]) -> String {
     }
     out
 }
-
-/// Error type alias used across the host surface.
-pub type SessionError = String;

@@ -9,8 +9,8 @@
 //! (`state`, `sample_render_plan_into`, `plugin`, `media_capabilities`, ...)
 //! is identical on both platforms by construction rather than by convention.
 use crate::video_frame::DecodedFrame;
-use aem_core::VideoAsset;
-use aem_media::{AudioAsset, Result, VideoProbe};
+use aem_core::{AudioAsset, VideoAsset};
+use aem_media::{Result, VideoProbe};
 use raw_window_handle::HasWindowHandle;
 use serde_json::Value;
 use std::path::Path;
@@ -42,7 +42,7 @@ pub trait VideoDecoder: Send {
 
 /// A query for the device decoder inventory, mirroring Android's
 /// `MediaCodecList` filter so the UI can ask identical questions on both hosts.
-#[derive(Clone, Copy, Default, serde::Deserialize)]
+#[derive(Clone, Default, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VideoQuery {
     #[serde(default)]
