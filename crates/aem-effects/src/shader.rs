@@ -97,9 +97,11 @@ pub struct CompiledShader {
     pub glsl: GlslShader,
     pub sprite: bool,
     pub additive: bool,
+    /// Existing portable-source validation metric; not a texture-sample count.
+    pub loop_work: u64,
 }
 
-fn portable_source(source: &str) -> Result<()> {
+fn portable_source(source: &str) -> Result<u64> {
     ensure(source.len() <= 256 * 1024, "shader source exceeds 256 KiB")?;
     let comments = regex::Regex::new(r"(?s)/\*.*?\*/|//[^\n]*").unwrap();
     let text = comments.replace_all(source, " ");
@@ -142,7 +144,7 @@ fn portable_source(source: &str) -> Result<()> {
         work = work.saturating_mul(count.max(1));
         ensure(work <= 65536, "shader static loop work exceeds limit")?;
     }
-    Ok(())
+    Ok(work)
 }
 
 pub fn compile(source: &str, entry: &str) -> Result<CompiledShader> {
@@ -171,7 +173,7 @@ fn compile_internal(
     convert_output: bool,
     finite_source: bool,
 ) -> Result<CompiledShader> {
-    portable_source(source)?;
+    let loop_work = portable_source(source)?;
     ensure(
         regex::Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
             .unwrap()
@@ -266,6 +268,7 @@ fn compile_internal(
         glsl: result,
         sprite,
         additive,
+        loop_work,
     })
 }
 

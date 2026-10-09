@@ -29,6 +29,7 @@ jobs:
       WGPU_BACKEND: vulkan
       XDG_RUNTIME_DIR: /tmp/motion-runtime
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
+      MOTION_EFFECT_REPORT: ${{ github.workspace }}/artifacts/effect-costs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,6 +57,19 @@ jobs:
           test -z "$(git ls-files docs)"
       - name: Run Rust and software Vulkan tests
         run: cargo test --workspace --locked --features aem-android/diagnostics -- --test-threads=1
+      - name: Summarize effect costs
+        if: always()
+        run: |
+          if [ -f "$MOTION_EFFECT_REPORT/effect-costs.md" ]; then
+            cat "$MOTION_EFFECT_REPORT/effect-costs.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: effect-costs
+          path: artifacts/effect-costs/**
+          if-no-files-found: warn
+          retention-days: 30
 
   android:
     name: Android build

@@ -90,6 +90,7 @@ dependencies = [
  "lyon_tessellation",
  "png",
  "pollster",
+ "serde",
  "serde_json",
  "sha2",
  "tempfile",
