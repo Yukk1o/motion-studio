@@ -78,6 +78,17 @@ fn project(effect: &str, composition: [u32; 2]) -> Project {
     if effect == "directional_blur" {
         instance.params.get_mut("p0002").unwrap().track.value[0] = 100.0;
     }
+    match effect {
+        "gaussian_blur" | "fast_box_blur" => {
+            instance.params.get_mut("p0001").unwrap().track.value[0] = 4.0
+        }
+        "unsharp_mask" => instance.params.get_mut("p0002").unwrap().track.value[0] = 4.0,
+        "simple_choker" => instance.params.get_mut("choke").unwrap().track.value[0] = 4.0,
+        _ => {}
+    }
+    if effect == "fast_box_blur" {
+        instance.params.get_mut("p0002").unwrap().track.value[0] = 1.0;
+    }
     l.effects.push(instance);
     p.layers.push(l);
     p.rebuild_plugin_dependencies();
@@ -265,9 +276,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cases.push(row);
         }
     }
+    // Compare package algorithms at identical preview density, independently
+    // of the composition-sized versus projected-density measurements above.
+    let previous = aem_effects::builtin::packages()?
+        .into_iter()
+        .find(|p| p.manifest.id == aem_effects::builtin::PLUGIN_ID && p.manifest.version == "1.4.0")
+        .ok_or("published core 1.4.0 is missing")?;
+    let mut loop_cases = Vec::new();
+    for effect in [
+        "gaussian_blur",
+        "fast_box_blur",
+        "unsharp_mask",
+        "simple_choker",
+    ] {
+        let current = project(effect, [1920, 1080]);
+        let mut old = current.clone();
+        old.layers[0].effects[0].version = previous.manifest.version.clone();
+        old.layers[0].effects[0].hash = previous.hash.clone();
+        old.rebuild_plugin_dependencies();
+        let (before, a) = measure(
+            &mut renderer,
+            &old,
+            true,
+            &dir.join(format!("{effect}-1.4.0.png")),
+        )?;
+        let (after, b) = measure(
+            &mut renderer,
+            &current,
+            true,
+            &dir.join(format!("{effect}-1.4.1.png")),
+        )?;
+        let speedup =
+            before["gpuMedianUs"].as_f64().unwrap() / after["gpuMedianUs"].as_f64().unwrap();
+        let identical = a == b;
+        println!(
+            "{effect} package loops: {:.2} -> {:.2} GPU ms ({speedup:.2}x), identical={identical}",
+            before["gpuMedianUs"].as_f64().unwrap() / 1000.,
+            after["gpuMedianUs"].as_f64().unwrap() / 1000.
+        );
+        if !identical {
+            return Err(format!("{effect}: package loop output changed").into());
+        }
+        loop_cases.push(json!({"effect":effect,"before":before,"after":after,"gpuSpeedup":speedup,"identicalPixels":identical}));
+    }
     let report = json!({"adapter":info.name,"backend":format!("{:?}",info.backend),"deviceType":format!("{:?}",info.device_type),
         "source":SOURCE,"surface":SURFACE,"mode":"balanced","mediaCodecMeasured":false,"phoneFpsMeasured":false,
-        "baseline":"previous composition-sized preview without projected layer density","cases":cases});
+        "baseline":"previous composition-sized preview without projected layer density","cases":cases,
+        "packageLoopComparison":{"beforeVersion":"1.4.0","afterVersion":"1.4.1","samePreviewDensity":true,"cases":loop_cases}});
     std::fs::write(dir.join("report.json"), serde_json::to_vec_pretty(&report)?)?;
     if report["cases"]
         .as_array()

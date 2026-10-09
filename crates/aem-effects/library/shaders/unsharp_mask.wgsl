@@ -15,5 +15,6 @@ fn rotate(p:vec2<f32>,a:f32)->vec2<f32>{return vec2(cos(a)*p.x-sin(a)*p.y,sin(a)
 fn main_fx(p:vec2<f32>)->vec4<f32>{let c=sample_input(p);
 if fx.clock.z>=1.5{let original=sample_source(p);let delta=original.rgb-c.rgb;let sharpened=original.rgb+select(vec3(0.0),delta,abs(delta)>=vec3(fx.params[3].x))*fx.params[1].x/100.0;return vec4(clamp(sharpened,vec3(0.0),vec3(1.0)),original.a);}
  let radius=fx.params[2].x;let sigma=max(radius/3.0,0.15);let axis=select(vec2(1.0,0.0),vec2(0.0,1.0),fx.clock.z>0.5);var sum=vec4(0.0);var weight=0.0;
- for(var i:i32=-128;i<=128;i=i+1){let d=f32(i)*max(1.0,radius/128.0);if abs(d)<=ceil(radius){let w=exp(-0.5*d*d/(sigma*sigma));sum+=sample_input(p+axis*d)*w;weight+=w;}}return sum/max(weight,0.0001);
+ let n=min(128,i32(ceil(radius)));
+ for(var tap:i32=0;tap<=256;tap=tap+1){if tap>2*n{break;}let i=tap-n;let d=f32(i)*max(1.0,radius/128.0);if abs(d)<=ceil(radius){let w=exp(-0.5*d*d/(sigma*sigma));sum+=sample_input(p+axis*d)*w;weight+=w;}}return sum/max(weight,0.0001);
 }
