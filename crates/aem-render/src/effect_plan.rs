@@ -240,6 +240,18 @@ struct Resolved {
     mapping: Vec<usize>,
     error: Option<String>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScratchRejection {
+    DimensionLimit,
+    CapacityBudget,
+}
+/// Last checked candidate, including one rejected before frame capacities commit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScratchRequest {
+    pub sizes: [[u32; 2]; 8],
+    pub budget_bytes: u64,
+    pub rejection: Option<ScratchRejection>,
+}
 pub struct PlanBuilder {
     scratch_budget: u64,
     pub registry: Registry,
@@ -248,6 +260,8 @@ pub struct PlanBuilder {
     pub programs: Vec<EffectProgram>,
     resolved: Vec<Option<Resolved>>,
     pub frame: EffectFramePlan,
+    /// Last actual pool check; cache hits do not perform a new check.
+    pub last_scratch_request: Option<ScratchRequest>,
     geometry: aem_core::PlaneCompositor,
     sizes: Vec<[f32; 2]>,
     origins: Vec<[f32; 2]>,
@@ -282,9 +296,14 @@ fn linear(v: f32) -> f32 {
     }
 }
 impl PlanBuilder {
-    fn check_scratch(sizes: &[[u32; 2]; 8], device_dimension: u32, budget: u64) -> Result<(), String> {
+    fn check_scratch(
+        sizes: &[[u32; 2]; 8], device_dimension: u32, budget: u64,
+        request: &mut Option<ScratchRequest>,
+    ) -> Result<(), String> {
+        *request = Some(ScratchRequest { sizes: *sizes, budget_bytes: budget, rejection: None });
         for (slot, size) in sizes.iter().enumerate() {
             if size.iter().any(|&n| n > device_dimension) {
+                request.as_mut().unwrap().rejection = Some(ScratchRejection::DimensionLimit);
                 return Err(format!(
                     "effect scratch texture {slot} requires {}x{}; device dimension limit is {}",
                     size[0], size[1], device_dimension
@@ -293,6 +312,7 @@ impl PlanBuilder {
         }
         let bytes = scratch_capacity_bytes(sizes);
         if bytes > budget {
+            request.as_mut().unwrap().rejection = Some(ScratchRejection::CapacityBudget);
             return Err(format!("effect scratch textures require {:.2} MiB; budget is {} MiB (full layer bounds, including effect padding)",
                 bytes as f64 / 1048576.0, budget / 1048576));
         }
@@ -483,6 +503,7 @@ impl PlanBuilder {
             ],
             resolved: Vec::new(),
             frame: EffectFramePlan::default(),
+            last_scratch_request: None,
             geometry: aem_core::PlaneCompositor::new(),
             origins: Vec::with_capacity(aem_core::MAX_LAYERS),
             sizes: Vec::with_capacity(aem_core::MAX_LAYERS),
@@ -504,6 +525,7 @@ impl PlanBuilder {
         self.program_errors.clear();
         self.programs.truncate(3);
         self.frame = EffectFramePlan::default();
+        self.last_scratch_request = None;
         self.preview_inputs = None;
     }
     pub fn scratch_budget(&self) -> u64 { self.scratch_budget }
@@ -625,6 +647,7 @@ impl PlanBuilder {
         width: u32,
         height: u32,
     ) -> Result<&EffectFramePlan, String> {
+        self.last_scratch_request = None;
         // Scene generators sample births, camera/light sources and occlusion
         // every frame. Image shader time stays live by updating pass clocks.
         let eligible = scene.effects.iter().all(|e| e.scene.is_none());
@@ -660,6 +683,7 @@ impl PlanBuilder {
         strict: bool,
         preview: bool,
     ) -> Result<&EffectFramePlan, String> {
+        self.last_scratch_request = None;
         self.synchronize(scene)?;
         self.frame.scratch_budget = self.scratch_budget;
         self.frame.sprites.clear();
@@ -890,7 +914,7 @@ impl PlanBuilder {
                                 (scene.height as f32 * scale).ceil() as u32,
                             );
                         }
-                        Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget)?;
+                        Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget, &mut self.last_scratch_request)?;
                         let start = self.frame.sprites.len();
                         let stats = crate::scene_generator::generate(
                             scene,
@@ -1025,7 +1049,7 @@ impl PlanBuilder {
                             (next[3] * scale).ceil() as u32,
                         );
                     }
-                    Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget)?;
+                    Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget, &mut self.last_scratch_request)?;
                     let working = [
                         if def.working_space == WorkingSpace::Srgb {
                             1.0
