@@ -50,12 +50,6 @@ struct GlyphVertex {
     color: [f32; 4],
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct Push {
-    transform: [f32; 4],
-}
-
 const SOLID_CAPACITY: usize = 1 << 16;
 const GLYPH_CAPACITY: usize = 1 << 17;
 
@@ -206,17 +200,14 @@ impl Painter {
                 },
             ],
         });
-        let push = wgpu::PushConstantLayout {
-            push_constant_ranges: &[wgpu::PushConstantRange {
-                stages: wgpu::ShaderStages::VERTEX,
-                range: 0..std::mem::size_of::<Push>() as u32,
-            }],
-        };
+        // The transform is passed through a uniform buffer rather than push
+        // constants: push constants need a device feature the panel pipeline
+        // should not depend on, and one uniform per pass is enough here.
         let layout_for = |label: &str, bind: &wgpu::BindGroupLayout| {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label,
+                label: Some(label),
                 bind_group_layouts: &[bind],
-                push_constant_ranges: &push.push_constant_ranges,
+                push_constant_ranges: &[],
             })
         };
         let solid_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -224,8 +215,8 @@ impl Painter {
             layout: Some(&layout_for("solid pipeline", &solid_layout)),
             vertex: wgpu::VertexState {
                 module: &module,
-                entry_point: "solid_vs",
-                buffers: &[&wgpu::VertexBufferLayout {
+                entry_point: Some("solid_vs"),
+                buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<SolidVertex>() as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x4],
@@ -234,7 +225,7 @@ impl Painter {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &module,
-                entry_point: "solid_fs",
+                entry_point: Some("solid_fs"),
                 targets: &[Some(format.into())],
                 compilation_options: Default::default(),
             }),
@@ -244,6 +235,7 @@ impl Painter {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
+            multiview: None,
             cache: None,
         });
         let glyph_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -251,8 +243,8 @@ impl Painter {
             layout: Some(&layout_for("glyph pipeline", &glyph_layout)),
             vertex: wgpu::VertexState {
                 module: &module,
-                entry_point: "glyph_vs",
-                buffers: &[&wgpu::VertexBufferLayout {
+                entry_point: Some("glyph_vs"),
+                buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<GlyphVertex>() as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![
@@ -265,7 +257,7 @@ impl Painter {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &module,
-                entry_point: "glyph_fs",
+                entry_point: Some("glyph_fs"),
                 targets: &[Some(format.into())],
                 compilation_options: Default::default(),
             }),
@@ -275,6 +267,7 @@ impl Painter {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
+            multiview: None,
             cache: None,
         });
         let uniform_bytes = bytemuck::bytes_of(&[0.0f32, 0.0, 1.0, 1.0]);
@@ -283,16 +276,15 @@ impl Painter {
             glyph_pipeline,
             solid_layout,
             glyph_layout,
-            solid_uniform: device.create_buffer(&wgpu::BufferDescriptor {
+            solid_uniform: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("solid uniforms"),
-                size: 16,
+                contents: uniform_bytes,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
             }),
             glyph_uniform: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("glyph uniforms"),
                 contents: uniform_bytes,
-                usage: wgpu::BufferUsages::UNIFORM,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }),
             solid_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("solid vertices"),
@@ -329,45 +321,43 @@ impl Painter {
         width: u32,
         height: u32,
     ) {
-        let layout = wgpu::TexelCopyTextureLayout {
-            offset: 0,
-            bytes_per_row: Some(width * 4),
-            rows_per_image: Some(height),
-        };
-        let extent = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
         if self.atlas_size != [width, height] || self.atlas.is_none() {
-            self.atlas = Some(device.create_texture(&wgpu::TextureDescriptor {
+            let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("glyph atlas"),
-                size: extent,
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8Unorm,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
-            }));
-            self.atlas_view = Some(
-                self.atlas
-                    .as_ref()
-                    .unwrap()
-                    .create_view(&Default::default()),
-            );
+            });
+            self.atlas_view = Some(texture.create_view(&Default::default()));
+            self.atlas = Some(texture);
             self.atlas_size = [width, height];
-            queue.write_buffer(
-                &self.glyph_uniform,
-                0,
-                bytemuck::bytes_of(&[1.0 / width as f32, 1.0 / height as f32, 0.0, 0.0]),
-            );
         }
         queue.write_texture(
-            self.atlas.as_ref().unwrap().as_image_copy(),
+            wgpu::TexelCopyTextureInfo {
+                texture: self.atlas.as_ref().unwrap(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
             pixels,
-            layout,
-            extent,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
         );
     }
 
@@ -437,10 +427,17 @@ impl Painter {
         if !glyphs.is_empty() {
             queue.write_buffer(&self.glyph_buffer, 0, bytemuck::cast_slice(&glyphs));
         }
-        let transform = Push {
-            // Logical pixels to clip space: x to the right, y downward.
-            transform: [2.0 / viewport[0], 0.0, 0.0, -2.0 / viewport[1]],
-        };
+        // Logical pixels to clip space: x to the right, y downward.
+        queue.write_buffer(
+            &self.solid_uniform,
+            0,
+            bytemuck::bytes_of(&[2.0 / viewport[0], 0.0, 0.0, -2.0 / viewport[1]]),
+        );
+        queue.write_buffer(
+            &self.glyph_uniform,
+            0,
+            bytemuck::bytes_of(&[2.0 / viewport[0], 0.0, 0.0, -2.0 / viewport[1]]),
+        );
         let solid_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("solid bind group"),
             layout: &self.solid_layout,
@@ -495,7 +492,6 @@ impl Painter {
             pass.set_pipeline(&self.solid_pipeline);
             pass.set_bind_group(0, &solid_bind, &[]);
             pass.set_vertex_buffer(0, self.solid_buffer.slice(..));
-            pass.set_push_constants(0, bytemuck::bytes_of(&transform));
             pass.draw(0..solids.len() as u32, 0..1);
         }
         if let Some(bind) = glyph_bind {
@@ -503,7 +499,6 @@ impl Painter {
                 pass.set_pipeline(&self.glyph_pipeline);
                 pass.set_bind_group(0, &bind, &[]);
                 pass.set_vertex_buffer(0, self.glyph_buffer.slice(..));
-                pass.set_push_constants(0, bytemuck::bytes_of(&transform));
                 pass.draw(0..glyphs.len() as u32, 0..1);
             }
         }

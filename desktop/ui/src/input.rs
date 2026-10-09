@@ -50,7 +50,7 @@ impl Default for Modifiers {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Event {
     MouseMoved { position: [f32; 2] },
     MousePressed {
@@ -159,10 +159,16 @@ pub struct Scroll {
 }
 
 impl Scroll {
+    /// Recompute the scrollable distance without moving the offset.
+    pub fn set_extent(&mut self, viewport: f32, content: f32) {
+        self.max = (content - viewport).max(0.0);
+        self.offset = self.offset.clamp(0.0, self.max);
+    }
+
     /// Consume this frame's wheel delta, clamped to the available range.
     pub fn consume(&mut self, wheel: f32, viewport: f32, content: f32) {
         self.pending += wheel;
-        self.max = (content - viewport).max(0.0);
+        self.set_extent(viewport, content);
         self.offset = (self.offset - self.pending).clamp(0.0, self.max);
         self.pending = 0.0;
     }

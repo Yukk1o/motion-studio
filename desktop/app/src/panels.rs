@@ -671,12 +671,9 @@ fn timeline_panel(
     }
     if rows.len() > visible {
         let total_height = rows.len() as f32 * metrics::ROW;
-        let (thumb, position) = Scroll {
-            offset: 0.0,
-            pending: 0.0,
-            max: (total_height - body.height()).max(0.0),
-        }
-        .bar(body.height(), total_height);
+        let mut scroll = Scroll::default();
+        scroll.set_extent(body.height(), total_height);
+        let (thumb, position) = scroll.bar(body.height(), total_height);
         let track = Rect::new(
             area.max[0] - 6.0,
             body.min[1],

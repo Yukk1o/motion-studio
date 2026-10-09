@@ -202,7 +202,9 @@ pub fn request(id: i64, mut value: Value, open: Option<Opener>) -> Result<Value>
         }),
         Request::ImportMedia {
             request_id,
-            path,
+            // The location itself is reached through `open`; the field stays in
+            // the request so hosts can key task status and error messages on it.
+            path: _,
             kind,
             at_frame,
             name,
@@ -293,8 +295,8 @@ pub fn request(id: i64, mut value: Value, open: Option<Opener>) -> Result<Value>
                             request_id,
                             at_frame: 0,
                             name: default_name("video"),
-                            track: None,
-                            audio_track: None,
+                            track,
+                            audio_track,
                             with_audio,
                         },
                         true,
@@ -309,7 +311,7 @@ pub fn request(id: i64, mut value: Value, open: Option<Opener>) -> Result<Value>
                         request_id,
                         at_frame: 0,
                         name: default_name("audio"),
-                        track: None,
+                        track,
                     },
                     true,
                 )?))

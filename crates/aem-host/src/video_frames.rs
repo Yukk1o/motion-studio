@@ -111,7 +111,7 @@ impl Stream {
                             Ok(())
                         }
                     };
-                    let previous_seeks = decoder.as_ref().map_or(0, |d: &dyn VideoDecoder| d.seeks());
+                    let previous_seeks = decoder.as_ref().map_or(0u64, |d| d.seeks());
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
                         || -> Result<Arc<DecodedFrame>> {
                             check()?;
@@ -140,7 +140,7 @@ impl Stream {
                     let mut s = copy.0.lock().unwrap_or_else(|e| e.into_inner());
                     s.seeks += decoder
                         .as_ref()
-                        .map_or(0, |d: &dyn VideoDecoder| d.seeks())
+                        .map_or(0u64, |d| d.seeks())
                         .saturating_sub(previous_seeks);
                     if s.stop {
                         return;
