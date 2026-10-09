@@ -262,6 +262,10 @@ pub struct PlanBuilder {
         ),
     >,
     mask_cache: crate::mask_plan::MaskCache,
+    preview_inputs: Option<crate::effect_plan_cache::PreviewInputs>,
+    pass_clocks: Vec<Option<usize>>,
+    pub preview_cache_hits: u64,
+    pub preview_plan_builds: u64,
 }
 fn utility(code: &str) -> Result<Arc<shader::CompiledShader>, String> {
     shader::compile(code, "main_fx")
@@ -485,6 +489,10 @@ impl PlanBuilder {
             generator_scratch: Default::default(),
             vector_cache: Default::default(),
             mask_cache: Default::default(),
+            preview_inputs: None,
+            pass_clocks: Vec::new(),
+            preview_cache_hits: 0,
+            preview_plan_builds: 0,
         })
     }
     pub fn set_registry(&mut self, registry: Registry) {
@@ -493,6 +501,7 @@ impl PlanBuilder {
         self.program_errors.clear();
         self.programs.truncate(3);
         self.frame = EffectFramePlan::default();
+        self.preview_inputs = None;
     }
     pub fn synchronize(&mut self, scene: &Scene) -> Result<(), String> {
         self.resolved.resize_with(scene.effects.len(), || None);
@@ -588,7 +597,12 @@ impl PlanBuilder {
         height: u32,
         strict: bool,
     ) -> Result<&EffectFramePlan, String> {
+        self.preview_inputs = None;
         self.build_internal(scene, assets, width, height, strict, false)
+    }
+    /// Drop retained preview geometry after an external resource-policy change.
+    pub fn invalidate_preview_plan(&mut self) {
+        self.preview_inputs = None;
     }
     /// Preview-only density reduction. Formal plans keep published full-size
     /// passes and package hashes, including legacy effects.
@@ -599,7 +613,31 @@ impl PlanBuilder {
         width: u32,
         height: u32,
     ) -> Result<&EffectFramePlan, String> {
-        self.build_internal(scene, assets, width, height, false, true)
+        // Scene generators sample births, camera/light sources and occlusion
+        // every frame. Image shader time stays live by updating pass clocks.
+        let eligible = scene.effects.iter().all(|e| e.scene.is_none());
+        if eligible && self.preview_inputs.as_ref().is_some_and(|inputs|
+            inputs.matches(scene, assets, width, height, self.device_dimension, &self.registry, &self.program_errors)) {
+            for (pass, &effect) in self.frame.passes.iter_mut().zip(&self.pass_clocks) {
+                let Some(effect) = effect else { continue; };
+                let local = scene.effects[effect].local_frame;
+                pass.uniform.clock[0] = (local / f64::from(scene.fps)) as f32;
+                pass.uniform.clock[1] = local as f32;
+            }
+            self.preview_cache_hits += 1;
+            return Ok(&self.frame);
+        }
+        if self.preview_inputs.as_ref().is_some_and(|inputs| !inputs.registry_matches(&self.registry)) {
+            self.resolved.clear();
+        }
+        self.preview_inputs = None;
+        self.preview_plan_builds += 1;
+        self.build_internal(scene, assets, width, height, false, true)?;
+        if eligible && self.frame.diagnostics.is_empty() {
+            self.preview_inputs = Some(crate::effect_plan_cache::PreviewInputs::capture(
+                scene, assets, width, height, self.device_dimension, &self.registry, &self.program_errors));
+        }
+        Ok(&self.frame)
     }
     fn build_internal(
         &mut self,
@@ -628,6 +666,7 @@ impl PlanBuilder {
         });
         self.overlays.clear();
         self.frame.passes.clear();
+        self.pass_clocks.clear();
         self.frame.diagnostics.clear();
         if !scene.effects.iter().any(|e| e.enabled) {
             self.frame.width = 0;
@@ -772,6 +811,7 @@ impl PlanBuilder {
                 u.params[0]=[linear(layer.color[0]),linear(layer.color[1]),linear(layer.color[2]),layer.color[3]];
                 self.frame.passes.push(EffectPass {program:2,input:-(asset as i32)-1,source:crate::mask_plan::SOURCE_TOKEN-layer_index as i32,
                     output:0,width:w,height:h,lut:-1,uniform:u,sprite:false,sprite_start:0,sprite_count:0});
+                self.pass_clocks.push(None);
                 self.frame.slots|=1;self.frame.width=self.frame.width.max(w);self.frame.height=self.frame.height.max(h);materialized=true;
             }
             for (index, e) in scene
@@ -780,6 +820,7 @@ impl PlanBuilder {
                 .enumerate()
                 .filter(|(_, e)| e.layer == layer.id && e.enabled)
             {
+                let clock_start = self.frame.passes.len();
                 let resolved = self.resolved[index].as_ref().unwrap();
                 let result = (|| -> Result<(), String> {
                     if let Some(err) = &resolved.error {
@@ -1112,6 +1153,7 @@ impl PlanBuilder {
                     materialized = true;
                     Ok(())
                 })();
+                self.pass_clocks.extend(std::iter::repeat_n(Some(index), self.frame.passes.len() - clock_start));
                 if let Err(err) = result {
                     let message = format!(
                         "layer {}, effect {} ({}): {err}",
