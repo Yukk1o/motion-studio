@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -154,12 +155,13 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                         val enabled=vm.editable()&&saved.optBoolean("implemented",true)
                         val value=(vm.sampleValueFor(objectId,key) as? JSONArray)?:saved.optJSONObject("track")?.optJSONArray("value")?:JSONArray(listOf(0,0,0,0))
                         val kind=desc.getString("kind")
+                        val colorControl=kind=="color"&&desc.getDouble("min")<=1.0&&desc.getDouble("max")>=0.0&&(0..3).all{value.getDouble(it) in 0.0..1.0}
                         fun select(){vm.chooseEffectParam(instance,paramId)}
                         Column(Modifier.fillMaxWidth().testTag("effect-param-$paramId")) {
                             when(kind) {
                                 "float"->EffectNumeric(vm,objectId,instance,desc,0,value,enabled,if(paramId=="effect_opacity")"不透明度"else desc.optString("name",paramId),onSelect=::select,onInput={select();numeric=Triple(instance,desc,0)})
                                 else->{
-                                    Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
+                                    if(!colorControl)Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
                                         TextButton(onClick=::select,modifier=Modifier.weight(1f).testTag("effect-select-$paramId")){Text(desc.optString("name",paramId),Modifier.fillMaxWidth(),color=if(vm.property==key)Accent else Ink,fontSize=14.sp)}
                                         if(kind=="bool")Switch(value.getDouble(0)>.5,{on->select();vm.effectAction(objectId,instance,"set",JSONObject().put("param",paramId).put("frame",floor(vm.frame).toInt()).put("value",JSONArray(value.toString()).put(0,if(on)1 else 0)))},enabled=enabled)
                                         if(kind=="enum") {
@@ -173,10 +175,11 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                                         }
                                     }
                                     if(kind=="curve")EffectCurveObject(vm,objectId,instance,paramId,saved,enabled)
-                                    else if(kind=="color"&&desc.getDouble("min")>=0.0&&desc.getDouble("max")<=1.0&&(0..3).all{value.getDouble(it) in 0.0..1.0}) {
+                                    else if(colorControl) {
                                         ColorProperty(vm,desc.optString("name","颜色"),"effect-color-$instance-$paramId",value,enabled,
+                                            labelContent={TextButton(onClick=::select,modifier=Modifier.heightIn(min=48.dp).testTag("effect-select-$paramId"),contentPadding=PaddingValues(0.dp)){Text(desc.optString("name",paramId),color=if(vm.property==key)Accent else Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)}},
                                             alphaEditable=current.getString("plugin")!="com.motionstudio.effects.ae2021",
-                                            range=desc.getDouble("min")..desc.getDouble("max"),onSelect=::select) {rgba,at->
+                                            range=maxOf(0.0,desc.getDouble("min"))..minOf(1.0,desc.getDouble("max")),onSelect=::select) {rgba,at->
                                             vm.effectAction(objectId,instance,"set",JSONObject().put("param",paramId).put("frame",at).put("value",rgba),false)
                                         }
                                     }
@@ -217,7 +220,7 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
 @Composable private fun EffectControls(vm:EditorViewModel,desc:JSONObject,saved:JSONObject,onCurve:()->Unit) {
     val frames=vm.state.project?.optInt("frames")?:1
     val enabled=vm.editable()&&saved.optBoolean("implemented",true)&&saved.optBoolean("animatable")
-    Row(Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("effect-controls"),verticalAlignment=Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(Accent.copy(alpha=.08f),RoundedCornerShape(8.dp)).padding(start=8.dp).heightIn(min=48.dp).testTag("effect-controls"),verticalAlignment=Alignment.CenterVertically) {
         Text(desc.getString("name"),Modifier.weight(1f),color=Muted,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
         Tool(Icons.Default.SkipPrevious,"上一个效果关键帧",vm.keys().any{it.getInt("frame") in 0 until frames&&it.getInt("frame")<vm.frame}){vm.jumpKey(false)}
         Box(Modifier.testTag("effect-animate-${desc.getString("id")}")) {
@@ -225,6 +228,8 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
         }
         Tool(Icons.Default.SkipNext,"下一个效果关键帧",vm.keys().any{it.getInt("frame") in 0 until frames&&it.getInt("frame")>vm.frame}){vm.jumpKey(true)}
         Box(Modifier.testTag("effect-easing")){Tool(Icons.Default.ShowChart,"编辑效果缓动曲线",enabled&&desc.getString("kind") !in listOf("bool","enum")&&vm.easingSegment()!=null,action=onCurve)}
+        val expression=vm.expressionTargetForCurrent()
+        Box(Modifier.testTag("effect-expression")){Tool(Icons.Default.Code,"编辑当前参数表达式",expression!=null){expression?.let(vm::openExpression)}}
     }
 }
 

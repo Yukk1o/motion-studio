@@ -136,4 +136,36 @@ class NativeParticleEditorTest {
         scenario.onActivity{vm.redo()};compose.waitUntil(10000){vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()==beforeIntermediate}
         assertNull(vm.state.error)
     }
+    @Test fun directEyedropperKeepsControlsVisibleAndCancelPreservesColorTrack() {
+        compose.onNodeWithTag("native-slot-tab-appearance").performClick()
+        fun clickPicker() {
+            val button=compose.onNodeWithTag("native-param-color-eyedropper")
+            repeat(5){
+                val bounds=button.fetchSemanticsNode().boundsInRoot
+                val viewport=compose.onNodeWithTag("native-parameters").fetchSemanticsNode().boundsInRoot
+                if(bounds.top>=viewport.top&&bounds.bottom<=viewport.bottom&&bounds.height>0){photo("native-color-compact-row");button.performClick();return}
+                compose.onNodeWithTag("native-parameters").performTouchInput{swipeUp()}
+            }
+            button.assertIsDisplayed().performClick()
+        }
+        val original=vm.effectParam(2,1,"color")!!.getJSONObject("track").toString()
+        val alpha=vm.effectParam(2,1,"color")!!.getJSONObject("track").getJSONArray("value").getDouble(3)
+        clickPicker();compose.waitUntil(10000){vm.eyedropperActive}
+        compose.onNodeWithTag("native-parameters").assertIsDisplayed()
+        compose.onNodeWithTag("color-selection-panel").assertDoesNotExist()
+        compose.onNodeWithTag("color-palette").assertDoesNotExist()
+        photo("native-color-direct-eyedropper")
+        compose.onNodeWithTag("eyedropper-cancel").performClick()
+        compose.waitUntil(10000){!vm.eyedropperActive&&vm.pluginEditor.state?.optJSONObject("color_edit")==null}
+        assertEquals(original,vm.effectParam(2,1,"color")!!.getJSONObject("track").toString())
+        clickPicker();compose.waitUntil(10000){vm.eyedropperActive}
+        compose.onNodeWithTag("preview-gesture").performTouchInput{click(center)}
+        compose.waitUntil(10000){!vm.eyedropperActive&&vm.pluginEditor.state?.optJSONObject("color_edit")==null}
+        assertEquals(alpha,vm.effectParam(2,1,"color")!!.getJSONObject("track").getJSONArray("value").getDouble(3),.0001)
+        compose.onNodeWithTag("native-plugin-expression").performClick();compose.waitUntil(10000){vm.pluginEditor.session==null&&vm.state.saved}
+        compose.onNodeWithTag("expression-workspace").assertIsDisplayed()
+        assertEquals("color",vm.expressionTarget!!.getString("param"))
+        assertEquals(1L,vm.expressionTarget!!.getLong("effect"))
+        assertNull(vm.state.error)
+    }
 }

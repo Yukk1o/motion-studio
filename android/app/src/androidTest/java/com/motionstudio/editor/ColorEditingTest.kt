@@ -161,13 +161,23 @@ class ColorEditingTest {
         compose.onNodeWithTag("color-common-remove-builtin:#FFFFFF").performScrollTo().performClick()
         photo("color-common-settings")
         compose.onNodeWithTag("color-confirm").performClick()
+        compose.onNodeWithTag("source-color").performScrollTo().performClick()
+        compose.onNodeWithTag("source-color-favorites").assertDoesNotExist()
+        compose.onNodeWithTag("color-selection-panel").assertIsDisplayed()
+        compose.onNodeWithTag("color-common-colors").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("color-bookmark-${favorite.id}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("color-palette").assertDoesNotExist()
+        compose.onNodeWithTag("color-confirm").performClick()
         val expected=store.commonIds()
         assertFalse("builtin:#FFD600" in expected);assertTrue("builtin:#9C7CF4" in expected)
         assertTrue(InstrumentationRegistry.getInstrumentation().targetContext.getSharedPreferences("motion-color-palette",Context.MODE_PRIVATE).edit().commit())
         scenario.recreate();compose.waitForIdle()
         assertEquals(expected,ColorBookmarks(InstrumentationRegistry.getInstrumentation().targetContext).commonIds())
-        compose.onNodeWithTag("source-color-common-favorite-${favorite.id}").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("source-color-common-builtin-#FFD600").assertDoesNotExist()
+        compose.onNodeWithTag("source-color").performScrollTo().performClick()
+        compose.onNodeWithTag("color-selection-panel").assertIsDisplayed()
+        compose.onNodeWithTag("color-palette").assertDoesNotExist()
+        compose.onNodeWithTag("color-common-favorite:${favorite.id}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("color-common-builtin:#FFD600").assertDoesNotExist()
         photo("color-common-row")
     }
     @Test fun eyedropperSamplesCompositionWhileKeepingAlphaAndWheelWorksInLandscape() {
@@ -178,6 +188,8 @@ class ColorEditingTest {
         }
         settled{abs(color().getDouble(3)-.37)<.001&&vm.state.saved}
         compose.onNodeWithTag("source-color-eyedropper").performScrollTo().performClick()
+        compose.onNodeWithTag("color-selection-panel").assertDoesNotExist()
+        compose.onNodeWithTag("color-palette").assertDoesNotExist()
         // Wait for the displayed translucent composition, including the dock's
         // Surface resize. Match the real displayed pixel rather than a formula.
         var displayed=0
@@ -188,12 +200,12 @@ class ColorEditingTest {
             (displayed shr 16 and 255)>140
         }
         compose.onNodeWithTag("preview-gesture").performTouchInput{click(center)}
-        settled{!vm.eyedropperActive&&vm.colorEditor?.started==true&&(0..2).all{i->
+        settled{!vm.eyedropperActive&&vm.colorEditor==null&&(0..2).all{i->
             abs(color().getDouble(i)-(displayed shr (16-i*8) and 255)/255.0)<=3.0/255
         }}
         assertEquals(.37,color().getDouble(3),.0001)
         for(i in 0..2)assertEquals((displayed shr (16-i*8) and 255)/255.0,color().getDouble(i),3.0/255)
-        compose.onNodeWithTag("color-cancel").performClick();settled{abs(color().getDouble(0)-.3)<.001}
+        scenario.onActivity{vm.undo()};settled{abs(color().getDouble(0)-.3)<.001}
         scenario.onActivity{it.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE}
         compose.waitUntil(10000){InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE}
         compose.onNodeWithTag("source-color-palette").performScrollTo().performClick()

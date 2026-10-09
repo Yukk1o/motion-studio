@@ -6,6 +6,7 @@ import org.json.JSONObject
 /** One pending value, one request in flight; the page keeps ownership of its undo gesture. */
 internal class NativePluginColors(private val vm:EditorViewModel,private val host:PluginEditorHost,private val token:String) {
     var palette by mutableStateOf<ColorEditingSession?>(null);private set
+    var pickingDirectly by mutableStateOf(false);private set
     var busy by mutableStateOf(false);private set
     var error by mutableStateOf<String?>(null);private set
     private var param=""
@@ -22,6 +23,7 @@ internal class NativePluginColors(private val vm:EditorViewModel,private val hos
             if(host.session?.token!=token||vm.isClosed)return@reply
             if(!reply.optBoolean("ok")) {
                 error=reply.optString("error","颜色编辑失败");pending=null;finishRequest=null
+                pickingDirectly=false
                 host.state?.getJSONObject("values")?.optJSONArray(param)?.let{palette?.value=Rgba.from(it)}
             } else {error=null;done(reply.getJSONObject("result"))}
         }
@@ -43,7 +45,7 @@ internal class NativePluginColors(private val vm:EditorViewModel,private val hos
     fun finish(commit:Boolean,after:()->Unit={}) {
         if(palette==null){after();return}
         if(finishRequest!=null){if(finishRequest?.first==commit)finishRequest=commit to after;return}
-        vm.cancelEyedropper();finishRequest=commit to after
+        finishRequest=commit to after;vm.cancelEyedropper()
         if(!commit)pending=null
         drain()
     }
@@ -56,7 +58,7 @@ internal class NativePluginColors(private val vm:EditorViewModel,private val hos
         } else finishRequest?.let{(commit,_)->
             request(JSONObject().put("op","color_finish").put("commit",commit)){
                 val after=finishRequest?.second?:{}
-                finishRequest=null;palette=null;after()
+                finishRequest=null;palette=null;pickingDirectly=false;after()
             }
         }
     }
@@ -65,5 +67,14 @@ internal class NativePluginColors(private val vm:EditorViewModel,private val hos
         vm.beginEyedropper{sample->if(host.session?.token==token&&!vm.isClosed&&palette===current)accept(sample)}
     }
     fun pick()=pick{sample->if(sample!=null)palette?.value?.let{preview(it.copy(r=sample.r,g=sample.g,b=sample.b))}}
+    fun pick(definition:JSONObject)=open(definition){
+        pickingDirectly=true
+        pick{sample->
+            if(finishRequest==null) {
+                if(sample!=null)palette?.value?.let{preview(it.copy(r=sample.r,g=sample.g,b=sample.b))}
+                finish(sample!=null)
+            }
+        }
+    }
     fun choose(definition:JSONObject,value:Rgba)=open(definition){preview(value);finish(true)}
 }
