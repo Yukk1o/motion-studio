@@ -112,14 +112,20 @@ internal fun androidx.compose.ui.graphics.drawscope.DrawScope.checkerboard(cell:
     val context=LocalContext.current
     val bookmarks=remember(context){ColorBookmarks(context)}
     Column(Modifier.fillMaxWidth()) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val labelWidth=(maxWidth-192.dp).coerceAtLeast(0.dp)
         Row(Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("$tag-actions"),verticalAlignment=Alignment.CenterVertically) {
-            if(labelContent!=null)labelContent() else TextButton(onClick=onSelect,enabled=enabled,modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("$tag-label"),contentPadding=PaddingValues(0.dp)) {
-                Text(label,Modifier.fillMaxWidth(),color=Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+            Row(Modifier.widthIn(max=labelWidth)) {
+                if(labelContent!=null)labelContent() else TextButton(onClick=onSelect,enabled=enabled,modifier=Modifier.heightIn(min=48.dp).testTag("$tag-label"),contentPadding=PaddingValues(0.dp)) {
+                    Text(label,color=Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                }
             }
             PaletteSwatch(rgba,"编辑$label · ${rgba.hex(alphaEditable)}",tag,enabled=enabled){onOpen(true)}
+            Spacer(Modifier.weight(1f))
             IconButton(onClick=onPick,enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-eyedropper")){Icon(Icons.Default.Colorize,"吸管")}
             IconButton(onClick={onOpen(true)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-palette")){Icon(Icons.Default.Palette,"调色盘")}
             IconButton(onClick={onOpen(false)},enabled=enabled,modifier=Modifier.size(48.dp).testTag("$tag-favorites")){Icon(Icons.Default.Star,"常用色与收藏颜色")}
+        }
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("$tag-common"),verticalAlignment=Alignment.CenterVertically) {
             bookmarks.common().forEach{(id,c)->

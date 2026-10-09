@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable internal fun PaletteSwatch(color:Rgba,label:String,tag:String,selected:Boolean=false,enabled:Boolean=true,onClick:()->Unit) {
     Surface(onClick=onClick,enabled=enabled,modifier=Modifier.size(48.dp).testTag(tag).semantics{contentDescription=label},color=Color.Transparent,shape=RoundedCornerShape(8.dp)) {
@@ -84,14 +85,17 @@ import androidx.compose.ui.unit.sp
             Text("收藏",color=Muted,fontSize=12.sp,modifier=Modifier.padding(top=8.dp))
             if(favorites.isEmpty())Text("还没有收藏颜色",color=Muted,fontSize=12.sp,modifier=Modifier.padding(vertical=8.dp))
             else {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {favorites.forEach{bookmark->
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val columns=(maxWidth.value/48).toInt().coerceAtLeast(1)
+                Column {favorites.chunked(columns).forEach{row->Row {row.forEach{bookmark->
                     Column(horizontalAlignment=Alignment.CenterHorizontally) {
                         PaletteSwatch(bookmark.color,bookmark.name,"color-bookmark-${bookmark.id}",selected=managing&&"favorite:${bookmark.id}" in common,enabled=managing||allowed(if(session.alphaEditable)bookmark.color else bookmark.color.copy(a=session.value.a))){
                             if(managing){store.toggleCommon("favorite:${bookmark.id}");common=store.commonIds()}else onPreview(if(session.alphaEditable)bookmark.color else bookmark.color.copy(a=session.value.a))
                         }
-                        TextButton(onClick={menu=bookmark},modifier=Modifier.heightIn(min=48.dp)){Text(bookmark.name.take(10),fontSize=11.sp)}
+                        TextButton(onClick={menu=bookmark},modifier=Modifier.width(48.dp).heightIn(min=48.dp),contentPadding=PaddingValues(2.dp)){Text(bookmark.name,fontSize=11.sp,maxLines=1,overflow=TextOverflow.Ellipsis)}
                     }
-                }}
+                }}}}
+                }
             }
             if(managing)Text("点选色块可加入或移出常用；下方列表决定显示顺序。",color=Muted,fontSize=12.sp,modifier=Modifier.padding(vertical=8.dp))
             if(managing)common.forEach{id->

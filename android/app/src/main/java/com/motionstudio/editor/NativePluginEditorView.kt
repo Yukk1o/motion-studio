@@ -76,7 +76,7 @@ import org.json.JSONObject
                     val id=ids.getString(i);val p=session.definition.getJSONArray("params").objects().first{it.getString("id")==id};val value=state.getJSONObject("values").getJSONArray(id)
                     val kind=p.getString("kind")
                     val propertyHeader:@Composable RowScope.()->Unit={
-                        TextButton(onClick={selectedParam=id},modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("native-param-select-$id"),contentPadding=PaddingValues(0.dp)){Text(p.getString("name")+p.optString("units").let{if(it.isEmpty())""else" · $it"},Modifier.fillMaxWidth(),color=if(selectedParam==id)Accent else Ink,maxLines=1,overflow=TextOverflow.Ellipsis)}
+                        TextButton(onClick={selectedParam=id},modifier=(if(kind=="color")Modifier else Modifier.weight(1f)).heightIn(min=48.dp).testTag("native-param-select-$id"),contentPadding=PaddingValues(0.dp)){Text(p.getString("name")+p.optString("units").let{if(it.isEmpty())""else" · $it"},if(kind=="color")Modifier else Modifier.fillMaxWidth(),color=if(selectedParam==id)Accent else Ink,maxLines=1,overflow=TextOverflow.Ellipsis)}
                         if(kind!="color"&&p.optBoolean("animatable"))TextButton(onClick={selectedParam=id;edit(JSONObject().put("op","key").put("param",id))},enabled=enabled,modifier=Modifier.size(48.dp).testTag("native-param-key-$id"),contentPadding=PaddingValues(0.dp)){Text("◆")}
                     }
                     if(kind=="color") {

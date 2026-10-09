@@ -155,7 +155,7 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                         val enabled=vm.editable()&&saved.optBoolean("implemented",true)
                         val value=(vm.sampleValueFor(objectId,key) as? JSONArray)?:saved.optJSONObject("track")?.optJSONArray("value")?:JSONArray(listOf(0,0,0,0))
                         val kind=desc.getString("kind")
-                        val colorControl=kind=="color"&&desc.getDouble("min")>=0.0&&desc.getDouble("max")<=1.0&&(0..3).all{value.getDouble(it) in 0.0..1.0}
+                        val colorControl=kind=="color"&&desc.getDouble("min")<=1.0&&desc.getDouble("max")>=0.0&&(0..3).all{value.getDouble(it) in 0.0..1.0}
                         fun select(){vm.chooseEffectParam(instance,paramId)}
                         Column(Modifier.fillMaxWidth().testTag("effect-param-$paramId")) {
                             when(kind) {
@@ -177,9 +177,9 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                                     if(kind=="curve")EffectCurveObject(vm,objectId,instance,paramId,saved,enabled)
                                     else if(colorControl) {
                                         ColorProperty(vm,desc.optString("name","颜色"),"effect-color-$instance-$paramId",value,enabled,
-                                            labelContent={TextButton(onClick=::select,modifier=Modifier.weight(1f).heightIn(min=48.dp).testTag("effect-select-$paramId"),contentPadding=PaddingValues(0.dp)){Text(desc.optString("name",paramId),Modifier.fillMaxWidth(),color=if(vm.property==key)Accent else Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)}},
+                                            labelContent={TextButton(onClick=::select,modifier=Modifier.heightIn(min=48.dp).testTag("effect-select-$paramId"),contentPadding=PaddingValues(0.dp)){Text(desc.optString("name",paramId),color=if(vm.property==key)Accent else Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)}},
                                             alphaEditable=current.getString("plugin")!="com.motionstudio.effects.ae2021",
-                                            range=desc.getDouble("min")..desc.getDouble("max"),onSelect=::select) {rgba,at->
+                                            range=maxOf(0.0,desc.getDouble("min"))..minOf(1.0,desc.getDouble("max")),onSelect=::select) {rgba,at->
                                             vm.effectAction(objectId,instance,"set",JSONObject().put("param",paramId).put("frame",at).put("value",rgba),false)
                                         }
                                     }
