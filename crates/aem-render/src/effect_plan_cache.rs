@@ -16,13 +16,16 @@ pub(crate) struct PreviewInputs {
     assets: Vec<u64>,
 }
 fn same_layer(a: &DrawLayer, b: &DrawLayer) -> bool {
+    // GPU uniforms can distinguish +0.0 from -0.0 (e.g. bitcast/atan2).
+    // Compare bytes rather than numeric float equality for cached payloads.
     a.id == b.id
-        && a.model == b.model
-        && a.size == b.size
-        && a.source_size == b.source_size
-        && a.source_rect == b.source_rect
-        && a.color == b.color
-        && a.opacity == b.opacity
+        && bytemuck::bytes_of(&a.model.to_cols_array())
+            == bytemuck::bytes_of(&b.model.to_cols_array())
+        && bytemuck::bytes_of(&a.size) == bytemuck::bytes_of(&b.size)
+        && bytemuck::bytes_of(&a.source_size) == bytemuck::bytes_of(&b.source_size)
+        && bytemuck::bytes_of(&a.source_rect) == bytemuck::bytes_of(&b.source_rect)
+        && bytemuck::bytes_of(&a.color) == bytemuck::bytes_of(&b.color)
+        && a.opacity.to_bits() == b.opacity.to_bits()
         && a.asset == b.asset
         && a.video.as_ref().map(|v| v.asset) == b.video.as_ref().map(|v| v.asset)
         && match (&a.vector, &b.vector) {
@@ -33,10 +36,11 @@ fn same_layer(a: &DrawLayer, b: &DrawLayer) -> bool {
         && Arc::ptr_eq(&a.masks, &b.masks)
         && a.adjustment == b.adjustment
         && a.composition == b.composition
-        && a.depth == b.depth
+        && a.depth.to_bits() == b.depth.to_bits()
         && a.order == b.order
         && a.three_d == b.three_d
-        && a.view_projection == b.view_projection
+        && bytemuck::bytes_of(&a.view_projection.to_cols_array())
+            == bytemuck::bytes_of(&b.view_projection.to_cols_array())
 }
 fn same_effect(a: &SampledEffect, b: &SampledEffect) -> bool {
     a.layer == b.layer
@@ -48,7 +52,7 @@ fn same_effect(a: &SampledEffect, b: &SampledEffect) -> bool {
         && a.enabled == b.enabled
         && a.seed == b.seed
         && a.param_ids == b.param_ids
-        && a.values == b.values
+        && bytemuck::bytes_of(&a.values) == bytemuck::bytes_of(&b.values)
         && a.lut == b.lut
 }
 impl PreviewInputs {

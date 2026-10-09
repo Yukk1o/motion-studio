@@ -52,6 +52,25 @@ fn static_video_plans_reuse_geometry_but_keep_local_shader_time_on_random_seeks(
     assert_eq!(cached.preview_cache_hits, 5);
 }
 #[test]
+fn signed_zero_parameters_do_not_reuse_a_different_gpu_uniform_payload() {
+    let p = project();
+    let mut scene = Scene::new(&p);
+    scene.sample(&p, 0., None).unwrap();
+    let index = scene.effects[0]
+        .param_ids
+        .iter()
+        .position(|p| p == "translation")
+        .unwrap();
+    scene.effects[0].values[index][0] = 0.;
+    let mut cached = builder();
+    let positive = bytes(&mut cached, &scene, 64);
+    scene.effects[0].values[index][0] = -0.;
+    let negative = bytes(&mut cached, &scene, 64);
+    assert_ne!(positive, negative);
+    assert_eq!(negative, bytes(&mut builder(), &scene, 64));
+    assert_eq!(cached.preview_plan_builds, 2);
+}
+#[test]
 fn parameters_geometry_quality_resources_and_strict_export_invalidate_cached_plan() {
     let mut p = project();
     let mut scene = Scene::new(&p);
