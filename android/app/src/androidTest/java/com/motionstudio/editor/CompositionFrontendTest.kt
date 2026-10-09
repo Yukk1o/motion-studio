@@ -110,6 +110,23 @@ class CompositionFrontendTest {
         compose.waitUntil(10000){compose.onAllNodesWithText("删除空闲合成，可撤销恢复。").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithTag("delete-composition-confirm").performClick();settled{vm.state.saved&&vm.state.sample!!.getJSONArray("compositions").length()==1}
     }
+    @Test fun libraryBeyondThirtyTwoReadsHostLimitsAndCreatesAnUndoableChild() {
+        val commands=JSONArray()
+        repeat(40){n->commands.put(JSONObject().put("op","composition").put("action",
+            JSONObject().put("kind","create").put("settings",JSONObject().put("name","Library $n")
+                .put("width",512).put("height",512).put("fps",20).put("frames",120))))}
+        scenario.onActivity{vm.editBatch(commands)}
+        settled{vm.state.saved&&vm.state.sample?.getJSONArray("compositions")?.length()==41}
+        val limits=vm.state.sample!!.getJSONObject("capabilities").getJSONObject("composition_api")
+        assertEquals(256,limits.getInt("max_compositions"));assertEquals(64,limits.getInt("max_render_instances"))
+        compose.onNodeWithTag("add-layer").performClick();compose.onNodeWithTag("add-composition").performScrollTo().performClick()
+        compose.onNodeWithTag("create-child-composition").assertIsEnabled().performClick()
+        compose.onNodeWithTag("new-project-name").performTextReplacement("Another Library")
+        compose.onNodeWithTag("create-project").performClick()
+        settled{vm.state.saved&&vm.state.sample?.getJSONArray("compositions")?.length()==42}
+        scenario.onActivity{vm.undo()};settled{vm.state.sample?.getJSONArray("compositions")?.length()==41}
+        scenario.onActivity{vm.redo()};settled{vm.state.sample?.getJSONArray("compositions")?.length()==42}
+    }
     @Test fun homeShowsCachedUpdatePromptAndSettingsExposeReleaseNotes() {
         scenario.close()
         val context=InstrumentationRegistry.getInstrumentation().targetContext

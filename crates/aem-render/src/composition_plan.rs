@@ -13,7 +13,11 @@ struct Entry<'a> {
     parent: usize,
     slot: i32,
 }
-fn entries<'a>(s: &'a Scene, reference: u64, slot: i32, out: &mut Vec<Entry<'a>>) -> usize {
+fn entries<'a>(s: &'a Scene, reference: u64, slot: i32, out: &mut Vec<Entry<'a>>, depth: usize, visited: &mut usize) -> Result<usize, String> {
+    if depth >= aem_core::composition::MAX_COMPOSITION_DEPTH || *visited >= aem_core::composition::MAX_RENDER_COMPOSITION_INSTANCES {
+        return Err("composition frame exceeds depth or active instance limit".into());
+    }
+    *visited += 1;
     let children = s
         .nested
         .iter()
@@ -23,9 +27,9 @@ fn entries<'a>(s: &'a Scene, reference: u64, slot: i32, out: &mut Vec<Entry<'a>>
                 .iter()
                 .find(|l| l.id == n.layer)
                 .expect("sampled reference");
-            entries(&n.scene, n.layer, -(layer.order as i32 + 1), out)
+            entries(&n.scene, n.layer, -(layer.order as i32 + 1), out, depth + 1, visited)
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let index = out.len();
     out.push(Entry {
         scene: s,
@@ -36,7 +40,7 @@ fn entries<'a>(s: &'a Scene, reference: u64, slot: i32, out: &mut Vec<Entry<'a>>
     for child in children {
         out[child].parent = index;
     }
-    index
+    Ok(index)
 }
 fn word(out: &mut [u8], offset: usize, v: u32) {
     out[offset..offset + 4].copy_from_slice(&v.to_le_bytes());
@@ -52,8 +56,8 @@ pub fn build(
     out: &mut Vec<u8>,
 ) -> Result<(), String> {
     let mut nodes = Vec::new();
-    let root = entries(scene, 0, 0, &mut nodes);
     out.clear();
+    let root = entries(scene, 0, 0, &mut nodes, 0, &mut 0)?;
     out.resize(HEADER + nodes.len() * NODE, 0);
     for (i, e) in nodes.iter().enumerate() {
         let plan = builder

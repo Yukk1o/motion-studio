@@ -6,6 +6,8 @@
 预渲染尚未实现，`prerender=false`。子合成接口不依赖预渲染。
 测试范围、结果与设备边界见 [验收记录](../validation/compositions-validation.md)。
 
+文档与当前帧的规模上限分别声明，具体语义见 [合成图规模与渲染预算](composition-graph-limits.md)。
+
 ## 能力、身份与作用域
 
 `NativeBridge.state` 的 `capabilities.multiple_compositions`、`precompose` 为 true，
@@ -210,12 +212,13 @@
 迁移为格式 7，内容与动画保留，原文件在加载时不覆写。格式 6 的矢量与调整图层
 保留内容、动画和效果，可以放入子合成后继续编辑。
 
-数量上限 32 个节点、嵌套深度 8（包含根）、一个根的展开实例 64（重复引用分别计数）、
+数量上限 256 个节点、嵌套深度 16（包含根）、一个根的静态展开实例 1024（重复引用分别计数）、
+当前帧最多 64 个活跃渲染实例（包含根）；禁用、范围外和源时刻越界的分支不进入帧包。
 每节点沿用 128 图层限制。活动视频解码实例最多 4。素材、视频平面及子合成输出共享
 128 MiB GPU 资源预算，效果临时纹理仍为 64 MiB；执行包最多 32 MiB。
 达到资源/设备尺寸限制时明确失败，不降低参数或裁剪输出。
 
-常见结构化代码：`composition_missing`、`cycle`、`resource_limit`、`invalid_range`、
+常见结构化代码：`composition_missing`、`cycle`、`resource_limit`、`render_resource_limit`、`audio_time_limit`、`invalid_range`、
 `invalid_settings`、`unsupported_mode`、`invalid_selection`、`external_parent`、
 `external_reference`、`expression_context`、`keyframe_collision`、`context_busy`、
 `context_mismatch`、`stale_revision`、`invalid_path`、`sample_failed`、`invalid_request`。
