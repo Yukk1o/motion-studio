@@ -2,12 +2,16 @@
 use crate::{Camera, Content, Error, Layer, LayerTimeline, Project, PropertyExpression, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub const MAIN_COMPOSITION: &str = "comp-main";
-pub const MAX_COMPOSITIONS: usize = 32;
-pub const MAX_COMPOSITION_DEPTH: usize = 8;
-pub const MAX_COMPOSITION_INSTANCES: usize = 64;
+pub const MAX_COMPOSITIONS: usize = 256;
+/// Number of nodes on a path, including the root.
+pub const MAX_COMPOSITION_DEPTH: usize = 16;
+/// All source-reference paths, including disabled and off-range layers.
+pub const MAX_COMPOSITION_INSTANCES: usize = 1024;
+/// Sampled nodes in one frame, including the root. GPU byte budgets are separate.
+pub const MAX_RENDER_COMPOSITION_INSTANCES: usize = 64;
 pub fn main_composition() -> String {
     MAIN_COMPOSITION.into()
 }
@@ -29,6 +33,21 @@ pub struct Composition {
     pub layers: Vec<Layer>,
     #[serde(default)]
     pub expressions: Vec<PropertyExpression>,
+}
+
+/// Borrow a node from an already validated document without copying its graph.
+#[derive(Clone, Copy)]
+pub struct CompositionView<'a> {
+    pub id: &'a str,
+    pub name: &'a str,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    pub frames: u32,
+    pub background: [f32; 4],
+    pub camera: &'a Camera,
+    pub layers: &'a [Layer],
+    pub expressions: &'a [PropertyExpression],
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -171,38 +190,41 @@ impl Composition {
     }
 }
 impl Project {
-    /// Sampling view only. The caller keeps the validated document for graph lookups.
-    /// Never save or validate this view as an independent document.
-    pub(crate) fn composition_frame_view(&self, id: &str) -> Result<Self> {
-        let body = if id == self.composition_id {
-            Composition::from_project(self)
-        } else {
-            self.compositions
-                .iter()
-                .find(|c| c.id == id)
-                .cloned()
-                .ok_or_else(|| {
-                    Error::Composition(CompositionError {
-                        code: "composition_missing".into(),
-                        composition: id.into(),
-                        message: "Composition does not exist".into(),
-                        details: json!({}),
-                    })
-                })?
+    pub fn composition_view(&self, id: &str) -> Result<CompositionView<'_>> {
+        if id == self.composition_id {
+            return Ok(CompositionView {
+                id: &self.composition_id, name: &self.name, width: self.width, height: self.height,
+                fps: self.fps, frames: self.frames, background: self.background, camera: &self.camera,
+                layers: &self.layers, expressions: &self.expressions,
+            });
+        }
+        let Some(c) = self.compositions.iter().find(|c| c.id == id) else {
+            return fail(id, "composition_missing", "Composition does not exist", json!({}));
         };
+        Ok(CompositionView {
+            id: &c.id, name: &c.name, width: c.width, height: c.height, fps: c.fps, frames: c.frames,
+            background: c.background, camera: &c.camera, layers: &c.layers, expressions: &c.expressions,
+        })
+    }
+
+    /// Sampling view only. The caller keeps the validated document for graph lookups.
+    /// Never save or validate this view as an independent document. Local
+    /// validation must resolve references against the owning document.
+    pub(crate) fn composition_frame_view(&self, id: &str) -> Result<Self> {
+        let body = self.composition_view(id)?;
         Ok(Self {
             version: self.version,
-            composition_id: body.id,
+            composition_id: body.id.into(),
             compositions: Vec::new(),
-            name: body.name,
+            name: body.name.into(),
             width: body.width,
             height: body.height,
             fps: body.fps,
             frames: body.frames,
             background: body.background,
-            camera: body.camera,
-            layers: body.layers,
-            expressions: body.expressions,
+            camera: body.camera.clone(),
+            layers: body.layers.to_vec(),
+            expressions: body.expressions.to_vec(),
             assets: self.assets.clone(),
             audio_assets: self.audio_assets.clone(),
             video_assets: self.video_assets.clone(),
@@ -218,25 +240,33 @@ impl Project {
             denominator: i128,
         }
         impl Time {
-            fn add_frames(self, frames: i64, fps: u32) -> Self {
+            fn add_frames(self, frames: i64, fps: u32) -> Result<Self> {
+                let overflow = || Error::Invalid("Audio timebase exceeds rational arithmetic budget".into());
+                crate::ensure(fps > 0, "invalid audio frame rate")?;
                 let mut a = self.denominator;
                 let mut b = i128::from(fps);
                 while b != 0 {
                     (a, b) = (b, a % b);
                 }
                 let multiplier = i128::from(fps) / a;
-                Self {
-                    numerator: self.numerator * multiplier
-                        + i128::from(frames) * 48_000 * (self.denominator / a),
-                    denominator: self.denominator * multiplier,
-                }
+                let numerator = self.numerator.checked_mul(multiplier)
+                    .and_then(|left| i128::from(frames).checked_mul(48_000)
+                        .and_then(|v| v.checked_mul(self.denominator / a))
+                        .and_then(|right| left.checked_add(right))).ok_or_else(overflow)?;
+                let denominator = self.denominator.checked_mul(multiplier).ok_or_else(overflow)?;
+                // Keep every intermediate rational reduced, including zero.
+                let (mut x, mut y) = (numerator.unsigned_abs(), denominator as u128);
+                while y != 0 { (x, y) = (y, x % y); }
+                let divisor = x as i128;
+                Ok(Self { numerator: numerator / divisor, denominator: denominator / divisor })
             }
             fn sample(self) -> i64 {
                 self.numerator.div_euclid(self.denominator) as i64
             }
         }
         fn visit(
-            p: &Project,
+            document: &Project,
+            p: CompositionView<'_>,
             origin: Time,
             begin: i64,
             end: i64,
@@ -248,37 +278,38 @@ impl Project {
                 depth < MAX_COMPOSITION_DEPTH,
                 "audio composition nesting too deep",
             )?;
-            for l in &p.layers {
+            for l in p.layers {
+                let add = |time: Time, frames: i64, fps: u32| time.add_frames(frames, fps).map_err(|e|
+                    Error::Composition(CompositionError { code:"audio_time_limit".into(), composition:p.id.into(),
+                        message:e.to_string(), details:json!({"layer":l.id,"frames":frames,"fps":fps}) }));
                 let clip = l.clip(p.frames);
                 let first = begin
-                    .max(origin.add_frames(i64::from(clip.in_frame), p.fps).sample())
+                    .max(add(origin,i64::from(clip.in_frame),p.fps)?.sample())
                     .max(0);
-                let last = end.min(origin.add_frames(i64::from(clip.out_frame), p.fps).sample());
+                let last = end.min(add(origin,i64::from(clip.out_frame),p.fps)?.sample());
                 if first >= last {
                     continue;
                 }
-                let offset = origin.add_frames(i64::from(clip.offset_frame), p.fps);
+                let offset = add(origin,i64::from(clip.offset_frame),p.fps)?;
                 if let Content::Composition { clip } = &l.content {
                     if clip.muted || clip.volume == 0. {
                         continue;
                     }
-                    let child = p.composition(&clip.composition)?;
+                    let child = document.composition_view(&clip.composition)?;
                     let child_origin =
-                        offset.add_frames(-i64::from(clip.source_start_frame), child.fps);
+                        add(offset,-i64::from(clip.source_start_frame),child.fps)?;
                     visit(
-                        &child,
+                        document, child,
                         child_origin,
                         first.max(child_origin.sample()),
                         last.min(
-                            child_origin
-                                .add_frames(i64::from(child.frames), child.fps)
-                                .sample(),
+                            add(child_origin,i64::from(child.frames),child.fps)?.sample(),
                         ),
                         volume * clip.volume,
                         depth + 1,
                         out,
                     )?;
-                } else if let Some(audio) = p.layer_audio(l) {
+                } else if let Some(audio) = document.layer_audio(l) {
                     if audio.muted || audio.volume == 0. {
                         continue;
                     }
@@ -297,6 +328,7 @@ impl Project {
         let mut out = Vec::new();
         visit(
             self,
+            self.composition_view(&self.composition_id)?,
             Time {
                 numerator: 0,
                 denominator: 1,
@@ -343,8 +375,8 @@ impl Project {
                 return Ok(());
             }
             ids.push(id.into());
-            for l in p.composition(id)?.layers {
-                if let Content::Composition { clip } = l.content {
+            for l in p.composition_view(id)?.layers {
+                if let Content::Composition { clip } = &l.content {
                     visit(p, &clip.composition, ids)?;
                 }
             }
@@ -358,8 +390,8 @@ impl Project {
         self.composition_ids()
             .into_iter()
             .flat_map(|id| {
-                let p = self.composition(&id).expect("known composition");
-                p.layers.into_iter().filter_map(move |l| match l.content {
+                let p = self.composition_view(&id).expect("known composition");
+                p.layers.iter().filter_map(move |l| match &l.content {
                     Content::Composition { clip } if clip.composition == target => {
                         Some(json!({"composition":id,"object":l.id}))
                     }
@@ -369,10 +401,20 @@ impl Project {
             .collect()
     }
     pub fn composition_list(&self) -> Vec<Value> {
-        self.composition_ids().iter().map(|id| {
-            let p = self.composition(id).expect("known composition");
+        let ids = self.composition_ids();
+        let mut references: HashMap<&str, Vec<Value>> = HashMap::new();
+        for id in &ids {
+            for layer in self.composition_view(id).expect("known composition").layers {
+                if let Content::Composition { clip } = &layer.content {
+                    references.entry(&clip.composition).or_default()
+                        .push(json!({"composition":id,"object":layer.id}));
+                }
+            }
+        }
+        ids.iter().map(|id| {
+            let p = self.composition_view(id).expect("known composition");
             json!({"id":id,"name":p.name,"width":p.width,"height":p.height,"fps":p.fps,"frames":p.frames,
-                "main":id==MAIN_COMPOSITION,"references":self.composition_references(id),
+                "main":id==MAIN_COMPOSITION,"references":references.get(id.as_str()).cloned().unwrap_or_default(),
                 "children":p.layers.iter().filter_map(|l| match &l.content {Content::Composition{clip}=>Some(json!({"object":l.id,"composition":clip.composition})),_=>None}).collect::<Vec<_>>(),
                 "next_layer_id":p.layers.iter().map(|l|l.id).max().unwrap_or(0).checked_add(1)})
         }).collect()
@@ -415,11 +457,16 @@ impl Project {
         }
         for id in &ids {
             if id != &self.composition_id {
-                self.composition(id)?.validate_one()?;
+                self.composition_frame_view(id)?.validate_one(self)?;
             }
         }
-        fn visit(p: &Project, id: &str, path: &mut Vec<String>, count: &mut usize) -> Result<()> {
-            if path.iter().any(|n| n == id) {
+        self.check_composition_graph(None)?;
+        Ok(())
+    }
+    fn check_composition_graph(&self, extra: Option<(&str, &str)>) -> Result<()> {
+        fn visit<'a>(nodes: &HashMap<&'a str, CompositionView<'a>>, id: &'a str,
+                     path: &mut Vec<&'a str>, memo: &mut HashMap<&'a str, (usize, usize)>, extra: Option<(&'a str, &'a str)>) -> Result<(usize, usize)> {
+            if path.contains(&id) {
                 return fail(
                     id,
                     "cycle",
@@ -435,28 +482,63 @@ impl Project {
                     json!({"max_depth":MAX_COMPOSITION_DEPTH}),
                 );
             }
-            *count += 1;
-            if *count > MAX_COMPOSITION_INSTANCES {
-                return fail(
-                    id,
-                    "resource_limit",
-                    "Composition instance limit exceeded",
-                    json!({"max_instances":MAX_COMPOSITION_INSTANCES}),
-                );
+            if let Some(&(depth, instances)) = memo.get(id) {
+                if path.len() + depth > MAX_COMPOSITION_DEPTH {
+                    return fail(id, "resource_limit", "Composition nesting too deep",
+                                json!({"max_depth":MAX_COMPOSITION_DEPTH,"depth_includes_root":true}));
+                }
+                return Ok((depth, instances));
             }
-            path.push(id.into());
-            for l in p.composition(id)?.layers {
-                if let Content::Composition { clip } = l.content {
-                    visit(p, &clip.composition, path, count)?;
+            let node = nodes.get(id).ok_or_else(|| Error::Composition(CompositionError {
+                code: "composition_missing".into(), composition: id.into(),
+                message: "Composition does not exist".into(), details: json!({}),
+            }))?;
+            let (mut depth, mut instances) = (1, 1);
+            path.push(id);
+            for l in node.layers {
+                if let Content::Composition { clip } = &l.content {
+                    let (child_depth, child_instances) = visit(nodes, &clip.composition, path, memo, extra)?;
+                    depth = depth.max(child_depth + 1);
+                    instances += child_instances;
+                    if instances > MAX_COMPOSITION_INSTANCES {
+                        return fail(id, "resource_limit", "Composition source expansion limit exceeded",
+                                    json!({"max_instances":MAX_COMPOSITION_INSTANCES,"requested_instances":instances}));
+                    }
+                }
+            }
+            if let Some((source, target)) = extra.filter(|(source, _)| *source == id) {
+                let _ = source;
+                let (child_depth, child_instances) = visit(nodes, target, path, memo, extra)?;
+                depth = depth.max(child_depth + 1);
+                instances += child_instances;
+                if instances > MAX_COMPOSITION_INSTANCES {
+                    return fail(id, "resource_limit", "Composition source expansion limit exceeded",
+                                json!({"max_instances":MAX_COMPOSITION_INSTANCES,"requested_instances":instances}));
                 }
             }
             path.pop();
-            Ok(())
+            memo.insert(id, (depth, instances));
+            Ok((depth, instances))
         }
-        for id in &ids {
-            visit(self, id, &mut Vec::new(), &mut 0)?;
-        }
+        let ids = self.composition_ids();
+        let nodes: HashMap<_, _> = ids.iter().map(|id| {
+            let node = self.composition_view(id).expect("known composition");
+            (node.id, node)
+        }).collect();
+        let mut memo = HashMap::new();
+        for id in &ids { visit(&nodes, id, &mut Vec::new(), &mut memo, extra)?; }
         Ok(())
+    }
+    /// Structural candidates for a validated document. Does not instantiate an
+    /// editor, clone media/animations or serialize an undo history per target.
+    pub fn composition_reference_candidates(&self, source: &str) -> Result<Vec<String>> {
+        let parent = self.composition_view(source)?;
+        if parent.layers.len() >= crate::MAX_LAYERS
+            || parent.layers.iter().map(|l| l.id).max() == Some(u64::MAX) {
+            return Ok(vec![]);
+        }
+        Ok(self.composition_ids().into_iter().filter(|target|
+            self.check_composition_graph(Some((source, target))).is_ok()).collect())
     }
     fn new_composition_id(&self) -> Result<String> {
         let ids = self.composition_ids();

@@ -280,10 +280,13 @@ impl Project {
         p
     }
     pub fn validate(&self) -> Result<()> {
-        self.validate_one()?;
+        ensure((1..=8).contains(&self.version), "unsupported project format")?;
+        ensure(self.plugin_dependencies == self.composition_dependencies(),
+               "plugin dependency list does not match effect instances")?;
+        self.validate_one(self)?;
         self.validate_compositions()
     }
-    pub(crate) fn validate_one(&self) -> Result<()> {
+    pub(crate) fn validate_one(&self, document: &Project) -> Result<()> {
         ensure(
             (1..=8).contains(&self.version),
             "unsupported project format",
@@ -299,10 +302,6 @@ impl Project {
                     .iter()
                     .all(|l| l.effects.iter().all(|e| e.scene.is_none())),
             "scene generator projects require format 4",
-        )?;
-        ensure(
-            self.plugin_dependencies == self.composition_dependencies(),
-            "plugin dependency list does not match effect instances",
         )?;
         ensure(
             (1..=8192).contains(&self.width) && (1..=8192).contains(&self.height),
@@ -454,7 +453,7 @@ impl Project {
                     })?;
                 }
                 Content::Composition { clip } => {
-                    self.composition(&clip.composition)?;
+                    document.composition_view(&clip.composition)?;
                     ensure(clip.volume.is_finite() && (0.0..=4.0).contains(&clip.volume)
                         && clip.source_start_frame.unsigned_abs() <= MAX_FRAMES, "invalid composition source interval or volume")?;
                 }
@@ -599,8 +598,7 @@ impl Project {
         self.plugin_dependencies = self.composition_dependencies();
     }
     fn composition_dependencies(&self) -> Vec<crate::PluginDependency> {
-        let layers: Vec<_> = self.layers.iter().chain(self.compositions.iter().flat_map(|c|c.layers.iter())).cloned().collect();
-        crate::effects::dependencies(&layers)
+        crate::effects::dependencies(self.layers.iter().chain(self.compositions.iter().flat_map(|c|c.layers.iter())))
     }
 }
 fn validate_color(color: [f32; 4]) -> Result<()> {

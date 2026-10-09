@@ -7,6 +7,7 @@ use naga::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 
 pub const UNIFORM_BYTES: usize = 7 * 16 + 32 * 16;
 pub const HEADER: &str = r#"
@@ -97,6 +98,24 @@ pub struct CompiledShader {
     pub glsl: GlslShader,
     pub sprite: bool,
     pub additive: bool,
+}
+
+/// Some GLES compilers clamp a uint literal above INT_MAX, including its hex
+/// spelling, to INT_MAX. Compose the same bits from two small literals instead.
+/// This only changes generated GLSL; package bytes and WGSL remain unchanged.
+fn portable_unsigned_literals(source: &str) -> String {
+    static LITERALS: OnceLock<regex::Regex> = OnceLock::new();
+    LITERALS
+        .get_or_init(|| regex::Regex::new(r"\b([0-9]+)u\b").unwrap())
+        .replace_all(source, |captures: &regex::Captures<'_>| {
+            match captures[1].parse::<u32>() {
+                Ok(value) if value > i32::MAX as u32 => {
+                    format!("(({}u << 16u) | {}u)", value >> 16, value & 65535)
+                }
+                _ => captures[0].to_owned(),
+            }
+        })
+        .into_owned()
 }
 
 fn portable_source(source: &str) -> Result<()> {
@@ -255,6 +274,7 @@ fn compile_internal(
                 result.textures.insert(name, [b.group, b.binding]);
             }
         }
+        output = portable_unsigned_literals(&output);
         if stage == ShaderStage::Vertex {
             result.vertex = output;
         } else {

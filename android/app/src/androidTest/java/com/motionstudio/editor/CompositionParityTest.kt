@@ -12,6 +12,41 @@ import java.nio.ByteOrder
 import java.util.UUID
 
 class CompositionParityTest {
+    @Test fun deepNestedFramesMatchNativeAndGlesAtOrdinaryResolution() {
+        val root=File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"deep-composition-parity/${UUID.randomUUID()}").apply{mkdirs()}
+        val project=data(NativeBridge.projectTemplate(0)).put("width",192).put("height",192).put("frames",24).put("fps",24).put("layers",JSONArray()).put("background",array(0,0,0,0))
+        project.getJSONObject("camera").put("created",false)
+        val native=NativeBridge.create(root.absolutePath,project.toString());assertTrue(NativeBridge.creationError(),native>0)
+        try {
+            data(CompositionBridge.command(native,"comp-main",JSONObject().put("op","add_shape").put("id",1).put("name","Star").put("shape","star").put("size",array(96,96)).put("position",array(96,96,0))))
+            repeat(9){depth->
+                val selected=req(native,"comp-main","state").getJSONObject("project").getJSONArray("layers").getJSONObject(0).getLong("id")
+                action(native,"comp-main","precompose","objects" to array(selected),"name" to "Nested $depth")
+            }
+            val frozen=req(native,"comp-main","state").getJSONObject("project")
+            val gpu=EglMovieRenderer(null,192,192,frozen,native,data(NativeBridge.renderPlanInfo(native)))
+            try {
+                for(frame in listOf(0,7,11,7)) {
+                    req(native,"comp-main","seek","frame" to frame)
+                    val path=data(CompositionBridge.capture(native,"comp-main")).getString("path")
+                    val png=BitmapFactory.decodeFile(path,BitmapFactory.Options().apply{inPremultiplied=false;inScaled=false})
+                    try {
+                        assertTrue("Deep child disappeared",android.graphics.Color.alpha(png.getPixel(96,96))>0)
+                        val small=ByteBuffer.allocateDirect(32).order(ByteOrder.LITTLE_ENDIAN)
+                        val bytes=-CompositionBridge.sampleFrameBundleInto(native,"comp-main",frame.toDouble(),small)
+                        val bundle=ByteBuffer.allocateDirect(bytes).order(ByteOrder.LITTLE_ENDIAN)
+                        assertEquals(bytes,CompositionBridge.sampleFrameBundleInto(native,"comp-main",frame.toDouble(),bundle));assertEquals(10,bundle.getInt(8))
+                        gpu.prepareBundle(bundle);gpu.drawBundle(bundle)
+                        val pixels=ByteBuffer.allocateDirect(192*192*4);gpu.readPixelsInto(pixels)
+                        File(path).copyTo(File(root,"native-$frame.png"),overwrite=true)
+                        val raw=ByteArray(pixels.capacity());pixels.duplicate().apply{clear()}.get(raw)
+                        File(root,"gles-$frame.rgba").writeBytes(raw)
+                        glesParity(png,pixels)
+                    }finally{png.recycle()}
+                }
+            }finally{gpu.close()}
+        }finally{NativeBridge.destroy(native)}
+    }
     @Test fun nestedAnimatedVectorsAndAdjustmentLayersMatchUnencodedExport() {
         val root=File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir,"composition-vector-parity/${UUID.randomUUID()}").apply{mkdirs()}
         val project=data(NativeBridge.projectTemplate(0)).put("width",192).put("height",192).put("frames",24).put("layers",JSONArray()).put("background",array(0,0,0,0))
@@ -121,6 +156,9 @@ class CompositionParityTest {
                     for (sample in samples) {
                         gpu.prepareBundle(sample.bundle); gpu.drawBundle(sample.bundle)
                         val pixels = ByteBuffer.allocateDirect(192 * 192 * 4); gpu.readPixelsInto(pixels)
+                        File(root,"mixed-native-${sample.frame}.png").outputStream().use{sample.png.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}
+                        val raw=ByteArray(pixels.capacity());pixels.duplicate().apply{clear()}.get(raw)
+                        File(root,"mixed-gles-${sample.frame}.rgba").writeBytes(raw)
                         reports.put(glesParity(sample.png, pixels).put("frame", sample.frame).put("nodes", sample.bundle.getInt(8)))
                         File(root, "unencoded-report.json").writeText(reports.toString(2))
                     }

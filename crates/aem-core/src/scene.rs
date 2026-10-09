@@ -46,6 +46,7 @@ pub struct Scene {
     pub sprite_assets: std::collections::HashMap<u64, [u32;2]>,
     pub composition_id: String,
     pub nested: Vec<NestedScene>,
+    nested_spare: Vec<NestedScene>,
     node_world: Vec<Mat4>,
     node_states: Vec<u8>,
     node_ids: Vec<u64>,
@@ -84,6 +85,7 @@ impl Scene {
             sprite_assets: Default::default(),
             composition_id: project.composition_id.clone(),
             nested: Vec::new(),
+            nested_spare: Vec::new(),
             node_world: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_states: Vec::with_capacity(crate::MAX_LAYERS + 1),
             node_ids: Vec::with_capacity(crate::MAX_LAYERS + 1),
@@ -100,7 +102,7 @@ impl Scene {
         frame: f64,
         observer: Option<&Observer>,
     ) -> Result<()> {
-        self.sample_inner(project, project, frame, observer, 0)?;
+        self.sample_inner(project, project, frame, observer, 0, &mut 0)?;
         if !self.nested.is_empty() {
             let mut used: std::collections::HashSet<_> = project.layers.iter().map(|l|l.id)
                 .chain(project.compositions.iter().flat_map(|c|c.layers.iter().map(|l|l.id))).collect();
@@ -109,8 +111,15 @@ impl Scene {
         }
         Ok(())
     }
-    fn sample_inner(&mut self, document:&Project, project:&Project, frame:f64, observer:Option<&Observer>, depth:usize)->Result<()> {
+    fn sample_inner(&mut self, document:&Project, project:&Project, frame:f64, observer:Option<&Observer>, depth:usize, instances:&mut usize)->Result<()> {
         ensure(depth<crate::composition::MAX_COMPOSITION_DEPTH,"composition nesting too deep")?;
+        if *instances >= crate::composition::MAX_RENDER_COMPOSITION_INSTANCES {
+            return crate::composition::fail(&project.composition_id, "render_resource_limit",
+                "Active composition instance limit exceeded",
+                serde_json::json!({"max_render_instances":crate::composition::MAX_RENDER_COMPOSITION_INSTANCES,
+                                   "requested_instances":*instances+1,"frame":frame}));
+        }
+        *instances += 1;
         ensure(
             frame.is_finite() && frame >= 0.0 && frame < f64::from(project.frames),
             "invalid sample time",
@@ -123,7 +132,13 @@ impl Scene {
         self.sprite_assets.clear();
         self.sprite_assets.extend(project.assets.iter().map(|a| (a.id,[a.width,a.height])));
         self.composition_id.clone_from(&project.composition_id);
-        self.nested.clear();
+        let mut previous_nested = std::mem::take(&mut self.nested);
+        for node in &mut previous_nested { node.layer = self.source_object(node.layer); }
+        // Alias IDs belong to the last rendered instance, not to authored tracks.
+        for effect in &mut self.effects {
+            effect.layer = self.source_objects.iter().find(|v| v.0 == effect.layer).map_or(effect.layer, |v| v.1);
+        }
+        self.nested = std::mem::take(&mut self.nested_spare);
         self.source_objects.clear();
         self.curve_luts.clear();
         let mut effect_index = 0;
@@ -230,9 +245,16 @@ impl Scene {
                 let child=document.composition_frame_view(&clip.composition)?;
                 let source=clip.source_frame(layer.local_frame(frame),project.fps,child.fps);
                 if source<0.||source>=f64::from(child.frames) {continue;}
-                let mut scene=Scene::new(&child);
-                if let Err(error)=scene.sample_inner(document,&child,source,None,depth+1){return crate::composition::fail(&clip.composition,"sample_failed",&error.to_string(),serde_json::json!({"frame":source,"parent_composition":project.composition_id,"reference":layer.id}));}
-                self.nested.push(NestedScene {layer:layer.id,composition:clip.composition.clone(),scene:Box::new(scene)});
+                let mut node = if let Some(index) = previous_nested.iter().position(|n| n.layer == layer.id && n.composition == clip.composition) {
+                    previous_nested.swap_remove(index)
+                } else {
+                    NestedScene {layer:layer.id, composition:clip.composition.clone(), scene:Box::new(Scene::new(&child))}
+                };
+                if let Err(error)=node.scene.sample_inner(document,&child,source,None,depth+1,instances){
+                    if matches!(&error, crate::Error::Composition(e) if e.code == "render_resource_limit") { return Err(error); }
+                    return crate::composition::fail(&clip.composition,"sample_failed",&error.to_string(),serde_json::json!({"frame":source,"parent_composition":project.composition_id,"reference":layer.id}));
+                }
+                self.nested.push(node);
             }
             let video = if let Content::Video { video } = &layer.content {
                 let a = project
@@ -366,6 +388,8 @@ impl Scene {
                 .sort_unstable_by(|a, b| b.depth.total_cmp(&a.depth).then(a.order.cmp(&b.order)));
             start = end;
         }
+        previous_nested.clear();
+        self.nested_spare = previous_nested;
         self.evaluated_project = match evaluated {
             std::borrow::Cow::Owned(p) => Some(p),
             std::borrow::Cow::Borrowed(_) => None,
