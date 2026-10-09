@@ -2,6 +2,8 @@
 
 报告由 `crates/aem-render/tests/effect_cost.rs` 生成，范围为当前核心包 manifest 的全部效果（目前 59 项、4 个 profile），使用 3840×2160 单层工程、第 0 帧、按工程尺寸初始化的默认参数。场景/粒子包、历史核心包、自定义插件及非默认参数场景不属于这份快照。
 
+此快照使用 PlanBuilder 的保守默认预算 64 MiB，明确作为可重复的基线；不读取手机 RAM，也不代表设备分档后的实际预览或导出。设备预算仍使用主分支的配置接口和协议 v6，诊断记录不会把它改回固定 64 MiB。
+
 ```powershell
 $env:MOTION_EFFECT_REPORT = 'E:/Dev/aem/artifacts/effect-costs'
 cargo test --locked -p aem-render --test effect_cost -- --nocapture
@@ -20,6 +22,7 @@ JSON 为 schemaVersion=1、metricKind=`portable_validation_product_v1`、scope=`
 | passes / plannedPasses | manifest 声明数/实际计划数；实际数包含宿主转换与源物化 pass |
 | scratch4kBytes / scratch4kSizes | 成功正式规划的 pool 容量及 8 个 slot 尺寸；失败为 null |
 | scratch4kRequiredBytes / scratch4kRequiredSizes | 最后一次效果 pool 检查的候选需求，包括被预算拒绝的候选 |
+| scratchBudgetBytes | 当前行实际采用的规划预算，不推断设备可用显存 |
 | status / diagnostics | planned、budgetRejected 或 planningError，以及原规划器错误 |
 | workingSpace / alphaMode | manifest 声明的工作空间和 alpha 模式 |
 | padding / outputBounds | manifest 表达式；对应 Value 字段为默认参数、实际源矩形下的求值 |
@@ -29,7 +32,7 @@ JSON 为 schemaVersion=1、metricKind=`portable_validation_product_v1`、scope=`
 
 `loop_work` 直接导出已有 portable_source 校验值：各源码循环的静态迭代数相乘，串行和嵌套循环均按现有算法处理。无循环或零次循环因既有规则计为 1；辅助函数中未执行的循环也可能被包含。它不是纹理采样次数、实际循环执行次数或 GPU 时长。
 
-scratch 容量调用运行时同一个 `scratch_capacity_bytes()`：slot 0–6 按 4 bytes/px，slot 7 按 8 bytes/px。`PlanBuilder.last_scratch_request` 在检查前保存候选尺寸及拒绝类型，每次 build 或替换 Registry 都重置。候选尚未通过检查时，不会提交到 frame.scratch_sizes 或分配 GPU 纹理；拒绝行不会因为读取旧 frame 而被误报为零。
+scratch 容量调用运行时同一个 `scratch_capacity_bytes()`：slot 0–6 按 4 bytes/px，slot 7 按 8 bytes/px。`PlanBuilder.last_scratch_request` 在检查前保存候选尺寸、当时的实际预算及拒绝类型，每次 build 或替换 Registry 都重置。预览缓存命中不会重新检查，也不会为了记录指标重建计划，观察值为 None；当前有效容量仍可从 frame.scratch_sizes 读取。候选尚未通过检查时，不会提交到 frame.scratch_sizes 或分配 GPU 纹理；拒绝行不会因为读取旧 frame 而被误报为零。
 
 此容量仅统计效果 pool。素材纹理、视频 plane、LUT、插件资源、矢量 MSAA、调整图层累积纹理、遮罩、预览目标与驱动内部内存各有独立口径，不是此表的总量。默认参数不代表最坏场景，也不能单凭静态排序宣称某个效果更慢。
 
