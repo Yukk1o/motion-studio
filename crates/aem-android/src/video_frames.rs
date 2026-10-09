@@ -28,6 +28,7 @@ struct State {
     misses: u64,
     decoded: u64,
     cancelled: u64,
+    seeks: u64,
 }
 struct Stream {
     asset: VideoAsset,
@@ -67,6 +68,7 @@ impl Stream {
                 misses: 0,
                 decoded: 0,
                 cancelled: 0,
+                seeks: 0,
             }),
             Condvar::new(),
         ));
@@ -103,6 +105,7 @@ impl Stream {
                             Ok(())
                         }
                     };
+                    let previous_seeks = decoder.as_ref().map_or(0, |d: &Decoder| d.seeks);
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
                         || -> Result<Arc<DecodedFrame>> {
                             check()?;
@@ -129,6 +132,7 @@ impl Stream {
                     ))
                     .unwrap_or_else(|_| Err("video decoder worker failed".into()));
                     let mut s = copy.0.lock().unwrap_or_else(|e| e.into_inner());
+                    s.seeks += decoder.as_ref().map_or(0, |d| d.seeks).saturating_sub(previous_seeks);
                     if s.stop {
                         return;
                     }
@@ -484,6 +488,7 @@ impl VideoFrames {
         let mut misses = 0;
         let mut decoded = 0;
         let mut cancelled = 0;
+        let mut seeks = 0;
         for stream in self.streams.values() {
             let s = stream.shared.0.lock().unwrap_or_else(|e| e.into_inner());
             bytes += s.cache.bytes();
@@ -493,8 +498,9 @@ impl VideoFrames {
             misses += s.misses;
             decoded += s.decoded;
             cancelled += s.cancelled;
+            seeks += s.seeks;
         }
         json!({"cacheBytes":bytes,"cacheFrames":frames,"cacheBudgetBytes":budget,"maxCacheBudgetBytes":4 * crate::video_cache::MAX_CACHE_BYTES,
-            "cacheHits":hits,"cacheMisses":misses,"decodedFrames":decoded,"cancelledFrames":cancelled,"streams":self.streams.len()})
+            "cacheHits":hits,"cacheMisses":misses,"decodedFrames":decoded,"cancelledFrames":cancelled,"decoderSeeks":seeks,"lookaheadFrames":LOOKAHEAD,"streams":self.streams.len()})
     }
 }

@@ -255,7 +255,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         thermalMonitor.addThermalStatusListener(app.mainExecutor,thermalListener)
         worker.post {
             try {
-                id=NativeBridge.create(root.absolutePath,if(File(root,"project.json").exists())"" else initialProjectJson)
+                id=NativeBridge.createConfigured(getApplication<Application>(),root.absolutePath,if(File(root,"project.json").exists())"" else initialProjectJson)
                 check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
                 updatePreviewInfo(NativeBridge.previewMode(id,previewMode,thermalStatus))
                 publish(NativeBridge.state(id),root.resolve("project.json").exists())
@@ -497,7 +497,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         state=state.copy(busy=true,error=null)
         worker.post {
             try {
-                id=NativeBridge.create(root.absolutePath,"");check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
+                id=NativeBridge.createConfigured(getApplication<Application>(),root.absolutePath,"");check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
                 val result=attachRecoveredSession();main.post{loadFailed=false};publish(result,true)
             }catch(e:Throwable){fail(e.message?:"工程重试失败")}
         }
@@ -527,7 +527,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     val parent=root.parentFile!!.canonicalFile
                     val file=File(parent,directory).canonicalFile
                     check(file.parentFile==parent){"工程目录无效"}
-                    id=NativeBridge.create(file.absolutePath,"");check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
+                    id=NativeBridge.createConfigured(getApplication<Application>(),file.absolutePath,"");check(id!=0L){"工程无法打开："+NativeBridge.creationError()}
                     val result=attachRecoveredSession();main.post{loadFailed=false};publish(result,true)
                 }else {
                     val result=NativeBridge.openProject(id,directory)
@@ -1073,7 +1073,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
             try {
                 if(id==0L) {
                     val destination=File(root.parentFile,"project-"+System.nanoTime()).apply{mkdirs()}
-                    id=NativeBridge.create(destination.absolutePath,project.toString());check(id!=0L){NativeBridge.creationError()}
+                    id=NativeBridge.createConfigured(getApplication<Application>(),destination.absolutePath,project.toString());check(id!=0L){NativeBridge.creationError()}
                     val saved=JSONObject(NativeBridge.save(id));check(saved.optBoolean("ok")){saved.optString("error")}
                     val result=attachRecoveredSession();main.post{loadFailed=false};publish(result,true)
                 }else {
@@ -1105,7 +1105,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
                     try {
                         if(recovering) {
                             temporary=File(root.parentFile,"project-"+System.nanoTime()).apply{mkdirs()}
-                            id=NativeBridge.create(temporary!!.absolutePath,"");check(id!=0L){NativeBridge.creationError()}
+                            id=NativeBridge.createConfigured(getApplication<Application>(),temporary!!.absolutePath,"");check(id!=0L){NativeBridge.creationError()}
                         }
                         val result=NativeBridge.importProject(id,file.absolutePath)
                         val envelope=JSONObject(result)
@@ -1124,7 +1124,7 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     fun exportVideo(callback:(File)->Unit) {
         if(exporting)return
         frozenProject {json->
-            val task=VideoExporter(root,json)
+            val task=VideoExporter(root,json,DeviceMemoryProfile.read(getApplication<Application>()))
             exporter=task;exporting=true;exportProgress=0f
             viewModelScope.launch(Dispatchers.IO) {
                 try {

@@ -47,6 +47,7 @@ struct EffectCost {
     scratch_4k_sizes: Option<[[u32; 2]; 8]>,
     scratch_4k_required_bytes: Option<u64>,
     scratch_4k_required_sizes: Option<[[u32; 2]; 8]>,
+    scratch_budget_bytes: u64,
     status: &'static str,
     diagnostics: Vec<String>,
     working_space: WorkingSpace,
@@ -122,6 +123,7 @@ fn measure(
     let mut registry = Registry::default();
     registry.insert(package.clone())?;
     let mut builder = PlanBuilder::new(registry)?;
+    let scratch_budget_bytes = builder.scratch_budget();
     // Own the result before reading builder metadata; no device or GPU allocations.
     let outcome = builder
         .build(&scene, &[0], WIDTH, HEIGHT, true)
@@ -181,7 +183,7 @@ fn measure(
     }
     if scratch_4k_required_bytes
         .or(scratch_4k_bytes)
-        .is_some_and(|n| n > aem_effects::SCRATCH_BUDGET)
+        .is_some_and(|n| n > scratch_budget_bytes)
     {
         warnings.push(Warning {
             code: "scratchBudget",
@@ -189,7 +191,7 @@ fn measure(
             detail: format!(
                 "4K scratch demand {} bytes exceeds {} bytes",
                 scratch_4k_required_bytes.or(scratch_4k_bytes).unwrap(),
-                aem_effects::SCRATCH_BUDGET
+                scratch_budget_bytes
             ),
         });
     }
@@ -227,6 +229,7 @@ fn measure(
         scratch_4k_sizes,
         scratch_4k_required_bytes,
         scratch_4k_required_sizes,
+        scratch_budget_bytes,
         status,
         diagnostics,
         working_space: definition.working_space,
@@ -242,7 +245,7 @@ fn measure(
 }
 
 fn markdown(report: &Report) -> String {
-    let mut text = format!("# Effect costs · {} {}\n\nScope: current core manifest; {} effects; 3840×2160; frame 0; default parameters.\n\nStatic loop work is the portable validation product, not GPU time or texture samples. Scratch is exact planner capacity, not driver VRAM. Rejected demands do not allocate textures.\n\n", report.package_id, report.package_version, report.effects.len());
+    let mut text = format!("# Effect costs · {} {}\n\nScope: current core manifest; {} effects; 3840×2160; frame 0; default parameters; conservative default scratch policy ({} MiB), not a phone memory profile.\n\nStatic loop work is the portable validation product, not GPU time or texture samples. Scratch is exact planner capacity, not driver VRAM. Rejected demands do not allocate textures.\n\n", report.package_id, report.package_version, report.effects.len(), report.scratch_warning_bytes / 1048576);
     if let Some(revision) = &report.source_revision {
         writeln!(text, "Revision: `{revision}`\n").unwrap();
     }
@@ -440,7 +443,7 @@ fn scratch_observation_keeps_rejections_passthrough_and_reset_behavior() -> Test
         .find(|e| e.id == "gaussian_blur")
         .unwrap();
     let mut project = Project::new(64, 64, 30, 60)?;
-    let mut layer = Layer::solid(1, "large source", [4096.; 2], [32., 32., 0.], [1.; 4]);
+    let mut layer = Layer::solid(1, "4K source", [3840., 2160.], [32., 32., 0.], [1.; 4]);
     layer.effects.push(EffectInstance::new(
         1,
         &package.manifest.id,
@@ -463,6 +466,7 @@ fn scratch_observation_keeps_rejections_passthrough_and_reset_behavior() -> Test
         .build(&sample(&project), &[0], 64, 64, true)
         .is_err());
     let rejected = builder.last_scratch_request.unwrap();
+    assert_eq!(rejected.budget_bytes, builder.scratch_budget());
     assert_eq!(rejected.rejection, Some(ScratchRejection::CapacityBudget));
     assert!(scratch_capacity_bytes(&rejected.sizes) > aem_effects::SCRATCH_BUDGET);
     assert_eq!(scratch_capacity_bytes(&builder.frame.scratch_sizes), 0);
@@ -493,6 +497,50 @@ fn scratch_observation_keeps_rejections_passthrough_and_reset_behavior() -> Test
     assert!(builder.last_scratch_request.is_none());
     builder.last_scratch_request = Some(rejected);
     builder.set_registry(registry);
+    assert!(builder.last_scratch_request.is_none());
+    Ok(())
+}
+
+#[test]
+fn observation_uses_device_budget_and_cached_preview_performs_no_new_check() -> TestResult {
+    let package = aem_effects::builtin::package()?;
+    let def = package
+        .manifest
+        .effects
+        .iter()
+        .find(|e| e.id == "tint")
+        .unwrap();
+    let mut project = Project::new(WIDTH, HEIGHT, 30, 60)?;
+    let size = [WIDTH as f32, HEIGHT as f32];
+    let mut layer = Layer::solid(1, "4K tint", size, [1920., 1080., 0.], [1.; 4]);
+    layer.effects.push(EffectInstance::new(
+        1,
+        &package.manifest.id,
+        &package.manifest.version,
+        &package.hash,
+        def,
+        size,
+    ));
+    project.layers.push(layer);
+    let mut scene = Scene::new(&project);
+    scene.sample(&project, 0., None)?;
+    let mut registry = Registry::default();
+    registry.insert(package)?;
+    let mut builder = PlanBuilder::new(registry)?;
+    assert!(builder.build(&scene, &[0], WIDTH, HEIGHT, true).is_err());
+    let refused = builder.last_scratch_request.unwrap();
+    assert_eq!(refused.budget_bytes, 64 << 20);
+    assert_eq!(refused.rejection, Some(ScratchRejection::CapacityBudget));
+    builder.set_scratch_budget(96 << 20)?;
+    builder.build(&scene, &[0], WIDTH, HEIGHT, true)?;
+    let accepted = builder.last_scratch_request.unwrap();
+    assert_eq!(accepted.budget_bytes, 96 << 20);
+    assert_eq!(accepted.rejection, None);
+    assert_eq!(accepted.sizes, refused.sizes);
+    builder.build_preview(&scene, &[0], 960, 540)?;
+    assert!(builder.last_scratch_request.is_some());
+    builder.build_preview(&scene, &[0], 960, 540)?;
+    assert_eq!(builder.preview_cache_hits, 1);
     assert!(builder.last_scratch_request.is_none());
     Ok(())
 }
