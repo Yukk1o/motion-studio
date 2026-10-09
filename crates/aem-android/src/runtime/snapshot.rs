@@ -63,22 +63,14 @@ impl Session {
             .layers
             .iter()
             .filter_map(|layer| {
-                let mvp = layer.view_projection * layer.model;
-                let corners = [[-0.5, 0.5], [0.5, 0.5], [0.5, -0.5], [-0.5, -0.5]].map(|[x, y]| {
-                    mvp.x_axis * (x * layer.size[0]) + mvp.y_axis * (y * layer.size[1]) + mvp.w_axis
-                });
-                if corners.iter().any(|c| !c.is_finite() || c.w <= 0.0) {
-                    return None;
-                }
+                let corners = aem_core::selection_geometry::polygon(layer,&self.scene,&self.effects.registry)?;
                 let anchor = p
                     .layers
                     .iter()
                     .find(|l| l.id == layer.id)
                     .and_then(|l| self.scene.project_node(l.id));
                 Some(
-                    json!({"id":layer.id,"anchor":anchor,"corners":corners.map(|c|[
-                (c.x/c.w*0.5+0.5)*p.width as f32,
-                (0.5-c.y/c.w*0.5)*p.height as f32])}),
+                    json!({"id":layer.id,"anchor":anchor,"corners":corners,"selection_space":"effect_output"}),
                 )
             })
             .collect();
