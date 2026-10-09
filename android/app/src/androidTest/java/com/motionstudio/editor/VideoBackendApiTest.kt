@@ -1,7 +1,8 @@
 package com.motionstudio.editor
 
 import android.graphics.BitmapFactory
-import android.graphics.PixelFormat
+import android.graphics.ImageFormat
+import android.hardware.HardwareBuffer
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
@@ -47,7 +48,9 @@ class VideoBackendApiTest {
     @Test fun gpuYuvPreviewPrefetchesWithoutMoreRenderRequestsAndSeekStaysExact() {
         val root=root();val id=create(root)
         val consumer=HandlerThread("video-preview-consumer").apply{start()}
-        val reader=ImageReader.newInstance(256,144,PixelFormat.RGBA_8888,3)
+        // This consumer only drains presented frames. PRIVATE accepts the
+        // backend's native Surface format; no CPU pixel access is requested.
+        val reader=ImageReader.newInstance(256,144,ImageFormat.PRIVATE,3,HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE)
         reader.setOnImageAvailableListener({r->r.acquireLatestImage()?.close()},Handler(consumer.looper))
         try {
             import(id,"silent-24fps.mp4")
@@ -59,17 +62,20 @@ class VideoBackendApiTest {
             }
             // Worker progress must not depend on another VSync/render invocation.
             var metrics=data(NativeBridge.previewInfo(id)).getJSONObject("video")
-            while(metrics.getInt("cacheFrames")<3) {
+            while(metrics.getInt("cacheFrames")<5) {
                 assertTrue(metrics.toString(),System.nanoTime()<deadline);Thread.sleep(5)
                 metrics=data(NativeBridge.previewInfo(id)).getJSONObject("video")
             }
             assertEquals(1L,metrics.getLong("gpuConversions"))
             assertEquals(256L*144*3/2,metrics.getLong("uploadBytes"))
             assertTrue(metrics.getLong("cacheBytes")<=metrics.getLong("cacheBudgetBytes"))
+            assertEquals(4,metrics.getInt("lookaheadFrames"))
+            val seeks=metrics.getLong("decoderSeeks")
             val pending=metrics.getLong("pendingAttempts")
             assertTrue("Prefetched next source frame must render immediately",NativeBridge.render(id,3.0))
             metrics=data(NativeBridge.previewInfo(id)).getJSONObject("video")
             assertEquals(pending,metrics.getLong("pendingAttempts"))
+            assertEquals("Forward prefetch must retain the codec pipeline",seeks,metrics.getLong("decoderSeeks"))
             assertTrue(metrics.getLong("cacheHits")>0)
             // Reverse/large seeks cannot return a prefetched frame from a wrong interval.
             for((seq,time)in listOf(75.0,0.0,45.0).withIndex()) {

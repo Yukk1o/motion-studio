@@ -39,7 +39,7 @@ internal class GlLayerSources {
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer,hasAdjustment:Boolean,w:Int,h:Int,assetBytes:Long,scratchBytes:Long) {
-        check(plan.getInt(4)==5&&plan.getInt(96)==24&&plan.getInt(108)==28){"不兼容的矢量计划"}
+        check(plan.getInt(4)==RenderPlanBudget.VERSION&&plan.getInt(96)==24&&plan.getInt(108)==28){"不兼容的矢量计划"}
         val table=plan.getInt(84);val count=plan.getInt(88);val total=plan.getInt(28)
         check(count in 0..128&&table>=128&&table.toLong()+count*28<=total){"矢量资源表失效"}
         if(count>0&&!msaaProbed) {
@@ -107,7 +107,8 @@ internal class GlLayerSources {
         }
         val accumulatorBytes=if(hasAdjustment)w.toLong()*h*8 else 0
         check(accumulatorBytes<=128L*1024*1024){"调整图层累加器 ${accumulatorBytes/1048576.0} MiB 超过合成预算 128 MiB"}
-        check(scratchBytes<=64L*1024*1024){"效果临时纹理 ${scratchBytes/1048576.0} MiB 超过临时纹理预算 64 MiB"}
+        val budget=RenderPlanBudget.scratchBytes(plan)
+        check(scratchBytes<=budget){"效果临时纹理 ${scratchBytes/1048576.0} MiB 超过临时纹理预算 ${budget/1048576.0} MiB"}
         if(!hasAdjustment||width!=w||height!=h) {
             GL.glDeleteTextures(2,accumulators,0);accumulators.fill(0);width=0;height=0
             if(hasAdjustment){width=w;height=h;for(i in 0..1)accumulators[i]=texture(w,h,false)}

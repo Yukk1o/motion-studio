@@ -2,6 +2,24 @@
 use super::*;
 
 #[no_mangle]
+pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_configureMemory(
+    mut env: JNIEnv, _class: JClass, id: jlong, total_mem: jlong, guarded: jboolean,
+) -> jstring {
+    string_result(&mut env, || with_session(id, |s| {
+        if total_mem < 0 { return Err("invalid device physical memory".into()); }
+        let budget = aem_render::resource_policy::scratch_budget(total_mem as u64, guarded != 0);
+        s.effects.set_scratch_budget(budget)?;
+        if let Some(g) = &mut s.graphics {
+            g.renderer.set_scratch_budget(budget).map_err(|e| e.to_string())?;
+        }
+        if let Some(renderer) = &mut s.editor_renderer {
+            renderer.set_scratch_budget(budget).map_err(|e| e.to_string())?;
+        }
+        Ok(json!({"scratchBudgetBytes":budget,"policyVersion":1}))
+    }))
+}
+
+#[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_seek(
     mut env: JNIEnv,
     _class: JClass,

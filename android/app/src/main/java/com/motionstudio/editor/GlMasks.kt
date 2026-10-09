@@ -22,7 +22,7 @@ internal class GlMasks(info:JSONObject) {
     private val uniforms=ByteBuffer.allocateDirect(624).order(ByteOrder.nativeOrder())
     init {
         try {
-            check(info.getInt("version")==5&&info.getInt("maskBytes")==64&&info.getInt("maskVertexBytes")==24&&info.getInt("maskSourceToken")==SOURCE_TOKEN){"不兼容的蒙版协议"}
+            check(info.getInt("version")==RenderPlanBudget.VERSION&&info.getInt("maskBytes")==64&&info.getInt("maskVertexBytes")==24&&info.getInt("maskSourceToken")==SOURCE_TOKEN){"不兼容的蒙版协议"}
             raster=program(VERTEX,FRAGMENT)
             val programs=info.getJSONArray("maskPrograms")
             check(programs.length()==2){"蒙版滤镜程序缺失"}
@@ -61,7 +61,7 @@ internal class GlMasks(info:JSONObject) {
     }
     /** Drop obsolete node-local textures before the vector/effect adapters reserve resources. */
     fun stage(plan:ByteBuffer):Budget {
-        check(plan.capacity()>=128&&plan.getInt(4)==5&&plan.getInt(124)==64){"不兼容的蒙版计划"}
+        check(plan.capacity()>=128&&plan.getInt(4)==RenderPlanBudget.VERSION&&plan.getInt(124)==64){"不兼容的蒙版计划"}
         val total=plan.getInt(28);val table=plan.getInt(112);val count=plan.getInt(116);val vertexBase=plan.getInt(120)
         check(total in 128..plan.capacity()&&count in 0..2048&&table>=128&&table.toLong()+count*64<=total&&vertexBase>=table+count*64&&vertexBase<=total){"蒙版记录范围失效"}
         val limit=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_TEXTURE_SIZE,limit,0)
@@ -95,7 +95,8 @@ internal class GlMasks(info:JSONObject) {
     fun prepare(plan:ByteBuffer,assetBytes:Long,otherScratch:Long) {
         val budget=stage(plan)
         check(assetBytes+budget.outputs<=128L*1024*1024){"蒙版和图层源纹理超过 128 MiB"}
-        check(otherScratch+budget.scratch<=64L*1024*1024){"蒙版与效果临时纹理超过 64 MiB"}
+        val scratchLimit=RenderPlanBudget.scratchBytes(plan)
+        check(otherScratch+budget.scratch<=scratchLimit){"蒙版与效果临时纹理 ${(otherScratch+budget.scratch)/1048576.0} MiB 超过预算 ${scratchLimit/1048576.0} MiB"}
         if(stagedSlots>0&&scratch.isEmpty()) {
             scratch=IntArray(stagedSlots);scratchWidth=stagedWidth;scratchHeight=stagedHeight
             for(i in scratch.indices)scratch[i]=texture(scratchWidth,scratchHeight)
