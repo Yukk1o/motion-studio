@@ -10,6 +10,7 @@ internal class GlLayerSources {
     private val vectors=HashMap<Int,Source>()
     private val accumulators=IntArray(2)
     private val rasterScratch=HashMap<Pair<Int,Int>,Int>()
+    private val rasterResolve=HashMap<Pair<Int,Int>,Int>()
     private var width=0;private var height=0
     private var fbo=0;private var resolveFbo=0;private var vbo=0;private var vao=0
     private var vectorProgram=0;private var mixProgram=0;private var copyProgram=0
@@ -52,7 +53,7 @@ internal class GlLayerSources {
         val sizes=(0 until count).map{val p=table+it*28;plan.getInt(p+4) to plan.getInt(p+8)}.toSet()
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,fbo);GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_RENDERBUFFER,0)
         val unused=rasterScratch.keys.filter{it !in sizes}
-        for(size in unused)GL.glDeleteRenderbuffers(1,intArrayOf(rasterScratch.remove(size)!!),0)
+        for(size in unused){GL.glDeleteRenderbuffers(1,intArrayOf(rasterScratch.remove(size)!!),0);rasterResolve.remove(size)?.let{GL.glDeleteTextures(1,intArrayOf(it),0)}}
         var resident=vectors.values.sumOf{it.width.toLong()*it.height*4}
         for(i in 0 until count) {
             val p=table+i*28;val layer=plan.getInt(p);val sw=plan.getInt(p+4);val sh=plan.getInt(p+8)
@@ -63,15 +64,15 @@ internal class GlLayerSources {
             if(old?.fingerprint==fingerprint&&old.width==sw&&old.height==sh)continue
             val cost=sw.toLong()*sh*4;val resize=old==null||old.width!=sw||old.height!=sh
             val previous=old?.let{it.width.toLong()*it.height*4}?:0
-            val scratchCost=rasterScratch.keys.sumOf{it.first.toLong()*it.second*16}
-            val newScratch=if(sw to sh in rasterScratch)0L else cost*4
+            val scratchCost=rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}
+            val newScratch=if(sw to sh in rasterScratch)0L else cost*5
             check(assetBytes+resident+(if(resize)cost else 0L)+scratchCost+newScratch<=128L*1024*1024){"矢量纹理与 MSAA 资源超过 128 MiB"}
             val target=if(resize)texture(sw,sh,true)else old!!.texture
             try {
                 val samples=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_SAMPLES,samples,0);check(samples[0]>=4){"矢量描边需要 4x MSAA"}
                 val renderbuffer=rasterScratch[sw to sh]?:run {
                     val ids=IntArray(1);GL.glGenRenderbuffers(1,ids,0);GL.glBindRenderbuffer(GL.GL_RENDERBUFFER,ids[0])
-                    GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER,4,GL.GL_SRGB8_ALPHA8,sw,sh)
+                    GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER,4,GL.GL_RGBA8,sw,sh)
                     rasterScratch[sw to sh]=ids[0];ids[0]
                 }
                 GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,fbo);GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_RENDERBUFFER,renderbuffer)
@@ -87,11 +88,18 @@ internal class GlLayerSources {
                 GL.glDisable(GL.GL_DEPTH_TEST);GL.glDisable(GL.GL_CULL_FACE);GL.glEnable(GL.GL_BLEND);GL.glBlendFunc(GL.GL_ONE,GL.GL_ONE_MINUS_SRC_ALPHA)
                 GL.glUseProgram(vectorProgram);GL.glBindVertexArray(vao);GL.glBindBuffer(GL.GL_ARRAY_BUFFER,vbo)
                 if(vertices>0){val data=plan.duplicate().order(ByteOrder.nativeOrder()).apply{position(offset);limit(offset+vertices*24)}.slice();GL.glBufferSubData(GL.GL_ARRAY_BUFFER,0,vertices*24,data);GL.glDrawArrays(GL.GL_TRIANGLES,0,vertices)}
-                GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_DRAW_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,target,0)
+                // Resolve coverage and premultiplied paint in linear space. Some
+                // GLES drivers average encoded samples when resolving sRGB MSAA.
+                val linearTarget=rasterResolve[sw to sh]?:texture(sw,sh,false).also{rasterResolve[sw to sh]=it}
+                GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_DRAW_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,linearTarget,0)
                 check(GL.glCheckFramebufferStatus(GL.GL_DRAW_FRAMEBUFFER)==GL.GL_FRAMEBUFFER_COMPLETE){"矢量解析目标不可用"}
                 GL.glDisable(GL.GL_BLEND)
                 GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER,fbo);GL.glBlitFramebuffer(0,0,sw,sh,0,0,sw,sh,GL.GL_COLOR_BUFFER_BIT,GL.GL_NEAREST)
                 GL.glInvalidateFramebuffer(GL.GL_READ_FRAMEBUFFER,1,colorAttachment,0)
+                GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,target,0)
+                GL.glBindVertexArray(0);GL.glUseProgram(copyProgram)
+                GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"image"),0);GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"flipY"),0)
+                GL.glActiveTexture(GL.GL_TEXTURE0);GL.glBindTexture(GL.GL_TEXTURE_2D,linearTarget);GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
                 check(GL.glGetError()==GL.GL_NO_ERROR){"矢量绘制失败"}
                 if(resize)old?.let{GL.glDeleteTextures(1,intArrayOf(it.texture),0)}
                 vectors[layer]=Source(target,sw,sh,fingerprint);if(resize)resident=resident-previous+cost
@@ -105,7 +113,7 @@ internal class GlLayerSources {
         }
     }
     fun vector(layer:Int)=vectors[layer]?.texture?:error("矢量源缺失")
-    fun resourceBytes():Long=vectors.values.sumOf{it.width.toLong()*it.height*4}+rasterScratch.keys.sumOf{it.first.toLong()*it.second*16}
+    fun resourceBytes():Long=vectors.values.sumOf{it.width.toLong()*it.height*4}+rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}
     fun accumulatorBytes():Long=if(accumulators[0]!=0)width.toLong()*height*8 else 0L
     /** One synthetic pixel on first vector use; never reads animation frames back. */
     private fun probeMsaaClear():Boolean {
@@ -172,6 +180,7 @@ internal class GlLayerSources {
     fun close() {
         vectors.values.forEach{GL.glDeleteTextures(1,intArrayOf(it.texture),0)};vectors.clear();GL.glDeleteTextures(2,accumulators,0);accumulators.fill(0)
         GL.glDeleteRenderbuffers(rasterScratch.size,rasterScratch.values.toIntArray(),0);rasterScratch.clear()
+        GL.glDeleteTextures(rasterResolve.size,rasterResolve.values.toIntArray(),0);rasterResolve.clear()
         GL.glDeleteFramebuffers(2,intArrayOf(fbo,resolveFbo),0);GL.glDeleteBuffers(2,intArrayOf(vbo,clearVbo),0);GL.glDeleteVertexArrays(2,intArrayOf(vao,clearVao),0)
         for(p in listOf(vectorProgram,mixProgram,copyProgram))GL.glDeleteProgram(p)
         fbo=0;resolveFbo=0;vbo=0;vao=0;clearVbo=0;clearVao=0;vectorProgram=0;mixProgram=0;copyProgram=0

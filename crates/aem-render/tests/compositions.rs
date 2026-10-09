@@ -174,3 +174,96 @@ fn switching_contexts_can_reuse_an_id_for_video_and_composition_without_reusing_
     );
     assert_eq!(capture(&mut r, e.project(), 20.), expected);
 }
+
+#[test]
+fn deep_library_draws_only_active_nodes_and_reuses_gpu_outputs_at_normal_resolution() {
+    let mut p=Project::new(64,64,24,120).unwrap();p.background=[0.;4];
+    let mut reference=Layer::solid(1,"Reference",[64.;2],[32.,32.,0.],[1.;4]);
+    reference.content=Content::Composition {clip:CompositionClip::new("comp-1".into())};
+    p.layers.push(reference.clone());
+    for n in 1..=80 {
+        let mut camera=Camera::new(64,64);camera.created=false;
+        let mut c=Composition {id:format!("comp-{n}"),name:format!("Library {n}"),
+            width:64,height:64,fps:24,frames:120,background:[0.;4],camera,layers:vec![],expressions:vec![]};
+        if n<9 {
+            let mut l=reference.clone();l.content=Content::Composition {clip:CompositionClip::new(format!("comp-{}",n+1))};
+            c.layers.push(l);
+        } else if n==9 {
+            c.layers.push(Layer::solid(1,"Color",[64.;2],[32.,32.,0.],[0.2,0.8,0.3,1.]));
+        }
+        p.compositions.push(c);
+    }
+    p.validate().unwrap();
+    let mut flat=Project::new(64,64,24,120).unwrap();flat.background=[0.;4];
+    flat.layers=p.compositions[8].layers.clone();
+    let mut r=pollster::block_on(Renderer::headless()).unwrap();
+    let expected=capture(&mut r,&flat,0.);
+    let target=r.capture_target(64,64).unwrap();let mut s=Scene::new(&p);
+    let mut bytes=0;
+    for f in [0.,2.,1.,2.,0.] {
+        s.sample(&p,f,None).unwrap();r.retain_video_instances(&s);
+        let pixels=r.capture(&s,&target).unwrap().0;
+        assert!(pixels.iter().zip(&expected).all(|(a,b)|a.abs_diff(*b)<=3));
+        if bytes==0 {bytes=r.texture_bytes();} else {assert_eq!(r.texture_bytes(),bytes);}
+    }
+    assert!(bytes<512*1024); // 71 unused library nodes allocated no render targets.
+    let mut builder=PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    let mut bundle=vec![];composition_plan::build(&mut builder,&s,&p,&[0],&mut bundle).unwrap();
+    assert_eq!(u32::from_le_bytes(bundle[8..12].try_into().unwrap()),10);
+    let repeated=s.nested[0].clone();
+    s.nested=vec![repeated;aem_core::composition::MAX_RENDER_COMPOSITION_INSTANCES];
+    bundle=vec![7;256];
+    assert!(composition_plan::build(&mut builder,&s,&p,&[0],&mut bundle).is_err());
+    assert!(bundle.is_empty());
+}
+
+#[test]
+fn repeated_mixed_rate_shake_reuses_scenes_without_changing_pixels_or_export_plans() {
+    let mut p = Project::new(192, 192, 59, 118).unwrap();
+    p.background = [0.; 4];
+    p.camera.created = false;
+    p.layers = vec![
+        Layer::solid(1, "Red", [70., 45.], [65., 65., 0.], [0.9, 0.2, 0.1, 0.6]),
+        Layer::solid(2, "Blue", [70., 45.], [128., 128., 0.], [0.1, 0.3, 0.9, 0.7]),
+    ];
+    let package = aem_effects::builtin::package().unwrap();
+    let definition = package.manifest.effects.iter().find(|d| d.id == "shake").unwrap();
+    let mut effect = EffectInstance::new(1, &package.manifest.id, &package.manifest.version, &package.hash, definition, [70., 45.]);
+    for (id, value) in [("translation", [12., 6., 0., 0.]), ("rotation", [0.; 4]), ("zoom", [0.; 4])] {
+        effect.params.get_mut(id).unwrap().track.value = value;
+    }
+    p.layers[0].effects.push(effect);
+    p.rebuild_plugin_dependencies();
+    let mut e = Engine::new(p).unwrap();
+    apply(&mut e, MAIN_COMPOSITION, json!({"kind":"precompose","objects":[1,2],"name":"inside"}));
+    let reference = e.project().layers[0].id;
+    apply(&mut e, MAIN_COMPOSITION, json!({"kind":"precompose","objects":[reference],"name":"outside"}));
+    let mut p = e.snapshot();
+    p.compositions[0].fps = 144;
+    p.compositions[0].frames = 288;
+    let mut duplicate = p.layers[0].clone();
+    duplicate.id += 1;
+    duplicate.three_d = true;
+    duplicate.transform.rotation.value = [10., 30., 5.];
+    if let Content::Composition { clip } = &mut duplicate.content { clip.source_start_frame = 10; }
+    p.layers.push(duplicate);
+    p.validate().unwrap();
+    let mut reused = Scene::new(&p);
+    let mut r = pollster::block_on(Renderer::headless()).unwrap();
+    let target = r.capture_target(192, 192).unwrap();
+    let mut builder = PlanBuilder::new(aem_effects::Registry::new_with_builtins().unwrap()).unwrap();
+    for frame in [0., 17., 58., 115., 17., 0.] {
+        reused.sample(&p, frame, None).unwrap();
+        r.retain_video_instances(&reused);
+        let actual = r.capture(&reused, &target).unwrap().0;
+        let mut fresh = Scene::new(&p);
+        fresh.sample(&p, frame, None).unwrap();
+        let expected = r.capture(&fresh, &target).unwrap().0;
+        assert_eq!(actual, expected, "scene reuse changed frame {frame}");
+        let mut cached_plan = vec![];
+        composition_plan::build(&mut builder, &reused, &p, &[0], &mut cached_plan).unwrap();
+        let mut fresh_plan = vec![];
+        composition_plan::build(&mut builder, &fresh, &p, &[0], &mut fresh_plan).unwrap();
+        assert_eq!(cached_plan, fresh_plan, "scene reuse changed export plan at frame {frame}");
+    }
+}

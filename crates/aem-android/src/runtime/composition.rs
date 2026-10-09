@@ -53,7 +53,7 @@ impl Session {
         }
         self.engine
             .project()
-            .composition(id)
+            .composition_view(id)
             .map_err(|e| e.to_string())?;
         let route = if let Some(path) = path {
             if path.is_empty()
@@ -115,7 +115,7 @@ impl Session {
         let id = v["composition"].as_str().ok_or("missing composition ID")?;
         self.engine
             .project()
-            .composition(id)
+            .composition_view(id)
             .map_err(|e| e.to_string())?;
         let op = v["op"].as_str().ok_or("missing composition operation")?;
         match op {
@@ -130,25 +130,8 @@ impl Session {
                 )
             }
             "reference_candidates" => {
-                let mut results = Vec::new();
-                for target in self.engine.project().composition_ids() {
-                    let mut test =
-                        Engine::new(self.engine.snapshot()).map_err(|e| e.to_string())?;
-                    if test
-                        .apply(Command::InComposition {
-                            composition: id.into(),
-                            command: Box::new(Command::Composition {
-                                action: CompositionAction::Reference {
-                                    target: target.clone(),
-                                    at_frame: 0,
-                                },
-                            }),
-                        })
-                        .is_ok()
-                    {
-                        results.push(target);
-                    }
-                }
+                let results = self.engine.project().composition_reference_candidates(id)
+                    .map_err(|e| e.to_string())?;
                 return Ok(json!({"compositions":results}));
             }
             "delete_check" => {

@@ -251,7 +251,13 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         check(GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)==GLES30.GL_FRAMEBUFFER_COMPLETE){"离屏合成目标不可用"}
         } catch(error:Throwable) {close();throw error}
     }
+    private fun makeCurrent() {
+        if(EGL14.eglGetCurrentContext()!=context||EGL14.eglGetCurrentSurface(EGL14.EGL_DRAW)!=window) {
+            check(context!=EGL14.EGL_NO_CONTEXT&&window!=EGL14.EGL_NO_SURFACE&&EGL14.eglMakeCurrent(display,window,window,context)){"导出图形上下文恢复失败"}
+        }
+    }
     fun prepareBundle(bundle:ByteBuffer) {
+        makeCurrent()
         check(bundle.getInt(0)==0x4243534d&&bundle.getInt(4)==1&&bundle.getInt(24)==80&&bundle.getInt(28)==40){"不兼容的合成计划"}
         val count=bundle.getInt(8);check(count in 1..64&&bundle.getInt(12) in 32..bundle.capacity()){ "合成计划范围失效" }
         val active=HashSet<Long>()
@@ -315,6 +321,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         }
     }
     fun drawBundle(bundle:ByteBuffer) {
+        makeCurrent()
         val count=bundle.getInt(8);val root=bundle.getInt(16)
         for(i in 0 until count) {
             val d=32+i*80;val dynamic=HashMap<Int,Int>()
@@ -329,6 +336,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         drawPresentation()
     }
     fun uploadVideo(slot:Long,w:Int,h:Int,pixels:ByteBuffer) {
+        makeCurrent()
         val previous=videoSizes[slot]
         if(previous==null) {
             val bytes=w.toLong()*h*4;check(imageBytes+bytes+sourceResourceBytes()<=128L*1024*1024){"导出纹理超出预算"}
@@ -340,7 +348,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
             GLES30.glTexSubImage2D(GLES30.GL_TEXTURE_2D,0,0,0,w,h,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,pixels)
         }
     }
-    fun draw(buffer:ByteBuffer) {prepareImages(listOf(buffer));draw(buffer,frameTexture,width,height,clear,videoTextures.mapKeys{it.key.toInt()},false);drawPresentation()}
+    fun draw(buffer:ByteBuffer) {makeCurrent();prepareImages(listOf(buffer));draw(buffer,frameTexture,width,height,clear,videoTextures.mapKeys{it.key.toInt()},false);drawPresentation()}
     private fun draw(buffer:ByteBuffer,target:Int,w:Int,h:Int,background:FloatArray,dynamic:Map<Int,Int>,flip:Boolean) {
         check(buffer.capacity()>=128&&buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==5){"不兼容的帧计划"}
         val total=buffer.getInt(28);val vertexOffset=buffer.getInt(60);val bytes=buffer.getInt(80)*20
@@ -418,6 +426,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
     /** Optional diagnostic readback of the unencoded composition, bottom row first.
      * RGB is sRGB-encoded premultiplied linear color; alpha is coverage. */
     fun readPixelsInto(pixels:ByteBuffer) {
+        makeCurrent()
         check(pixels.isDirect&&pixels.capacity()>=width*height*4){"诊断像素缓冲区不足"}
         pixels.clear()
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer)
@@ -427,6 +436,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0)
     }
     fun present(nanos:Long) {
+        makeCurrent()
         check(EGLExt.eglPresentationTimeANDROID(display,window,nanos)){"帧时间戳提交失败"}
         check(EGL14.eglSwapBuffers(display,window)){"编码 Surface 提交失败"}
     }
@@ -448,6 +458,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         EGL14.eglReleaseThread();EGL14.eglTerminate(display)
     }
     private fun texture(w:Int,h:Int,data:ByteBuffer?):Int {
+        makeCurrent()
         val limit=IntArray(1);GLES30.glGetIntegerv(GLES30.GL_MAX_TEXTURE_SIZE,limit,0)
         check(w<=limit[0]&&h<=limit[0]){"图片超过设备纹理尺寸"}
         val id=IntArray(1);GLES30.glGenTextures(1,id,0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,id[0])

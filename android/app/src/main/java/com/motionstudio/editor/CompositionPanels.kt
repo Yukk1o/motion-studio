@@ -25,6 +25,7 @@ internal fun compositionErrorMessage(raw:String):String {
         "keyframe_collision"->"帧率变化会合并关键帧，请选择保留帧编号或调整关键帧。"
         "composition_in_use"->"此合成仍被图层引用，请先删除引用图层。"
         "resource_limit"->"合成数量、嵌套深度或资源使用已达到上限。"
+        "render_resource_limit"->"当前帧同时显示的子合成过多，请减少重叠片段。"
         "cycle"->"此引用会形成循环，请选择其他合成。"
         "context_busy"->"请先结束当前拖动或关闭插件编辑器。"
         else->detail.optString("message","合成操作失败")
@@ -46,6 +47,7 @@ internal fun compositionErrorMessage(raw:String):String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable internal fun CompositionLibrary(vm:EditorViewModel,onDismiss:()->Unit) {
     val nodes=vm.state.sample?.optJSONArray("compositions").objects()
+    val maxCompositions=vm.state.sample?.optJSONObject("capabilities")?.optJSONObject("composition_api")?.optInt("max_compositions",32)?:32
     var candidates by remember(vm.compositionId){mutableStateOf<Set<String>>(emptySet())}
     var creating by remember{mutableStateOf(false)}
     var deleting by remember{mutableStateOf<JSONObject?>(null)}
@@ -53,7 +55,7 @@ internal fun compositionErrorMessage(raw:String):String {
     LaunchedEffect(vm.compositionId,vm.state.sample?.optLong("revision")){vm.compositionQuery("reference_candidates"){data->candidates=data.getJSONArray("compositions").let{a->(0 until a.length()).map{a.getString(it)}.toSet()}}}
     ModalBottomSheet(onDismissRequest=onDismiss,containerColor=Panel,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
         Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(horizontal=16.dp).padding(bottom=16.dp).testTag("composition-library")) {
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("合成",Modifier.weight(1f),fontSize=20.sp);TextButton(onClick={creating=true},enabled=nodes.size<32,modifier=Modifier.testTag("create-child-composition")){Text("新建")}}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("合成",Modifier.weight(1f),fontSize=20.sp);TextButton(onClick={creating=true},enabled=nodes.size<maxCompositions,modifier=Modifier.testTag("create-child-composition")){Text("新建")}}
             Column(Modifier.weight(1f,false).verticalScroll(rememberScrollState())){nodes.forEach{node->val id=node.getString("id")
                 Column(Modifier.fillMaxWidth().padding(vertical=8.dp)) {
                     Text(node.getString("name")+if(id==vm.compositionId)" · 当前"else"",color=if(id==vm.compositionId)Accent else Ink)
