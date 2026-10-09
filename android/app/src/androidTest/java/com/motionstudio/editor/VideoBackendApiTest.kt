@@ -1,7 +1,8 @@
 package com.motionstudio.editor
 
 import android.graphics.BitmapFactory
-import android.graphics.PixelFormat
+import android.graphics.ImageFormat
+import android.hardware.HardwareBuffer
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
@@ -47,7 +48,9 @@ class VideoBackendApiTest {
     @Test fun gpuYuvPreviewPrefetchesWithoutMoreRenderRequestsAndSeekStaysExact() {
         val root=root();val id=create(root)
         val consumer=HandlerThread("video-preview-consumer").apply{start()}
-        val reader=ImageReader.newInstance(256,144,PixelFormat.RGBA_8888,3)
+        // This consumer only drains presented frames. PRIVATE accepts the
+        // backend's native Surface format; no CPU pixel access is requested.
+        val reader=ImageReader.newInstance(256,144,ImageFormat.PRIVATE,3,HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE)
         reader.setOnImageAvailableListener({r->r.acquireLatestImage()?.close()},Handler(consumer.looper))
         try {
             import(id,"silent-24fps.mp4")
