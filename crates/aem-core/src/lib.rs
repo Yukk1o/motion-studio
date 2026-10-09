@@ -13,7 +13,6 @@ mod hierarchy;
 mod model;
 pub mod particle_history;
 pub mod position_path;
-pub mod selection_geometry;
 pub mod masks;
 pub mod plugin_editor;
 mod scene;
