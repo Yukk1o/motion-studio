@@ -387,6 +387,9 @@ impl Renderer {
     pub fn effect_plan_builds(&self) -> u64 {
         self.effect_gpu.builder.preview_plan_builds
     }
+    pub fn set_scratch_budget(&mut self, bytes: u64) -> Result<()> {
+        self.effect_gpu.builder.set_scratch_budget(bytes).map_err(RenderError::Invalid)
+    }
     pub fn effect_plan_cache_hits(&self) -> u64 {
         self.effect_gpu.builder.preview_cache_hits
     }

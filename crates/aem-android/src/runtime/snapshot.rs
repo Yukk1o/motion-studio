@@ -11,6 +11,7 @@ impl Session {
             .map_or((p.width, p.height), |g| (g.config.width, g.config.height));
         let (width, height) = self.preview.render_dimensions(p.width, p.height, sw, sh);
         json!({"mode":self.preview.mode.name(),"tier":tier.name(),"width":width,"height":height,"fps":tier.fps(),
+            "scratchBudgetBytes":self.effects.scratch_budget(),"memoryPolicyVersion":1,
             "effectResolution":if self.preview.mode == PreviewMode::High {"full_layer"} else {"projected_2d"},
             "imageResolution":if self.preview.mode == PreviewMode::High {"original"} else {"proxy_max_2048"},
             "imageDecodes":self.graphics.as_ref().map_or(0,|g|g.renderer.image_decodes),

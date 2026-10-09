@@ -1,11 +1,19 @@
 package com.motionstudio.editor
 
 import android.view.Surface
+import android.content.Context
 import java.nio.ByteBuffer
 
 object NativeBridge {
     init { System.loadLibrary("motion_engine") }
     @JvmStatic external fun create(root: String, project: String): Long
+    @JvmStatic external fun configureMemory(id:Long,totalMem:Long,guarded:Boolean):String
+    internal fun createConfigured(context:Context,root:String,project:String):Long {
+        val id=create(root,project)
+        if(id!=0L)try { DeviceMemoryProfile.read(context).applyTo(id) }
+        catch(error:Throwable){destroy(id);throw error}
+        return id
+    }
     @JvmStatic external fun projectTemplate(kind:Int):String
     @JvmStatic external fun curveGraph(easing:String):String
     @JvmStatic external fun colorCurveGraph(value:String):String
