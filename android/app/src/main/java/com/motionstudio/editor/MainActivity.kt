@@ -180,7 +180,7 @@ open class MainActivity:ComponentActivity() {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars).onGloballyPositioned{editorOrigin=it.positionInRoot()}) {
             val nativeSession=vm.pluginEditor.session?.takeIf{it.definition.optJSONObject("native_editor")!=null}
             if(nativeSession!=null) {
-                NativePluginEditorView(vm,vm.pluginEditor,nativeSession,Modifier.fillMaxSize()){previewModifier->Preview(vm,previewModifier,interactive=false)}
+                NativePluginEditorView(vm,vm.pluginEditor,nativeSession,Modifier.fillMaxSize()){previewModifier,positionActions->Preview(vm,previewModifier,interactive=false,positionActions=positionActions)}
                 return@BoxWithConstraints
             }
             val wide=maxWidth>maxHeight
@@ -400,7 +400,7 @@ open class MainActivity:ComponentActivity() {
     BackHandler(enabled=layoutEditing,onBack=::finishLayout)
 }
 
-@Composable private fun Preview(vm:EditorViewModel,modifier:Modifier,interactive:Boolean=true) {
+@Composable private fun Preview(vm:EditorViewModel,modifier:Modifier,interactive:Boolean=true,positionActions:PositionEditActions?=null) {
     var menu by remember{mutableStateOf(false)}
     Box(modifier.background(Color(0xFF0B0D10)).clipToBounds()) {
         AndroidView(factory={context->SurfaceView(context).also{view->
@@ -435,10 +435,17 @@ open class MainActivity:ComponentActivity() {
         }
         Canvas(Modifier.fillMaxSize()) {
             if(!vm.playing&&vm.selected!=0L&&!vm.vectorOpen) {
-                previewPolygons(vm,size.width,size.height).filter{if(vm.layerSelectionMode)it.first in vm.selectedLayerIds else it.first==vm.selected}.forEach{(_,points)->
+                previewPolygons(vm,size.width,size.height).filter{if(vm.layerSelectionMode)it.first in vm.selectedLayerIds else it.first==vm.selected}.forEach{(objectId,points)->
                     val outline=Path().apply{moveTo(points[0].x,points[0].y);points.drop(1).forEach{lineTo(it.x,it.y)};close()}
                     drawPath(outline,Accent,style=androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
                     if(!vm.layerSelectionMode)points.forEach{drawRect(Ink,Offset(it.x-3.dp.toPx(),it.y-3.dp.toPx()),Size(6.dp.toPx(),6.dp.toPx()))}
+                    if(vm.showLayerCenters)previewAnchor(vm,objectId,size.width,size.height)?.let{center->
+                        val radius=6.dp.toPx()
+                        drawCircle(Background.copy(alpha=.8f),radius+2.dp.toPx(),center)
+                        drawLine(Ink,center-Offset(radius,0f),center+Offset(radius,0f),1.5.dp.toPx())
+                        drawLine(Ink,center-Offset(0f,radius),center+Offset(0f,radius),1.5.dp.toPx())
+                        drawCircle(Accent,2.dp.toPx(),center)
+                    }
                 }
             }
         }
@@ -546,7 +553,10 @@ open class MainActivity:ComponentActivity() {
                 } finally {if(!ended)cancelled=true;if(active&&!observing){if(ended)vm.endGesture()else vm.cancelGesture()}}
                 if(!active&&!observing)picked?.let{vm.select(it,false)}
             }
-        })
+        }) {
+            if(!vm.eyedropperActive&&!vm.playing&&!vm.state.observing&&vm.colorEditor==null&&!vm.vectorOpen&&!vm.maskOpen)
+                PositionPreviewOverlay(vm,positionActions)
+        }
         if(vm.eyedropperActive)Row(Modifier.align(Alignment.TopCenter).background(Panel).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("点选画面取色",color=Ink,fontSize=13.sp)
             TextButton(onClick=vm::cancelEyedropper,modifier=Modifier.heightIn(min=48.dp).testTag("eyedropper-cancel")){Text("取消")}

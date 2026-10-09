@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -24,7 +25,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Reusable native page content; plugins supply slots, the host owns every widget. */
-@Composable internal fun NativePluginEditorView(vm:EditorViewModel,host:PluginEditorHost,session:PluginEditorSession,modifier:Modifier,preview:@Composable (Modifier)->Unit) {
+@Composable internal fun NativePluginEditorView(vm:EditorViewModel,host:PluginEditorHost,session:PluginEditorSession,modifier:Modifier,preview:@Composable (Modifier,PositionEditActions)->Unit) {
     val schema=session.definition.getJSONObject("native_editor")
     val state=host.state?:session.initialState
     val sections=schema.getJSONArray("sections").objects().filter{s->s.getJSONArray("slots").objects().any{it.getString("kind") !in setOf("preview","timeline")}}
@@ -34,17 +35,20 @@ import org.json.JSONObject
     var error by remember(session.token){mutableStateOf<String?>(null)}
     var number by remember(session.token){mutableStateOf<Triple<String,String,(String)->Unit>?>(null)}
     val colors=remember(session.token){NativePluginColors(vm,host,session.token)}
+    val positions=remember(session.token){NativePluginPositions(host)}
+    var rotationAxes by remember(session.token){mutableStateOf(false)}
     DisposableEffect(session.token){onDispose{if(host.session?.token!=session.token||vm.isClosed)vm.cancelEyedropper()}}
     val enabled=!state.optBoolean("locked")&&!editing&&!colors.busy&&!colors.pickingDirectly
     val compact=LocalConfiguration.current.screenHeightDp<480
     fun edit(request:JSONObject) {
-        if((host.state?:state).optBoolean("locked")||editing||colors.busy||colors.palette!=null)return
+        if((host.state?:state).optBoolean("locked")||editing||colors.busy||colors.palette!=null||positions.active||positions.busy)return
         vm.pause()
         editing=true;request.put("revision",(host.state?:state).getLong("revision"))
         host.request(request){reply->editing=false;error=if(reply.optBoolean("ok"))null else reply.optString("error")}
     }
     LaunchedEffect(session.token,selectedParam){vm.property="effect:${state.getLong("instance")}:$selectedParam"}
-    fun close(commit:Boolean){vm.pause();colors.finish(commit){host.close(session.token,commit)}}
+    fun finishEdits(after:()->Unit){positions.finish(true){colors.finish(true,after)}}
+    fun close(commit:Boolean){vm.pause();positions.finish(commit){colors.finish(commit){host.close(session.token,commit)}}}
     BackHandler {close(false)}
     fun numeric(label:String,value:String,low:Double,high:Double,integer:Boolean=false,change:(Double)->Unit) {
         number=Triple(label,value){text->val v=text.toDoubleOrNull()
@@ -57,16 +61,17 @@ import org.json.JSONObject
             Text("原生设计器",Modifier.padding(12.dp),color=Muted)
         }
         val slots=schema.getJSONArray("sections").objects().flatMap{it.getJSONArray("slots").objects()}
-        if(slots.any{it.getString("kind")=="preview"})preview(Modifier.fillMaxWidth().height(if(compact)96.dp else 180.dp).testTag("native-plugin-preview"))
+        if(slots.any{it.getString("kind")=="preview"})preview(Modifier.fillMaxWidth().height(if(compact)96.dp else 180.dp).testTag("native-plugin-preview"),positions)
         val definition=session.definition.getJSONArray("params").objects().firstOrNull{it.getString("id")==selectedParam}
         val keys=state.getJSONObject("params").optJSONObject(selectedParam)?.getJSONObject("track")?.getJSONArray("keys").objects().map{it.getInt("frame")+state.optInt("timeline_offset")}
         if(slots.any{it.getString("kind")=="timeline"})NativePluginTimeline(vm,state,definition?.getString("name")?:selectedParam,keys,enabled&&definition?.optBoolean("animatable")==true,
-            transportEnabled=!editing&&!colors.busy,
-            onPlay={colors.finish(true){vm.togglePlay(true)}},onSeek={at->colors.finish(true){vm.seek(at,true)}},
-            onExpression={target->colors.finish(true){host.close(session.token,true);vm.openExpression(target)}},
-            onKey={colors.finish(true){edit(JSONObject().put("op","key").put("param",selectedParam))}})
+            transportEnabled=!editing&&!colors.busy&&!positions.busy&&!positions.active,
+            onPlay={finishEdits{vm.togglePlay(true)}},onSeek={at->finishEdits{vm.seek(at,true)}},
+            onExpression={target->finishEdits{host.close(session.token,true);vm.openExpression(target)}},
+            onCurve={finishEdits{val instance=state.getLong("instance");host.close(session.token,true);vm.openEffects();vm.chooseEffectParam(instance,selectedParam);vm.effectCurveRequest=instance to selectedParam}},
+            onKey={finishEdits{edit(JSONObject().put("op","key").put("param",selectedParam))}})
         if(sections.isNotEmpty())ScrollableTabRow(tab.coerceAtMost(sections.lastIndex),edgePadding=0.dp) {
-            sections.forEachIndexed{i,section->Tab(selected=tab==i,enabled=colors.palette==null&&!colors.busy,onClick={tab=i},modifier=Modifier.heightIn(min=48.dp).testTag("native-slot-tab-${section.getString("id")}"),text={Text(section.getString("title"))})}
+            sections.forEachIndexed{i,section->Tab(selected=tab==i,enabled=colors.palette==null&&!colors.busy&&!positions.active&&!positions.busy,onClick={tab=i},modifier=Modifier.heightIn(min=48.dp).testTag("native-slot-tab-${section.getString("id")}"),text={Text(section.getString("title"))})}
         }
         val picker=colors.palette?.takeUnless{colors.pickingDirectly}
         if(picker!=null)key(picker){ColorEditingPanel(picker,(if(compact)Modifier.height(360.dp)else Modifier.weight(1f)).fillMaxWidth(),colors::preview,{colors.finish(it)},colors::pick,vm.eyedropperActive)}
@@ -79,7 +84,12 @@ import org.json.JSONObject
                         TextButton(onClick={selectedParam=id},modifier=(if(kind=="color")Modifier else Modifier.weight(1f)).heightIn(min=48.dp).testTag("native-param-select-$id"),contentPadding=PaddingValues(0.dp)){Text(p.getString("name")+p.optString("units").let{if(it.isEmpty())""else" · $it"},if(kind=="color")Modifier else Modifier.fillMaxWidth(),color=if(selectedParam==id)Accent else Ink,maxLines=1,overflow=TextOverflow.Ellipsis)}
                         if(kind!="color"&&p.optBoolean("animatable"))TextButton(onClick={selectedParam=id;edit(JSONObject().put("op","key").put("param",id))},enabled=enabled,modifier=Modifier.size(48.dp).testTag("native-param-key-$id"),contentPadding=PaddingValues(0.dp)){Text("◆")}
                     }
-                    if(kind=="color") {
+                    if(isPositionParameter(p)) {
+                        val target=JSONObject().put("kind","effect").put("object",state.getLong("object")).put("effect",state.getLong("instance")).put("param",id)
+                        PositionControls(p.getString("name"),"native-param-$id",value,(0 until if(kind=="vec2")2 else 3).toList(),enabled,p.getDouble("min"),p.getDouble("max"),
+                            onSelect={selectedParam=id},onBegin={positions.begin(target)},onValue={next,axes->positions.value(next,axes)},
+                            onFinish={positions.finish(it)},inertiaGroup=vm.gestureInertia)
+                    }else if(kind=="color") {
                         ColorParameterRow(p.getString("name"),"native-param-$id",Rgba.from(value),enabled,labelContent=propertyHeader,
                             onOpen={advanced->selectedParam=id;colors.open(p,advanced)},onPick={selectedParam=id;colors.pick(p)})
                     }else {
@@ -111,16 +121,23 @@ import org.json.JSONObject
                 }
                 "seed" -> OutlinedButton(onClick={numeric("随机种子",state.getLong("seed").toString(),0.0,4294967295.0,true){edit(JSONObject().put("op","seed").put("seed",it.toLong()))}},enabled=enabled,modifier=Modifier.heightIn(min=48.dp)){Text("随机种子 · ${state.getLong("seed")}")}
                 "transform" -> listOf("position","rotation","scale").forEach{property->
-                    Text(mapOf("position" to "发射器位置","rotation" to "旋转","scale" to "缩放")[property]!!,color=Ink)
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                        Text(mapOf("position" to "发射器位置","rotation" to "旋转","scale" to "缩放")[property]!!,Modifier.weight(1f),color=Ink)
+                        if(property=="rotation"&&vm.threeD(state.getLong("object")))TextButton(onClick={rotationAxes=!rotationAxes},modifier=Modifier.heightIn(min=48.dp).testTag("native-rotation-axes")){Text(if(rotationAxes)"返回数值"else"轴展示")}
+                    }
                     val value=state.getJSONObject("transform_values").getJSONArray(property)
                     val limit=when(property){"position"->1e7;"rotation"->1e6;else->1e5}
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){repeat(3){axis->OutlinedButton(onClick={numeric("$property ${listOf("X","Y","Z")[axis]}",value.getDouble(axis).toString(),-limit,limit){edit(JSONObject().put("op","transform").put("property",property).put("value",JSONArray(value.toString()).put(axis,it)))}},enabled=enabled,modifier=Modifier.weight(1f).heightIn(min=48.dp)){Text("${listOf("X","Y","Z")[axis]} ${"%.3g".format(value.getDouble(axis))}",maxLines=1)}}}
+                    val axes=if(property=="rotation"&&!vm.threeD(state.getLong("object")))listOf(2)else listOf(0,1,2)
+                    if(property=="rotation"&&rotationAxes&&axes.size>1)Column(Modifier.fillMaxWidth()) {
+                        axes.forEach{axis->OutlinedButton(onClick={numeric("旋转 ${listOf("X","Y","Z")[axis]}",value.getDouble(axis).toString(),-limit,limit){edit(JSONObject().put("op","transform").put("property",property).put("value",JSONArray(value.toString()).put(axis,it)))}},enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).testTag("native-rotation-axis-${listOf("X","Y","Z")[axis]}")){Text("${listOf("X","Y","Z")[axis]} 轴 · ${"%.3g".format(value.getDouble(axis))}°")}}
+                    }else Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){axes.forEach{axis->OutlinedButton(onClick={numeric("$property ${listOf("X","Y","Z")[axis]}",value.getDouble(axis).toString(),-limit,limit){edit(JSONObject().put("op","transform").put("property",property).put("value",JSONArray(value.toString()).put(axis,it)))}},enabled=enabled,modifier=Modifier.weight(1f).heightIn(min=48.dp)){Text("${listOf("X","Y","Z")[axis]} ${"%.3g".format(value.getDouble(axis))}",maxLines=1)}}}
                 }
                 "note" -> Text(slot.getString("text"),color=Muted,fontSize=13.sp)
             }}
         }}
         error?.let{Text(it,Modifier.padding(horizontal=12.dp),color=MaterialTheme.colorScheme.error)}
         colors.error?.let{Text(it,Modifier.padding(horizontal=12.dp).testTag("native-color-error"),color=MaterialTheme.colorScheme.error)}
+        positions.error?.let{Text(it,Modifier.padding(horizontal=12.dp).testTag("native-position-error"),color=MaterialTheme.colorScheme.error)}
         if(picker==null)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
             TextButton(onClick={close(false)},modifier=Modifier.heightIn(min=48.dp).testTag("native-editor-cancel")){Text("取消")}
             TextButton(onClick={close(true)},enabled=!editing&&!colors.busy,modifier=Modifier.heightIn(min=48.dp).testTag("native-editor-done")){Text("完成")}
@@ -129,7 +146,7 @@ import org.json.JSONObject
     number?.let{(title,initial,change)->InputDialog(title,initial,onDismiss={number=null},numeric=true,onConfirm=change)}
 }
 
-@Composable private fun NativePluginTimeline(vm:EditorViewModel,state:JSONObject,label:String,keys:List<Int>,enabled:Boolean,transportEnabled:Boolean,onPlay:()->Unit,onSeek:(Double)->Unit,onExpression:(JSONObject)->Unit,onKey:()->Unit) {
+@Composable private fun NativePluginTimeline(vm:EditorViewModel,state:JSONObject,label:String,keys:List<Int>,enabled:Boolean,transportEnabled:Boolean,onPlay:()->Unit,onSeek:(Double)->Unit,onExpression:(JSONObject)->Unit,onCurve:()->Unit,onKey:()->Unit) {
     val frames=state.getInt("frames");val last=(frames-1).coerceAtLeast(1);val current=vm.frame.toInt()
     Column(Modifier.fillMaxWidth().padding(horizontal=12.dp).testTag("native-plugin-timeline")) {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
@@ -141,6 +158,7 @@ import org.json.JSONObject
         Row(Modifier.fillMaxWidth().background(Accent.copy(alpha=.08f),RoundedCornerShape(8.dp)).padding(start=8.dp),verticalAlignment=Alignment.CenterVertically) {
             Text("$label · 帧 $current / ${frames-1} · ${state.getInt("fps")} fps",Modifier.weight(1f),color=Muted,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
             val target=vm.expressionTargetForCurrent()
+            IconButton(onClick=onCurve,enabled=transportEnabled&&enabled,modifier=Modifier.size(48.dp).testTag("native-plugin-easing")){Icon(Icons.Default.ShowChart,"缓动曲线")}
             IconButton(onClick={target?.let(onExpression)},enabled=transportEnabled&&target!=null,modifier=Modifier.size(48.dp).testTag("native-plugin-expression")){Icon(Icons.Default.Code,"编辑当前参数表达式")}
         }
         Canvas(Modifier.fillMaxWidth().height(8.dp)){keys.filter{it in 0 until frames}.forEach{drawCircle(Color(0xFF58DCCA),3.dp.toPx(),Offset(it.toFloat()/last*size.width,size.height/2))}}

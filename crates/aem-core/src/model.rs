@@ -280,7 +280,7 @@ impl Project {
         p
     }
     pub fn validate(&self) -> Result<()> {
-        ensure((1..=8).contains(&self.version), "unsupported project format")?;
+        ensure((1..=9).contains(&self.version), "unsupported project format")?;
         ensure(self.plugin_dependencies == self.composition_dependencies(),
                "plugin dependency list does not match effect instances")?;
         self.validate_one(self)?;
@@ -288,9 +288,15 @@ impl Project {
     }
     pub(crate) fn validate_one(&self, document: &Project) -> Result<()> {
         ensure(
-            (1..=8).contains(&self.version),
+            (1..=9).contains(&self.version),
             "unsupported project format",
         )?;
+        let spatial = [&self.camera.position, &self.camera.target].iter().any(|t| t.keys.iter().any(|k| k.spatial.is_some()))
+            || self.layers.iter().any(|l| {
+                [&l.transform.position, &l.transform.rotation, &l.transform.scale].iter().any(|t|t.keys.iter().any(|k|k.spatial.is_some()))
+                    || l.effects.iter().any(|e|e.params.values().any(|p|p.track.keys.iter().any(|k|k.spatial.is_some())))
+            });
+        ensure(self.version >= 9 || !spatial, "spatial paths require project format nine")?;
         ensure(
             self.version >= 2 || self.layers.iter().all(|l| l.effects.is_empty()),
             "version 1 projects cannot contain effects",
@@ -569,7 +575,7 @@ impl Project {
             }
             self.version = 3;
         }
-        self.version = 8;
+        self.version = self.version.max(8);
         Ok(self)
     }
     pub fn edit_frame(&self, object: u64, frame: u32) -> Result<i32> {

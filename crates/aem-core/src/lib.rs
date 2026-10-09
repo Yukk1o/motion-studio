@@ -12,6 +12,8 @@ mod expressions;
 mod hierarchy;
 mod model;
 pub mod particle_history;
+pub mod position_path;
+pub mod selection_geometry;
 pub mod masks;
 pub mod plugin_editor;
 mod scene;
@@ -21,7 +23,7 @@ mod timeline;
 mod video;
 pub mod vector;
 
-pub use animation::{Axis, AxisTracks, Ease, Keyframe, Track, Tween};
+pub use animation::{Axis, AxisTracks, Ease, Keyframe, SpatialTangents, Track, Tween};
 pub use audio::{AudioAsset, AudioClip};
 pub use camera::{
     to_project, to_world, Camera, CameraMode, CameraPose, ObservationView, Observer, ProjectionKind,

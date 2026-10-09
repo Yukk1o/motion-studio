@@ -39,8 +39,7 @@ class RotationControlsTest {
     @After fun teardown(){if(::scenario.isInitialized)scenario.close()}
     private fun angles()=vm.layer(2)!!.getJSONObject("transform").getJSONObject("rotation").getJSONArray("value")
     private fun chooseAxis(name:String) {
-        compose.onNodeWithTag("rotation-axis-menu").performClick()
-        compose.onNodeWithTag("rotation-axis-"+name).performClick()
+        compose.onNodeWithTag("rotation-axis-"+name).performScrollTo().performClick()
         compose.waitForIdle()
     }
     private fun photo(name:String) {
@@ -107,8 +106,10 @@ class RotationControlsTest {
     }
 
     @Test fun rotationControlsRemainUsableWithNarrowWindowsAndLargeFonts() {
-        compose.onNodeWithTag("rotation-axis-menu").assertIsDisplayed()
-        val menu=compose.onNodeWithTag("rotation-axis-menu").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("rotation-axis-menu").assertDoesNotExist()
+        compose.onNodeWithTag("rotation-axis-X").performScrollTo().assertIsDisplayed()
+        chooseAxis("X")
+        val menu=compose.onNodeWithTag("rotation-axis-X").fetchSemanticsNode().boundsInRoot
         assertTrue(menu.height>=48*density-.5f)
         val ruler=compose.onNodeWithTag("rotation-ruler").fetchSemanticsNode().boundsInRoot
         assertTrue(ruler.height>=48*density-.5f)

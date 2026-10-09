@@ -34,6 +34,10 @@ class MotionInteractionTest {
     @After fun teardown(){compose.runOnUiThread{store.clear()}}
     private fun position()=vm.layer(2)!!.getJSONObject("transform").getJSONObject("position").getJSONArray("value")
     private fun scopeKeys(key:String="position")=vm.layer(2)!!.getJSONObject("transform").getJSONObject(key).getJSONArray("keys")
+    private fun rowMiddle(objectId:Long):Float {
+        val ids=(if(vm.hasCamera())listOf(0L)else emptyList())+vm.state.project!!.getJSONArray("layers").objects().asReversed().map{it.getLong("id")}
+        return (44f+(ids.indexOf(objectId)+.5f)*timelineRowHeightDp(InstrumentationRegistry.getInstrumentation().targetContext.resources.configuration.fontScale))*density
+    }
     private fun seek(frame:Double) {
         compose.runOnIdle{vm.seek(frame)}
         compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==frame}
@@ -48,14 +52,14 @@ class MotionInteractionTest {
 
     @Test fun selectingLayersAndScrubbingDoesNotOpenTheInspector() {
         val timeline=compose.onNodeWithTag("timeline")
-        timeline.performTouchInput{click(Offset(230*density,171*density))}
+        timeline.performTouchInput{click(Offset(230*density,rowMiddle(2)))}
         compose.waitUntil(10000){vm.selected==2L}
         assertFalse(vm.panelOpen)
-        timeline.performTouchInput{down(Offset(230*density,171*density));moveBy(Offset(-60*density,0f),100);up()}
+        timeline.performTouchInput{down(Offset(230*density,rowMiddle(2)));moveBy(Offset(-60*density,0f),100);advanceEventTime(300);up()}
         compose.waitUntil(10000){vm.state.sample?.optDouble("frame")==40.0}
         assertEquals(40.0,vm.frame,.001);assertFalse(vm.panelOpen)
         photo("selected-timeline")
-        timeline.performTouchInput{advanceEventTime(500);doubleClick(Offset(200*density,171*density))}
+        timeline.performTouchInput{advanceEventTime(500);doubleClick(Offset(200*density,rowMiddle(2)))}
         compose.waitUntil(10000){vm.panelOpen}
         assertEquals(2L,vm.selected)
     }
@@ -103,7 +107,7 @@ class MotionInteractionTest {
         compose.waitUntil(10000){scopeKeys().length()==2}
         val key=scopeKeys().getJSONObject(1).toString()
         compose.onNodeWithTag("timeline").performTouchInput {
-            down(Offset(width/2f,9*density));moveBy(Offset(45*density,0f),150);up()
+            down(Offset(width/2f,9*density));advanceEventTime(650);moveBy(Offset(45*density,0f),150);up()
         }
         compose.waitUntil(10000){scopeKeys().getJSONObject(1).getInt("frame")==60}
         assertEquals(740.0,scopeKeys().getJSONObject(1).getJSONArray("value").getDouble(0),.001)

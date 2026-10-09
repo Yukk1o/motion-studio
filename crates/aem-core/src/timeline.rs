@@ -10,6 +10,8 @@ pub struct TimelineKey<T> {
     pub ease: Ease,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub curve: Option<Curve>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spatial: Option<crate::SpatialTangents<T>>,
 }
 #[derive(Debug, Serialize)]
 pub struct TimelineTrack<T> {
@@ -46,6 +48,7 @@ impl<T: Tween> Track<T> {
                     value: k.value,
                     ease: k.ease,
                     curve: k.curve,
+                    spatial: k.spatial.clone(),
                 })
                 .collect(),
         }

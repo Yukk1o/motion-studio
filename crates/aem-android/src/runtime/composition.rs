@@ -179,6 +179,14 @@ impl Session {
                     "assert_context" => {
                         return Ok(json!({"composition":id,"revision":self.engine.revision()}))
                     }
+                    "position_path" => {
+                        let target = serde_json::from_value(v["target"].clone()).map_err(|e| e.to_string())?;
+                        self.sample()?;
+                        let mut result = aem_core::position_path::sample(self.engine.project(), &self.scene, &target, self.frame)
+                            .map_err(|e|e.to_string())?;
+                        result["revision"] = json!(self.engine.revision());
+                        return Ok(result);
+                    }
                     "context" => {
                         let selection: Vec<u64> = serde_json::from_value(v["selection"].clone())
                             .map_err(|e| e.to_string())?;

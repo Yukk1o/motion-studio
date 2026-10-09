@@ -35,6 +35,9 @@ pub trait Tween: Copy + PartialEq {
     fn mix(self, other: Self, t: f32) -> Self;
     fn finite(self) -> bool;
     fn bounded(self, bound: f32) -> bool;
+    fn add(self, other: Self) -> Self;
+    fn spatial_supported() -> bool { false }
+    fn spatial_components(self) -> Option<[f32;3]> { None }
     fn components(self) -> Option<[f32; 3]> {
         None
     }
@@ -43,6 +46,7 @@ pub trait Tween: Copy + PartialEq {
     }
 }
 impl Tween for f32 {
+    fn add(self, other: Self) -> Self { (f64::from(self) + f64::from(other)) as f32 }
     fn bounded(self, bound: f32) -> bool {
         self.is_finite() && self.abs() <= bound
     }
@@ -55,6 +59,11 @@ impl Tween for f32 {
     }
 }
 impl<const N: usize> Tween for [f32; N] {
+    fn add(self, other: Self) -> Self { std::array::from_fn(|i| self[i].add(other[i])) }
+    fn spatial_supported() -> bool { (2..=4).contains(&N) }
+    fn spatial_components(self) -> Option<[f32;3]> {
+        Self::spatial_supported().then(|| std::array::from_fn(|i| self.get(i).copied().unwrap_or(0.)))
+    }
     fn bounded(self, bound: f32) -> bool {
         self.into_iter().all(|v| v.is_finite() && v.abs() <= bound)
     }
@@ -73,7 +82,16 @@ impl<const N: usize> Tween for [f32; N] {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, bound(deserialize = "T: Deserialize<'de>"))]
+pub struct SpatialTangents<T> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incoming: Option<T>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outgoing: Option<T>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, bound(deserialize = "T: Deserialize<'de>"))]
 pub struct Keyframe<T> {
     pub frame: i32,
     pub value: T,
@@ -81,6 +99,9 @@ pub struct Keyframe<T> {
     pub ease: Ease,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub curve: Option<Curve>,
+    /// Offsets from this key's value, independent of temporal easing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spatial: Option<SpatialTangents<T>>,
 }
 
 #[derive(Clone, Debug)]
@@ -252,7 +273,17 @@ impl<T: Tween> Track<T> {
             || a.ease.map(t),
             |curve| curve.sample(f64::from(t)).progress as f32,
         );
-        a.value.mix(b.value, progress)
+        let outgoing = a.spatial.as_ref().and_then(|s| s.outgoing);
+        let incoming = b.spatial.as_ref().and_then(|s| s.incoming);
+        if outgoing.is_none() && incoming.is_none() {
+            return a.value.mix(b.value, progress);
+        }
+        let c1 = outgoing.map_or_else(|| a.value.mix(b.value, 1.0 / 3.0), |v| a.value.add(v));
+        let c2 = incoming.map_or_else(|| a.value.mix(b.value, 2.0 / 3.0), |v| b.value.add(v));
+        let p0 = a.value.mix(c1, progress);
+        let p1 = c1.mix(c2, progress);
+        let p2 = c2.mix(b.value, progress);
+        p0.mix(p1, progress).mix(p1.mix(p2, progress), progress)
     }
     pub fn validate(&self, frame_count: u32) -> Result<()> {
         self.validate_range(frame_count as usize, Some(frame_count))
@@ -294,6 +325,13 @@ impl<T: Tween> Track<T> {
             if let Some(curve) = key.curve {
                 curve.validate()?;
             }
+            if let Some(s) = &key.spatial {
+                ensure(T::spatial_supported(), "spatial tangents require a vector track")?;
+                ensure(s.incoming.is_some() || s.outgoing.is_some(), "empty spatial tangents")?;
+                for v in s.incoming.iter().chain(&s.outgoing) {
+                    ensure(v.finite() && key.value.add(*v).finite(), "non-finite spatial tangent")?;
+                }
+            }
             ensure(
                 previous.is_none_or(|p| p < key.frame),
                 "keyframes must be unique and sorted",
@@ -319,9 +357,14 @@ impl<T: Tween> Track<T> {
             value,
             ease,
             curve: None,
+            spatial: None,
         };
         match self.keys.binary_search_by_key(&frame, |k| k.frame) {
-            Ok(index) => self.keys[index] = key,
+            Ok(index) => {
+                let mut key = key;
+                key.spatial = self.keys[index].spatial.clone();
+                self.keys[index] = key;
+            },
             Err(index) => self.keys.insert(index, key),
         }
         Ok(())
@@ -489,6 +532,7 @@ impl<T: Tween> Track<T> {
         if self.axes.is_some() {
             return Ok(());
         }
+        ensure(self.keys.iter().all(|k| k.spatial.is_none()), "reset the spatial path before separating dimensions")?;
         let value = self.value.components().ok_or_else(|| {
             crate::Error::Invalid("only vector properties can separate dimensions".into())
         })?;
@@ -503,6 +547,7 @@ impl<T: Tween> Track<T> {
                     value: k.value.components().unwrap()[index],
                     ease: k.ease,
                     curve: k.curve,
+                    spatial: None,
                 })
                 .collect(),
         };
@@ -531,7 +576,29 @@ impl<T: Tween> Track<T> {
                     "transform value exceeds its numeric range",
                 )?;
             }
+            for k in &self.keys {
+                if let Some(s) = &k.spatial {
+                    for v in s.incoming.iter().chain(&s.outgoing) {
+                        ensure(k.value.add(*v).bounded(bound), "spatial control exceeds its numeric range")?;
+                    }
+                }
+            }
         }
+        Ok(())
+    }
+    pub fn set_spatial(&mut self, frame: i32, tangents: Option<SpatialTangents<T>>) -> Result<()> {
+        ensure(T::spatial_supported() && self.axes.is_none(), "spatial paths require a coupled vector track")?;
+        let index = self.keys.binary_search_by_key(&frame, |k| k.frame)
+            .map_err(|_| crate::Error::Invalid("spatial keyframe not found".into()))?;
+        if let Some(s) = &tangents {
+            ensure(s.incoming.is_some() || s.outgoing.is_some(), "empty spatial tangents")?;
+            ensure(s.incoming.is_none() || index > 0, "first key has no incoming segment")?;
+            ensure(s.outgoing.is_none() || index + 1 < self.keys.len(), "last key has no outgoing segment")?;
+            for v in s.incoming.iter().chain(&s.outgoing) {
+                ensure(v.finite() && self.keys[index].value.add(*v).finite(), "non-finite spatial tangent")?;
+            }
+        }
+        self.keys[index].spatial = tangents;
         Ok(())
     }
 }
