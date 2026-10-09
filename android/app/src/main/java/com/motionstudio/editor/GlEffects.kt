@@ -18,7 +18,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
     private var framebuffer=0;private var uniform=0;private var sprites=0;private var spriteVao=0
     init {
         try {
-            check(info.getInt("version")==5&&info.getInt("headerBytes")==128&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
+            check(info.getInt("version")==RenderPlanBudget.VERSION&&info.getInt("headerBytes")==128&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
             val ids=IntArray(1);GL.glGenFramebuffers(1,ids,0);framebuffer=ids[0]
             GL.glGenBuffers(1,ids,0);uniform=ids[0];GL.glBindBuffer(GL.GL_UNIFORM_BUFFER,uniform)
             GL.glBufferData(GL.GL_UNIFORM_BUFFER,624,null,GL.GL_DYNAMIC_DRAW)
@@ -72,7 +72,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer) {
-        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==5){"不兼容的帧计划"}
+        check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==RenderPlanBudget.VERSION){"不兼容的帧计划"}
         check(plan.getInt(28) in 128..plan.capacity()){"帧计划长度错误"}
         val spriteOffset=plan.getInt(64);val spriteCount=plan.getInt(68)
         check(plan.getInt(72)==48&&spriteCount in 0..65536&&spriteOffset>=128&&spriteOffset.toLong()+spriteCount.toLong()*48<=plan.getInt(28)){"粒子实例范围错误"}
@@ -94,7 +94,8 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }
         check(mask==actualMask){"效果纹理槽位不一致"}
         val bytes=(0..7).sumOf{i->sizes[i*2].toLong()*sizes[i*2+1]*(if(i==7)8 else 4)}
-        check(bytes<=64L*1024*1024){"效果临时纹理需要 ${bytes/1048576.0} MiB，超过 64 MiB"}
+        val budget=RenderPlanBudget.scratchBytes(plan)
+        check(bytes<=budget){"效果临时纹理需要 ${bytes/1048576.0} MiB，预算 ${budget/1048576.0} MiB"}
         if(w!=poolWidth||h!=poolHeight||mask!=poolMask||!sizes.contentEquals(poolSizes)) {
             GL.glDeleteTextures(8,pool,0);pool.fill(0);poolWidth=w;poolHeight=h;poolMask=mask
             poolSizes=sizes

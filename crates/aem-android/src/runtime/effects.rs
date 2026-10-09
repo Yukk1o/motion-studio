@@ -289,6 +289,7 @@ impl Session {
             let mut renderer =
                 pollster::block_on(Renderer::headless()).map_err(|e| e.to_string())?;
             renderer.set_effect_registry(self.effects.registry.clone());
+            renderer.set_scratch_budget(self.effects.scratch_budget()).map_err(|e| e.to_string())?;
             renderer
                 .configure_assets(self.engine.project(), &self.root)
                 .map_err(|e| e.to_string())?;

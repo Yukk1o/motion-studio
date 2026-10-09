@@ -7,7 +7,7 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 5;
+pub const PLAN_VERSION: u32 = 6;
 pub const HEADER_BYTES: usize = 128;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 10;
@@ -71,6 +71,7 @@ pub struct PlannedDraw {
 }
 #[derive(Default, Debug)]
 pub struct EffectFramePlan {
+    pub scratch_budget: u64,
     pub draws: Vec<PlannedDraw>,
     pub passes: Vec<EffectPass>,
     pub width: u32,
@@ -140,7 +141,7 @@ impl EffectFramePlan {
             sprite_offset as u32,
             self.sprites.len() as u32,
             48,
-            0,
+            self.scratch_budget as u32,
             self.vertices.len() as u32,
             vector_offset as u32,
             self.vectors.len() as u32,
@@ -240,6 +241,7 @@ struct Resolved {
     error: Option<String>,
 }
 pub struct PlanBuilder {
+    scratch_budget: u64,
     pub registry: Registry,
     pub device_dimension: u32,
     pub program_errors: std::collections::BTreeMap<u32, String>,
@@ -280,7 +282,7 @@ fn linear(v: f32) -> f32 {
     }
 }
 impl PlanBuilder {
-    fn check_scratch(sizes: &[[u32; 2]; 8], device_dimension: u32) -> Result<(), String> {
+    fn check_scratch(sizes: &[[u32; 2]; 8], device_dimension: u32, budget: u64) -> Result<(), String> {
         for (slot, size) in sizes.iter().enumerate() {
             if size.iter().any(|&n| n > device_dimension) {
                 return Err(format!(
@@ -290,9 +292,9 @@ impl PlanBuilder {
             }
         }
         let bytes = scratch_capacity_bytes(sizes);
-        if bytes > aem_effects::SCRATCH_BUDGET {
-            return Err(format!("effect scratch textures require {:.2} MiB; budget is 64 MiB (full layer bounds, including effect padding)",
-                bytes as f64 / 1048576.0));
+        if bytes > budget {
+            return Err(format!("effect scratch textures require {:.2} MiB; budget is {} MiB (full layer bounds, including effect padding)",
+                bytes as f64 / 1048576.0, budget / 1048576));
         }
         Ok(())
     }
@@ -489,6 +491,7 @@ impl PlanBuilder {
             generator_scratch: Default::default(),
             vector_cache: Default::default(),
             mask_cache: Default::default(),
+            scratch_budget: aem_effects::SCRATCH_BUDGET_FLOOR,
             preview_inputs: None,
             pass_clocks: Vec::new(),
             preview_cache_hits: 0,
@@ -502,6 +505,15 @@ impl PlanBuilder {
         self.programs.truncate(3);
         self.frame = EffectFramePlan::default();
         self.preview_inputs = None;
+    }
+    pub fn scratch_budget(&self) -> u64 { self.scratch_budget }
+    pub fn set_scratch_budget(&mut self, budget: u64) -> Result<(), String> {
+        if !(aem_effects::SCRATCH_BUDGET_FLOOR..=crate::resource_policy::MAX_SCRATCH_BUDGET).contains(&budget) {
+            return Err("invalid host scratch memory policy".into());
+        }
+        if self.scratch_budget != budget { self.preview_inputs = None; }
+        self.scratch_budget = budget;
+        Ok(())
     }
     pub fn synchronize(&mut self, scene: &Scene) -> Result<(), String> {
         self.resolved.resize_with(scene.effects.len(), || None);
@@ -649,6 +661,7 @@ impl PlanBuilder {
         preview: bool,
     ) -> Result<&EffectFramePlan, String> {
         self.synchronize(scene)?;
+        self.frame.scratch_budget = self.scratch_budget;
         self.frame.sprites.clear();
         self.frame.generator_stats = Default::default();
         self.generator_scratch.retain(scene);
@@ -877,7 +890,7 @@ impl PlanBuilder {
                                 (scene.height as f32 * scale).ceil() as u32,
                             );
                         }
-                        Self::check_scratch(&sizes, self.device_dimension)?;
+                        Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget)?;
                         let start = self.frame.sprites.len();
                         let stats = crate::scene_generator::generate(
                             scene,
@@ -1012,7 +1025,7 @@ impl PlanBuilder {
                             (next[3] * scale).ceil() as u32,
                         );
                     }
-                    Self::check_scratch(&sizes, self.device_dimension)?;
+                    Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget)?;
                     let working = [
                         if def.working_space == WorkingSpace::Srgb {
                             1.0
@@ -1298,8 +1311,9 @@ impl PlanBuilder {
         let mask_scratch=u64::from(mw)*u64::from(mh)*slots as u64;
         let mask_outputs=self.frame.masks.chunk_by(|a,b|a.layer==b.layer).map(|g|u64::from(g[0].width)*u64::from(g[0].height)).sum::<u64>();
         if mask_outputs>128*1024*1024 {return Err("layer mask outputs exceed 128 MiB".into());}
-        if mask_scratch+scratch_capacity_bytes(&self.frame.scratch_sizes)>aem_effects::SCRATCH_BUDGET {
-            return Err("layer mask and effect scratch textures exceed 64 MiB".into());
+        let scratch = mask_scratch+scratch_capacity_bytes(&self.frame.scratch_sizes);
+        if scratch>self.scratch_budget {
+            return Err(format!("layer mask and effect scratch textures require {:.2} MiB; budget is {} MiB", scratch as f64/1048576., self.scratch_budget/1048576));
         }
         Ok(&self.frame)
     }

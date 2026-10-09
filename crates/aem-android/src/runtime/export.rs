@@ -64,7 +64,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_renderPlanInfo(
                     * aem_render::mask_plan::RECORD_BYTES
                 + 262144 * 24;
             Ok(
-                json!({"version":aem_render::effect_plan::PLAN_VERSION,"headerBytes":aem_render::effect_plan::HEADER_BYTES,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"maskPrograms":mask_programs,"maskBytes":aem_render::mask_plan::RECORD_BYTES,"maskVertexBytes":24,"maskSourceToken":aem_render::mask_plan::SOURCE_TOKEN,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4,"declaredAssetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>(),"imageResources":{"version":1,"demandLoading":true,"previewMaxEdge":aem_render::image_resources::MAX_PREVIEW_EDGE,"fullResolutionExport":true,"directBuffer":true}}),
+                json!({"version":aem_render::effect_plan::PLAN_VERSION,"scratchBudgetBytes":s.effects.scratch_budget(),"headerBytes":aem_render::effect_plan::HEADER_BYTES,"composition_bundle_version":1,"composition_bundle_buffer_hint":131072,"has_video":!p.video_assets.is_empty(),"has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),"programs":programs,"maskPrograms":mask_programs,"maskBytes":aem_render::mask_plan::RECORD_BYTES,"maskVertexBytes":24,"maskSourceToken":aem_render::mask_plan::SOURCE_TOKEN,"bufferBytes":buffer_bytes,"uniformBytes":aem_effects::shader::UNIFORM_BYTES,"passBytes":40,"spriteBytes":48,"assetBytes":4,"declaredAssetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>(),"imageResources":{"version":1,"demandLoading":true,"previewMaxEdge":aem_render::image_resources::MAX_PREVIEW_EDGE,"fullResolutionExport":true,"directBuffer":true}}),
             )
         })
     })
@@ -135,6 +135,7 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_capture(
                 temporary.as_mut().unwrap()
             };
             renderer.set_effect_registry(s.effects.registry.clone());
+            renderer.set_scratch_budget(s.effects.scratch_budget()).map_err(|e| e.to_string())?;
             renderer
                 .configure_assets(p, &s.root)
                 .map_err(|e| e.to_string())?;
