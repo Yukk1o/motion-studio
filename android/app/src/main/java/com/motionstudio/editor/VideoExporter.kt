@@ -15,7 +15,7 @@ import kotlin.math.pow
 
 /** Frozen Rust sampling + an independent EGL compositor into MediaCodec's Surface.
  * Ordered geometry crosses JNI in reused buffers. Raster resources cross once. */
-class VideoExporter(private val root:File,private val projectJson:String) {
+class VideoExporter(private val root:File,private val projectJson:String,private val memoryProfile:DeviceMemoryProfile=DeviceMemoryProfile()) {
     val cancelled=AtomicBoolean(false)
     fun run(onProgress:(Int,Int)->Unit):File {
         val project=JSONObject(projectJson)
@@ -41,6 +41,7 @@ class VideoExporter(private val root:File,private val projectJson:String) {
         val started=System.nanoTime()
         try {
             native=NativeBridge.create(root.absolutePath,projectJson);check(native!=0L){"冻结工程创建失败"}
+            memoryProfile.applyTo(native)
             val planResponse=JSONObject(NativeBridge.renderPlanInfo(native));check(planResponse.optBoolean("ok")){planResponse.optString("error")}
             val planInfo=planResponse.getJSONObject("data")
             val composition=project.optString("composition_id","comp-main")
@@ -289,7 +290,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
     private fun prepareImages(plans:List<ByteBuffer>) {
         val wanted=HashSet<Int>()
         for(plan in plans) {
-            check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==5){"不兼容的图片帧计划"}
+            check(plan.getInt(0)==0x46584d53&&plan.getInt(4)==RenderPlanBudget.VERSION){"不兼容的图片帧计划"}
             val layers=plan.getInt(8);val offset=plan.getInt(16)
             check(layers in 0..128&&offset>=128&&offset.toLong()+layers*128L<=plan.getInt(28)){"图片图层范围失效"}
             for(i in 0 until layers) {
@@ -350,7 +351,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
     }
     fun draw(buffer:ByteBuffer) {makeCurrent();prepareImages(listOf(buffer));draw(buffer,frameTexture,width,height,clear,videoTextures.mapKeys{it.key.toInt()},false);drawPresentation()}
     private fun draw(buffer:ByteBuffer,target:Int,w:Int,h:Int,background:FloatArray,dynamic:Map<Int,Int>,flip:Boolean) {
-        check(buffer.capacity()>=128&&buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==5){"不兼容的帧计划"}
+        check(buffer.capacity()>=128&&buffer.getInt(0)==0x46584d53&&buffer.getInt(4)==RenderPlanBudget.VERSION){"不兼容的帧计划"}
         val total=buffer.getInt(28);val vertexOffset=buffer.getInt(60);val bytes=buffer.getInt(80)*20
         check(total in 128..buffer.capacity()&&vertexOffset>=128&&vertexOffset.toLong()+bytes<=total&&bytes>=0&&bytes%20==0&&bytes<=65536*20){"几何计划范围失效"}
         val maskBudget=masks!!.stage(buffer)

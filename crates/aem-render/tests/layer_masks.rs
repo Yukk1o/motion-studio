@@ -54,7 +54,7 @@ fn portable_mask_records_keep_cached_geometry_and_utility_program() {
     let frame=plan.build(&s,&[0],1080,1920,false).unwrap();assert_eq!(frame.masks.len(),1);
     let geometry=frame.masks[0].vertices.clone();let mut bytes=vec![0;frame.buffer_bytes(&s)];frame.write(&s,&mut bytes).unwrap();
     let word=|offset:usize|u32::from_ne_bytes(bytes[offset..offset+4].try_into().unwrap());
-    assert_eq!(word(4),5);assert_eq!(word(116),1);assert_eq!(word(124),64);assert!(word(112)>=128);
+    assert_eq!(word(4),aem_render::effect_plan::PLAN_VERSION);assert_eq!(word(116),1);assert_eq!(word(124),64);assert!(word(112)>=128);
     s.sample(&p,20.,None).unwrap();let frame=plan.build(&s,&[0],1080,1920,false).unwrap();
     assert!(std::sync::Arc::ptr_eq(&geometry,&frame.masks[0].vertices));
     assert_eq!(plan.programs[2].key,"sdk-mask-source");

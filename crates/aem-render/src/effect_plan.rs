@@ -7,7 +7,7 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 5;
+pub const PLAN_VERSION: u32 = 6;
 pub const HEADER_BYTES: usize = 128;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 10;
@@ -71,6 +71,7 @@ pub struct PlannedDraw {
 }
 #[derive(Default, Debug)]
 pub struct EffectFramePlan {
+    pub scratch_budget: u64,
     pub draws: Vec<PlannedDraw>,
     pub passes: Vec<EffectPass>,
     pub width: u32,
@@ -140,7 +141,7 @@ impl EffectFramePlan {
             sprite_offset as u32,
             self.sprites.len() as u32,
             48,
-            0,
+            self.scratch_budget as u32,
             self.vertices.len() as u32,
             vector_offset as u32,
             self.vectors.len() as u32,
@@ -240,6 +241,7 @@ struct Resolved {
     error: Option<String>,
 }
 pub struct PlanBuilder {
+    scratch_budget: u64,
     pub registry: Registry,
     pub device_dimension: u32,
     pub program_errors: std::collections::BTreeMap<u32, String>,
@@ -262,6 +264,10 @@ pub struct PlanBuilder {
         ),
     >,
     mask_cache: crate::mask_plan::MaskCache,
+    preview_inputs: Option<crate::effect_plan_cache::PreviewInputs>,
+    pass_clocks: Vec<Option<usize>>,
+    pub preview_cache_hits: u64,
+    pub preview_plan_builds: u64,
 }
 fn utility(code: &str) -> Result<Arc<shader::CompiledShader>, String> {
     shader::compile(code, "main_fx")
@@ -276,7 +282,7 @@ fn linear(v: f32) -> f32 {
     }
 }
 impl PlanBuilder {
-    fn check_scratch(sizes: &[[u32; 2]; 8], device_dimension: u32) -> Result<(), String> {
+    fn check_scratch(sizes: &[[u32; 2]; 8], device_dimension: u32, budget: u64) -> Result<(), String> {
         for (slot, size) in sizes.iter().enumerate() {
             if size.iter().any(|&n| n > device_dimension) {
                 return Err(format!(
@@ -286,9 +292,9 @@ impl PlanBuilder {
             }
         }
         let bytes = scratch_capacity_bytes(sizes);
-        if bytes > aem_effects::SCRATCH_BUDGET {
-            return Err(format!("effect scratch textures require {:.2} MiB; budget is 64 MiB (full layer bounds, including effect padding)",
-                bytes as f64 / 1048576.0));
+        if bytes > budget {
+            return Err(format!("effect scratch textures require {:.2} MiB; budget is {} MiB (full layer bounds, including effect padding)",
+                bytes as f64 / 1048576.0, budget / 1048576));
         }
         Ok(())
     }
@@ -485,6 +491,11 @@ impl PlanBuilder {
             generator_scratch: Default::default(),
             vector_cache: Default::default(),
             mask_cache: Default::default(),
+            scratch_budget: aem_effects::SCRATCH_BUDGET_FLOOR,
+            preview_inputs: None,
+            pass_clocks: Vec::new(),
+            preview_cache_hits: 0,
+            preview_plan_builds: 0,
         })
     }
     pub fn set_registry(&mut self, registry: Registry) {
@@ -493,6 +504,16 @@ impl PlanBuilder {
         self.program_errors.clear();
         self.programs.truncate(3);
         self.frame = EffectFramePlan::default();
+        self.preview_inputs = None;
+    }
+    pub fn scratch_budget(&self) -> u64 { self.scratch_budget }
+    pub fn set_scratch_budget(&mut self, budget: u64) -> Result<(), String> {
+        if !(aem_effects::SCRATCH_BUDGET_FLOOR..=crate::resource_policy::MAX_SCRATCH_BUDGET).contains(&budget) {
+            return Err("invalid host scratch memory policy".into());
+        }
+        if self.scratch_budget != budget { self.preview_inputs = None; }
+        self.scratch_budget = budget;
+        Ok(())
     }
     pub fn synchronize(&mut self, scene: &Scene) -> Result<(), String> {
         self.resolved.resize_with(scene.effects.len(), || None);
@@ -588,7 +609,12 @@ impl PlanBuilder {
         height: u32,
         strict: bool,
     ) -> Result<&EffectFramePlan, String> {
+        self.preview_inputs = None;
         self.build_internal(scene, assets, width, height, strict, false)
+    }
+    /// Drop retained preview geometry after an external resource-policy change.
+    pub fn invalidate_preview_plan(&mut self) {
+        self.preview_inputs = None;
     }
     /// Preview-only density reduction. Formal plans keep published full-size
     /// passes and package hashes, including legacy effects.
@@ -599,7 +625,31 @@ impl PlanBuilder {
         width: u32,
         height: u32,
     ) -> Result<&EffectFramePlan, String> {
-        self.build_internal(scene, assets, width, height, false, true)
+        // Scene generators sample births, camera/light sources and occlusion
+        // every frame. Image shader time stays live by updating pass clocks.
+        let eligible = scene.effects.iter().all(|e| e.scene.is_none());
+        if eligible && self.preview_inputs.as_ref().is_some_and(|inputs|
+            inputs.matches(scene, assets, width, height, self.device_dimension, &self.registry, &self.program_errors)) {
+            for (pass, &effect) in self.frame.passes.iter_mut().zip(&self.pass_clocks) {
+                let Some(effect) = effect else { continue; };
+                let local = scene.effects[effect].local_frame;
+                pass.uniform.clock[0] = (local / f64::from(scene.fps)) as f32;
+                pass.uniform.clock[1] = local as f32;
+            }
+            self.preview_cache_hits += 1;
+            return Ok(&self.frame);
+        }
+        if self.preview_inputs.as_ref().is_some_and(|inputs| !inputs.registry_matches(&self.registry)) {
+            self.resolved.clear();
+        }
+        self.preview_inputs = None;
+        self.preview_plan_builds += 1;
+        self.build_internal(scene, assets, width, height, false, true)?;
+        if eligible && self.frame.diagnostics.is_empty() {
+            self.preview_inputs = Some(crate::effect_plan_cache::PreviewInputs::capture(
+                scene, assets, width, height, self.device_dimension, &self.registry, &self.program_errors));
+        }
+        Ok(&self.frame)
     }
     fn build_internal(
         &mut self,
@@ -611,6 +661,7 @@ impl PlanBuilder {
         preview: bool,
     ) -> Result<&EffectFramePlan, String> {
         self.synchronize(scene)?;
+        self.frame.scratch_budget = self.scratch_budget;
         self.frame.sprites.clear();
         self.frame.generator_stats = Default::default();
         self.generator_scratch.retain(scene);
@@ -628,6 +679,7 @@ impl PlanBuilder {
         });
         self.overlays.clear();
         self.frame.passes.clear();
+        self.pass_clocks.clear();
         self.frame.diagnostics.clear();
         if !scene.effects.iter().any(|e| e.enabled) {
             self.frame.width = 0;
@@ -772,6 +824,7 @@ impl PlanBuilder {
                 u.params[0]=[linear(layer.color[0]),linear(layer.color[1]),linear(layer.color[2]),layer.color[3]];
                 self.frame.passes.push(EffectPass {program:2,input:-(asset as i32)-1,source:crate::mask_plan::SOURCE_TOKEN-layer_index as i32,
                     output:0,width:w,height:h,lut:-1,uniform:u,sprite:false,sprite_start:0,sprite_count:0});
+                self.pass_clocks.push(None);
                 self.frame.slots|=1;self.frame.width=self.frame.width.max(w);self.frame.height=self.frame.height.max(h);materialized=true;
             }
             for (index, e) in scene
@@ -780,6 +833,7 @@ impl PlanBuilder {
                 .enumerate()
                 .filter(|(_, e)| e.layer == layer.id && e.enabled)
             {
+                let clock_start = self.frame.passes.len();
                 let resolved = self.resolved[index].as_ref().unwrap();
                 let result = (|| -> Result<(), String> {
                     if let Some(err) = &resolved.error {
@@ -836,7 +890,7 @@ impl PlanBuilder {
                                 (scene.height as f32 * scale).ceil() as u32,
                             );
                         }
-                        Self::check_scratch(&sizes, self.device_dimension)?;
+                        Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget)?;
                         let start = self.frame.sprites.len();
                         let stats = crate::scene_generator::generate(
                             scene,
@@ -971,7 +1025,7 @@ impl PlanBuilder {
                             (next[3] * scale).ceil() as u32,
                         );
                     }
-                    Self::check_scratch(&sizes, self.device_dimension)?;
+                    Self::check_scratch(&sizes, self.device_dimension, self.scratch_budget)?;
                     let working = [
                         if def.working_space == WorkingSpace::Srgb {
                             1.0
@@ -1112,6 +1166,7 @@ impl PlanBuilder {
                     materialized = true;
                     Ok(())
                 })();
+                self.pass_clocks.extend(std::iter::repeat_n(Some(index), self.frame.passes.len() - clock_start));
                 if let Err(err) = result {
                     let message = format!(
                         "layer {}, effect {} ({}): {err}",
@@ -1256,8 +1311,9 @@ impl PlanBuilder {
         let mask_scratch=u64::from(mw)*u64::from(mh)*slots as u64;
         let mask_outputs=self.frame.masks.chunk_by(|a,b|a.layer==b.layer).map(|g|u64::from(g[0].width)*u64::from(g[0].height)).sum::<u64>();
         if mask_outputs>128*1024*1024 {return Err("layer mask outputs exceed 128 MiB".into());}
-        if mask_scratch+scratch_capacity_bytes(&self.frame.scratch_sizes)>aem_effects::SCRATCH_BUDGET {
-            return Err("layer mask and effect scratch textures exceed 64 MiB".into());
+        let scratch = mask_scratch+scratch_capacity_bytes(&self.frame.scratch_sizes);
+        if scratch>self.scratch_budget {
+            return Err(format!("layer mask and effect scratch textures require {:.2} MiB; budget is {} MiB", scratch as f64/1048576., self.scratch_budget/1048576));
         }
         Ok(&self.frame)
     }

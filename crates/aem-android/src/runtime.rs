@@ -291,6 +291,7 @@ impl Session {
         let (instance, surface, mut renderer) = candidate
             .ok_or_else(|| format!("no Android surface backend: {}", failures.join("; ")))?;
         renderer.set_effect_registry(self.effects.registry.clone());
+        renderer.set_scratch_budget(self.effects.scratch_budget()).map_err(|e| e.to_string())?;
         let caps = surface.get_capabilities(&renderer.adapter);
         let format = caps
             .formats

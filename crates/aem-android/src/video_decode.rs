@@ -347,6 +347,8 @@ pub struct Decoder {
     asset: VideoAsset,
     pts: Vec<u64>,
     last_output: Option<i64>,
+    submitted_until: Option<u64>,
+    pub seeks: u64,
     input_eos: bool,
     path: std::path::PathBuf,
     reader_kind: usize,
@@ -406,6 +408,8 @@ impl Decoder {
             asset,
             pts,
             last_output: None,
+            submitted_until: None,
+            seeks: 0,
             input_eos: false,
             path: path.into(),
             reader_kind,
@@ -429,7 +433,8 @@ impl Decoder {
                             self.pts.clone(),
                             next,
                         ) {
-                            Ok(replacement) => {
+                            Ok(mut replacement) => {
+                                replacement.seeks = self.seeks;
                                 *self = replacement;
                                 break;
                             }
@@ -438,11 +443,11 @@ impl Decoder {
                         }
                     }
                 }
-                result => return result.map_err(|error| format!(
-                    "video decoder {} failed for {}x{} at {} fps (transfer {}): {error}",
+                result => return result.map_err(|error| crate::video_decode_policy::decoder_error(error, || format!(
+                    "video decoder {} failed for {}x{} at {} fps (transfer {})",
                     self.decoder_name, self.asset.width, self.asset.height,
                     self.asset.nominal_frame_rate, self.reader_kind
-                )),
+                ))),
             }
         }
     }
@@ -457,11 +462,11 @@ impl Decoder {
             .get(index + 1)
             .copied()
             .unwrap_or(self.asset.video_end_us);
-        if self.last_output.is_none_or(|last| {
-            wanted <= last.max(0) as u64 || wanted.saturating_sub(last.max(0) as u64) > 500_000
-        }) {
+        if crate::video_decode_policy::needs_seek(self.last_output, wanted, self.submitted_until) {
             ndk(self.codec.flush())?;
             self.extractor.seek(wanted)?;
+            self.seeks += 1;
+            self.submitted_until = None;
             self.input_eos = false;
             if let Some(reader) = &self.reader {
                 loop {
@@ -514,6 +519,9 @@ impl Decoder {
                     if eos {
                         self.input_eos = true;
                     } else {
+                        if time >= 0 {
+                            self.submitted_until = Some(self.submitted_until.map_or(time as u64, |last| last.max(time as u64)));
+                        }
                         self.extractor.advance();
                     }
                 } else {

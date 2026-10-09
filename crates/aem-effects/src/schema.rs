@@ -6,7 +6,9 @@ pub const SDK_VERSION: u32 = 5;
 pub const MAX_PARAMS: usize = 32;
 pub const MAX_PASSES: usize = 8;
 pub const MAX_EFFECTS_PER_LAYER: usize = 16;
-pub const SCRATCH_BUDGET: u64 = 64 * 1024 * 1024;
+pub const SCRATCH_BUDGET_FLOOR: u64 = 64 * 1024 * 1024;
+/// Compatibility name for SDK callers; the host's actual device policy can be higher.
+pub const SCRATCH_BUDGET: u64 = SCRATCH_BUDGET_FLOOR;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
