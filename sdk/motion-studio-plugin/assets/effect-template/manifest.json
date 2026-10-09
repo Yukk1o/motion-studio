@@ -1,8 +1,8 @@
 {
   "format_version": 1,
-  "sdk_version": 1,
+  "sdk_version": 5,
   "id": "example.motionstudio.gain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "name": "自定义增益 / Custom Gain",
   "author": "Your name",
   "license": "MIT",
@@ -41,8 +41,41 @@
       "edge_mode": "transparent",
       "required_capabilities": [
         "single_frame",
-        "color_profile"
-      ]
+        "color_profile",
+        "native_plugin_editor"
+      ],
+      "native_editor": {
+        "id": "example.motionstudio.gain.editor",
+        "protocol": 1,
+        "title": "增益编辑器",
+        "sections": [
+          {
+            "id": "preview",
+            "title": "预览",
+            "slots": [
+              {
+                "kind": "preview",
+                "max_size": 512
+              },
+              {
+                "kind": "timeline"
+              }
+            ]
+          },
+          {
+            "id": "adjust",
+            "title": "增益",
+            "slots": [
+              {
+                "kind": "parameters",
+                "params": [
+                  "gain"
+                ]
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
