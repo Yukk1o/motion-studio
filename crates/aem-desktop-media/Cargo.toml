@@ -24,8 +24,8 @@ serde.workspace = true
 serde_json.workspace = true
 raw-window-handle = "0.6"
 
-ffmpeg-next = { version = "7", optional = true, default-features = false, features = [
+ffmpeg-next = { version = "9", optional = true, default-features = false, features = [
     "codec",
     "format",
-    "software-decoding",
+    "software-scaling",
 ] }

@@ -75,7 +75,7 @@ def ffmpeg_environment(args: argparse.Namespace) -> dict[str, str]:
     env["FFMPEG_INCLUDE_DIR"] = include
     env["FFMPEG_LIB_DIR"] = lib
     env["PKG_CONFIG_PATH"] = os.pathsep.join(
-        [lib / "pkgconfig", env.get("PKG_CONFIG_PATH", "")]
+        [str(Path(lib) / "pkgconfig"), env.get("PKG_CONFIG_PATH", "")]
     ).strip(os.pathsep)
     print(f"libav headers: {include}\nlibav libraries: {lib}", flush=True)
     return env
