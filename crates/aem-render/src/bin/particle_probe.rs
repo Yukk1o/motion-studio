@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             value: [480. + 300. * a.sin(), 270. + 155. * (a * 2.).sin(), 0.],
             ease: Ease::Linear,
             curve: None,
+            spatial: None,
         });
     }
     let mut e = EffectInstance::new(

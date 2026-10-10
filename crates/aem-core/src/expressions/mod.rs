@@ -59,6 +59,7 @@ pub struct ExpressionValue {
 enum RawTrack {
     Scalar(Track<f32>),
     Vector(Track<[f32; 3]>),
+    Component(Track<[f32; 3]>, usize),
     Param(Track<[f32; 4]>, usize),
 }
 impl RawTrack {
@@ -66,6 +67,7 @@ impl RawTrack {
         match self {
             Self::Scalar(t) => vec![t.sample(frame)],
             Self::Vector(t) => t.sample(frame).to_vec(),
+            Self::Component(t, axis) => vec![t.sample(frame)[*axis]],
             Self::Param(t, n) => t.sample(frame)[..*n].to_vec(),
         }
     }
@@ -73,6 +75,7 @@ impl RawTrack {
         let mut frames: Vec<_> = match self {
             Self::Scalar(t) => t.key_frames().collect(),
             Self::Vector(t) => t.key_frames().collect(),
+            Self::Component(t, _) => t.key_frames().collect(),
             Self::Param(t, _) => t.key_frames().collect(),
         };
         frames.sort_unstable();
@@ -85,18 +88,7 @@ fn vector(t: &Track<[f32; 3]>, axis: Option<Axis>) -> RawTrack {
         if let Some(a) = &t.axes {
             return RawTrack::Scalar(a.get(axis).clone());
         }
-        let mut scalar = Track::constant(t.value[axis.index()]);
-        scalar.keys = t
-            .keys
-            .iter()
-            .map(|k| crate::Keyframe {
-                frame: k.frame,
-                value: k.value[axis.index()],
-                ease: k.ease,
-                curve: k.curve,
-            })
-            .collect();
-        RawTrack::Scalar(scalar)
+        RawTrack::Component(t.clone(), axis.index())
     } else {
         RawTrack::Vector(t.clone())
     }

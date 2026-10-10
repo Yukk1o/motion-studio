@@ -50,12 +50,14 @@ fn editor_transform_values_use_sampled_local_keyframe_time() {
             value: [20., 64., 0.],
             ease: aem_core::Ease::Linear,
             curve: None,
+            spatial: None,
         },
         aem_core::Keyframe {
             frame: 40,
             value: [100., 64., 0.],
             ease: aem_core::Ease::Linear,
             curve: None,
+            spatial: None,
         },
     ];
     let engine = Engine::new(project).unwrap();

@@ -10,6 +10,10 @@ pub enum EditorRequest {
     State,
     ColorBegin { revision: u64, param: String },
     ColorFinish { revision: u64, commit: bool },
+    ParameterBegin { revision: u64, param: String },
+    ParameterFinish { revision: u64, commit: bool },
+    Spatial { revision: u64, param: String, frame: u32, tangents: Option<crate::SpatialTangents<[f32; 4]>> },
+    SetAt { revision: u64, param: String, frame: u32, value: [f32; 4] },
     Key { revision: u64, param: String },
     Transform {
         revision: u64,
@@ -56,6 +60,7 @@ pub struct PluginEditorSession {
     pub effect: String,
     pub gesture: bool,
     color_edit: Option<ColorEdit>,
+    parameter_edit: Option<ColorEdit>,
 }
 #[derive(Clone)]
 struct ColorEdit {
@@ -94,6 +99,7 @@ impl PluginEditorSession {
             effect: e.effect.clone(),
             gesture: false,
             color_edit: None,
+            parameter_edit: None,
         })
     }
     fn check<'a>(
@@ -140,6 +146,7 @@ impl PluginEditorSession {
             "images":engine.project().assets.iter().map(|a|json!({"id":a.id,"width":a.width,"height":a.height})).collect::<Vec<_>>(),
             "locked":layer.locked,"gesture":self.gesture,
             "color_edit":self.color_edit.as_ref().map(|c|json!({"param":c.param,"frame":c.frame})),
+            "parameter_edit":self.parameter_edit.as_ref().map(|c|json!({"param":c.param,"frame":c.frame})),
             "layers":engine.project().layers.iter().map(|l|json!({"id":l.id,"name":l.name,"particle_source":!matches!(l.content,crate::Content::Audio { .. })})).collect::<Vec<_>>()}),
         )
     }
@@ -158,6 +165,10 @@ impl PluginEditorSession {
             EditorRequest::State => return self.state(engine, frame),
             EditorRequest::ColorBegin { revision, .. }
             | EditorRequest::ColorFinish { revision, .. }
+            | EditorRequest::ParameterBegin { revision, .. }
+            | EditorRequest::ParameterFinish { revision, .. }
+            | EditorRequest::Spatial { revision, .. }
+            | EditorRequest::SetAt { revision, .. }
             |
             EditorRequest::Begin { revision }
             | EditorRequest::Commit { revision }
@@ -176,9 +187,12 @@ impl PluginEditorSession {
         )?;
         let (_, e) = self.check(engine.project())?;
         let effect = e.id;
-        if let Some(color) = &self.color_edit {
+        if let Some(color) = self.color_edit.as_ref().or(self.parameter_edit.as_ref()) {
             match &request {
-                EditorRequest::ColorFinish { .. } | EditorRequest::Commit { .. } | EditorRequest::Cancel { .. } => {}
+                EditorRequest::ColorFinish { .. } | EditorRequest::ParameterFinish { .. } | EditorRequest::Commit { .. } | EditorRequest::Cancel { .. } => {}
+                EditorRequest::Spatial { param, .. } | EditorRequest::SetAt { param, .. } if self.parameter_edit.is_some() => {
+                    ensure(*param == color.param, "finish active parameter edit before editing another parameter")?;
+                }
                 EditorRequest::Set { param, .. } | EditorRequest::Key { param, .. } | EditorRequest::Animate { param, .. } => {
                     ensure(*param == color.param && frame == color.frame, "finish active color edit before editing another parameter or frame")?;
                 }
@@ -187,6 +201,31 @@ impl PluginEditorSession {
         }
         let action = match request {
             EditorRequest::State => unreachable!(),
+            EditorRequest::ParameterBegin { param, .. } => {
+                ensure(self.gesture, "parameter scope requires an active editor page gesture")?;
+                let (layer, instance) = self.check(engine.project())?;
+                ensure(!layer.locked, "object is locked")?;
+                let p = instance.params.get(&param).ok_or_else(|| Error::Invalid("editor parameter missing".into()))?;
+                ensure(p.implemented && matches!(p.kind, aem_effects::ParamKind::Vec2 | aem_effects::ParamKind::Vec3), "parameter scope requires an editable vector parameter")?;
+                self.parameter_edit = Some(ColorEdit { param, frame, track: p.track.clone() });
+                return self.state(engine, frame);
+            }
+            EditorRequest::ParameterFinish { commit, .. } => {
+                let saved = self.parameter_edit.clone().ok_or_else(|| Error::Invalid("no active parameter edit".into()))?;
+                if !commit {
+                    engine.apply(Command::Effect { object: self.object, action: EffectAction::RestoreParameterTrack {
+                        effect, param: saved.param, track: saved.track,
+                    } })?;
+                }
+                self.parameter_edit = None;
+                return self.state(engine, frame);
+            }
+            EditorRequest::Spatial { param, frame, tangents, .. } => EffectAction::Spatial { effect, param, frame, tangents },
+            EditorRequest::SetAt { param, frame, value, .. } => {
+                let (_, instance) = self.check(engine.project())?;
+                ensure(instance.params.get(&param).is_some_and(|p|matches!(p.kind,aem_effects::ParamKind::Vec2|aem_effects::ParamKind::Vec3)), "set_at requires a vector parameter")?;
+                EffectAction::Set { effect, param, frame, value }
+            }
             EditorRequest::ColorBegin { param, .. } => {
                 ensure(self.gesture, "color picker requires an active editor page gesture")?;
                 let (layer, instance) = self.check(engine.project())?;
@@ -204,6 +243,7 @@ impl PluginEditorSession {
                     } })?;
                 }
                 self.color_edit = None;
+                self.parameter_edit = None;
                 return self.state(engine, frame);
             }
             EditorRequest::Begin { .. } => {
@@ -217,6 +257,7 @@ impl PluginEditorSession {
                 engine.end_gesture(matches!(request, EditorRequest::Commit { .. }))?;
                 self.gesture = false;
                 self.color_edit = None;
+                self.parameter_edit = None;
                 return self.state(engine, frame);
             }
             EditorRequest::Transform {

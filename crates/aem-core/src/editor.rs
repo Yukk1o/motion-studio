@@ -105,6 +105,12 @@ pub enum Command {
         frame: u32,
         easing: Easing,
     },
+    Spatial {
+        object: u64,
+        property: Property,
+        frame: u32,
+        tangents: Option<crate::SpatialTangents<[f32; 3]>>,
+    },
     CreateCamera,
     Remove {
         object: u64,
@@ -448,6 +454,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             project.expressions.retain(|e| e.target != target);
         }
         Command::Effect { object, action } => {
+            if matches!(&action, crate::EffectAction::Spatial { .. }) { project.version = project.version.max(9); }
             let copy = if let crate::EffectAction::Duplicate { effect } = &action {
                 Some(*effect)
             } else {
@@ -595,6 +602,16 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 right_object,
             });
         }
+        Command::Spatial { object, property, frame, tangents } => {
+            valid_frame(frame)?;
+            ensure(matches!(property, Property::Position | Property::Target), "spatial path requires a position property")?;
+            let frame = project.edit_frame(object, frame)?;
+            project.version = project.version.max(9);
+            match channel(project, object, property)? {
+                Channel::Vector(t) => t.set_spatial(frame, tangents)?,
+                _ => return Err(Error::Invalid("spatial path requires a vector property".into())),
+            }
+        }
         Command::Curve {
             object,
             property,
@@ -739,7 +756,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
         }
         Command::Mask { object, action } => {
             for frame in action.frames() { valid_frame(frame)?; }
-            project.version = 8;
+            project.version = project.version.max(8);
             let layer = project.layer_mut(object)?;
             if layer.locked { return Err(Error::Locked(object)); }
             crate::masks::edit(&mut layer.masks, action, layer.timeline.map_or(0, |t| t.offset_frame))?;

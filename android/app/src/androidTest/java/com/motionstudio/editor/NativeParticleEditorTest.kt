@@ -41,15 +41,16 @@ class NativeParticleEditorTest {
     @Test fun nativePageSharesGpuPreviewPlayheadAndKeysWithOuterEditor() {
         compose.onNodeWithTag("plugin-editor-native").assertIsDisplayed();compose.onNodeWithTag("native-plugin-preview").assertIsDisplayed();compose.onNodeWithTag("native-plugin-timeline").assertIsDisplayed()
         assertNull(vm.pluginEditor.session!!.definition.optJSONObject("editor"));assertTrue(vm.pluginEditor.session!!.assets.isEmpty())
-        compose.onNodeWithTag("native-param-select-position").performScrollTo().performClick()
+        compose.onNodeWithTag("native-param-position-select").performScrollTo().performClick()
         compose.onNodeWithTag("native-plugin-key").performClick();compose.waitUntil(10000){keys()==listOf(0)}
         scenario.onActivity{vm.seek(30.0,true)};compose.waitUntil(10000){vm.pluginEditor.state?.optInt("frame")==30}
         compose.onNodeWithTag("native-plugin-key").performClick();compose.waitUntil(10000){keys()==listOf(0,30)}
-        compose.onNodeWithTag("native-param-position-0").performScrollTo().performClick()
+        compose.onNodeWithTag("native-param-position-axis-X").performScrollTo().performTouchInput{longClick()}
         compose.onNode(hasSetTextAction()).performTextReplacement("120");compose.onNodeWithText("确定").performClick()
-        compose.waitUntil(10000){vm.effectParam(2,1,"position")!!.getJSONObject("track").getJSONArray("keys").getJSONObject(1).getJSONArray("value").getDouble(0)==120.0}
+        try {compose.waitUntil(10000){vm.effectParam(2,1,"position")!!.getJSONObject("track").getJSONArray("keys").getJSONObject(1).getJSONArray("value").getDouble(0)==120.0}}
+        catch(failure:Throwable){File(root,"native-position-failure.json").writeText(JSONObject().put("state",vm.pluginEditor.state).put("project",vm.state.project).put("error",vm.state.error).put("tree",compose.onRoot().printToString()).toString(2));photo("native-position-failure");throw failure}
         compose.waitUntil(10000){vm.pluginEditor.state?.getJSONObject("values")?.getJSONArray("position")?.getDouble(0)==120.0}
-        compose.onNodeWithTag("native-param-position-0").assertIsEnabled()
+        compose.onNodeWithTag("native-param-position-axis-X").assertIsEnabled()
         photo("native-particle-preview-timeline")
         compose.onNodeWithTag("native-slot-tab-appearance").performClick();compose.onNodeWithTag("native-slot-sprite_asset").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("native-editor-done").performClick();compose.waitUntil(10000){vm.pluginEditor.session==null&&vm.state.saved}
@@ -166,6 +167,20 @@ class NativeParticleEditorTest {
         compose.onNodeWithTag("expression-workspace").assertIsDisplayed()
         assertEquals("color",vm.expressionTarget!!.getString("param"))
         assertEquals(1L,vm.expressionTarget!!.getLong("effect"))
+        assertNull(vm.state.error)
+    }
+    @Test fun effectPositionSharesTheTransformPadAndReturnsToItsWheel() {
+        compose.onNodeWithTag("native-param-position-select").performScrollTo().performClick()
+        val original=vm.effectParam(2,1,"position")!!.getJSONObject("track").toString()
+        compose.onNodeWithTag("native-param-position-pad-open").performScrollTo().performClick()
+        compose.onNodeWithTag("native-param-position-pad").performTouchInput{down(androidx.compose.ui.geometry.Offset(width*.3f,height*.7f));moveBy(androidx.compose.ui.geometry.Offset(40f,20f),150);up()}
+        compose.waitUntil(10000){vm.pluginEditor.state?.optJSONObject("parameter_edit")==null&&vm.effectParam(2,1,"position")!!.getJSONObject("track").getJSONArray("value").getDouble(0)>0}
+        photo("native-position-shared-pad")
+        compose.onNodeWithTag("position-pad-back").performClick()
+        compose.onNodeWithTag("native-param-position-pad").assertDoesNotExist()
+        compose.onNodeWithTag("native-param-position-wheel").assertIsDisplayed()
+        compose.onNodeWithTag("native-editor-cancel").performClick()
+        compose.waitUntil(10000){vm.pluginEditor.session==null&&vm.effectParam(2,1,"position")!!.getJSONObject("track").toString()==original}
         assertNull(vm.state.error)
     }
 }

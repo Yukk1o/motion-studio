@@ -192,12 +192,14 @@ fn animated_tiles_are_identical_after_restore_and_random_seeking() {
             value: [0.; 4],
             ease: aem_core::Ease::Linear,
             curve: None,
+            spatial: None,
         },
         aem_core::Keyframe {
             frame: 30,
             value: [360., 0., 0., 0.],
             ease: aem_core::Ease::Linear,
             curve: None,
+            spatial: None,
         },
     ];
     let restored: Project = serde_json::from_slice(&serde_json::to_vec(&p).unwrap()).unwrap();
