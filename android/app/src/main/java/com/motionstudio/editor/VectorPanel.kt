@@ -54,7 +54,8 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
     Column(modifier.background(Panel).testTag("vector-panel")) {
         Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
             if(curve)TextButton(onClick={curve=false}){Text("返回属性")}else {
-                listOf("geometry" to if(source.getString("kind")=="shape")"形状"else"路径","style" to "样式").forEach{(id,label)->
+                (listOf("geometry" to if(source.getString("kind")=="shape")"形状"else"路径","style" to "样式")+
+                    if(vm.maskOpen)emptyList()else listOf("operations" to "路径操作")).forEach{(id,label)->
                     TextButton(onClick={vm.vectorTab=id},modifier=Modifier.testTag("vector-tab-$id").semantics{selected=vm.vectorTab==id}){Text(label,color=if(vm.vectorTab==id)Accent else Muted)}
                 }
             }
@@ -62,7 +63,8 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
         }
         if(curve)CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())else {
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
-                if(vm.vectorTab=="style")VectorPaint(vm,vector)
+                if(vm.vectorTab=="operations")VectorPathOperations(vm,vector)
+                else if(vm.vectorTab=="style")VectorPaint(vm,vector)
                 else if(source.getString("kind")=="shape") {
                     val shape=vm.shapeCatalogue().firstOrNull{it.getString("id")==source.getString("shape")}
                     shape?.optJSONArray("parameters").objects().forEach{p->
@@ -127,6 +129,7 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
         }
         VectorOptions("端点",stroke.getString("cap"),listOf("butt" to "平头","round" to "圆头","square" to "方头"),vm.editable()){id->change{it.getJSONObject("stroke").put("cap",id)}}
         VectorOptions("拐角",stroke.getString("join"),listOf("miter" to "尖角","round" to "圆角","bevel" to "斜角"),vm.editable()){id->change{it.getJSONObject("stroke").put("join",id)}}
+        if(!vm.maskOpen)VectorDashes(vm,stroke)
         if(stroke.getString("join")=="miter") {
             var input by remember{mutableStateOf(false)}
             TextButton(onClick={input=true},enabled=vm.editable()){Text("尖角限制 · ${stroke.getDouble("miter_limit")}")}
@@ -134,6 +137,61 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
         }
     }
     VectorOptions("填充规则",vector.getString("fill_rule"),listOf("non_zero" to "非零","even_odd" to "奇偶"),vm.editable()){id->change{it.put("fill_rule",id)}}
+}
+
+private fun constantVectorTrack(value:Double)=JSONObject().put("value",value).put("keys",JSONArray())
+
+@Composable private fun VectorPathOperations(vm:EditorViewModel,vector:JSONObject) {
+    val trim=vector.optJSONObject("trim")
+    Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
+        Text("修剪路径",Modifier.weight(1f),color=Ink)
+        Switch(trim!=null,{enabled->
+            vm.vectorAction(JSONObject().put("action","set_trim").put("trim",if(enabled)
+                JSONObject().put("start",constantVectorTrack(0.0)).put("end",constantVectorTrack(100.0))
+                    .put("offset",constantVectorTrack(0.0)).put("mode","simultaneously")else JSONObject.NULL))
+            if(enabled)vm.selectVectorTrack("vector:trim_end")
+        },enabled=vm.editable(),modifier=Modifier.testTag("vector-trim-toggle"))
+    }
+    Text("保留原始路径。选中参数后，可在时间轴中添加关键帧。",color=Muted,fontSize=12.sp)
+    if(trim!=null) {
+        VectorNumber(vm,"vector:trim_start","开始（%）",0.0,100.0)
+        VectorNumber(vm,"vector:trim_end","结束（%）",0.0,100.0)
+        VectorNumber(vm,"vector:trim_offset","偏移（°）",-360000.0,360000.0)
+        VectorOptions("多条路径",trim.getString("mode"),listOf("simultaneously" to "同时修剪","individually" to "依次修剪"),vm.editable()){mode->
+            vm.vectorAction(JSONObject().put("action","set_trim").put("trim",JSONObject(trim.toString()).put("mode",mode)))
+        }
+    }
+}
+
+@Composable private fun VectorDashes(vm:EditorViewModel,stroke:JSONObject) {
+    val dashes=stroke.optJSONObject("dashes")
+    Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
+        Text("虚线描边",Modifier.weight(1f),color=Ink)
+        Switch(dashes!=null,{enabled->
+            vm.vectorAction(JSONObject().put("action","set_dashes").put("dashes",if(enabled)
+                JSONObject().put("pattern",JSONArray().put(constantVectorTrack(12.0)).put(constantVectorTrack(8.0)))
+                    .put("offset",constantVectorTrack(0.0))else JSONObject.NULL))
+            if(enabled)vm.selectVectorTrack("vector:dash_0")
+        },enabled=vm.editable(),modifier=Modifier.testTag("vector-dashes-toggle"))
+    }
+    if(dashes!=null) {
+        val pattern=dashes.getJSONArray("pattern")
+        pattern.objects().forEachIndexed{index,_->
+            VectorNumber(vm,"vector:dash_$index",if(index%2==0)"线段 ${index/2+1}"else"间隔 ${index/2+1}",if(index%2==0)0.1 else 0.0,32768.0)
+        }
+        VectorNumber(vm,"vector:dash_offset","虚线偏移",-32768.0,32768.0)
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+            TextButton(onClick={
+                vm.vectorAction(JSONObject().put("action","set_dashes").put("dashes",JSONObject(dashes.toString())
+                    .put("pattern",JSONArray(pattern.toString()).put(constantVectorTrack(12.0)).put(constantVectorTrack(8.0)))))
+            },enabled=vm.editable()&&pattern.length()<6,modifier=Modifier.heightIn(min=48.dp).testTag("vector-dash-add")){Text("＋线段与间隔")}
+            TextButton(onClick={
+                vm.vectorAction(JSONObject().put("action","set_dashes").put("dashes",JSONObject(dashes.toString())
+                    .put("pattern",JSONArray(pattern.objects().dropLast(2)))))
+                if(vm.property.removePrefix("vector:dash_").toIntOrNull()?.let{it>=pattern.length()-2}==true)vm.selectVectorTrack("vector:dash_0")
+            },enabled=vm.editable()&&pattern.length()>2,modifier=Modifier.heightIn(min=48.dp).testTag("vector-dash-remove")){Text("移除末组")}
+        }
+    }
 }
 
 @Composable private fun VectorOptions(label:String,chosen:String,items:List<Pair<String,String>>,enabled:Boolean,onChoose:(String)->Unit) {

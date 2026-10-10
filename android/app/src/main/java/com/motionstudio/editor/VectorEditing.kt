@@ -9,17 +9,7 @@ internal fun EditorViewModel.vectorSample(objectId:Long=selected)=if(maskOpen)ma
 internal fun EditorViewModel.shapeCatalogue()=state.sample?.optJSONObject("capabilities")?.optJSONObject("vector_drawing")?.optJSONArray("shape_catalog").objects()
 internal fun EditorViewModel.vectorTrackRaw(objectId:Long,key:String):JSONObject? {
     val vector=vectorData(objectId)?:return null
-    val parts=key.split(':')
-    if(parts.firstOrNull()!="vector")return null
-    return when(parts.getOrNull(1)) {
-        "parameter"->vector.optJSONObject("source")?.optJSONObject("parameters")?.optJSONObject(parts.getOrNull(2)?:return null)
-        "fill"->vector.optJSONObject("fill")
-        "stroke_color"->vector.optJSONObject("stroke")?.optJSONObject("color")
-        "stroke_width"->vector.optJSONObject("stroke")?.optJSONObject("width")
-        "node"->vector.optJSONObject("source")?.optJSONArray("paths").objects().firstOrNull{it.optLong("id")==parts.getOrNull(2)?.toLongOrNull()}
-            ?.optJSONArray("nodes").objects().firstOrNull{it.optLong("id")==parts.getOrNull(3)?.toLongOrNull()}?.optJSONObject("geometry")
-        else->null
-    }
+    return vectorTrack(vector,key)
 }
 internal fun EditorViewModel.vectorValue(objectId:Long,key:String):Any? {
     val sample=vectorSample(objectId)
@@ -31,11 +21,12 @@ internal fun EditorViewModel.vectorValue(objectId:Long,key:String):Any? {
         "stroke_width"->sample?.optJSONObject("stroke")?.opt("width")
         "node"->sample?.optJSONArray("paths").objects().firstOrNull{it.optLong("id")==parts.getOrNull(2)?.toLongOrNull()}
             ?.optJSONArray("nodes").objects().firstOrNull{it.optLong("id")==parts.getOrNull(3)?.toLongOrNull()}?.optJSONArray("geometry")
-        else->null
+        else->sample?.optJSONObject("modifier_parameters")?.opt(parts.getOrNull(1)?:return null)
     }?:vectorTrackRaw(objectId,key)?.opt("value")
 }
 private fun vectorTrack(vector:JSONObject,key:String):JSONObject? {
     val parts=key.split(':')
+    if(parts.firstOrNull()!="vector")return null
     return when(parts.getOrNull(1)) {
         "parameter"->vector.optJSONObject("source")?.optJSONObject("parameters")?.optJSONObject(parts.getOrNull(2)?:return null)
         "fill"->vector.optJSONObject("fill")
@@ -43,7 +34,10 @@ private fun vectorTrack(vector:JSONObject,key:String):JSONObject? {
         "stroke_width"->vector.optJSONObject("stroke")?.optJSONObject("width")
         "node"->vector.optJSONObject("source")?.optJSONArray("paths").objects().firstOrNull{it.optLong("id")==parts.getOrNull(2)?.toLongOrNull()}
             ?.optJSONArray("nodes").objects().firstOrNull{it.optLong("id")==parts.getOrNull(3)?.toLongOrNull()}?.optJSONObject("geometry")
-        else->null
+        "trim_start","trim_end","trim_offset"->vector.optJSONObject("trim")?.optJSONObject(parts[1].removePrefix("trim_"))
+        "dash_offset"->vector.optJSONObject("stroke")?.optJSONObject("dashes")?.optJSONObject("offset")
+        else->parts.getOrNull(1)?.takeIf{it.startsWith("dash_")}?.removePrefix("dash_")?.toIntOrNull()?.let{index->
+            vector.optJSONObject("stroke")?.optJSONObject("dashes")?.optJSONArray("pattern")?.optJSONObject(index)}
     }
 }
 

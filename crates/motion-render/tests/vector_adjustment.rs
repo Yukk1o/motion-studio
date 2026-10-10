@@ -54,6 +54,61 @@ fn pixel(p: &[u8], x: usize, y: usize) -> &[u8] {
     &p[(y * 64 + x) * 4..(y * 64 + x) * 4 + 4]
 }
 #[test]
+fn trim_and_dashes_change_pixels_without_mutating_paths_or_reusing_old_frames() {
+    use motion_core::{
+        vector::{LineCap, StrokeDashes, TrimPaths},
+        Track,
+    };
+    let mut r = pollster::block_on(Renderer::headless()).unwrap();
+    let mut p = base();
+    p.version = 11;
+    let mut v = VectorContent::shape(ShapeKind::Line);
+    v.stroke.as_mut().unwrap().cap = LineCap::Butt;
+    v.stroke.as_mut().unwrap().width.value = 6.;
+    v.trim = Some(TrimPaths {
+        end: Track::constant(50.),
+        ..Default::default()
+    });
+    let mut l = Layer::solid(1, "trimmed line", [40.; 2], [32., 32., 0.], [1.; 4]);
+    l.content = Content::Vector { vector: v.clone() };
+    p.layers.push(l);
+    let half = capture(&mut r, &p);
+    assert!(pixel(&half, 20, 32)[3] > 240);
+    assert_eq!(pixel(&half, 44, 32)[3], 0);
+    v.trim = None;
+    v.stroke.as_mut().unwrap().dashes = Some(StrokeDashes {
+        pattern: vec![Track::constant(10.), Track::constant(10.)],
+        offset: Track::constant(0.),
+    });
+    p.layers[0].content = Content::Vector { vector: v.clone() };
+    let dashed = capture(&mut r, &p);
+    assert!(pixel(&dashed, 18, 32)[3] > 240 && pixel(&dashed, 38, 32)[3] > 240);
+    assert_eq!(pixel(&dashed, 26, 32)[3], 0);
+    assert_eq!(pixel(&dashed, 48, 32)[3], 0);
+    let d = v.stroke.as_mut().unwrap().dashes.as_mut().unwrap();
+    d.offset.set_animated(0, true).unwrap();
+    d.offset.set_at(10, 10.).unwrap();
+    p.layers[0].content = Content::Vector { vector: v };
+    let mut scene = Scene::new(&p);
+    let target = r.capture_target(64, 64).unwrap();
+    let mut frames = Vec::new();
+    for frame in [0., 10., 5., 0.] {
+        scene
+            .sample(&p, frame, None, &motion_core::ExpressionEvaluator)
+            .unwrap();
+        frames.push(r.capture(&scene, &target).unwrap().0);
+    }
+    assert_eq!(frames[0], frames[3]);
+    assert_ne!(frames[0], frames[1]);
+    assert_ne!(frames[0], frames[2]);
+    assert_eq!(
+        scene.layers[0].vector.as_ref().unwrap().paths[0]
+            .nodes
+            .len(),
+        2
+    );
+}
+#[test]
 fn vector_holes_open_paths_stroke_and_cache_render() {
     let mut r = pollster::block_on(Renderer::headless()).unwrap();
     let mut p = base();
@@ -319,6 +374,7 @@ fn animated_geometry_fill_and_stroke_are_seek_independent_and_release_sources() 
             .unwrap();
     }
     vector.stroke = Some(Stroke {
+        dashes: None,
         color: motion_core::Track::constant([1.; 4]),
         width: motion_core::Track::constant(6.),
         cap: LineCap::Round,

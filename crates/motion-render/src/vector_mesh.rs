@@ -1,10 +1,10 @@
 //! Both GPU backends consume the same tessellated triangles and linear paints.
-use motion_model::vector::{FillRule, LineCap, LineJoin, SampledVector};
 use bytemuck::{Pod, Zeroable};
 use lyon_tessellation::{
     math::point, path::Path, BuffersBuilder, FillOptions, FillTessellator, FillVertex,
     StrokeOptions, StrokeTessellator, StrokeVertex, VertexBuffers,
 };
+use motion_model::vector::{FillRule, LineCap, LineJoin, SampledVector};
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct VectorVertex {
@@ -30,10 +30,30 @@ pub fn tessellate(
     size: [f32; 2],
     scale: f32,
 ) -> Result<Vec<VectorVertex>, String> {
+    let trimmed = v
+        .trim
+        .as_ref()
+        .map(|t| motion_model::vector::path_ops::trim(&v.paths, t))
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    let paths = trimmed.as_deref().unwrap_or(&v.paths);
+    let dashed = if v.stroke.is_some_and(|s| s.1 > 0.) {
+        v.dashes
+            .as_ref()
+            .map(|d| motion_model::vector::path_ops::dash(paths, d))
+            .transpose()
+            .map_err(|e| e.to_string())?
+    } else {
+        None
+    };
     let make_path = |fill: bool| {
         let mut b = Path::builder();
-        for p in &v.paths {
-            if p.nodes.len() < 2 || (fill && !p.closed) {
+        for p in if fill {
+            paths
+        } else {
+            dashed.as_deref().unwrap_or(paths)
+        } {
+            if p.nodes.len() < 2 || (fill && !p.closed && v.trim.is_none()) {
                 continue;
             }
             let first = p.nodes[0];
@@ -52,7 +72,7 @@ pub fn tessellate(
                     );
                 }
             }
-            b.end(p.closed);
+            b.end(p.closed || fill);
         }
         b.build()
     };

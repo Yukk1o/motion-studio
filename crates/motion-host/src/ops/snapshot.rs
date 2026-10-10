@@ -148,8 +148,18 @@ impl Session {
                     parameters.iter().map(|(name,track)|(name.clone(),json!(track.sample(f-f64::from(offset))))).collect::<serde_json::Map<_,_>>()
                 },_=>serde_json::Map::new(),
             };
+            let mut modifier_parameters=serde_json::Map::new();
+            if let Some(t)=&vector.trim {
+                modifier_parameters.insert("trim_start".into(),json!(t.start));
+                modifier_parameters.insert("trim_end".into(),json!(t.end));
+                modifier_parameters.insert("trim_offset".into(),json!(t.offset));
+            }
+            if let Some(d)=&vector.dashes {
+                modifier_parameters.insert("dash_offset".into(),json!(d.offset));
+                for (i,value) in d.pattern.iter().enumerate() {modifier_parameters.insert(format!("dash_{i}"),json!(value));}
+            }
             Some(json!({"id":layer.id,"canvas_size":layer.source_size,"source_rect":layer.source_rect,
-                "mvp":(layer.view_projection*layer.model).to_cols_array(),"paths":paths,"parameters":parameters,
+                "mvp":(layer.view_projection*layer.model).to_cols_array(),"paths":paths,"parameters":parameters,"modifier_parameters":modifier_parameters,
                 "fill":vector.fill,"stroke":vector.stroke.map(|s|json!({"color":s.0,"width":s.1,"cap":s.2,"join":s.3,"miter_limit":s.4}))}))
         }).collect();
         let camera_properties: Vec<&str> = if !p.camera.created {
@@ -200,7 +210,14 @@ impl Session {
                 "adapter":g.renderer.adapter_info.name,
                 "backend":format!("{:?}",g.renderer.adapter_info.backend),
                 "textureBytes":g.renderer.texture_bytes()}))});
-        snapshot["capabilities"]["composition_api"]["project_format"]=json!(10);
+        snapshot["capabilities"]["composition_api"]["project_format"]=json!(11);
+        snapshot["capabilities"]["vector_drawing"]["protocol"]=json!(2);
+        snapshot["capabilities"]["vector_drawing"]["path_modifiers"]=json!({"project_format":11,
+            "trim_paths":true,"trim_modes":["simultaneously","individually"],"trim_range_percent":[0,100],
+            "trim_offset_degrees":[-360000,360000],"stroke_dashes":true,"max_dash_pairs":3,
+            "dash_length_pixels":[0.1,32768],"gap_length_pixels":[0,32768],"dash_offset_pixels":[-32768,32768],
+            "max_output_nodes":motion_core::vector::path_ops::MAX_OUTPUT_NODES,"evaluation_order":["source","trim","dash","paint"],
+            "groups":false,"repeater":false,"zero_length_dots":false});
         snapshot["capabilities"]["layer_compositing"]=json!({"supported":true,"version":1,"project_format":10,
             "blend_command":"set_layer_blend","matte_command":"set_track_matte",
             "blend_modes":["normal","add","multiply","screen","overlay","darken","lighten","difference","exclusion","subtract","divide","color_dodge","color_burn","hard_light","soft_light"],

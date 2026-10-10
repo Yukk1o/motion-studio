@@ -497,6 +497,8 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             let edit_frame = match &action {
                 crate::vector::VectorAction::SetNode { frame, .. }
                 | crate::vector::VectorAction::SetParameter { frame, .. }
+                | crate::vector::VectorAction::SetModifierParameter { frame, .. }
+                | crate::vector::VectorAction::SetModifierCurve { frame, .. }
                 | crate::vector::VectorAction::ConvertToPath { frame } => Some(*frame),
                 _ => None,
             };
@@ -756,6 +758,9 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             layer.transform.position = position;
             layer.transform.anchor = anchor;
         }
+    }
+    if project.layers.iter().any(|l| matches!(&l.content, Content::Vector { vector } if vector.has_path_modifiers())) {
+        project.version = project.version.max(11);
     }
     project.rebuild_plugin_dependencies();
     project.validate()?;
