@@ -210,7 +210,7 @@ impl Project {
     /// Sampling view only. The caller keeps the validated document for graph lookups.
     /// Never save or validate this view as an independent document. Local
     /// validation must resolve references against the owning document.
-    pub(crate) fn composition_frame_view(&self, id: &str) -> Result<Self> {
+    pub fn composition_frame_view(&self, id: &str) -> Result<Self> {
         let body = self.composition_view(id)?;
         Ok(Self {
             version: self.version,
@@ -584,7 +584,7 @@ impl Project {
         self.layers.push(l);
         Ok(id)
     }
-    pub(crate) fn edit_composition(&mut self, action: CompositionAction) -> Result<Value> {
+    pub fn edit_composition(&mut self, action: CompositionAction) -> Result<Value> {
         match action {
             CompositionAction::Create { settings } => {
                 if self.compositions.len() + 1 >= MAX_COMPOSITIONS {

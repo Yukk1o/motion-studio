@@ -1,4 +1,5 @@
-use motion_core::{EffectInstance, Layer, Project, Scene, VideoSample};
+use motion_core::{EffectInstance, Layer, Project, VideoSample};
+use motion_render::Scene;
 use motion_render::effect_plan::PlanBuilder;
 
 fn builder() -> PlanBuilder {
@@ -37,7 +38,7 @@ fn static_video_plans_reuse_geometry_but_keep_local_shader_time_on_random_seeks(
     let mut scene = Scene::new(&p);
     let mut cached = builder();
     for f in [0., 1., 31., 79., 2., 0.] {
-        scene.sample(&p, f, None).unwrap();
+        scene.sample(&p, f, None, &motion_core::ExpressionEvaluator).unwrap();
         scene.layers[0].video = Some(VideoSample {
             asset: 7,
             source_time_us: (f * 33_333.) as u64,
@@ -55,7 +56,7 @@ fn static_video_plans_reuse_geometry_but_keep_local_shader_time_on_random_seeks(
 fn signed_zero_parameters_do_not_reuse_a_different_gpu_uniform_payload() {
     let p = project();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let index = scene.effects[0]
         .param_ids
         .iter()
@@ -75,7 +76,7 @@ fn parameters_geometry_quality_resources_and_strict_export_invalidate_cached_pla
     let mut p = project();
     let mut scene = Scene::new(&p);
     let mut cached = builder();
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     bytes(&mut cached, &scene, 64);
     p.layers[0].effects[0]
         .params
@@ -83,13 +84,13 @@ fn parameters_geometry_quality_resources_and_strict_export_invalidate_cached_pla
         .unwrap()
         .track
         .value[0] = 24.;
-    scene.sample(&p, 1., None).unwrap();
+    scene.sample(&p, 1., None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         bytes(&mut cached, &scene, 64),
         bytes(&mut builder(), &scene, 64)
     );
     p.layers[0].transform.rotation.value[2] = 20.;
-    scene.sample(&p, 2., None).unwrap();
+    scene.sample(&p, 2., None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         bytes(&mut cached, &scene, 64),
         bytes(&mut builder(), &scene, 64)
@@ -168,7 +169,7 @@ fn reused_preview_plan_uploads_changed_curve_lut_and_matches_fresh_gpu_output() 
                 .value
                 .channels[1] = vec![[0., 0.], [1., 0.]];
         }
-        scene.sample(&p, i as f64, None).unwrap();
+        scene.sample(&p, i as f64, None, &motion_core::ExpressionEvaluator).unwrap();
         let mut encoder = cached.device.create_command_encoder(&Default::default());
         cached
             .encode_preview(&scene, &target.view, 64, 64, &mut encoder, None)

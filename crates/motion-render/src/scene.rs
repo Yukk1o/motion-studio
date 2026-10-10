@@ -1,5 +1,5 @@
-use crate::{camera::to_world, ensure, CameraPose, Content, Layer, Observer, Project, Result};
-use glam::{EulerRot, Mat4, Quat, Vec3};
+use motion_model::{to_world, ensure, CameraPose, Content, Layer, Observer, Project, Result};
+use glam::{Mat4, Vec3};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
@@ -21,9 +21,9 @@ pub struct DrawLayer {
     pub color: [f32; 4],
     pub opacity: f32,
     pub asset: Option<u64>,
-    pub video: Option<crate::VideoSample>,
-    pub vector: Option<std::sync::Arc<crate::vector::SampledVector>>,
-    pub masks: std::sync::Arc<Vec<crate::masks::SampledMask>>,
+    pub video: Option<motion_model::VideoSample>,
+    pub vector: Option<std::sync::Arc<motion_model::vector::SampledVector>>,
+    pub masks: std::sync::Arc<Vec<motion_model::masks::SampledMask>>,
     pub adjustment: bool,
     pub composition: bool,
     pub depth: f32,
@@ -39,8 +39,8 @@ pub struct Scene {
     pub background: [f32; 4],
     pub width: u32,
     pub height: u32,
-    pub effects: Vec<crate::SampledEffect>,
-    pub curve_luts: Vec<crate::CurveLut>,
+    pub effects: Vec<motion_model::SampledEffect>,
+    pub curve_luts: Vec<motion_model::CurveLut>,
     pub frame: f64,
     pub fps: u32,
     pub sprite_assets: std::collections::HashMap<u64, [u32;2]>,
@@ -56,13 +56,13 @@ pub struct Scene {
     vector_cache: std::collections::HashMap<
         u64,
         (
-            crate::vector::VectorContent,
+            motion_model::vector::VectorContent,
             [f32; 2],
             Option<f64>,
-            std::sync::Arc<crate::vector::SampledVector>,
+            std::sync::Arc<motion_model::vector::SampledVector>,
         ),
     >,
-    mask_cache: std::collections::HashMap<u64, (Vec<crate::masks::LayerMask>, Option<f64>, std::sync::Arc<Vec<crate::masks::SampledMask>>)>,
+    mask_cache: std::collections::HashMap<u64, (Vec<motion_model::masks::LayerMask>, Option<f64>, std::sync::Arc<Vec<motion_model::masks::SampledMask>>)>,
 }
 #[derive(Clone, Debug)]
 pub struct NestedScene {
@@ -74,11 +74,11 @@ impl Scene {
     pub fn new(project: &Project) -> Self {
         Self {
             camera: project.camera.pose(0.0, project.width, project.height),
-            layers: Vec::with_capacity(crate::MAX_LAYERS),
+            layers: Vec::with_capacity(motion_model::MAX_LAYERS),
             background: project.background,
             width: project.width,
             height: project.height,
-            effects: Vec::with_capacity(crate::MAX_LAYERS * motion_effects::MAX_EFFECTS_PER_LAYER),
+            effects: Vec::with_capacity(motion_model::MAX_LAYERS * motion_effects::MAX_EFFECTS_PER_LAYER),
             curve_luts: Vec::new(),
             frame: 0.0,
             fps: project.fps,
@@ -86,10 +86,10 @@ impl Scene {
             composition_id: project.composition_id.clone(),
             nested: Vec::new(),
             nested_spare: Vec::new(),
-            node_world: Vec::with_capacity(crate::MAX_LAYERS + 1),
-            node_states: Vec::with_capacity(crate::MAX_LAYERS + 1),
-            node_ids: Vec::with_capacity(crate::MAX_LAYERS + 1),
-            node_spatial: Vec::with_capacity(crate::MAX_LAYERS + 1),
+            node_world: Vec::with_capacity(motion_model::MAX_LAYERS + 1),
+            node_states: Vec::with_capacity(motion_model::MAX_LAYERS + 1),
+            node_ids: Vec::with_capacity(motion_model::MAX_LAYERS + 1),
+            node_spatial: Vec::with_capacity(motion_model::MAX_LAYERS + 1),
             source_objects:Vec::new(),
             evaluated_project: None,
             vector_cache: Default::default(),
@@ -101,8 +101,9 @@ impl Scene {
         project: &Project,
         frame: f64,
         observer: Option<&Observer>,
+        evaluator: &dyn motion_model::FrameEvaluator,
     ) -> Result<()> {
-        self.sample_inner(project, project, frame, observer, 0, &mut 0)?;
+        self.sample_inner(project, project, frame, observer, 0, &mut 0, evaluator)?;
         if !self.nested.is_empty() {
             let mut used: std::collections::HashSet<_> = project.layers.iter().map(|l|l.id)
                 .chain(project.compositions.iter().flat_map(|c|c.layers.iter().map(|l|l.id))).collect();
@@ -111,12 +112,12 @@ impl Scene {
         }
         Ok(())
     }
-    fn sample_inner(&mut self, document:&Project, project:&Project, frame:f64, observer:Option<&Observer>, depth:usize, instances:&mut usize)->Result<()> {
-        ensure(depth<crate::composition::MAX_COMPOSITION_DEPTH,"composition nesting too deep")?;
-        if *instances >= crate::composition::MAX_RENDER_COMPOSITION_INSTANCES {
-            return crate::composition::fail(&project.composition_id, "render_resource_limit",
+    fn sample_inner(&mut self, document:&Project, project:&Project, frame:f64, observer:Option<&Observer>, depth:usize, instances:&mut usize, evaluator:&dyn motion_model::FrameEvaluator)->Result<()> {
+        ensure(depth<motion_model::composition::MAX_COMPOSITION_DEPTH,"composition nesting too deep")?;
+        if *instances >= motion_model::composition::MAX_RENDER_COMPOSITION_INSTANCES {
+            return motion_model::composition::fail(&project.composition_id, "render_resource_limit",
                 "Active composition instance limit exceeded",
-                serde_json::json!({"max_render_instances":crate::composition::MAX_RENDER_COMPOSITION_INSTANCES,
+                serde_json::json!({"max_render_instances":motion_model::composition::MAX_RENDER_COMPOSITION_INSTANCES,
                                    "requested_instances":*instances+1,"frame":frame}));
         }
         *instances += 1;
@@ -125,7 +126,7 @@ impl Scene {
             "invalid sample time",
         )?;
         let original = project;
-        let evaluated = project.evaluated_at(frame)?;
+        let evaluated = evaluator.evaluate(project, frame)?;
         let project = evaluated.as_ref();
         self.frame = frame;
         self.fps = project.fps;
@@ -145,9 +146,9 @@ impl Scene {
         for layer in &project.layers {
             for e in &layer.effects {
                 if effect_index >= self.effects.len() {
-                    self.effects.push(crate::SampledEffect::new(layer.id, e));
+                    self.effects.push(motion_model::SampledEffect::new(layer.id, e));
                 } else if !self.effects[effect_index].matches(layer.id, e) {
-                    self.effects[effect_index] = crate::SampledEffect::new(layer.id, e);
+                    self.effects[effect_index] = motion_model::SampledEffect::new(layer.id, e);
                 }
                 let sampled = &mut self.effects[effect_index];
                 sampled.local_frame = layer.local_frame(frame);
@@ -160,7 +161,7 @@ impl Scene {
                 if e.enabled && e.scene.as_ref().is_some_and(|s| s.particle_space.is_some()) {
                     let raw_layer = original.layers.iter().find(|l| l.id == layer.id).unwrap();
                     let raw_effect = raw_layer.effects.iter().find(|v| v.id == e.id).unwrap();
-                    match crate::particle_history::ParticleHistory::capture(original, raw_layer, raw_effect, sampled.particle_history.as_ref()) {
+                    match motion_model::particle_history::ParticleHistory::capture(original, raw_layer, raw_effect, sampled.particle_history.as_ref()) {
                         Ok(history) => sampled.particle_history = Some(history),
                         Err(error) => { sampled.particle_history = None; sampled.particle_history_error = Some(error.to_string()); }
                     }
@@ -178,7 +179,7 @@ impl Scene {
             }
         }
         self.effects.truncate(effect_index);
-        crate::hierarchy::matrices(project, frame, &mut self.node_world, &mut self.node_states)?;
+        motion_model::hierarchy::matrices(project, frame, &mut self.node_world, &mut self.node_states)?;
         self.node_ids.clear();
         self.node_ids.extend(project.layers.iter().map(|l| l.id));
         self.node_ids.push(0);
@@ -199,7 +200,7 @@ impl Scene {
         let camera = if project.camera.created {
             &project.camera
         } else {
-            implicit = crate::Camera::new(project.width, project.height);
+            implicit = motion_model::Camera::new(project.width, project.height);
             &implicit
         };
         self.camera = observer.map_or_else(
@@ -230,7 +231,7 @@ impl Scene {
             if matches!(layer.content, Content::Null | Content::Audio { .. }) {
                 continue;
             }
-            let referenced = self.effects.iter().any(|e| e.enabled && e.image_input.and_then(crate::EffectImageInput::layer) == Some(layer.id));
+            let referenced = self.effects.iter().any(|e| e.enabled && e.image_input.and_then(motion_model::EffectImageInput::layer) == Some(layer.id));
             let clip=layer.clip(project.frames);
             if frame<f64::from(clip.in_frame)||frame>=f64::from(clip.out_frame)||(!layer.visible&&!referenced) {
                 continue;
@@ -253,9 +254,9 @@ impl Scene {
                 } else {
                     NestedScene {layer:layer.id, composition:clip.composition.clone(), scene:Box::new(Scene::new(&child))}
                 };
-                if let Err(error)=node.scene.sample_inner(document,&child,source,None,depth+1,instances){
-                    if matches!(&error, crate::Error::Composition(e) if e.code == "render_resource_limit") { return Err(error); }
-                    return crate::composition::fail(&clip.composition,"sample_failed",&error.to_string(),serde_json::json!({"frame":source,"parent_composition":project.composition_id,"reference":layer.id}));
+                if let Err(error)=node.scene.sample_inner(document,&child,source,None,depth+1,instances,evaluator){
+                    if matches!(&error, motion_model::Error::Composition(e) if e.code == "render_resource_limit") { return Err(error); }
+                    return motion_model::composition::fail(&clip.composition,"sample_failed",&error.to_string(),serde_json::json!({"frame":source,"parent_composition":project.composition_id,"reference":layer.id}));
                 }
                 self.nested.push(node);
             }
@@ -269,7 +270,7 @@ impl Scene {
                 if time < a.video_start_us as i64 || time >= a.video_end_us as i64 {
                     continue;
                 }
-                Some(crate::VideoSample {
+                Some(motion_model::VideoSample {
                     asset: a.id,
                     source_time_us: time as u64,
                 })
@@ -306,7 +307,7 @@ impl Scene {
                                 vector
                                     .sample(layer.local_frame(frame), layer.size)
                                     .map_err(|e| {
-                                        crate::Error::Invalid(format!(
+                                        motion_model::Error::Invalid(format!(
                                             "layer {} vector: {e}",
                                             layer.id
                                         ))
@@ -323,7 +324,7 @@ impl Scene {
             let mask_time = layer.masks.iter().any(|m| m.animated()).then_some(layer.local_frame(frame));
             if self.mask_cache.get(&layer.id).is_none_or(|(m,t,_)| m != &layer.masks || *t != mask_time) {
                 let masks = layer.masks.iter().map(|m| m.sample(layer.local_frame(frame)))
-                    .collect::<Result<Vec<_>>>().map_err(|e| crate::Error::Invalid(format!("layer {} masks at frame {frame}: {e}",layer.id)))?
+                    .collect::<Result<Vec<_>>>().map_err(|e| motion_model::Error::Invalid(format!("layer {} masks at frame {frame}: {e}",layer.id)))?
                     .into_iter().flatten().collect();
                 self.mask_cache.insert(layer.id,(layer.masks.clone(),mask_time,std::sync::Arc::new(masks)));
             }
@@ -331,7 +332,7 @@ impl Scene {
             if let Some(v) = &vector {
                 let pad = v.stroke.map_or(0., |s| {
                     s.1 * 0.5
-                        * if s.3 == crate::vector::LineJoin::Miter {
+                        * if s.3 == motion_model::vector::LineJoin::Miter {
                             s.4
                         } else {
                             1.
@@ -395,7 +396,8 @@ impl Scene {
         self.nested_spare = previous_nested;
         self.evaluated_project = match evaluated {
             std::borrow::Cow::Owned(p) => Some(p),
-            std::borrow::Cow::Borrowed(_) => None,
+            std::borrow::Cow::Borrowed(p) if std::ptr::eq(p, original) => None,
+            std::borrow::Cow::Borrowed(p) => Some(p.clone()),
         };
         Ok(())
     }
@@ -409,7 +411,7 @@ impl Scene {
         for l in &mut self.layers {l.id=mapping[&l.id];}
         for e in &mut self.effects {
             e.layer=mapping[&e.layer];
-            if let Some(crate::EffectImageInput::Layer { layer, .. }) = &mut e.image_input { *layer=mapping[layer]; }
+            if let Some(motion_model::EffectImageInput::Layer { layer, .. }) = &mut e.image_input { *layer=mapping[layer]; }
             if let Some(source)=e.scene.as_mut().and_then(|s|s.source_layer.as_mut()) { *source=mapping[source]; }
         }
         for n in &mut self.nested {n.layer=mapping[&n.layer];n.scene.assign_instance_ids(used,next);}
@@ -429,7 +431,7 @@ impl Scene {
     }
     pub fn node_position(&self, id: u64) -> Option<[f32; 3]> {
         self.node_ids.iter().position(|v| *v == id).map(|i| {
-            crate::to_project(
+            motion_model::to_project(
                 self.node_world[i].w_axis.truncate(),
                 self.width,
                 self.height,
@@ -581,35 +583,4 @@ pub(crate) fn geometry_offset(layer: &Layer) -> Mat4 {
         (layer.transform.anchor[1] - 0.5) * layer.size[1],
         0.0,
     ))
-}
-pub(crate) fn pivot_matrix(layer: &Layer, frame: f64, width: u32, height: u32) -> Mat4 {
-    let frame = layer.local_frame(frame);
-    let t = &layer.transform;
-    let mut rotation = t.rotation.sample(frame);
-    let mut position = t.position.sample(frame);
-    let mut scale = t.scale.sample(frame);
-    if !layer.three_d {
-        rotation[0] = 0.0;
-        rotation[1] = 0.0;
-        position[2] = 0.0;
-        scale[2] = 100.0;
-    }
-    let quaternion = Quat::from_euler(
-        EulerRot::XYZ,
-        rotation[0].to_radians(),
-        -rotation[1].to_radians(),
-        -rotation[2].to_radians(),
-    );
-    let scale = Vec3::from_array(scale) / 100.0;
-    Mat4::from_scale_rotation_translation(scale, quaternion, to_world(position, width, height))
-}
-
-/// Project parent motion into the composition plane for a flat child.
-pub(crate) fn flat_matrix(m: Mat4) -> Mat4 {
-    Mat4::from_cols(
-        glam::Vec4::new(m.x_axis.x, m.x_axis.y, 0.0, 0.0),
-        glam::Vec4::new(m.y_axis.x, m.y_axis.y, 0.0, 0.0),
-        glam::Vec4::Z,
-        glam::Vec4::new(m.w_axis.x, m.w_axis.y, 0.0, 1.0),
-    )
 }

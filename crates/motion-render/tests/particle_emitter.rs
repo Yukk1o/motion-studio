@@ -1,6 +1,5 @@
-use motion_core::{
-    Content, Ease, EffectInstance, Keyframe, Layer, LayerTimeline, ParentLink, Project, Scene,
-};
+use motion_core::{Content, Ease, EffectInstance, Keyframe, Layer, LayerTimeline, ParentLink, Project};
+use motion_render::Scene;
 use motion_effects::{builtin, Registry};
 use motion_render::{effect_plan::PlanBuilder, Renderer};
 fn key<T>(frame: i32, value: T) -> Keyframe<T> {
@@ -52,7 +51,7 @@ fn builder() -> PlanBuilder {
     PlanBuilder::new(Registry::new_with_builtins().unwrap()).unwrap()
 }
 fn sample(p: &Project, s: &mut Scene, b: &mut PlanBuilder, f: f64) {
-    s.sample(p, f, None).unwrap();
+    s.sample(p, f, None, &motion_core::ExpressionEvaluator).unwrap();
     b.build(s, &[0], 128, 128, true).unwrap();
 }
 fn xs(b: &PlanBuilder) -> Vec<f32> {
@@ -192,7 +191,7 @@ fn missing_source_and_history_expression_block_export_with_preview_fallback() {
     p.layers[0].effects[0].scene.as_mut().unwrap().source_layer = Some(99);
     let mut s = Scene::new(&p);
     let mut b = builder();
-    s.sample(&p, 30., None).unwrap();
+    s.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(b.build(&s, &[0], 128, 128, true).is_err());
     assert_eq!(
         b.build(&s, &[0], 128, 128, false)
@@ -213,7 +212,7 @@ fn missing_source_and_history_expression_block_export_with_preview_fallback() {
         seed: 0,
         profile: motion_core::EXPRESSION_PROFILE.into(),
     });
-    s.sample(&p, 30., None).unwrap();
+    s.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(b
         .build(&s, &[0], 128, 128, true)
         .unwrap_err()
@@ -269,7 +268,7 @@ fn custom_png_sprite_keeps_aspect_alpha_and_shared_texture() {
     e.params.get_mut("size").unwrap().track.value[0] = 16.;
     e.params.get_mut("end_size").unwrap().track.value[0] = 16.;
     let mut s = Scene::new(&p);
-    s.sample(&p, 30., None).unwrap();
+    s.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut b = builder();
     b.build(&s, &[0, 1], 128, 128, true).unwrap();
     assert_eq!(b.frame.sprites[0].style[0], 6.);
@@ -291,11 +290,11 @@ fn custom_png_sprite_keeps_aspect_alpha_and_shared_texture() {
     second.id = 2;
     p.layers.push(second);
     p.rebuild_plugin_dependencies();
-    s.sample(&p, 30., None).unwrap();
+    s.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
     let (_, shared) = r.capture(&s, &target).unwrap();
     assert_eq!(first.texture_bytes, shared.texture_bytes);
     p.layers[0].effects[0].scene.as_mut().unwrap().sprite_asset = Some(99);
-    s.sample(&p, 30., None).unwrap();
+    s.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(b
         .build(&s, &[0, 1], 128, 128, true)
         .unwrap_err()
@@ -334,9 +333,9 @@ fn nested_png_emitter_preserves_births_pixels_and_random_seek() {
     let mut plain = Scene::new(&p);
     let mut nested = Scene::new(engine.project());
     for frame in [30., 15., 35., 5., 30.] {
-        plain.sample(&p, frame, None).unwrap();
+        plain.sample(&p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
         let expected = renderer.capture(&plain, &target).unwrap().0;
-        nested.sample(engine.project(), frame, None).unwrap();
+        nested.sample(engine.project(), frame, None, &motion_core::ExpressionEvaluator).unwrap();
         assert_eq!(nested.nested.len(), 1);
         assert!(nested.nested[0].scene.effects[0].particle_history.is_some());
         assert_eq!(nested.nested[0].scene.sprite_assets[&1], [8, 8]);
@@ -358,7 +357,7 @@ fn nested_png_emitter_preserves_births_pixels_and_random_seek() {
     let restored: Project =
         serde_json::from_slice(&serde_json::to_vec(engine.project()).unwrap()).unwrap();
     restored.validate().unwrap();
-    nested.sample(&restored, 30., None).unwrap();
+    nested.sample(&restored, 30., None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         nested.nested[0].scene.effects[0]
             .scene

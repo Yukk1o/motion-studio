@@ -1,4 +1,5 @@
-use motion_core::{Content, EffectInstance, Layer, Project, Scene};
+use motion_core::{Content, EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::Renderer;
 
 #[test]
@@ -80,7 +81,7 @@ fn narrowed_sample_loops_match_published_pixels_including_sparse_and_fractional_
                 p.layers[0].effects[0].hash = package.hash.clone();
                 p.rebuild_plugin_dependencies();
                 let mut scene = Scene::new(&p);
-                scene.sample(&p, 0., None).unwrap();
+                scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
                 outputs.push(renderer.capture(&scene, &target).unwrap().0);
             }
             assert_eq!(outputs[0], outputs[1], "{name}, {param}={value}");

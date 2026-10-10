@@ -1,4 +1,5 @@
-use motion_core::{Curve, CurveShape, CurveSpace, Ease, Easing, Layer, Project, Scene};
+use motion_core::{Curve, CurveShape, CurveSpace, Ease, Easing, Layer, Project};
+use motion_render::Scene;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
@@ -92,17 +93,17 @@ fn twenty_layer_animation_sampling_reuses_memory_at_sixty_hz() {
     }
     project.validate().unwrap();
     let mut scene = Scene::new(&project);
-    let mut compositor = motion_core::PlaneCompositor::new();
+    let mut compositor = motion_render::PlaneCompositor::new();
     // Warm all animated geometry sizes, then require scratch reuse on playback.
     for tick in 0..360 {
-        scene.sample(&project, tick as f64 * 0.5, None).unwrap();
+        scene.sample(&project, tick as f64 * 0.5, None, &motion_core::ExpressionEvaluator).unwrap();
         compositor.prepare(&scene).unwrap();
     }
-    scene.sample(&project, 0.0, None).unwrap();
+    scene.sample(&project, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     ALLOCATIONS.with(|count| count.set(0));
     MEASURING.with(|flag| flag.set(true));
     for tick in 0..360 {
-        scene.sample(&project, tick as f64 * 0.5, None).unwrap();
+        scene.sample(&project, tick as f64 * 0.5, None, &motion_core::ExpressionEvaluator).unwrap();
         compositor.prepare(&scene).unwrap();
     }
     MEASURING.with(|flag| flag.set(false));
@@ -115,6 +116,6 @@ fn twenty_layer_animation_sampling_reuses_memory_at_sixty_hz() {
 fn continuous_preview_accepts_the_last_half_frame_but_not_the_end_boundary() {
     let p = Project::demo();
     let mut s = Scene::new(&p);
-    s.sample(&p, 179.5, None).unwrap();
-    assert!(s.sample(&p, 180.0, None).is_err());
+    s.sample(&p, 179.5, None, &motion_core::ExpressionEvaluator).unwrap();
+    assert!(s.sample(&p, 180.0, None, &motion_core::ExpressionEvaluator).is_err());
 }

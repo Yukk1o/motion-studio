@@ -261,7 +261,7 @@ impl MaskGpu {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         image_layout: &wgpu::BindGroupLayout,
-        scene: &motion_core::Scene,
+        scene: &crate::Scene,
         masks: &[MaskRaster],
         images: &mut HashMap<TextureKey, GpuImage>,
         bytes: &mut u64,

@@ -3,10 +3,8 @@ use crate::{
     effect_plan::EffectUniform,
     vector_mesh::{self, VectorVertex},
 };
-use motion_core::{
-    vector::{FillRule, LineCap, LineJoin, SampledPath, SampledVector},
-    Scene,
-};
+use motion_model::vector::{FillRule, LineCap, LineJoin, SampledPath, SampledVector};
+use crate::Scene;
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},

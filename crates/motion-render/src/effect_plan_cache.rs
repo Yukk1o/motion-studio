@@ -1,6 +1,7 @@
 //! One retained preview plan, keyed by sampled inputs rather than document revision.
 //! Video PTS and shader clocks advance independently of static pass geometry.
-use motion_core::{DrawLayer, SampledEffect, Scene};
+use motion_model::SampledEffect;
+use crate::{DrawLayer, Scene};
 use motion_effects::Registry;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -9,7 +10,7 @@ pub(crate) struct PreviewInputs {
     effects: Vec<SampledEffect>,
     registry: Registry,
     errors: BTreeMap<u32, String>,
-    camera: motion_core::CameraPose,
+    camera: motion_model::CameraPose,
     dimensions: [u32; 5],
     composition: String,
     device_dimension: u32,

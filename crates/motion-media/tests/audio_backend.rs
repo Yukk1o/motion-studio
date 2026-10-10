@@ -278,8 +278,8 @@ fn all_three_formats_decode_owned_audio_and_reopen_without_external_source() {
     }
     let reopened = motion_core::storage::load(root.path()).unwrap();
     assert_eq!(&reopened, e.project());
-    let mut scene = motion_core::Scene::new(&reopened);
-    scene.sample(&reopened, 45.0, None).unwrap();
+    let mut scene = motion_render::Scene::new(&reopened);
+    scene.sample(&reopened, 45.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(scene.layers.is_empty());
     let mut m = AudioMixer::new(reopened, root.path()).unwrap();
     let mut out = vec![0.0; 4800 * 2];

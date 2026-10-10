@@ -1,5 +1,6 @@
 //! Stateless scene sampling shared by wgpu preview and GLES export.
-use motion_core::{DrawLayer, SampledEffect, Scene};
+use motion_model::SampledEffect;
+use crate::{DrawLayer, Scene};
 use motion_effects::{RendererKind, MAX_PARTICLES, MAX_SPRITES};
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3};
@@ -327,7 +328,7 @@ fn generate_inner(
                 .w_axis
                 .truncate()
         } else {
-            motion_core::to_world(position[..3].try_into().unwrap(), scene.width, scene.height)
+            motion_model::to_world(position[..3].try_into().unwrap(), scene.width, scene.height)
         };
         let source_spatial = settings.source_layer.map_or(layer.three_d, |id| {
             scene.node_is_spatial(id).unwrap_or(false)

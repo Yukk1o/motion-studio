@@ -1,4 +1,5 @@
 use motion_core::*;
+use motion_render::{Scene};
 use motion_render::{composition_plan, effect_plan::PlanBuilder, Renderer};
 use serde_json::json;
 fn apply(e: &mut Engine, c: &str, a: serde_json::Value) {
@@ -41,7 +42,7 @@ fn fixture() -> Project {
 fn capture(r: &mut Renderer, p: &Project, f: f64) -> Vec<u8> {
     let target = r.capture_target(p.width, p.height).unwrap();
     let mut s = Scene::new(p);
-    s.sample(p, f, None).unwrap();
+    s.sample(p, f, None, &motion_core::ExpressionEvaluator).unwrap();
     r.retain_video_instances(&s);
     r.capture(&s, &target).unwrap().0
 }
@@ -121,7 +122,7 @@ fn nested_effects_and_postorder_bundle_keep_program_and_parent_texture_bindings(
             <= 3.
     );
     let mut scene = Scene::new(e.project());
-    scene.sample(e.project(), 40., None).unwrap();
+    scene.sample(e.project(), 40., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let mut bytes = Vec::new();
@@ -155,7 +156,7 @@ fn switching_contexts_can_reuse_an_id_for_video_and_composition_without_reusing_
     let mut r = pollster::block_on(Renderer::headless()).unwrap();
     let expected = capture(&mut r, e.project(), 20.);
     let mut scene = Scene::new(e.project());
-    scene.sample(e.project(), 20., None).unwrap();
+    scene.sample(e.project(), 20., None, &motion_core::ExpressionEvaluator).unwrap();
     let id = scene.layers[0].id;
     scene.nested.clear();
     scene.layers[0].composition = false;
@@ -201,7 +202,7 @@ fn deep_library_draws_only_active_nodes_and_reuses_gpu_outputs_at_normal_resolut
     let target=r.capture_target(64,64).unwrap();let mut s=Scene::new(&p);
     let mut bytes=0;
     for f in [0.,2.,1.,2.,0.] {
-        s.sample(&p,f,None).unwrap();r.retain_video_instances(&s);
+        s.sample(&p,f,None, &motion_core::ExpressionEvaluator).unwrap();r.retain_video_instances(&s);
         let pixels=r.capture(&s,&target).unwrap().0;
         assert!(pixels.iter().zip(&expected).all(|(a,b)|a.abs_diff(*b)<=3));
         if bytes==0 {bytes=r.texture_bytes();} else {assert_eq!(r.texture_bytes(),bytes);}
@@ -253,11 +254,11 @@ fn repeated_mixed_rate_shake_reuses_scenes_without_changing_pixels_or_export_pla
     let target = r.capture_target(192, 192).unwrap();
     let mut builder = PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     for frame in [0., 17., 58., 115., 17., 0.] {
-        reused.sample(&p, frame, None).unwrap();
+        reused.sample(&p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
         r.retain_video_instances(&reused);
         let actual = r.capture(&reused, &target).unwrap().0;
         let mut fresh = Scene::new(&p);
-        fresh.sample(&p, frame, None).unwrap();
+        fresh.sample(&p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
         let expected = r.capture(&fresh, &target).unwrap().0;
         assert_eq!(actual, expected, "scene reuse changed frame {frame}");
         let mut cached_plan = vec![];

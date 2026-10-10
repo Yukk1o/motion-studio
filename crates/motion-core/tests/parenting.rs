@@ -1,7 +1,8 @@
-use motion_core::{Asset, Command, Content, Engine, Layer, Project, Property, Scene};
+use motion_core::{Asset, Command, Content, Engine, Layer, Project, Property};
+use motion_render::Scene;
 fn scene(p: &Project, frame: f64) -> Scene {
     let mut s = Scene::new(p);
-    s.sample(p, frame, None).unwrap();
+    s.sample(p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
     s
 }
 fn close(a: glam::Mat4, b: glam::Mat4) {

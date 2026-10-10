@@ -97,7 +97,7 @@ impl Session {
             (*id == 0 && self.engine.project().camera.created)
                 || self.engine.project().layers.iter().any(|l| l.id == *id)
         });
-        self.scene = motion_core::Scene::new(self.engine.project());
+        self.scene = motion_render::Scene::new(self.engine.project());
         self.observer = motion_core::Observer::new(
             self.engine.project().width,
             self.engine.project().height,
@@ -187,7 +187,7 @@ impl Session {
                     "position_path" => {
                         let target = serde_json::from_value(v["target"].clone()).map_err(|e| e.to_string())?;
                         self.sample()?;
-                        let mut result = motion_core::position_path::sample(self.engine.project(), &self.scene, &target, self.frame)
+                        let mut result = motion_render::position_path::sample(self.engine.project(), &self.scene, &target, self.frame)
                             .map_err(|e|e.to_string())?;
                         result["revision"] = json!(self.engine.revision());
                         return Ok(result);

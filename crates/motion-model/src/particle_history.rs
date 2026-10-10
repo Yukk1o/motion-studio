@@ -14,7 +14,7 @@ pub struct ParticleHistory {
     camera_parent: bool,
 }
 impl ParticleHistory {
-    pub(crate) fn capture(
+    pub fn capture(
         p: &Project,
         emitter: &Layer,
         e: &EffectInstance,

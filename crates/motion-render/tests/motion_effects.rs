@@ -1,6 +1,5 @@
-use motion_core::{
-    Asset, Content, EffectImageInput, EffectImageStage, EffectInstance, Layer, Project, Scene,
-};
+use motion_core::{Asset, Content, EffectImageInput, EffectImageStage, EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::{
     effect_plan::{image_input_order, PlanBuilder},
     CaptureTarget, Renderer,
@@ -68,7 +67,7 @@ fn render(p: &mut Project, r: &mut Renderer, t: &CaptureTarget, frame: f64) -> V
     p.rebuild_plugin_dependencies();
     p.validate().unwrap();
     let mut scene = Scene::new(p);
-    scene.sample(p, frame, None).unwrap();
+    scene.sample(p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
     r.capture(&scene, t).unwrap().0
 }
 fn close(a: &[u8], b: &[u8], tolerance: u8) -> bool {
@@ -233,7 +232,7 @@ fn displacement_uses_hidden_effected_source_and_is_stack_order_independent() {
         p.layers[0].effects[0].image_input
     );
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 11.25, None).unwrap();
+    scene.sample(&p, 11.25, None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     builder.build(&scene, &[0, 1], W, H, true).unwrap();

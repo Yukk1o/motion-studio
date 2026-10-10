@@ -1,5 +1,6 @@
 //! Reproducible six-second moving-emitter demonstration and per-second capture timing.
-use motion_core::{Ease, EffectInstance, Keyframe, Layer, Project, Scene};
+use motion_core::{Ease, EffectInstance, Keyframe, Layer, Project};
+use motion_render::Scene;
 use motion_render::Renderer;
 use std::{fs, path::PathBuf, time::Instant};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -116,7 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut prepare = 0.;
     for frame in 0..180 {
         let start = Instant::now();
-        s.sample(&p, frame as f64, None)?;
+        s.sample(&p, frame as f64, None, &motion_core::ExpressionEvaluator)?;
         let (pixels, stats) = r.capture(&s, &target)?;
         elapsed += start.elapsed().as_secs_f64();
         prepare += stats.cpu_prepare_us as f64;

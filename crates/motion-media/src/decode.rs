@@ -1,5 +1,5 @@
 use crate::{mp4, Result};
-use motion_core::AudioAsset;
+use motion_model::AudioAsset;
 use std::{
     fs::File,
     io::{BufWriter, Read, Seek, SeekFrom, Write},

@@ -1,4 +1,5 @@
-use motion_core::{parse_commands, Command, Content, Engine, Layer, PlaneCompositor, Project, Scene};
+use motion_core::{parse_commands, Command, Content, Engine, Layer, Project};
+use motion_render::{PlaneCompositor, Scene};
 
 fn flat_project() -> Project {
     let mut p = Project::new(256, 256, 30, 180).unwrap();
@@ -17,14 +18,14 @@ fn flat_layers_ignore_camera_and_inactive_spatial_values_until_explicit_activati
     assert!(!p.layers[0].three_d);
     p.layers[0].transform.rotation.value = [50.0, 70.0, 10.0];
     let mut s = Scene::new(&p);
-    s.sample(&p, 0.0, None).unwrap();
+    s.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let baseline = s.layers[0].view_projection * s.layers[0].model;
     p.camera.created = true;
     p.camera.position.value = [400.0, 400.0, -200.0];
     p.camera.target.value = [128.0, 128.0, 0.0];
     p.layers[0].transform.position.value[2] = -500.0;
     p.layers[0].transform.rotation.value[0] = 120.0;
-    s.sample(&p, 0.0, None).unwrap();
+    s.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(baseline, s.layers[0].view_projection * s.layers[0].model);
     let mut e = Engine::new(p).unwrap();
     let tracks = e.project().layers[0].transform.clone();
@@ -35,7 +36,7 @@ fn flat_layers_ignore_camera_and_inactive_spatial_values_until_explicit_activati
     )
     .unwrap();
     assert_eq!(tracks, e.project().layers[0].transform);
-    s.sample(e.project(), 0.0, None).unwrap();
+    s.sample(e.project(), 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(!baseline.abs_diff_eq(s.layers[0].view_projection * s.layers[0].model, 1e-4));
     e.undo().unwrap();
     assert!(!e.project().layers[0].three_d);
@@ -122,8 +123,8 @@ fn old_files_preserve_spatial_rendering_in_memory_without_changing_new_layer_def
     for f in [0.0, 20.5, 99.75, 179.5] {
         let mut a = Scene::new(&p);
         let mut b = Scene::new(&migrated);
-        a.sample(&p, f, None).unwrap();
-        b.sample(&migrated, f, None).unwrap();
+        a.sample(&p, f, None, &motion_core::ExpressionEvaluator).unwrap();
+        b.sample(&migrated, f, None, &motion_core::ExpressionEvaluator).unwrap();
         for (a, b) in a.layers.iter().zip(&b.layers) {
             assert_eq!(a.view_projection * a.model, b.view_projection * b.model);
         }
@@ -141,7 +142,7 @@ fn intersections_are_split_and_2d_layers_form_composition_boundaries() {
     b.transform.rotation.value[1] = -45.0;
     p.layers.push(b);
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let mut compositor = PlaneCompositor::new();
     compositor.prepare(&scene).unwrap();
     assert_eq!(compositor.batches.len(), 3);
@@ -156,7 +157,7 @@ fn intersections_are_split_and_2d_layers_form_composition_boundaries() {
     let mut separator = Layer::solid(3, "2d", [10.0; 2], [50.0, 50.0, 900.0], [1.0; 4]);
     separator.content = Content::Solid { color: [1.0; 4] };
     p.layers.insert(1, separator);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     compositor.prepare(&scene).unwrap();
     assert_eq!(compositor.batches.len(), 3);
     assert_eq!(
@@ -168,7 +169,7 @@ fn intersections_are_split_and_2d_layers_form_composition_boundaries() {
         vec![1, 3, 2]
     );
     p.layers[0].transform.scale.value = [0.0; 3];
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     compositor.prepare(&scene).unwrap();
     assert_eq!(compositor.batches.len(), 2);
 }

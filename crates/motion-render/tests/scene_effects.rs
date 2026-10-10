@@ -1,4 +1,5 @@
-use motion_core::{Command, EffectAction, EffectInstance, Engine, Layer, Project, Scene};
+use motion_core::{Command, EffectAction, EffectInstance, Engine, Layer, Project};
+use motion_render::Scene;
 use motion_effects::{builtin, Registry};
 use motion_render::{
     effect_plan::{PlanBuilder, PLAN_VERSION},
@@ -42,7 +43,7 @@ fn project(id: &str) -> Project {
 }
 fn plan(p: &Project, frame: f64) -> (Scene, PlanBuilder) {
     let mut scene = Scene::new(p);
-    scene.sample(p, frame, None).unwrap();
+    scene.sample(p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder = PlanBuilder::new(Registry::new_with_builtins().unwrap()).unwrap();
     builder.build(&scene, &[0], 128, 128, true).unwrap();
     (scene, builder)
@@ -58,18 +59,18 @@ fn particles_cull_bounds_keep_offscreen_state_and_are_seek_order_independent() {
     assert!(builder.frame.generator_stats.visible > 0);
     assert!(builder.frame.generator_stats.culled > 0);
     for f in [119., 0., 63., 4., 17.] {
-        scene.sample(&p, f, None).unwrap();
+        scene.sample(&p, f, None, &motion_core::ExpressionEvaluator).unwrap();
         builder.build(&scene, &[0], 128, 128, true).unwrap();
     }
     assert_eq!(builder.frame.sprites, expected);
     let alive = builder.frame.generator_stats.alive;
     p.layers[0].transform.position.value = [100000., 64., 0.];
-    scene.sample(&p, 17., None).unwrap();
+    scene.sample(&p, 17., None, &motion_core::ExpressionEvaluator).unwrap();
     builder.build(&scene, &[0], 128, 128, true).unwrap();
     assert_eq!(builder.frame.generator_stats.alive, alive);
     assert!(builder.frame.sprites.is_empty());
     p.layers[0].transform.position.value = [64., 64., 0.];
-    scene.sample(&p, 17., None).unwrap();
+    scene.sample(&p, 17., None, &motion_core::ExpressionEvaluator).unwrap();
     builder.build(&scene, &[0], 128, 128, true).unwrap();
     assert_eq!(builder.frame.sprites, expected);
 }
@@ -159,7 +160,7 @@ fn particle_budget_failure_is_explicit_and_binary_plan_has_bounded_instances() {
         .track
         .value = [10000., 0., 0., 0.];
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 30., None).unwrap();
+    scene.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder = PlanBuilder::new(Registry::new_with_builtins().unwrap()).unwrap();
     assert!(builder
         .build(&scene, &[0], 128, 128, true)
@@ -235,7 +236,7 @@ fn all_generators_render_on_gpu_and_following_image_effects_execute() {
         ));
         p.rebuild_plugin_dependencies();
         let mut scene = Scene::new(&p);
-        scene.sample(&p, 30., None).unwrap();
+        scene.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
         renderer.capture(&scene, &target).unwrap();
     }
 }
@@ -251,7 +252,7 @@ fn hidden_generator_capacity_missing_sources_and_chain_order_block_export() {
         .track
         .value = [10000., 0., 0., 0.];
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder = PlanBuilder::new(Registry::new_with_builtins().unwrap()).unwrap();
     assert!(builder
         .build(&scene, &[0], 128, 128, true)
@@ -260,7 +261,7 @@ fn hidden_generator_capacity_missing_sources_and_chain_order_block_export() {
     let mut p = project("lens_flare");
     p.layers[0].visible = false;
     p.layers[0].effects[0].scene.as_mut().unwrap().source_layer = Some(99);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(builder
         .build(&scene, &[0], 128, 128, true)
         .unwrap_err()
@@ -285,7 +286,7 @@ fn hidden_generator_capacity_missing_sources_and_chain_order_block_export() {
         ),
     );
     p.rebuild_plugin_dependencies();
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(builder
         .build(&scene, &[0], 128, 128, true)
         .unwrap_err()
@@ -313,7 +314,7 @@ fn source_image_alpha_uses_filtered_pixels_and_cache_budget_is_explicit() {
     layer.content = motion_core::Content::Image { asset: 1 };
     p.layers.push(layer);
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder = PlanBuilder::new(Registry::new_with_builtins().unwrap()).unwrap();
     assert!(builder
         .build(&scene, &[0, 1], 128, 128, true)
@@ -325,7 +326,7 @@ fn source_image_alpha_uses_filtered_pixels_and_cache_budget_is_explicit() {
     builder.build(&scene, &[0, 1], 128, 128, true).unwrap();
     let half = builder.frame.sprites[0].color[0];
     p.layers[0].effects[0].scene.as_mut().unwrap().occlusion = false;
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     builder.build(&scene, &[0, 1], 128, 128, true).unwrap();
     assert!((half / builder.frame.sprites[0].color[0] - 0.5).abs() < 0.02);
     assert!(builder.set_alpha(9, 16384, 16384, &[]).is_err());

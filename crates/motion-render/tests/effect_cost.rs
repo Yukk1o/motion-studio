@@ -1,5 +1,6 @@
 //! CPU-only planning snapshots; the metric is not GPU time or sample count.
-use motion_core::{EffectInstance, Layer, Project, Scene};
+use motion_core::{EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_effects::{
     AlphaMode, BoundsExpr, EffectDefinition, EffectPackage, OutputBounds, Registry, WorkingSpace,
 };
@@ -104,7 +105,7 @@ fn measure(
     project.rebuild_plugin_dependencies();
     project.validate()?;
     let mut scene = Scene::new(&project);
-    scene.sample(&project, 0., None)?;
+    scene.sample(&project, 0., None, &motion_core::ExpressionEvaluator)?;
     let effect = &scene.effects[0];
     let parameter_values: BTreeMap<_, _> = effect
         .param_ids
@@ -456,7 +457,7 @@ fn scratch_observation_keeps_rejections_passthrough_and_reset_behavior() -> Test
     project.rebuild_plugin_dependencies();
     let sample = |p: &Project| {
         let mut scene = Scene::new(p);
-        scene.sample(p, 0., None).unwrap();
+        scene.sample(p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
         scene
     };
     let mut registry = Registry::default();
@@ -523,7 +524,7 @@ fn observation_uses_device_budget_and_cached_preview_performs_no_new_check() -> 
     ));
     project.layers.push(layer);
     let mut scene = Scene::new(&project);
-    scene.sample(&project, 0., None)?;
+    scene.sample(&project, 0., None, &motion_core::ExpressionEvaluator)?;
     let mut registry = Registry::default();
     registry.insert(package)?;
     let mut builder = PlanBuilder::new(registry)?;

@@ -1,7 +1,5 @@
-use motion_core::{
-    parse_commands, Axis, Command, Curve, CurveShape, CurveSpace, Ease, Easing, Engine,
-    LayerTimeline, Project, Property, Scene, Track,
-};
+use motion_core::{parse_commands, Axis, Command, Curve, CurveShape, CurveSpace, Ease, Easing, Engine, LayerTimeline, Project, Property, Track};
+use motion_render::Scene;
 
 fn edit(e: &mut Engine, text: &str) {
     e.apply_batch(parse_commands(text).unwrap()).unwrap();
@@ -325,8 +323,8 @@ fn axis_tracks_survive_clips_parenting_and_storage_without_vector_shadow_data() 
     for f in 0..180 {
         let mut a = Scene::new(&parented);
         let mut b = Scene::new(e.project());
-        a.sample(&parented, f as f64, None).unwrap();
-        b.sample(e.project(), f as f64, None).unwrap();
+        a.sample(&parented, f as f64, None, &motion_core::ExpressionEvaluator).unwrap();
+        b.sample(e.project(), f as f64, None, &motion_core::ExpressionEvaluator).unwrap();
         assert!(a
             .world_matrix(3)
             .unwrap()

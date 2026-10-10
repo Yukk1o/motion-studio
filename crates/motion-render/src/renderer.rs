@@ -1,4 +1,5 @@
-use motion_core::{PlaneCompositor, Project, Scene, MAX_LAYERS};
+use motion_model::{Project, MAX_LAYERS};
+use crate::{PlaneCompositor, Scene};
 use bytemuck::{Pod, Zeroable};
 use image::ImageReader;
 use std::{
@@ -61,7 +62,7 @@ pub(crate) enum TextureKey {
     Mask(u64),
     EffectInput(u64),
 }
-fn texture_key(layer: &motion_core::DrawLayer) -> TextureKey {
+fn texture_key(layer: &crate::DrawLayer) -> TextureKey {
     if layer.vector.is_some() {
         TextureKey::Vector(layer.id)
     } else if layer.video.is_some() || layer.composition {
@@ -808,7 +809,7 @@ impl Renderer {
                 TextureKey::Vector(id) => !project
                     .layers
                     .iter()
-                    .any(|l| l.id == *id && matches!(l.content, motion_core::Content::Vector { .. })),
+                    .any(|l| l.id == *id && matches!(l.content, motion_model::Content::Vector { .. })),
                 TextureKey::Mask(_) => true,
                 TextureKey::EffectInput(_) => true,
             })

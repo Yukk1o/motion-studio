@@ -1,4 +1,5 @@
-use motion_core::{Content, EffectInstance, Layer, LayerTimeline, Project, Scene, VideoAsset, VideoClip};
+use motion_core::{Content, EffectInstance, Layer, LayerTimeline, Project, VideoAsset, VideoClip};
+use motion_render::Scene;
 use motion_render::Renderer;
 fn fixture() -> Project {
     let mut p = Project::new(64, 32, 60, 120).unwrap();
@@ -40,7 +41,7 @@ fn different_source_times_use_distinct_video_textures_and_reuse_allocations() {
     let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
     let p = fixture();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let red = [255, 0, 0, 255].repeat(256);
     let green = [0, 255, 0, 255].repeat(256);
     renderer.upload_video_frame(1, 1, 0, 16, 16, &red).unwrap();
@@ -102,7 +103,7 @@ fn video_effects_keep_live_instance_pixels_and_rebind_after_visibility_changes()
     let pixel = |out: &[u8], x: usize| out[(16 * 64 + x) * 4..(16 * 64 + x) * 4 + 4].to_vec();
     renderer.upload_video_frame(1, 1, 0, 16, 16, &red).unwrap();
     renderer.upload_video_frame(2, 1, 500_000, 16, 16, &green).unwrap();
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_eq!(pixel(&out, 16), [255, 0, 0, 255]);
     assert_eq!(pixel(&out, 48), [0, 255, 0, 255]);
@@ -113,14 +114,14 @@ fn video_effects_keep_live_instance_pixels_and_rebind_after_visibility_changes()
     assert_eq!(pixel(&out, 48), [255, 0, 0, 255]);
     // The remaining instance now occupies the first pass's cached binding index.
     p.layers[0].visible = false;
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_eq!(pixel(&out, 16), [0, 0, 0, 255]);
     assert_eq!(pixel(&out, 48), [255, 0, 0, 255]);
     p.layers[0].visible = true;
     p.layers[0].effects[0] = effect("tint");
     p.rebuild_plugin_dependencies();
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     let tinted = pixel(&out, 16);
     assert!(tinted[0].abs_diff(29) <= 3 && tinted[0] == tinted[1] && tinted[1] == tinted[2]);

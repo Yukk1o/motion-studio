@@ -1,5 +1,6 @@
 //! CPU planning only, independent of GPU, decoding, frame pacing and output FPS.
-use motion_core::{EffectInstance, Layer, Project, Scene};
+use motion_core::{EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::effect_plan::PlanBuilder;
 use std::time::Instant;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     p.layers.push(l);
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None)?;
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator)?;
     let mut b = PlanBuilder::new(motion_effects::Registry::new_with_builtins()?)?;
     let mut times = Vec::new();
     for memo in [false, true] {

@@ -10,27 +10,8 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipArchive, ZipWriter};
 
 const MAX_JSON: u64 = 16 * 1024 * 1024;
 const MAX_ASSET: u64 = 64 * 1024 * 1024;
-pub const MAX_MEDIA_ASSET: u64 = 2 * 1024 * 1024 * 1024;
-pub const MAX_PACKAGE: u64 = 4 * 1024 * 1024 * 1024;
-/// The payload budget plus bounded ZIP headers/compression overhead.
-pub const MAX_PACKAGE_ARCHIVE: u64 = MAX_PACKAGE + 4 * 1024 * 1024;
-pub const TRANSFER_BUFFER_BYTES: usize = 64 * 1024;
+pub use motion_model::storage::{validate_relative_path, MAX_MEDIA_ASSET, MAX_PACKAGE, MAX_PACKAGE_ARCHIVE, TRANSFER_BUFFER_BYTES};
 
-pub fn validate_relative_path(path: &str) -> Result<()> {
-    ensure(
-        path.len() <= 1024 && path.starts_with("assets/"),
-        "assets must be inside the assets directory",
-    )?;
-    ensure(
-        !path.contains('\\') && !path.contains(':') && !path.contains('\0'),
-        "invalid asset path",
-    )?;
-    ensure(
-        path.split('/')
-            .all(|p| !p.is_empty() && p != "." && p != ".."),
-        "invalid asset path component",
-    )
-}
 fn read_json(path: &Path) -> Result<Project> {
     let file = File::open(path)?;
     ensure(
@@ -463,4 +444,16 @@ impl Drop for StageCleanup {
             }
         }
     }
+}
+
+impl motion_model::PackageExportSource for PackageSnapshot {
+    type Prepared = PreparedPackage;
+    fn total_bytes(&self) -> u64 { PackageSnapshot::total_bytes(self) }
+    fn source_count(&self) -> usize { PackageSnapshot::source_count(self) }
+    fn prepare(self, output: &Path, progress: impl FnMut(u64, u64) -> Result<()>) -> Result<Self::Prepared> {
+        PackageSnapshot::prepare(self, output, progress)
+    }
+}
+impl motion_model::PackagePublication for PreparedPackage {
+    fn publish(self) -> Result<PathBuf> { PreparedPackage::publish(self) }
 }

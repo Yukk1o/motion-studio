@@ -182,7 +182,7 @@ impl LayerGpu {
                 .map(|((w, h), _)| u64::from(*w) * u64::from(*h) * 20)
                 .sum::<u64>()
     }
-    pub fn pending_vector_bytes(&self, scene: &motion_core::Scene, meshes: &[crate::vector_mesh::VectorMesh], images: &HashMap<TextureKey, GpuImage>) -> u64 {
+    pub fn pending_vector_bytes(&self, scene: &crate::Scene, meshes: &[crate::vector_mesh::VectorMesh], images: &HashMap<TextureKey, GpuImage>) -> u64 {
         let mut scratch: std::collections::HashSet<_> = self.raster_scratch.keys().copied()
             .filter(|size| meshes.iter().any(|m| *size == (m.width, m.height))).collect();
         let mut bytes = scratch.iter().map(|(w, h)| u64::from(*w) * u64::from(*h) * 20).sum();
@@ -202,7 +202,7 @@ impl LayerGpu {
         encoder: &mut wgpu::CommandEncoder,
         image: &wgpu::BindGroupLayout,
         sampler: &wgpu::Sampler,
-        scene: &motion_core::Scene,
+        scene: &crate::Scene,
         meshes: &[crate::vector_mesh::VectorMesh],
         images: &mut HashMap<TextureKey, GpuImage>,
         bytes: &mut u64,

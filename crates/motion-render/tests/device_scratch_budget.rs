@@ -1,4 +1,5 @@
-use motion_core::{Content, EffectInstance, Layer, Project, Scene};
+use motion_core::{Content, EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::{
     effect_plan::{PlanBuilder, PLAN_VERSION},
     resource_policy::scratch_budget,
@@ -49,7 +50,7 @@ fn memory_policy_is_bounded_and_guarded_or_unknown_devices_keep_the_floor() {
 fn four_k_plans_obey_each_tier_and_serialize_the_same_allowance_for_gles() {
     let p = project(&["glow_edges"]);
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut b = PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     for (mem, fits) in [(3 * GIB, false), (6 * GIB, true), (12 * GIB, true)] {
         let budget = scratch_budget(mem, false);
@@ -82,7 +83,7 @@ fn four_k_plans_obey_each_tier_and_serialize_the_same_allowance_for_gles() {
     // Mixing linear glow and sRGB blur reserves both working-slot sets;
     // the chain needs 225.90 MiB here, so the 192 MiB tier must reject it.
     let p = project(&["glow_edges", "gaussian_blur"]);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     b.set_scratch_budget(scratch_budget(6 * GIB, false))
         .unwrap();
     let error = b.build(&scene, &[0], 3840, 2160, true).err().unwrap();
@@ -91,7 +92,7 @@ fn four_k_plans_obey_each_tier_and_serialize_the_same_allowance_for_gles() {
         .unwrap();
     assert!(b.build(&scene, &[0], 3840, 2160, true).is_ok());
     let p = project(&["tint"]);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     b.set_scratch_budget(scratch_budget(3 * GIB, false))
         .unwrap();
     assert!(b.build(&scene, &[0], 3840, 2160, true).is_ok());
@@ -104,7 +105,7 @@ fn four_k_plans_obey_each_tier_and_serialize_the_same_allowance_for_gles() {
 fn changing_budget_invalidates_preview_and_still_enforces_device_dimensions() {
     let p = project(&["glow_edges"]);
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut b = PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     b.set_scratch_budget(192 << 20).unwrap();
     assert!(b

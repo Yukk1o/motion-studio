@@ -1,4 +1,5 @@
-use motion_core::{Asset, Content, EffectInstance, Layer, Project, Scene};
+use motion_core::{Asset, Content, EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::{effect_plan::PlanBuilder, Renderer};
 const SIZE: u32 = 64;
 
@@ -57,7 +58,7 @@ fn render(p: &mut Project, r: &mut Renderer, t: &motion_render::CaptureTarget) -
     p.rebuild_plugin_dependencies();
     p.validate().unwrap();
     let mut scene = Scene::new(p);
-    scene.sample(p, 0., None).unwrap();
+    scene.sample(p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     r.capture(&scene, t).unwrap().0
 }
 
@@ -165,7 +166,7 @@ fn sampled_fractional_enums_cannot_bypass_project_validation() {
     p.layers[0].effects = vec![instance("gradient_ramp")];
     p.rebuild_plugin_dependencies();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let index = scene.effects[0]
         .param_ids
         .iter()

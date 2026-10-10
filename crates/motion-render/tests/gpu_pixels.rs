@@ -1,4 +1,5 @@
-use motion_core::{Asset, Content, Layer, Project, Scene};
+use motion_core::{Asset, Content, Layer, Project};
+use motion_render::Scene;
 use motion_render::Renderer;
 
 fn pixel(rgba: &[u8], x: usize, y: usize) -> [u8; 4] {
@@ -40,19 +41,19 @@ fn gpu_sorting_transparency_png_orientation_and_resource_reuse() {
     }
     let target = renderer.capture_target(64, 64).unwrap();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 32, 32), [0, 0, 255, 255]);
     p.layers.swap(0, 1);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 32, 32), [255, 0, 0, 255]);
     p.layers[0].transform.position.value[2] = -10.0; // blue nearer, despite stack order
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 32, 32), [0, 0, 255, 255]);
     p.layers[0].transform.opacity.value = 0.5;
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 32, 32), [188, 0, 188, 255]); // linear-space alpha composition
 
@@ -65,7 +66,7 @@ fn gpu_sorting_transparency_png_orientation_and_resource_reuse() {
         255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 0,
     ];
     renderer.upload_image(7, 2, 2, &data).unwrap();
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 1, 1), [255, 0, 0, 255]);
     assert_color(pixel(&out, 62, 1), [0, 255, 0, 255]);
@@ -80,7 +81,7 @@ fn gpu_sorting_transparency_png_orientation_and_resource_reuse() {
     let bytes = renderer.texture_bytes();
     let count = renderer.image_count();
     for frame in 0..20 {
-        scene.sample(&p, frame as f64, None).unwrap();
+        scene.sample(&p, frame as f64, None, &motion_core::ExpressionEvaluator).unwrap();
         renderer.draw(&scene, &target.view, 64, 64).unwrap();
     }
     assert_eq!(renderer.texture_bytes(), bytes);
@@ -107,7 +108,7 @@ fn gpu_sorting_transparency_png_orientation_and_resource_reuse() {
         height: 2,
     }];
     renderer.synchronize_assets(&p, tmp.path()).unwrap();
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 1, 1), [255, 0, 0, 255]);
 
@@ -141,7 +142,7 @@ fn gpu_sorting_transparency_png_orientation_and_resource_reuse() {
     p.layers[0].content = Content::Solid {
         color: [1.0, 0.0, 0.0, 0.5],
     };
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (out, _) = renderer.capture(&scene, &target).unwrap();
     assert_color(pixel(&out, 32, 32), [255, 0, 0, 128]); // straight-alpha PNG output
 }

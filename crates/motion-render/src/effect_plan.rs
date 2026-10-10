@@ -1,5 +1,5 @@
 //! The same frame plan drives wgpu and the MediaCodec/GLES adapter.
-use motion_core::Scene;
+use crate::Scene;
 use motion_effects::{
     shader, AlphaMode, EdgeMode, EffectDefinition, EffectPackage, Registry, WorkingSpace,
 };
@@ -81,8 +81,8 @@ pub struct EffectFramePlan {
     pub slots: u32,
     pub scratch_sizes: [[u32; 2]; 8],
     pub diagnostics: Vec<String>,
-    pub vertices: Vec<motion_core::PlaneVertex>,
-    pub batches: Vec<motion_core::PlaneBatch>,
+    pub vertices: Vec<crate::PlaneVertex>,
+    pub batches: Vec<crate::PlaneBatch>,
     pub sprites: Vec<crate::scene_generator::Sprite>,
     pub generator_stats: crate::scene_generator::GeneratorStats,
     pub vectors: Vec<crate::vector_mesh::VectorMesh>,
@@ -307,7 +307,7 @@ pub struct PlanBuilder {
     pub frame: EffectFramePlan,
     /// Last actual pool check; cache hits do not perform a new check.
     pub last_scratch_request: Option<ScratchRequest>,
-    geometry: motion_core::PlaneCompositor,
+    geometry: crate::PlaneCompositor,
     sizes: Vec<[f32; 2]>,
     origins: Vec<[f32; 2]>,
     overlays: Vec<bool>,
@@ -316,7 +316,7 @@ pub struct PlanBuilder {
     vector_cache: std::collections::HashMap<
         u64,
         (
-            Arc<motion_core::vector::SampledVector>,
+            Arc<motion_model::vector::SampledVector>,
             [f32; 2],
             f32,
             crate::vector_mesh::VectorMesh,
@@ -399,7 +399,7 @@ impl PlanBuilder {
     }
     pub fn synchronize_alpha(
         &mut self,
-        project: &motion_core::Project,
+        project: &motion_model::Project,
         root: &std::path::Path,
     ) -> Result<(), String> {
         if !project.layers.iter().any(|l| {
@@ -428,7 +428,7 @@ impl PlanBuilder {
     /// Alpha dependencies use the same sampled working set as image textures,
     /// including nested compositions. Unused library images cannot exhaust it.
     pub fn synchronize_scene_alpha(
-        &mut self, scene: &Scene, project: &motion_core::Project, root: &std::path::Path,
+        &mut self, scene: &Scene, project: &motion_model::Project, root: &std::path::Path,
     ) -> Result<(), String> {
         fn collect(scene: &Scene, wanted: &mut std::collections::BTreeSet<u64>) {
             if scene.effects.iter().any(|e| e.enabled && scene.layers.iter().any(|l|l.id==e.layer)
@@ -452,7 +452,7 @@ impl PlanBuilder {
         }
         Ok(())
     }
-    pub fn preflight_project(&self, project: &motion_core::Project) -> Result<(), String> {
+    pub fn preflight_project(&self, project: &motion_model::Project) -> Result<(), String> {
         for layer in &project.layers {
             for (chain_index, e) in layer.effects.iter().filter(|e| e.enabled).enumerate() {
                 let location = format!("layer {}, effect {} ({})", layer.id, e.id, e.effect);
@@ -466,7 +466,7 @@ impl PlanBuilder {
                     .iter()
                     .find(|d| d.id == e.effect)
                     .ok_or_else(|| format!("{location}: effect definition missing"))?;
-                if matches!(layer.content, motion_core::Content::Adjustment)
+                if matches!(layer.content, motion_model::Content::Adjustment)
                     && definition.renderer != motion_effects::RendererKind::Image
                 {
                     return Err(format!(
@@ -549,10 +549,10 @@ impl PlanBuilder {
             resolved: Vec::new(),
             frame: EffectFramePlan::default(),
             last_scratch_request: None,
-            geometry: motion_core::PlaneCompositor::new(),
-            origins: Vec::with_capacity(motion_core::MAX_LAYERS),
-            sizes: Vec::with_capacity(motion_core::MAX_LAYERS),
-            overlays: Vec::with_capacity(motion_core::MAX_LAYERS),
+            geometry: crate::PlaneCompositor::new(),
+            origins: Vec::with_capacity(motion_model::MAX_LAYERS),
+            sizes: Vec::with_capacity(motion_model::MAX_LAYERS),
+            overlays: Vec::with_capacity(motion_model::MAX_LAYERS),
             alpha_images: Default::default(),
             generator_scratch: Default::default(),
             vector_cache: Default::default(),
@@ -815,9 +815,9 @@ impl PlanBuilder {
             }
         }
         let post_sources:std::collections::HashSet<_>=scene.effects.iter().filter(|e|e.enabled&&scene.layers.iter().any(|l|l.id==e.layer))
-            .filter_map(|e| match e.image_input {Some(motion_core::EffectImageInput::Layer{layer,stage:motion_core::EffectImageStage::Effects})=>Some(layer),_=>None}).collect();
+            .filter_map(|e| match e.image_input {Some(motion_model::EffectImageInput::Layer{layer,stage:motion_model::EffectImageStage::Effects})=>Some(layer),_=>None}).collect();
         let image_sources:std::collections::HashSet<_>=scene.effects.iter().filter(|e|e.enabled)
-            .filter_map(|e|e.image_input.and_then(motion_core::EffectImageInput::layer)).collect();
+            .filter_map(|e|e.image_input.and_then(motion_model::EffectImageInput::layer)).collect();
         for (layer_index, layer) in scene.layers.iter().enumerate() {
             let scale = if preview && !layer.adjustment && !layer.composition && !image_sources.contains(&layer.id)
                 && !scene.effects.iter().enumerate().any(|(i, e)| {
@@ -938,19 +938,19 @@ impl PlanBuilder {
                             return Err("effect does not accept an image input".into());
                         }
                         match input {
-                            motion_core::EffectImageInput::Asset { asset } => {
+                            motion_model::EffectImageInput::Asset { asset } => {
                                 let slot=assets.iter().position(|id|*id==asset).ok_or("effect image asset is not loaded")?;
                                 resource_input=-(slot as i32)-1;params[30][0]=3.;
                             }
-                            motion_core::EffectImageInput::Layer { layer: source, stage } => {
+                            motion_model::EffectImageInput::Layer { layer: source, stage } => {
                                 if let Some((index,l))=scene.layers.iter().enumerate().find(|(_,l)|l.id==source) {
                                     resource_input=index as i32+1;
                                     params[30]=[1.,0.,0.,if l.vector.is_some()||l.composition {1.}else{0.}];
                                     params[31]=[linear(l.color[0]),linear(l.color[1]),linear(l.color[2]),l.color[3]];
-                                    if stage==motion_core::EffectImageStage::Effects {params[30][1]=1.;params[30][3]=1.;params[31]=[1.;4];}
+                                    if stage==motion_model::EffectImageStage::Effects {params[30][1]=1.;params[30][3]=1.;params[31]=[1.;4];}
                                 } else {params[30][0]=2.;}
                             }
-                            motion_core::EffectImageInput::Empty => params[30][0]=2.,
+                            motion_model::EffectImageInput::Empty => params[30][0]=2.,
                         }
                     }
                     // The SDK wrapper mixes the final result with the original input.

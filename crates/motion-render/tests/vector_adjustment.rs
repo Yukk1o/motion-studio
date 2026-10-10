@@ -1,4 +1,5 @@
-use motion_core::{vector::*, Content, EffectInstance, Layer, Project, Scene};
+use motion_core::{vector::*, Content, EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::{effect_plan::PlanBuilder, Renderer};
 fn effect(name: &str, id: u64) -> EffectInstance {
     let p = motion_effects::builtin::package().unwrap();
@@ -27,7 +28,7 @@ fn four_k_adjustment_uses_composite_budget_separate_from_effect_scratch() {
     p.layers.push(a);
     p.rebuild_plugin_dependencies();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut b = PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let frame = b.build(&scene, &[0], 3840, 2160, true).unwrap();
     assert!(!frame.passes.is_empty());
@@ -37,7 +38,7 @@ fn four_k_adjustment_uses_composite_budget_separate_from_effect_scratch() {
     // raising the accumulator allowance must not waive that check.
     p.layers[0].effects = vec![effect("gaussian_blur", 1)];
     p.rebuild_plugin_dependencies();
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let error = b.build(&scene, &[0], 3840, 2160, true).err().unwrap();
     assert!(error.contains("effect scratch textures"), "{error}");
     assert!(error.contains("64 MiB"), "{error}");
@@ -45,7 +46,7 @@ fn four_k_adjustment_uses_composite_budget_separate_from_effect_scratch() {
 }
 fn capture(r: &mut Renderer, p: &Project) -> Vec<u8> {
     let mut s = Scene::new(p);
-    s.sample(p, 0., None).unwrap();
+    s.sample(p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let target = r.capture_target(64, 64).unwrap();
     r.capture(&s, &target).unwrap().0
 }
@@ -164,7 +165,7 @@ fn versioned_plan_contains_vector_sources_and_adjustment_boundary() {
     a.content = Content::Adjustment;
     p.layers.push(a);
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut b = PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let frame = b.build(&scene, &[0], 64, 64, true).unwrap();
     assert_eq!(frame.vectors.len(), 1);
@@ -249,7 +250,7 @@ fn stacked_adjustments_preserve_alpha_parented_mask_and_crossing_three_d_layers(
     only.rebuild_plugin_dependencies();
     let plain = capture(&mut r, &only);
     let mut s = Scene::new(&p);
-    s.sample(&p, 0., None).unwrap();
+    s.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let inverse = s.layers.iter().find(|l| l.id == 4).unwrap().model.inverse();
     let mut inside = 0;
     for y in 0..64 {
@@ -343,10 +344,10 @@ fn animated_geometry_fill_and_stroke_are_seek_independent_and_release_sources() 
     let mut r = pollster::block_on(Renderer::headless()).unwrap();
     let target = r.capture_target(64, 64).unwrap();
     let mut s = Scene::new(&p);
-    s.sample(&p, 17., None).unwrap();
+    s.sample(&p, 17., None, &motion_core::ExpressionEvaluator).unwrap();
     let expected = r.capture(&s, &target).unwrap().0;
     for f in [39., 0., 17., 40., 8., 17.] {
-        s.sample(&p, f, None).unwrap();
+        s.sample(&p, f, None, &motion_core::ExpressionEvaluator).unwrap();
         let pixels = r.capture(&s, &target).unwrap().0;
         if f == 17. {
             assert_eq!(pixels, expected);
@@ -358,7 +359,7 @@ fn animated_geometry_fill_and_stroke_are_seek_independent_and_release_sources() 
     r.capture(&s, &target).unwrap();
     assert_eq!(r.texture_bytes(), active);
     p.layers.clear();
-    s.sample(&p, 17., None).unwrap();
+    s.sample(&p, 17., None, &motion_core::ExpressionEvaluator).unwrap();
     r.capture(&s, &target).unwrap();
     assert!(
         r.texture_bytes() < active,

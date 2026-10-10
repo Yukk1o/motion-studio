@@ -1,4 +1,5 @@
-use motion_core::{vector::*, Command, Content, Engine, Project, Scene, Track};
+use motion_core::{vector::*, Command, Content, Engine, Project, Track};
+use motion_render::Scene;
 fn empty() -> Project {
     Project::new(256, 256, 30, 120).unwrap()
 }
@@ -109,7 +110,7 @@ fn edit_gesture_conversion_local_animation_undo_and_atomic_failure() {
     })
     .unwrap();
     let mut scene = Scene::new(e.project());
-    scene.sample(e.project(), 30., None).unwrap();
+    scene.sample(e.project(), 30., None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         scene.layers[0].vector.as_ref().unwrap().paths[0].nodes[0][0],
         10.

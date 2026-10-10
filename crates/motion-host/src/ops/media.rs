@@ -5,7 +5,7 @@
 //! encodes with libav. Both reach this module through the same request enum, so
 //! the import pipeline, task state machine and cache layout are shared.
 use crate::session::Result;
-use motion_core::Scene;
+use motion_render::Scene;
 use motion_media::{AudioMixer, ImportOptions, MAX_BLOCK_FRAMES};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -643,7 +643,7 @@ pub fn request_frozen_composition_frame(
     }
     let mut scene = Scene::new(&r.project);
     scene
-        .sample(&r.project, frame, None)
+        .sample(&r.project, frame, None, &motion_core::ExpressionEvaluator)
         .map_err(|e| e.to_string())?;
     if sequence != r.sequence {
         r.prepared.clear();

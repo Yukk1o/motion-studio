@@ -1,4 +1,5 @@
-use motion_core::{EffectInstance, Layer, Project, Scene};
+use motion_core::{EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::{effect_plan::PlanBuilder, Renderer};
 
 fn fixture(effect: &str) -> Project {
@@ -34,7 +35,7 @@ fn set(p: &mut Project, id: &str, value: [f32; 4]) {
 }
 fn scene(p: &Project, f: f64) -> Scene {
     let mut s = Scene::new(p);
-    s.sample(p, f, None).unwrap();
+    s.sample(p, f, None, &motion_core::ExpressionEvaluator).unwrap();
     s
 }
 fn render(r: &mut Renderer, p: &Project, f: f64, extent: u32) -> Vec<u8> {
@@ -70,7 +71,7 @@ fn shake_moves_the_complete_plane_outside_the_original_bounds_without_editing_tr
     let (b, d) = mass_and_center(&shifted, 192);
     let shifted_scene=scene(&p,17.);
     let registry=motion_effects::Registry::new_with_builtins().unwrap();
-    let outline=motion_core::selection_geometry::polygon(&shifted_scene.layers[0],&shifted_scene,&registry).unwrap();
+    let outline=motion_render::selection_geometry::polygon(&shifted_scene.layers[0],&shifted_scene,&registry).unwrap();
     let selection_center=[outline.iter().map(|v|v[0] as f64).sum::<f64>()/4.,outline.iter().map(|v|v[1] as f64).sum::<f64>()/4.];
     assert!((selection_center[0]-d[0]-0.5).abs()<1. && (selection_center[1]-d[1]-0.5).abs()<1., "selection {:?} differs from rendered pixel center {:?}",selection_center,d);
     assert!((a - b).abs() / a < 0.04, "source coverage lost: {a} -> {b}");
@@ -197,7 +198,7 @@ fn asymmetric_rectangle_origin_retains_three_d_transform_and_resource_errors_are
     p.layers[0].transform.rotation.value = [15., 35., 12.];
     p.layers[0].transform.scale.value = [130., 80., 100.];
     let sampled = scene(&p, 0.);
-    let mut compositor = motion_core::PlaneCompositor::new();
+    let mut compositor = motion_render::PlaneCompositor::new();
     compositor
         .prepare_with_bounds_and_overlays(&sampled, &[[40., 36.]], &[[9., -7.]], &[])
         .unwrap();

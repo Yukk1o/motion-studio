@@ -134,13 +134,13 @@ fn path_query_matches_flat_parent_projection_without_seeking_or_mutating() {
         .unwrap();
     p.version = 9;
     let original = p.clone();
-    let mut scene = motion_core::Scene::new(&p);
-    scene.sample(&p, 30., None).unwrap();
-    let target = motion_core::position_path::PositionTarget::Property {
+    let mut scene = motion_render::Scene::new(&p);
+    scene.sample(&p, 30., None, &motion_core::ExpressionEvaluator).unwrap();
+    let target = motion_render::position_path::PositionTarget::Property {
         object: 1,
         property: Property::Position,
     };
-    let path = motion_core::position_path::sample(&p, &scene, &target, 30.).unwrap();
+    let path = motion_render::position_path::sample(&p, &scene, &target, 30.).unwrap();
     assert_eq!(path["value"], serde_json::json!([140., 85., 0.]));
     let matrix = glam::Mat4::from_cols_array(&std::array::from_fn(|i| {
         path["matrix"][i].as_f64().unwrap() as f32

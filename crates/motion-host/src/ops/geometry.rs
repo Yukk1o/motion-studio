@@ -8,7 +8,7 @@ pub fn hit_candidates(id: i64, x: f64, y: f64) -> Result<serde_json::Value> {
         s.sample()?;
         let mut picking = s.scene.clone();
         for layer in &mut picking.layers {
-            *layer = motion_core::selection_geometry::picking_layer(layer, &s.scene, &s.effects.registry);
+            *layer = motion_render::selection_geometry::picking_layer(layer, &s.scene, &s.effects.registry);
         }
         let candidates = picking
             .hit_candidates([x as f32, y as f32])
@@ -41,7 +41,7 @@ pub fn sample_geometry_into_inner(
 ) -> Result<serde_json::Value> {
     {
         s.scene
-            .sample(s.engine.project(), frame, None)
+            .sample(s.engine.project(), frame, None, &motion_core::ExpressionEvaluator)
             .map_err(|e| e.to_string())?;
         if s.scene
             .layers

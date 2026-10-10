@@ -1,4 +1,5 @@
-use motion_core::{CameraMode, Command, Engine, Observer, Project, Property, Scene};
+use motion_core::{CameraMode, Command, Engine, Observer, Project, Property};
+use motion_render::Scene;
 #[test]
 fn static_mode_conversion_does_not_create_a_dense_keyframe_track() {
     let mut e = Engine::new(Project::demo()).unwrap();
@@ -44,10 +45,10 @@ fn observation_zoom_changes_view_without_changing_the_project() {
     let engine = Engine::new(p.clone()).unwrap();
     let mut observer = Observer::new(p.width, p.height);
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0.0, Some(&observer)).unwrap();
+    scene.sample(&p, 0.0, Some(&observer), &motion_core::ExpressionEvaluator).unwrap();
     let before = scene.project_point([700.0, 960.0, 0.0]);
     observer.zoom(2.0).unwrap();
-    scene.sample(&p, 0.0, Some(&observer)).unwrap();
+    scene.sample(&p, 0.0, Some(&observer), &motion_core::ExpressionEvaluator).unwrap();
     let after = scene.project_point([700.0, 960.0, 0.0]);
     assert!((after[0] - 540.0) > (before[0] - 540.0) * 1.9);
     assert_eq!(engine.project(), &p);

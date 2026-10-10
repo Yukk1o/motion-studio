@@ -25,164 +25,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
-name = "motion-android"
-version = "0.1.0"
-dependencies = [
- "motion-core",
- "motion-effects",
- "motion-host",
- "motion-media",
- "motion-render",
- "jni 0.21.1",
- "libc",
- "ndk",
- "ndk-sys 0.6.0+11769913",
- "pollster",
- "raw-window-handle",
- "serde_json",
- "wgpu",
-]
-
-[[package]]
-name = "motion-core"
-version = "0.1.0"
-dependencies = [
- "motion-effects",
- "glam",
- "rquickjs",
- "serde",
- "serde_json",
- "swc_common",
- "swc_ecma_ast",
- "swc_ecma_codegen",
- "swc_ecma_parser",
- "swc_ecma_visit",
- "tempfile",
- "thiserror 2.0.21",
- "zip",
-]
-
-[[package]]
-name = "motion-desktop"
-version = "0.1.0"
-dependencies = [
- "motion-core",
- "motion-desktop-media",
- "motion-host",
- "motion-media",
- "motion-render",
- "motion-ui",
- "image",
- "pollster",
- "raw-window-handle",
- "rfd",
- "serde",
- "serde_json",
- "tempfile",
- "wgpu",
- "winit",
-]
-
-[[package]]
-name = "motion-desktop-media"
-version = "0.1.0"
-dependencies = [
- "motion-core",
- "motion-host",
- "motion-media",
- "motion-render",
- "ffmpeg-next",
- "pollster",
- "raw-window-handle",
- "serde",
- "serde_json",
- "wgpu",
-]
-
-[[package]]
-name = "motion-effects"
-version = "0.1.0"
-dependencies = [
- "image",
- "naga",
- "regex",
- "semver",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 2.0.21",
- "zip",
-]
-
-[[package]]
-name = "motion-host"
-version = "0.1.0"
-dependencies = [
- "motion-core",
- "motion-effects",
- "motion-media",
- "motion-render",
- "bytemuck",
- "image",
- "pollster",
- "raw-window-handle",
- "serde",
- "serde_json",
- "wgpu",
-]
-
-[[package]]
-name = "motion-media"
-version = "0.1.0"
-dependencies = [
- "motion-core",
- "fontdue",
- "fs2",
- "image",
- "serde",
- "serde_json",
- "sha2",
- "symphonia",
- "tempfile",
- "zip",
-]
-
-[[package]]
-name = "motion-render"
-version = "0.1.0"
-dependencies = [
- "motion-core",
- "motion-effects",
- "motion-media",
- "bytemuck",
- "glam",
- "image",
- "lyon_tessellation",
- "png",
- "pollster",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 2.0.21",
- "wgpu",
-]
-
-[[package]]
-name = "motion-ui"
-version = "0.1.0"
-dependencies = [
- "ab_glyph",
- "bytemuck",
- "fontdb",
- "raw-window-handle",
- "serde",
- "serde_json",
- "wgpu",
-]
-
-[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1959,6 +1801,181 @@ checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
 dependencies = [
  "adler2",
  "simd-adler32",
+]
+
+[[package]]
+name = "motion-android"
+version = "0.1.0"
+dependencies = [
+ "jni 0.21.1",
+ "libc",
+ "motion-core",
+ "motion-effects",
+ "motion-host",
+ "motion-media",
+ "motion-render",
+ "ndk",
+ "ndk-sys 0.6.0+11769913",
+ "pollster",
+ "raw-window-handle",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
+name = "motion-core"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "motion-effects",
+ "motion-model",
+ "motion-render",
+ "rquickjs",
+ "serde",
+ "serde_json",
+ "swc_common",
+ "swc_ecma_ast",
+ "swc_ecma_codegen",
+ "swc_ecma_parser",
+ "swc_ecma_visit",
+ "tempfile",
+ "thiserror 2.0.21",
+ "zip",
+]
+
+[[package]]
+name = "motion-desktop"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "motion-core",
+ "motion-desktop-media",
+ "motion-host",
+ "motion-media",
+ "motion-render",
+ "motion-ui",
+ "pollster",
+ "raw-window-handle",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
+name = "motion-desktop-media"
+version = "0.1.0"
+dependencies = [
+ "ffmpeg-next",
+ "motion-core",
+ "motion-host",
+ "motion-media",
+ "motion-render",
+ "pollster",
+ "raw-window-handle",
+ "serde",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
+name = "motion-effects"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "naga",
+ "regex",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+ "zip",
+]
+
+[[package]]
+name = "motion-host"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "image",
+ "motion-core",
+ "motion-effects",
+ "motion-media",
+ "motion-render",
+ "pollster",
+ "raw-window-handle",
+ "serde",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
+name = "motion-media"
+version = "0.1.0"
+dependencies = [
+ "fontdue",
+ "fs2",
+ "image",
+ "motion-core",
+ "motion-model",
+ "motion-render",
+ "serde",
+ "serde_json",
+ "sha2",
+ "symphonia",
+ "tempfile",
+ "zip",
+]
+
+[[package]]
+name = "motion-model"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "motion-effects",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "zip",
+]
+
+[[package]]
+name = "motion-render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "image",
+ "lyon_tessellation",
+ "motion-core",
+ "motion-effects",
+ "motion-media",
+ "motion-model",
+ "png",
+ "pollster",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+ "wgpu",
+]
+
+[[package]]
+name = "motion-ui"
+version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+ "bytemuck",
+ "fontdb",
+ "raw-window-handle",
+ "serde",
+ "serde_json",
+ "wgpu",
 ]
 
 [[package]]

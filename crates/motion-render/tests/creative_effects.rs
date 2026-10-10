@@ -1,4 +1,5 @@
-use motion_core::{Asset, Content, EffectInstance, Layer, Project, Scene};
+use motion_core::{Asset, Content, EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::Renderer;
 
 const SIZE: u32 = 96;
@@ -63,7 +64,7 @@ fn all_creative_effects_render_and_neutral_controls_preserve_the_input() {
     renderer.upload_image(1, SIZE, SIZE, &pixels).unwrap();
     let target = renderer.capture_target(SIZE, SIZE).unwrap();
     let mut scene = Scene::new(&project);
-    scene.sample(&project, 0.0, None).unwrap();
+    scene.sample(&project, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let reference = renderer.capture(&scene, &target).unwrap().0;
     let package = motion_effects::builtin::package().unwrap();
     for definition in package
@@ -76,7 +77,7 @@ fn all_creative_effects_render_and_neutral_controls_preserve_the_input() {
         project.layers[0].effects = vec![effect.clone()];
         project.rebuild_plugin_dependencies();
         project.validate().unwrap();
-        scene.sample(&project, 17.0, None).unwrap();
+        scene.sample(&project, 17.0, None, &motion_core::ExpressionEvaluator).unwrap();
         let output = renderer.capture(&scene, &target).unwrap().0;
         assert_ne!(
             reference, output,
@@ -103,7 +104,7 @@ fn all_creative_effects_render_and_neutral_controls_preserve_the_input() {
             _ => set(&mut effect, "amount", [0.0; 4]),
         }
         project.layers[0].effects = vec![effect];
-        scene.sample(&project, 17.0, None).unwrap();
+        scene.sample(&project, 17.0, None, &motion_core::ExpressionEvaluator).unwrap();
         let neutral = renderer.capture(&scene, &target).unwrap().0;
         let error = reference
             .iter()
@@ -137,10 +138,10 @@ fn seeded_time_effects_are_independent_of_seek_order_and_follow_layer_local_time
         effect.seed = 12345;
         project.layers[0].effects = vec![effect];
         project.rebuild_plugin_dependencies();
-        scene.sample(&project, 25.0, None).unwrap();
+        scene.sample(&project, 25.0, None, &motion_core::ExpressionEvaluator).unwrap();
         let a = renderer.capture(&scene, &target).unwrap().0;
         for frame in [80.0, 0.0, 35.0, 5.0, 25.0] {
-            scene.sample(&project, frame, None).unwrap();
+            scene.sample(&project, frame, None, &motion_core::ExpressionEvaluator).unwrap();
             let output = renderer.capture(&scene, &target).unwrap().0;
             if frame == 25.0 {
                 assert_eq!(a, output, "{name}: seek must be reproducible");
@@ -151,7 +152,7 @@ fn seeded_time_effects_are_independent_of_seek_order_and_follow_layer_local_time
             out_frame: 110,
             offset_frame: 10,
         });
-        scene.sample(&project, 35.0, None).unwrap();
+        scene.sample(&project, 35.0, None, &motion_core::ExpressionEvaluator).unwrap();
         assert_eq!(
             a,
             renderer.capture(&scene, &target).unwrap().0,
@@ -159,7 +160,7 @@ fn seeded_time_effects_are_independent_of_seek_order_and_follow_layer_local_time
         );
         project.layers[0].timeline = None;
         project.layers[0].effects[0].seed = 54321;
-        scene.sample(&project, 25.0, None).unwrap();
+        scene.sample(&project, 25.0, None, &motion_core::ExpressionEvaluator).unwrap();
         assert_ne!(
             a,
             renderer.capture(&scene, &target).unwrap().0,
@@ -186,7 +187,7 @@ fn glow_extends_alpha_without_moving_the_layer_and_chroma_preserves_empty_pixels
     let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
     let target = renderer.capture_target(SIZE, SIZE).unwrap();
     let mut scene = Scene::new(&project);
-    scene.sample(&project, 0.0, None).unwrap();
+    scene.sample(&project, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let output = renderer.capture(&scene, &target).unwrap().0;
     assert!(
         output[((48 * SIZE + 37) * 4 + 3) as usize] > 0,
@@ -199,7 +200,7 @@ fn glow_extends_alpha_without_moving_the_layer_and_chroma_preserves_empty_pixels
     );
     project.layers[0].effects = vec![instance("warp_chroma")];
     project.rebuild_plugin_dependencies();
-    scene.sample(&project, 0.0, None).unwrap();
+    scene.sample(&project, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let output = renderer.capture(&scene, &target).unwrap().0;
     assert_eq!(&output[..4], &[0; 4]);
 }

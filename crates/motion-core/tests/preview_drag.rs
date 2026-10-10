@@ -1,4 +1,5 @@
-use motion_core::{CameraMode, ObservationView, Observer, Project, Scene, Track};
+use motion_core::{CameraMode, ObservationView, Observer, Project, Track};
+use motion_render::Scene;
 
 #[test]
 fn preview_drag_tracks_screen_distance_at_any_fit_size_and_depth() {
@@ -8,7 +9,7 @@ fn preview_drag_tracks_screen_distance_at_any_fit_size_and_depth() {
             p.layers[1].transform.position = Track::constant([430.0, 810.0, z]);
             p.layers[1].transform.scale = Track::constant([170.0, 65.0, 100.0]);
             let mut scene = Scene::new(&p);
-            scene.sample(&p, 0.0, None).unwrap();
+            scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
             let point = p.layers[1].transform.position.value;
             let before = scene.project_point(point);
             let delta = scene
@@ -56,7 +57,7 @@ fn drag_respects_orbit_and_orthographic_camera_projection() {
         if let Some(v) = view {
             o.view = v;
         }
-        scene.sample(&p, 0.0, view.map(|_| &o)).unwrap();
+        scene.sample(&p, 0.0, view.map(|_| &o), &motion_core::ExpressionEvaluator).unwrap();
         let point = [540.0, 960.0, 0.0];
         let before = scene.project_point(point);
         let delta = scene
