@@ -216,6 +216,7 @@ impl Session {
         snapshot["capabilities"]["vector_drawing"]["groups"]=json!({"supported":true,"project_format":12,
             "max_depth":motion_core::vector::groups::MAX_DEPTH,"max_items":motion_core::vector::groups::MAX_ITEMS,
             "ordered_paints":true,"isolated_opacity":true,"repeater":true,"multiple_repeaters":true,"max_copies":1024,
+            "node_parameters":{"supported":true,"key":"node:<path_id>:<node_id>","components":6},"stroke_dash_parameters":true,
             "position_coordinates":"group_local_pixels_y_down","expressions":false,"separated_axes":false,
             "viewport_roi":"2d_without_effects_masks_or_image_consumers"});
         snapshot["capabilities"]["vector_drawing"]["path_modifiers"]=json!({"project_format":11,

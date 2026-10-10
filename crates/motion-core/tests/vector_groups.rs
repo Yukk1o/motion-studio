@@ -267,3 +267,55 @@ fn group_parameter_commands_use_clip_time_and_atomic_history_and_storage() {
         .is_err());
     assert_eq!(e.snapshot(), before);
 }
+
+#[test]
+fn authored_path_nodes_remain_shared_editable_and_animated_after_repeating() {
+    let mut g = root();
+    let GroupItem::Geometry { vector, .. } = &mut g.items[0] else { unreachable!() };
+    vector.source = VectorSource::Paths { paths: vec![VectorPath { id: 1, closed: false,
+        nodes: vec![PathNode { id: 1, geometry: Track::constant([-20., 0., 0., 0., 8., -12.]) },
+                    PathNode { id: 2, geometry: Track::constant([20., 0., -8., -12., 0., 0.]) }] }] };
+    g.items.push(repeat(3, 3., [15., 0.]));
+    let mut layer = Layer::solid(1, "Editable path", [64.; 2], [64., 64., 0.], [1.; 4]);
+    layer.content = Content::Vector { vector: VectorContent { source: VectorSource::Group { group: Box::new(g) },
+        fill: None, stroke: None, trim: None, fill_rule: FillRule::NonZero } };
+    let mut e = Engine::new(Project::new(128, 128, 30, 120).unwrap()).unwrap();
+    e.apply(Command::Add { layer }).unwrap();
+    e.apply(Command::TrimLayerClip { object: 1, in_frame: 0, out_frame: 80 }).unwrap();
+    e.apply(Command::MoveLayerClip { object: 1, in_frame: 20 }).unwrap();
+    let command = |frame, value| Command::Vector { object: 1, action: VectorAction::SetGroupParameter {
+        item: 2, parameter: "node:1:2".into(), frame, value: ParameterValue::Geometry(value), animated: Some(true) } };
+    e.apply(command(30, [20., 0., -8., -12., 0., 0.])).unwrap();
+    let before = e.snapshot();
+    e.apply(command(50, [20., 20., -8., -4., 0., 0.])).unwrap();
+    let Content::Vector { vector } = &e.project().layers[0].content else { unreachable!() };
+    let sampled = vector.sample(20., [64.; 2]).unwrap();
+    assert_eq!(sampled.group_parameters[&2]["node:1:2"], serde_json::json!([20., 10., -8., -8., 0., 0.]));
+    assert_eq!(sampled.batches.as_ref().unwrap().len(), 3);
+    let after = e.snapshot();
+    e.undo().unwrap(); assert_eq!(e.snapshot(), before);
+    e.redo().unwrap(); assert_eq!(e.snapshot(), after);
+    let folder = tempfile::tempdir().unwrap();
+    motion_core::storage::save(folder.path(), e.project()).unwrap();
+    assert_eq!(motion_core::storage::load(folder.path()).unwrap(), after);
+    assert!(e.apply(command(50, [32769., 0., 0., 0., 0., 0.])).is_err());
+    assert_eq!(e.snapshot(), after);
+}
+
+#[test]
+fn independent_group_stroke_exposes_and_edits_dash_tracks_with_local_animation() {
+    let mut g = root();
+    let mut stroke = Stroke { color: Track::constant([1.; 4]), width: Track::constant(4.), cap: LineCap::Butt,
+        join: LineJoin::Miter, miter_limit: 4., dashes: Some(StrokeDashes::default()) };
+    stroke.dashes.as_mut().unwrap().offset.set_animated(0, true).unwrap();
+    g.items.push(GroupItem::Stroke { id: 3, name: "Stroke".into(), stroke, composite: Composite::Above });
+    g.set_parameter(3, "dash_offset", 10, ParameterValue::Scalar(20.), None).unwrap();
+    g.set_parameter(3, "dash_0", 0, ParameterValue::Scalar(6.), None).unwrap();
+    let sampled = g.sample(5.).unwrap();
+    assert_eq!(sampled.group_parameters[&3]["dash_offset"], serde_json::json!(10.));
+    assert_eq!(sampled.group_parameters[&3]["dash_0"], serde_json::json!(6.));
+    assert_eq!(sampled.group_parameters[&3]["dash_1"], serde_json::json!(8.));
+    let dash = sampled.batches.as_ref().unwrap().iter().find_map(|p|p.vector.dashes.as_ref()).unwrap();
+    assert_eq!(dash.pattern, vec![6., 8.]); assert_eq!(dash.offset, 10.);
+    assert!(g.set_parameter(3, "dash_2", 0, ParameterValue::Scalar(1.), None).is_err());
+}

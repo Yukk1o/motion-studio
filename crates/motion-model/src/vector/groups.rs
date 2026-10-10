@@ -130,6 +130,7 @@ pub enum ParameterValue {
     Scalar(f32),
     Vector([f32; 2]),
     Color([f32; 4]),
+    Geometry([f32; 6]),
 }
 
 fn vector_valid(t: &Track<[f32; 2]>, min: f32, max: f32) -> Result<()> {
@@ -364,6 +365,7 @@ impl VectorGroup {
             Scalar(&'a mut Track<f32>),
             Vector(&'a mut Track<[f32; 2]>),
             Color(&'a mut Track<[f32; 4]>),
+            Geometry(&'a mut Track<[f32; 6]>),
         }
         fn transform<'a>(t: &'a mut GroupTransform, name: &str) -> Option<Channel<'a>> {
             Some(match name {
@@ -408,6 +410,15 @@ impl VectorGroup {
                             .stroke
                             .as_mut()
                             .map(|s| Channel::Scalar(&mut s.width)),
+                        _ if name.starts_with("node:") => {
+                            let (path, node) = name.strip_prefix("node:")?.split_once(':')?;
+                            let path = path.parse::<u64>().ok()?;
+                            let node = node.parse::<u64>().ok()?;
+                            let VectorSource::Paths { paths } = &mut vector.source else { return None; };
+                            paths.iter_mut().find(|p| p.id == path)
+                                .and_then(|p| p.nodes.iter_mut().find(|n| n.id == node))
+                                .map(|n| Channel::Geometry(&mut n.geometry))
+                        }
                         _ if name.starts_with("shape:") => {
                             if let VectorSource::Shape { parameters, .. } = &mut vector.source {
                                 parameters
@@ -425,7 +436,7 @@ impl VectorGroup {
                     GroupItem::Stroke { stroke, .. } => match name {
                         "color" => Some(Channel::Color(&mut stroke.color)),
                         "width" => Some(Channel::Scalar(&mut stroke.width)),
-                        _ => None,
+                        _ => stroke.dash_track_mut(name).ok().map(Channel::Scalar),
                     },
                     GroupItem::Trim { trim, .. } => match name {
                         "start" => Some(Channel::Scalar(&mut trim.start)),
@@ -472,6 +483,12 @@ impl VectorGroup {
                 t.set_at(frame, v)?;
             }
             (Channel::Color(t), ParameterValue::Color(v)) => {
+                if let Some(a) = animated {
+                    t.set_animated(frame, a)?;
+                }
+                t.set_at(frame, v)?;
+            }
+            (Channel::Geometry(t), ParameterValue::Geometry(v)) => {
                 if let Some(a) = animated {
                     t.set_animated(frame, a)?;
                 }

@@ -54,3 +54,22 @@ fn independent_paints_and_group_animation_are_seek_order_independent() {
     let p=project(g);let a=capture(&mut r,&p,5.);
     for f in [10.,0.,7.,5.] {let b=capture(&mut r,&p,f);if f==5.{assert_eq!(a,b);}}
 }
+
+#[test]
+fn authored_group_node_and_separate_dash_edits_update_pixels_without_baking_copies() {
+    let mut g=group();
+    let GroupItem::Geometry{vector,..}=&mut g.items[0] else{unreachable!()};
+    vector.fill=None;
+    vector.source=VectorSource::Paths{paths:vec![VectorPath{id:1,closed:false,nodes:vec![
+        PathNode{id:1,geometry:Track::constant([-24.,0.,0.,0.,0.,0.])},
+        PathNode{id:2,geometry:Track::constant([24.,0.,0.,0.,0.,0.])}]}]};
+    g.items.push(GroupItem::Stroke{id:3,name:"Dash".into(),composite:Composite::Above,stroke:Stroke{
+        color:Track::constant([1.;4]),width:Track::constant(4.),cap:LineCap::Butt,join:LineJoin::Miter,miter_limit:4.,
+        dashes:Some(StrokeDashes{pattern:vec![Track::constant(6.),Track::constant(6.)],offset:Track::constant(0.)})}});
+    let mut r=pollster::block_on(Renderer::headless()).unwrap();let first=capture(&mut r,&project(g.clone()),0.);
+    g.set_parameter(3,"dash_offset",0,ParameterValue::Scalar(6.),None).unwrap();
+    let shifted=capture(&mut r,&project(g.clone()),0.);assert_ne!(first,shifted);
+    g.set_parameter(2,"node:1:2",0,ParameterValue::Geometry([24.,12.,-10.,-16.,0.,0.]),None).unwrap();
+    let bent=capture(&mut r,&project(g.clone()),0.);assert_ne!(shifted,bent);
+    assert_eq!(bent,capture(&mut r,&project(g),0.));
+}

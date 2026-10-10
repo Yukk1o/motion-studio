@@ -22,11 +22,24 @@ internal fun groupTrack(vector:JSONObject,id:Long,parameter:String):JSONObject? 
                 "stroke_width"->v.optJSONObject("stroke")?.optJSONObject("width")
                 "trim_start","trim_end","trim_offset"->v.optJSONObject("trim")?.optJSONObject(parameter.removePrefix("trim_"))
                 "dash_offset"->v.optJSONObject("stroke")?.optJSONObject("dashes")?.optJSONObject("offset")
-                else->if(parameter.startsWith("shape:"))v.optJSONObject("source")?.optJSONObject("parameters")?.optJSONObject(parameter.removePrefix("shape:"))
-                    else parameter.takeIf{it.startsWith("dash_")}?.removePrefix("dash_")?.toIntOrNull()?.let{v.optJSONObject("stroke")?.optJSONObject("dashes")?.optJSONArray("pattern")?.optJSONObject(it)}
+                else->when {
+                    parameter.startsWith("node:")->{
+                        val parts=parameter.split(':')
+                        if(parts.size!=3)null else v.optJSONObject("source")?.optJSONArray("paths").objects()
+                            .firstOrNull{it.optLong("id")==parts[1].toLongOrNull()}?.optJSONArray("nodes").objects()
+                            .firstOrNull{it.optLong("id")==parts[2].toLongOrNull()}?.optJSONObject("geometry")
+                    }
+                    parameter.startsWith("shape:")->v.optJSONObject("source")?.optJSONObject("parameters")?.optJSONObject(parameter.removePrefix("shape:"))
+                    else->parameter.takeIf{it.startsWith("dash_")}?.removePrefix("dash_")?.toIntOrNull()?.let{v.optJSONObject("stroke")?.optJSONObject("dashes")?.optJSONArray("pattern")?.optJSONObject(it)}
+                }
             }}
         "fill"->item.optJSONObject(parameter)
-        "stroke"->item.optJSONObject("stroke")?.optJSONObject(parameter)
+        "stroke"->{val stroke=item.optJSONObject("stroke")
+            when {
+                parameter=="dash_offset"->stroke?.optJSONObject("dashes")?.optJSONObject("offset")
+                parameter.startsWith("dash_")->parameter.removePrefix("dash_").toIntOrNull()?.let{stroke?.optJSONObject("dashes")?.optJSONArray("pattern")?.optJSONObject(it)}
+                else->stroke?.optJSONObject(parameter)
+            }}
         "trim"->item.optJSONObject("trim")?.optJSONObject(parameter)
         "repeater"->item.optJSONObject("repeater")?.optJSONObject(parameter)
         else->null

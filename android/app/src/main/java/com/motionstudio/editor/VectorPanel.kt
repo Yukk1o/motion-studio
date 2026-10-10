@@ -20,6 +20,7 @@ import org.json.JSONObject
 import kotlin.math.floor
 import kotlin.math.round
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶点数量","inner_ratio" to "内径比例","start_angle" to "起始角度","sweep_angle" to "展开角度","angle" to "形状角度","shaft_ratio" to "箭杆比例","head_ratio" to "箭头比例","inset_ratio" to "内缩比例","slant_ratio" to "倾斜比例","petal_ratio" to "花瓣比例")
 
@@ -62,8 +63,10 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
             Spacer(Modifier.weight(1f));Tool(Icons.Default.Close,"收起矢量属性",action=vm::closeWorkspace)
         }
         if(curve)CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())else {
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
-                if(source.getString("kind")=="group")VectorGroupPanel(vm,vector)
+            val contentScroll=rememberScrollState()
+            val contentScope=rememberCoroutineScope()
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(contentScroll).padding(horizontal=12.dp)) {
+                if(source.getString("kind")=="group")VectorGroupPanel(vm,vector){contentScope.launch{contentScroll.scrollTo(0)}}
                 else if(vm.vectorTab=="operations")VectorPathOperations(vm,vector)
                 else if(vm.vectorTab=="style")VectorPaint(vm,vector)
                 else if(source.getString("kind")=="shape") {
@@ -130,14 +133,7 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
             val objectId=vm.selected
             ColorProperty(vm,"描边颜色","vector-stroke-color",value,vm.editable(),onSelect={vm.selectVectorTrack("vector:stroke_color")}){rgba,at->vm.setPropertyValue(objectId,"vector:stroke_color",at,rgba,false)}
         }
-        VectorOptions("端点",stroke.getString("cap"),listOf("butt" to "平头","round" to "圆头","square" to "方头"),vm.editable()){id->change{it.getJSONObject("stroke").put("cap",id)}}
-        VectorOptions("拐角",stroke.getString("join"),listOf("miter" to "尖角","round" to "圆角","bevel" to "斜角"),vm.editable()){id->change{it.getJSONObject("stroke").put("join",id)}}
-        if(!vm.maskOpen)VectorDashes(vm,stroke)
-        if(stroke.getString("join")=="miter") {
-            var input by remember{mutableStateOf(false)}
-            TextButton(onClick={input=true},enabled=vm.editable()){Text("尖角限制 · ${stroke.getDouble("miter_limit")}")}
-            if(input)InputDialog("尖角限制",stroke.getDouble("miter_limit").toString(),{input=false},true){raw->val value=raw.toDoubleOrNull();if(value!=null&&value.isFinite()&&value in 1.0..100.0){change{it.getJSONObject("stroke").put("miter_limit",value)};input=false}else vm.showOperationError("尖角限制范围为 1 到 100")}
-        }
+        VectorStrokeOptions(vm,stroke,"vector"){next->change{it.put("stroke",next)}}
     }
     VectorOptions("填充规则",vector.getString("fill_rule"),listOf("non_zero" to "非零","even_odd" to "奇偶"),vm.editable()){id->change{it.put("fill_rule",id)}}
 }
@@ -166,33 +162,50 @@ internal fun constantVectorTrack(value:Double)=JSONObject().put("value",value).p
     }
 }
 
-@Composable private fun VectorDashes(vm:EditorViewModel,stroke:JSONObject) {
+@Composable internal fun VectorStrokeOptions(vm:EditorViewModel,stroke:JSONObject,keyPrefix:String,onChange:(JSONObject)->Unit) {
+    fun change(field:String,value:Any){onChange(JSONObject(stroke.toString()).put(field,value))}
+    VectorOptions("端点",stroke.getString("cap"),listOf("butt" to "平头","round" to "圆头","square" to "方头"),vm.editable()){change("cap",it)}
+    VectorOptions("拐角",stroke.getString("join"),listOf("miter" to "尖角","round" to "圆角","bevel" to "斜角"),vm.editable()){change("join",it)}
+    if(!vm.maskOpen)VectorDashes(vm,stroke,keyPrefix){change("dashes",it?:JSONObject.NULL)}
+    if(stroke.getString("join")=="miter") {
+        var input by remember(vm.selected,keyPrefix){mutableStateOf(false)}
+        TextButton(onClick={input=true},enabled=vm.editable(),modifier=Modifier.testTag("$keyPrefix-miter-limit")){Text("尖角限制 · ${stroke.getDouble("miter_limit")}")}
+        if(input)InputDialog("尖角限制",stroke.getDouble("miter_limit").toString(),{input=false},true){raw->
+            val value=raw.toDoubleOrNull();if(value!=null&&value.isFinite()&&value in 1.0..100.0){change("miter_limit",value);input=false}
+            else vm.showOperationError("尖角限制范围为 1 到 100")
+        }
+    }
+}
+
+@Composable internal fun VectorDashes(vm:EditorViewModel,stroke:JSONObject,keyPrefix:String="vector",onChange:(JSONObject?)->Unit={next->
+    vm.vectorAction(JSONObject().put("action","set_dashes").put("dashes",next?:JSONObject.NULL))
+}) {
     val dashes=stroke.optJSONObject("dashes")
+    val tagPrefix=if(keyPrefix=="vector")"vector"else keyPrefix
     Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
         Text("虚线描边",Modifier.weight(1f),color=Ink)
         Switch(dashes!=null,{enabled->
-            vm.vectorAction(JSONObject().put("action","set_dashes").put("dashes",if(enabled)
+            onChange(if(enabled)
                 JSONObject().put("pattern",JSONArray().put(constantVectorTrack(12.0)).put(constantVectorTrack(8.0)))
-                    .put("offset",constantVectorTrack(0.0))else JSONObject.NULL))
-            if(enabled)vm.selectVectorTrack("vector:dash_0")
-        },enabled=vm.editable(),modifier=Modifier.testTag("vector-dashes-toggle"))
+                    .put("offset",constantVectorTrack(0.0))else null)
+            val fallback=if(vm.vectorTrackRaw(vm.selected,"$keyPrefix:width")!=null)"$keyPrefix:width"else"$keyPrefix:stroke_width"
+            vm.selectVectorTrack(if(enabled)"$keyPrefix:dash_0"else fallback)
+        },enabled=vm.editable(),modifier=Modifier.testTag("$tagPrefix-dashes-toggle"))
     }
     if(dashes!=null) {
         val pattern=dashes.getJSONArray("pattern")
         pattern.objects().forEachIndexed{index,_->
-            VectorNumber(vm,"vector:dash_$index",if(index%2==0)"线段 ${index/2+1}"else"间隔 ${index/2+1}",if(index%2==0)0.1 else 0.0,32768.0)
+            VectorNumber(vm,"$keyPrefix:dash_$index",if(index%2==0)"线段 ${index/2+1}"else"间隔 ${index/2+1}",if(index%2==0)0.1 else 0.0,32768.0)
         }
-        VectorNumber(vm,"vector:dash_offset","虚线偏移",-32768.0,32768.0)
+        VectorNumber(vm,"$keyPrefix:dash_offset","虚线偏移",-32768.0,32768.0)
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
             TextButton(onClick={
-                vm.vectorAction(JSONObject().put("action","set_dashes").put("dashes",JSONObject(dashes.toString())
-                    .put("pattern",JSONArray(pattern.toString()).put(constantVectorTrack(12.0)).put(constantVectorTrack(8.0)))))
-            },enabled=vm.editable()&&pattern.length()<6,modifier=Modifier.heightIn(min=48.dp).testTag("vector-dash-add")){Text("＋线段与间隔")}
+                onChange(JSONObject(dashes.toString()).put("pattern",JSONArray(pattern.toString()).put(constantVectorTrack(12.0)).put(constantVectorTrack(8.0))))
+            },enabled=vm.editable()&&pattern.length()<6,modifier=Modifier.heightIn(min=48.dp).testTag("$tagPrefix-dash-add")){Text("＋线段与间隔")}
             TextButton(onClick={
-                vm.vectorAction(JSONObject().put("action","set_dashes").put("dashes",JSONObject(dashes.toString())
-                    .put("pattern",JSONArray(pattern.objects().dropLast(2)))))
-                if(vm.property.removePrefix("vector:dash_").toIntOrNull()?.let{it>=pattern.length()-2}==true)vm.selectVectorTrack("vector:dash_0")
-            },enabled=vm.editable()&&pattern.length()>2,modifier=Modifier.heightIn(min=48.dp).testTag("vector-dash-remove")){Text("移除末组")}
+                onChange(JSONObject(dashes.toString()).put("pattern",JSONArray(pattern.objects().dropLast(2))))
+                if(vm.property.removePrefix("$keyPrefix:dash_").toIntOrNull()?.let{it>=pattern.length()-2}==true)vm.selectVectorTrack("$keyPrefix:dash_0")
+            },enabled=vm.editable()&&pattern.length()>2,modifier=Modifier.heightIn(min=48.dp).testTag("$tagPrefix-dash-remove")){Text("移除末组")}
         }
     }
 }
