@@ -19,6 +19,7 @@ pub mod fonts;
 pub mod images;
 pub mod media;
 pub mod preview;
+pub mod preview_inputs;
 pub mod project;
 pub mod snapshot;
 
