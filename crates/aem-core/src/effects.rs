@@ -248,6 +248,63 @@ impl EffectParam {
         Ok(())
     }
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EffectImageStage {
+    Source,
+    #[default]
+    Effects,
+}
+/// Resource-0 override. Effects-stage inputs form a same-frame DAG, before
+/// transforms/opacity. Source-stage inputs have no recursive dependency.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum EffectImageInput {
+    Layer { layer: u64, #[serde(default)] stage: EffectImageStage },
+    Asset { asset: u64 },
+    Empty,
+}
+impl EffectImageInput {
+    pub fn layer(self) -> Option<u64> { if let Self::Layer { layer, .. } = self { Some(layer) } else { None } }
+}
+pub(crate) fn clear_layer_image_inputs(layers: &mut [Layer], source: u64) {
+    for layer in layers {
+        for effect in &mut layer.effects {
+            if effect.image_input.and_then(EffectImageInput::layer) == Some(source) {
+                effect.image_input = Some(EffectImageInput::Empty);
+            }
+        }
+    }
+}
+pub(crate) fn validate_image_graph(project: &crate::Project) -> Result<()> {
+    fn visit(project: &crate::Project, id: u64, marks: &mut BTreeMap<u64, u8>) -> Result<()> {
+        match marks.get(&id) {
+            Some(1) => return Err(Error::Invalid("effect image input cycle".into())),
+            Some(2) => return Ok(()),
+            _ => {}
+        }
+        marks.insert(id, 1);
+        if let Some(layer) = project.layers.iter().find(|l| l.id == id) {
+            for e in layer.effects.iter().filter(|e| e.enabled) {
+                if let Some(EffectImageInput::Layer {
+                    layer,
+                    stage: EffectImageStage::Effects,
+                }) = e.image_input
+                {
+                    visit(project, layer, marks)?;
+                }
+            }
+        }
+        marks.insert(id, 2);
+        Ok(())
+    }
+    let mut marks = BTreeMap::new();
+    for layer in &project.layers {
+        visit(project, layer.id, &mut marks)?;
+    }
+    Ok(())
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EffectInstance {
@@ -259,6 +316,8 @@ pub struct EffectInstance {
     pub enabled: bool,
     pub seed: u32,
     pub params: BTreeMap<String, EffectParam>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_input: Option<EffectImageInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scene: Option<aem_effects::SceneSettings>,
 }
@@ -311,6 +370,7 @@ impl EffectInstance {
             enabled: true,
             seed: id as u32,
             params,
+            image_input: None,
             scene: definition.scene.clone(),
         }
     }
@@ -353,6 +413,10 @@ impl EffectInstance {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum EffectAction {
+    SetImageInput {
+        effect: u64,
+        input: Option<EffectImageInput>,
+    },
     SetScene {
         effect: u64,
         scene: aem_effects::SceneSettings,
@@ -479,6 +543,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
             instance.scene = Some(scene);
         }
         EffectAction::Seed { effect, seed } => instance_mut(layer, effect)?.seed = seed,
+        EffectAction::SetImageInput { effect, input } => instance_mut(layer, effect)?.image_input = input,
         EffectAction::Insert { instance } => {
             ensure(
                 layer.effects.len() < MAX_EFFECTS_PER_LAYER,
@@ -730,6 +795,7 @@ pub struct SampledEffect {
     pub hash: String,
     pub enabled: bool,
     pub seed: u32,
+    pub image_input: Option<EffectImageInput>,
     pub param_ids: Vec<String>,
     pub values: [[f32; 4]; MAX_PARAMS],
     pub lut: Option<usize>,
@@ -749,6 +815,7 @@ impl SampledEffect {
             hash: e.hash.clone(),
             enabled: e.enabled,
             seed: e.seed,
+            image_input: e.image_input,
             param_ids: e.params.keys().cloned().collect(),
             values: [[0.0; 4]; MAX_PARAMS],
             lut: None,

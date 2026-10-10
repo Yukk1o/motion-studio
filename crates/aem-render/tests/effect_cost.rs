@@ -245,7 +245,7 @@ fn measure(
 }
 
 fn markdown(report: &Report) -> String {
-    let mut text = format!("# Effect costs · {} {}\n\nScope: current core manifest; {} effects; 3840×2160; frame 0; default parameters; conservative default scratch policy ({} MiB), not a phone memory profile.\n\nStatic loop work is the portable validation product, not GPU time or texture samples. Scratch is exact planner capacity, not driver VRAM. Rejected demands do not allocate textures.\n\n", report.package_id, report.package_version, report.effects.len(), report.scratch_warning_bytes / 1048576);
+    let mut text = format!("# Effect costs · {} {}\n\nScope: {}; {} effects; 3840×2160; frame 0; default parameters; conservative default scratch policy ({} MiB), not a phone memory profile.\n\nStatic loop work is the portable validation product, not GPU time or texture samples. Scratch is exact planner capacity, not driver VRAM. Rejected demands do not allocate textures.\n\n", report.package_id, report.package_version, report.scope, report.effects.len(), report.scratch_warning_bytes / 1048576);
     if let Some(revision) = &report.source_revision {
         writeln!(text, "Revision: `{revision}`\n").unwrap();
     }
@@ -317,7 +317,7 @@ fn enforce(strict: bool, warning_count: usize) -> TestResult {
 }
 
 #[test]
-fn current_core_manifest_costs() -> TestResult {
+fn current_builtin_manifest_costs() -> TestResult {
     let package = aem_effects::builtin::package()?;
     let manifest = aem_effects::builtin::manifest();
     let mut effects: Vec<_> = manifest
@@ -329,7 +329,7 @@ fn current_core_manifest_costs() -> TestResult {
     let report = Report {
         schema_version: 1,
         metric_kind: "portable_validation_product_v1",
-        scope: "current_core_manifest",
+        scope: "current_builtin_manifest",
         dimensions: [WIDTH, HEIGHT],
         frame: 0,
         parameter_scenario: "defaults",

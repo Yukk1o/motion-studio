@@ -115,6 +115,25 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
         }
     }
     fun resourceBytes():Long=packageBytes
+    fun imageAssetSlots(plan:ByteBuffer):Set<Int> {
+        val base=plan.getInt(20);val result=HashSet<Int>()
+        repeat(plan.getInt(12)){i->val token=plan.getInt(base+i*40+32);if(token<0){val slot=-token-1;check(slot in assets.indices);result.add(slot)}}
+        return result
+    }
+    fun imageInputOrder(plan:ByteBuffer):List<Int> {
+        val draws=plan.getInt(8);val drawBase=plan.getInt(16);val passBase=plan.getInt(20);val marks=IntArray(draws);val result=ArrayList<Int>()
+        fun dependency(i:Int):Int? {
+            val pass=passBase+i*40;val token=plan.getInt(pass+32);val uniform=plan.getInt(pass+24)
+            return if(!shaders[plan.getInt(pass)].sprite&&token>0&&plan.getFloat(uniform+596)>0.5f)token-1 else null
+        }
+        fun visit(index:Int) {
+            check(index in marks.indices){"效果输入图层索引失效"};check(marks[index]!=1){"效果图片输入形成循环"};if(marks[index]==2)return
+            marks[index]=1;val draw=drawBase+index*128
+            for(i in plan.getFloat(draw+112).toInt() until plan.getFloat(draw+116).toInt())dependency(i)?.let(::visit)
+            marks[index]=2;result.add(index)
+        }
+        repeat(plan.getInt(12)){i->dependency(i)?.let(::visit)};return result
+    }
     /** Sprite PNGs are effect inputs even when the emitting layer has no image source. */
     fun spriteAssetSlots(plan:ByteBuffer):Set<Int> {
         val count=plan.getInt(12);val base=plan.getInt(20);val result=HashSet<Int>()
@@ -134,7 +153,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
     }
     fun scratchBytes():Long=(0..7).sumOf{i->poolSizes[i*2].toLong()*poolSizes[i*2+1]*(if(i==7)8 else 4)}
     fun texture(slot:Int):Int {check(slot in pool.indices&&pool[slot]!=0){"效果纹理索引错误"};return pool[slot]}
-    fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null,maskTexture:((Int)->Int)?=null) {
+    fun passes(plan:ByteBuffer,start:Int,end:Int,videoTexture:Int?=null,maskTexture:((Int)->Int)?=null,layerTexture:((Int,Boolean)->Int)?=null) {
         val count=plan.getInt(12);check(start>=0&&end in start..count){"效果 pass 范围错误"}
         val base=plan.getInt(20)
         // Materialize the current decoded video texture into the layer's effect chain.
@@ -163,8 +182,14 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
                 ((lutOffset-lutBase)/1024).also{check(it in 0 until plan.getInt(48)){"LUT 索引错误"}}
             }
             val lut=luts[lutIndex]?.first?:luts[-1]!!.first
+            val override=if(shader.sprite)0 else plan.getInt(p+32)
+            val resource=when {
+                override>0->layerTexture?.invoke(override-1,plan.getFloat(offset+596)>0.5f)?:error("效果图层输入缺失")
+                override<0->{val slot=-override-1;check(slot in assets.indices){"效果资源图片索引错误"};assets[slot]}
+                else->null
+            }
             for((unit,group,slot) in shader.samplers) {
-                val image=if(group==1)when(slot){0->previous;1->source;else->lut}else shader.resources[slot]
+                val image=if(group==1)when(slot){0->previous;1->source;else->lut}else if(slot==0&&resource!=null)resource else shader.resources[slot]
                 GL.glActiveTexture(GL.GL_TEXTURE0+unit);GL.glBindTexture(GL.GL_TEXTURE_2D,image)
             }
             if(shader.sprite) {

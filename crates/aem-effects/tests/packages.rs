@@ -4,7 +4,7 @@ use std::{io::Write, sync::Arc};
 #[test]
 fn entire_library_compiles_to_wgsl_and_es300() {
     let package = builtin::package().unwrap();
-    assert_eq!(package.manifest.effects.len(), 59);
+    assert_eq!(package.manifest.effects.len(), 95);
     for e in &package.manifest.effects {
         if !e.reference_match_name.is_empty() {
             assert_eq!(e.reference_version, "18.0.1");
@@ -28,7 +28,7 @@ fn entire_library_compiles_to_wgsl_and_es300() {
 #[test]
 fn bundled_core_shader_sources_match_checkout() {
     let package = builtin::package().unwrap();
-    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("library");
+    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("builtin-library");
     let paths: std::collections::BTreeSet<_> = package.manifest.effects.iter()
         .flat_map(|e| e.passes.iter().map(|p| &p.shader)).collect();
     for path in paths {
@@ -45,10 +45,11 @@ fn core_upgrade_preserves_published_bytes_and_all_previous_effect_contracts() {
         .find(|p| p.manifest.version == "1.0.0")
         .unwrap();
     let latest = builtin::package().unwrap();
-    assert_eq!(latest.manifest.version, "1.4.1");
+    assert_eq!(latest.manifest.version, "2.0.0");
     let spatial = packages.iter().find(|p| p.manifest.id == builtin::PLUGIN_ID && p.manifest.version == "1.4.0").unwrap();
     assert_eq!(spatial.hash, "0a0d38bf1c01aafca75416c93bbf0bd615cabd9246be2b8a041c3bdfde4c4ef9");
-    assert_eq!(latest.manifest.effects, spatial.manifest.effects);
+    for definition in &spatial.manifest.effects { assert_eq!(latest.manifest.effects.iter().find(|d|d.id==definition.id).unwrap(),definition); }
+    let pinned=builtin::legacy_current_package().unwrap();assert_eq!(pinned.manifest.version,"1.4.1");assert_eq!(pinned.bytes,include_bytes!("../library/core-effects.msfx"));
     let current = packages.iter().find(|p| p.manifest.version == "1.3.0").unwrap();
     assert_eq!(current.manifest.version, "1.3.0");
     assert_eq!(current.hash, "a2655482198ebc3a1e75b569a8d5e14d8232c9ad2445c24fc9badfb6274aa454");
@@ -249,7 +250,7 @@ fn installation_is_idempotent_and_snapshots_hold_resources() {
     let snapshot = r.resolve(&a.id, &a.version, &a.hash).unwrap();
     r.enable(&store, &a.id, &a.version, &a.hash, false).unwrap();
     assert!(r.resolve(&a.id, &a.version, &a.hash).is_err());
-    assert_eq!(snapshot.manifest.effects.len(), 59);
+    assert_eq!(snapshot.manifest.effects.len(), 95);
     assert!(!r.install(&store, &input).unwrap().enabled);
     r.enable(&store, &a.id, &a.version, &a.hash, true).unwrap();
     let loaded = Registry::load(&store).unwrap();

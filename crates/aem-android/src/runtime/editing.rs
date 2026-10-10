@@ -4,6 +4,9 @@ use super::*;
 impl Session {
     fn apply_commands(&mut self, text: &str) -> Result<Value> {
         let commands = aem_core::parse_commands(&text).map_err(|e| e.to_string())?;
+        self.apply_command_batch(commands)
+    }
+    pub(super) fn apply_command_batch(&mut self, commands: Vec<Command>) -> Result<Value> {
         let resources = commands.iter().any(Command::changes_resources);
         if resources {
             let mut check = Engine::new(self.engine.snapshot()).map_err(|e| e.to_string())?;

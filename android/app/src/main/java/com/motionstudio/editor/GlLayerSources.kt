@@ -8,6 +8,7 @@ import java.nio.ByteOrder
 internal class GlLayerSources {
     private data class Source(val texture:Int,val width:Int,val height:Int,val fingerprint:Long)
     private val vectors=HashMap<Int,Source>()
+    private val effectInputs=HashMap<Int,Source>()
     private val accumulators=IntArray(2)
     private val rasterScratch=HashMap<Pair<Int,Int>,Int>()
     private val rasterResolve=HashMap<Pair<Int,Int>,Int>()
@@ -115,7 +116,29 @@ internal class GlLayerSources {
         }
     }
     fun vector(layer:Int)=vectors[layer]?.texture?:error("矢量源缺失")
-    fun resourceBytes():Long=vectors.values.sumOf{it.width.toLong()*it.height*4}+rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}
+    fun resourceBytes():Long=vectors.values.sumOf{it.width.toLong()*it.height*4}+rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}+effectInputs.values.sumOf{it.width.toLong()*it.height*4}
+    fun prepareEffectInputs(plan:ByteBuffer,order:List<Int>,assetBytes:Long) {
+        effectInputs.keys.filter{it !in order}.forEach{GL.glDeleteTextures(1,intArrayOf(effectInputs.remove(it)!!.texture),0)}
+        for(layer in order) {
+            val draw=plan.getInt(16)+layer*128;val last=plan.getFloat(draw+116).toInt()-1
+            check(last>=0){"效果来源没有可保存的像素"};val pass=plan.getInt(20)+last*40;val w=plan.getInt(pass+16);val h=plan.getInt(pass+20)
+            val old=effectInputs[layer];if(old?.width==w&&old.height==h)continue
+            check(assetBytes+resourceBytes()+w.toLong()*h*4<=128L*1024*1024){"效果来源快照超过纹理预算"}
+            val image=texture(w,h,true);old?.let{GL.glDeleteTextures(1,intArrayOf(it.texture),0)};effectInputs[layer]=Source(image,w,h,0)
+        }
+    }
+    fun effectInput(layer:Int)=effectInputs[layer]?.texture?:error("效果来源快照缺失")
+    fun hasEffectInput(layer:Int)=effectInputs.containsKey(layer)
+    fun copyEffectInput(layer:Int,source:Int) {
+        val dest=effectInputs.getValue(layer);target(source,dest.width,dest.height)
+        GL.glBindTexture(GL.GL_TEXTURE_2D,dest.texture);GL.glCopyTexSubImage2D(GL.GL_TEXTURE_2D,0,0,0,0,0,dest.width,dest.height)
+        check(GL.glGetError()==GL.GL_NO_ERROR){"效果来源 GPU 复制失败"}
+    }
+    fun restoreEffectInput(layer:Int,output:Int) {
+        val source=effectInputs.getValue(layer);target(source.texture,source.width,source.height)
+        GL.glBindTexture(GL.GL_TEXTURE_2D,output);GL.glCopyTexSubImage2D(GL.GL_TEXTURE_2D,0,0,0,0,0,source.width,source.height)
+        check(GL.glGetError()==GL.GL_NO_ERROR){"效果来源复用失败"}
+    }
     fun accumulatorBytes():Long=if(accumulators[0]!=0)width.toLong()*height*8 else 0L
     /** One synthetic pixel on first vector use; never reads animation frames back. */
     private fun probeMsaaClear():Boolean {
@@ -180,6 +203,7 @@ internal class GlLayerSources {
         GL.glActiveTexture(GL.GL_TEXTURE0);GL.glBindTexture(GL.GL_TEXTURE_2D,accumulator(current));GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
     }
     fun close() {
+        effectInputs.values.forEach{GL.glDeleteTextures(1,intArrayOf(it.texture),0)};effectInputs.clear()
         vectors.values.forEach{GL.glDeleteTextures(1,intArrayOf(it.texture),0)};vectors.clear();GL.glDeleteTextures(2,accumulators,0);accumulators.fill(0)
         GL.glDeleteRenderbuffers(rasterScratch.size,rasterScratch.values.toIntArray(),0);rasterScratch.clear()
         GL.glDeleteTextures(rasterResolve.size,rasterResolve.values.toIntArray(),0);rasterResolve.clear()

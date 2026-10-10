@@ -67,6 +67,10 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
     var numeric by remember{mutableStateOf<Triple<Long,JSONObject,Int>?>(null)}
     val current=instances.firstOrNull{it.getLong("id")==instanceId}
     val definition=current?.let{vm.effectDefinition(it)}
+    // The unified package also contains native RGBA effects. Its stable plugin
+    // identity alone cannot describe an individual effect's color contract.
+    val colorAlphaEditable=current?.optString("plugin")!="com.motionstudio.effects.ae2021"||
+        definition?.optString("compatibility_profile")=="motion-native-v1"
     val params=current?.getJSONObject("params")
     val definitions=definition?.getJSONArray("params").objects().associateBy{it.getString("id")}.orEmpty()
     val ordered=if(definition!=null)definition.getJSONArray("params").objects().map{it.getString("id")}else params?.keys()?.asSequence()?.toList().orEmpty()
@@ -181,13 +185,13 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                                     else if(colorControl) {
                                         ColorProperty(vm,desc.optString("name","颜色"),"effect-color-$instance-$paramId",value,enabled,
                                             labelContent={TextButton(onClick=::select,modifier=Modifier.heightIn(min=48.dp).testTag("effect-select-$paramId"),contentPadding=PaddingValues(0.dp)){Text(desc.optString("name",paramId),color=if(vm.property==key)Accent else Ink,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis)}},
-                                            alphaEditable=current.getString("plugin")!="com.motionstudio.effects.ae2021",
+                                            alphaEditable=colorAlphaEditable,
                                             range=maxOf(0.0,desc.getDouble("min"))..minOf(1.0,desc.getDouble("max")),onSelect=::select) {rgba,at->
                                             vm.effectAction(objectId,instance,"set",JSONObject().put("param",paramId).put("frame",at).put("value",rgba),false)
                                         }
                                     }
                                     else if(kind !in listOf("bool","enum")) {
-                                        val dimensions=when(kind){"vec2"->2;"vec3"->3;"color"->if(current.getString("plugin")=="com.motionstudio.effects.ae2021")3 else 4;else->1}
+                                        val dimensions=when(kind){"vec2"->2;"vec3"->3;"color"->if(colorAlphaEditable)4 else 3;else->1}
                                         repeat(dimensions){axis->
                                             val label=when(kind){"vec2","vec3"->listOf("X","Y","Z")[axis];"color"->listOf("R","G","B","A")[axis];else->desc.optString("units")}
                                             EffectNumeric(vm,objectId,instance,desc,axis,value,enabled,label,onSelect=::select,onInput={select();numeric=Triple(instance,desc,axis)})

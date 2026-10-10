@@ -226,6 +226,7 @@ impl Project {
             layers: body.layers.to_vec(),
             expressions: body.expressions.to_vec(),
             assets: self.assets.clone(),
+            fonts: self.fonts.clone(),
             audio_assets: self.audio_assets.clone(),
             video_assets: self.video_assets.clone(),
             plugin_dependencies: Vec::new(),
@@ -725,6 +726,10 @@ impl Project {
             );
         }
         for l in &self.layers {
+            if l.effects.iter().any(|e| e.image_input.and_then(crate::EffectImageInput::layer)
+                .is_some_and(|id| selected.contains(&id) != selected.contains(&l.id))) {
+                return fail(&source, "external_reference", "Image input crosses the composition selection", json!({"object":l.id}));
+            }
             if selected.contains(&l.id) && l.locked {
                 return fail(
                     &source,

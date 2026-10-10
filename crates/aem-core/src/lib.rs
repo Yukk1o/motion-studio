@@ -32,13 +32,14 @@ pub use composition::{Composition, CompositionAction, CompositionClip, Compositi
 pub use curve::{Curve, CurveSample, CurveShape, CurveSpace, Easing};
 pub use editor::{parse_commands, Command, EditResult, Engine, Property};
 pub use effects::{
-    CurveLut, CurveObject, CurveTrack, EffectAction, EffectInstance, EffectParam, PluginDependency,
+    CurveLut, CurveObject, CurveTrack, EffectAction, EffectImageInput, EffectImageStage, EffectInstance, EffectParam, PluginDependency,
     SampledEffect,
 };
 pub use expressions::{
     ExpressionTarget, ExpressionValue, PropertyExpression, EXPRESSION_PROFILE, MAX_EXPRESSIONS,
 };
 pub use model::{
+    FontAsset,
     Asset, Content, Layer, LayerTimeline, ParentLink, Project, Transform, MAX_COMPOSITION_FPS,
     MAX_FRAMES, MAX_LAYERS,
 };

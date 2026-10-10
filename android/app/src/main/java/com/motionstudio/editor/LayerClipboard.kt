@@ -19,11 +19,16 @@ internal class LayerClipboard private constructor(
     val size:Int get()=layers.size
     fun available(project:JSONObject):Boolean {
         val ids=layers.map{JSONObject(it).getLong("id")}.toSet()
-        val current=project.optJSONArray("layers").objects().map{it.getLong("id")}.toSet()
+        val current=project.optJSONArray("layers").objects().associateBy{it.getLong("id")}
         return layers.all {raw->
-            val parent=JSONObject(raw).optJSONObject("parent")
-            parent==null||parent.isNull("object")||parent.optLong("object") in ids||
+            val layer=JSONObject(raw);val parent=layer.optJSONObject("parent")
+            val parentAvailable=parent==null||parent.isNull("object")||parent.optLong("object") in ids||
                 (if(parent.optLong("object")==0L)project.optJSONObject("camera")?.optBoolean("created")==true else parent.optLong("object") in current)
+            parentAvailable&&layer.optJSONArray("effects").objects().all{effect->
+                val input=effect.optJSONObject("image_input")
+                input==null||input.optString("kind")!="layer"||input.optLong("layer") in ids||
+                    current[input.optLong("layer")]?.getJSONObject("content")?.getString("kind")?.let{it !in setOf("null","audio","adjustment")}==true
+            }
         }&&assets.all{(kind,raw)->
             val asset=JSONObject(raw)
             project.optJSONArray(kind).objects().any{it.optLong("id")==asset.getLong("id")&&it.toString()==raw}
@@ -36,9 +41,21 @@ internal class LayerClipboard private constructor(
         if(highest>Long.MAX_VALUE-size)return null
         val copies=layers.map(::JSONObject)
         val ids=copies.mapIndexed{i,l->l.getLong("id") to highest+i+1}.toMap()
+        val materialBindings=JSONArray()
         copies.forEach{layer->
             layer.put("id",ids.getValue(layer.getLong("id"))).put("locked",false)
             layer.optJSONObject("parent")?.let{parent->ids[parent.optLong("object")]?.let{parent.put("object",it)}}
+            layer.optJSONArray("effects").objects().forEach{effect->
+                val input=effect.optJSONObject("image_input")
+                if(input?.optString("kind")=="layer") {
+                    ids[input.getLong("layer")]?.let{input.put("layer",it)}
+                    materialBindings.put(JSONObject().put("op","effect").put("object",layer.getLong("id"))
+                        .put("action",JSONObject().put("kind","set_image_input").put("effect",effect.getLong("id")).put("input",input)))
+                    // Source-stage graphs may contain cycles. Bind only after all
+                    // copied layers exist, within the same atomic native batch.
+                    effect.put("image_input",JSONObject().put("kind","empty"))
+                }
+            }
         }
         val commands=JSONArray();val added=mutableSetOf<Long>();val pending=copies.toMutableList()
         // Each native command validates the project, so parents must be added first.
@@ -50,6 +67,7 @@ internal class LayerClipboard private constructor(
             commands.put(JSONObject().put("op","add").put("layer",next))
             added+=next.getLong("id");pending.remove(next)
         }
+        materialBindings.objects().forEach{commands.put(it)}
         // Restore the copied stacking order after adding dependencies.
         copies.forEachIndexed{i,layer->commands.put(JSONObject().put("op","reorder").put("object",layer.getLong("id")).put("index",current.size+i))}
         expressions.forEach{raw->
@@ -81,6 +99,10 @@ internal class LayerClipboard private constructor(
                         val asset=project.getJSONArray("video_assets").objects().first{it.getLong("id")==id}
                         if(!asset.isNull("audio_asset")&&!reference("audio_assets",asset.getLong("audio_asset")))return null
                     }
+                }
+                for(effect in layer.optJSONArray("effects").objects()) {
+                    val input=effect.optJSONObject("image_input")
+                    if(input?.optString("kind")=="asset"&&!reference("assets",input.getLong("asset")))return null
                 }
             }
             return LayerClipboard(root,layers.map{it.toString()},project.optJSONArray("expressions").objects()

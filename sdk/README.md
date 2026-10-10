@@ -19,4 +19,4 @@ python sdk/motion-studio-plugin/scripts/pack_msfx.py ./my-effect ./out/my-effect
 - [原生 UI 与共享组件](motion-studio-plugin/references/native-ui.md)
 - [开发、测试与发布](motion-studio-plugin/references/development.md)
 
-当前主分支支持 SDK 1–5；原生编辑页使用 SDK 5 / 协议 1。声明所需的最低 SDK 和能力，不依赖未发布接口。
+当前主分支支持 SDK 1–6；原生编辑页使用 SDK 5 / 协议 1。SDK 6 提供图层/素材输入（`image_input`），使用它时保留参数 slots 30/31。声明所需的最低 SDK 和能力，不依赖未发布接口；接口与字体复用见 [官方创作效果 API](../engineering/host-api/official-motion-effects.md)。

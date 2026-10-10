@@ -59,6 +59,7 @@ pub(crate) enum TextureKey {
     Video(u64),
     Vector(u64),
     Mask(u64),
+    EffectInput(u64),
 }
 fn texture_key(layer: &aem_core::DrawLayer) -> TextureKey {
     if layer.vector.is_some() {
@@ -809,6 +810,7 @@ impl Renderer {
                     .iter()
                     .any(|l| l.id == *id && matches!(l.content, aem_core::Content::Vector { .. })),
                 TextureKey::Mask(_) => true,
+                TextureKey::EffectInput(_) => true,
             })
             .collect();
         for id in remove {
@@ -1302,6 +1304,32 @@ impl Renderer {
             particles_culled: 0,
         })
     }
+    fn prepare_input_snapshots(&mut self)->Result<()> {
+        let frame=&self.effect_gpu.builder.frame;
+        let specs=crate::effect_plan::image_input_order(frame).map_err(RenderError::Invalid)?.into_iter().map(|i| {
+            let draw=&frame.draws[i];let pass=&frame.passes[draw.pass_end-1];(TextureKey::EffectInput(draw.layer),pass.width,pass.height)
+        }).collect::<Vec<_>>();
+        let stale=self.images.keys().copied().filter(|key|matches!(key,TextureKey::EffectInput(_))&&!specs.iter().any(|v|v.0==*key)).collect::<Vec<_>>();
+        for key in stale {self.texture_bytes-=self.images.remove(&key).unwrap().bytes;self.effect_gpu.invalidate();}
+        let needed=specs.iter().filter(|(key,w,h)|self.images.get(key).is_none_or(|image|image.size!=(*w,*h)))
+            .map(|(_,w,h)|u64::from(*w)*u64::from(*h)*4).sum();
+        self.trim_image_cache(needed);
+        for (key,width,height) in specs {
+            if self.images.get(&key).is_some_and(|image|image.size==(width,height)){continue;}
+            let bytes=u64::from(width)*u64::from(height)*4;
+            if self.texture_bytes+self.video_plane_bytes()+self.effect_gpu.state.resource_bytes+bytes>TEXTURE_BUDGET {
+                return Err(RenderError::Invalid("effect image snapshots exceed source texture budget".into()));
+            }
+            let texture=self.device.create_texture(&wgpu::TextureDescriptor {label:Some("same-frame effect image input"),size:wgpu::Extent3d{width,height,depth_or_array_layers:1},
+                mip_level_count:1,sample_count:1,dimension:wgpu::TextureDimension::D2,format:TARGET_FORMAT,usage:wgpu::TextureUsages::TEXTURE_BINDING|wgpu::TextureUsages::COPY_DST|wgpu::TextureUsages::COPY_SRC,view_formats:&[]});
+            let view=texture.create_view(&Default::default());
+            let bind_group=self.device.create_bind_group(&wgpu::BindGroupDescriptor {label:None,layout:&self.image_layout,entries:&[
+                wgpu::BindGroupEntry{binding:0,resource:wgpu::BindingResource::TextureView(&view)},wgpu::BindGroupEntry{binding:1,resource:wgpu::BindingResource::Sampler(&self.sampler)}]});
+            if let Some(old)=self.images.insert(key,GpuImage{_texture:texture,view,bind_group,bytes,size:(width,height),video_stamp:None}){self.texture_bytes-=old.bytes;}
+            self.texture_bytes+=bytes;self.effect_gpu.invalidate();
+        }
+        Ok(())
+    }
     fn encode_effects(
         &mut self,
         scene: &Scene,
@@ -1321,6 +1349,7 @@ impl Renderer {
             }
             .map_err(RenderError::Invalid)?;
             self.prepare_effect_images();
+            self.prepare_input_snapshots()?;
             match self.effect_gpu.state.prepare(
                 &self.device,
                 &self.queue,
@@ -1473,9 +1502,33 @@ impl Renderer {
         let mut executed_passes = 0;
         let mut composition_draws = 0;
         let mut accumulator = 0;
+        // Preserve each referenced source before another layer reuses slot 0.
+        // This is GPU-only and independent of the composition's stacking order.
+        for i in crate::effect_plan::image_input_order(frame).map_err(RenderError::Invalid)? {
+            let draw=&frame.draws[i];
+            for p in draw.pass_start..draw.pass_end {
+                self.effect_gpu.state.encode_pass(p,frame,&self.asset_order,
+                    Some(texture_key(&scene.layers[i])),None,&self.images,&self.device,&self.queue,encoder)?;
+                executed_passes+=1;
+            }
+            let output=&frame.passes[draw.pass_end-1];
+            encoder.copy_texture_to_texture(
+                wgpu::TexelCopyTextureInfo{texture:&self.effect_gpu.state.pool[0].as_ref().unwrap().texture,mip_level:0,origin:wgpu::Origin3d::ZERO,aspect:wgpu::TextureAspect::All},
+                wgpu::TexelCopyTextureInfo{texture:&self.images[&TextureKey::EffectInput(draw.layer)]._texture,mip_level:0,origin:wgpu::Origin3d::ZERO,aspect:wgpu::TextureAspect::All},
+                wgpu::Extent3d{width:output.width,height:output.height,depth_or_array_layers:1});
+        }
         for (batch_index, batch) in frame.batches.iter().enumerate() {
             let i = batch.layer;
             let draw = &frame.draws[i];
+            if materialized!=Some(i) {
+                if let Some(cached)=self.images.get(&TextureKey::EffectInput(draw.layer)) {
+                    encoder.copy_texture_to_texture(
+                        wgpu::TexelCopyTextureInfo{texture:&cached._texture,mip_level:0,origin:wgpu::Origin3d::ZERO,aspect:wgpu::TextureAspect::All},
+                        wgpu::TexelCopyTextureInfo{texture:&self.effect_gpu.state.pool[0].as_ref().unwrap().texture,mip_level:0,origin:wgpu::Origin3d::ZERO,aspect:wgpu::TextureAspect::All},
+                        wgpu::Extent3d{width:cached.size.0,height:cached.size.1,depth_or_array_layers:1});
+                    materialized=Some(i);
+                }
+            }
             for p in draw.pass_start..draw.pass_end {
                 if materialized == Some(i) {
                     break;

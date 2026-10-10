@@ -2,7 +2,9 @@ use aem_effects::{builtin, BoundsExpr, OutputBounds};
 
 #[test]
 fn geometry_contract_rejects_old_sdk_ambiguous_or_invalid_rectangles() {
-    let original = builtin::manifest();
+    // Exercise the historical SDK geometry boundary without the new SDK 6
+    // package-count/image-input requirements masking the intended diagnostic.
+    let original = builtin::legacy_current_package().unwrap().manifest.clone();
     let tile = original
         .effects
         .iter()

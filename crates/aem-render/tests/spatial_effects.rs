@@ -177,7 +177,7 @@ fn polar_unwrap_keeps_corner_pixels_below_the_original_layer_and_zero_amount_is_
     set(&mut p, "p0001", [0.; 4]);
     assert_eq!(render(&mut r, &p, 0., 192), original);
     // Package upgrade does not mutate parameter ranges or the saved legacy package.
-    assert_eq!(package.manifest.version, "1.4.1");
+    assert_eq!(package.manifest.version, "2.0.0");
 }
 
 #[test]

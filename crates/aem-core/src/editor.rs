@@ -132,6 +132,9 @@ pub enum Command {
     RegisterAsset {
         asset: Asset,
     },
+    RegisterFontAsset {
+        asset: crate::FontAsset,
+    },
     Content {
         object: u64,
         content: Content,
@@ -759,6 +762,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             crate::masks::edit(&mut layer.masks, action, layer.timeline.map_or(0, |t| t.offset_frame))?;
         }
         Command::RegisterAsset { asset } => project.assets.push(asset),
+        Command::RegisterFontAsset { asset } => project.fonts.push(asset),
         Command::Content {
             object,
             content,
@@ -806,6 +810,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 project.camera.created = false;
             } else {
                 project.layers.retain(|l| l.id != object);
+                crate::effects::clear_layer_image_inputs(&mut project.layers, object);
             }
             project.expressions.retain(|e| e.target.object() != object);
         }
@@ -822,6 +827,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 return Err(Error::Locked(object));
             }
             project.layers.retain(|l| l.id != object);
+            crate::effects::clear_layer_image_inputs(&mut project.layers, object);
             project.expressions.retain(|e| e.target.object() != object);
         }
         Command::Duplicate { object } => {

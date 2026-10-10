@@ -14,6 +14,15 @@ pub struct Asset {
     pub width: u32,
     pub height: u32,
 }
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FontAsset {
+    pub id: String,
+    pub path: String,
+    pub name: String,
+    pub face_index: u32,
+    pub license: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -211,6 +220,8 @@ pub struct Project {
     pub background: [f32; 4],
     pub assets: Vec<Asset>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fonts: Vec<FontAsset>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub audio_assets: Vec<crate::AudioAsset>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub video_assets: Vec<crate::VideoAsset>,
@@ -236,6 +247,7 @@ impl Project {
             frames,
             background: [0.05, 0.06, 0.09, 1.0],
             assets: Vec::new(),
+            fonts: Vec::new(),
             audio_assets: Vec::new(),
             video_assets: Vec::new(),
             camera: Camera::new(width, height),
@@ -280,6 +292,13 @@ impl Project {
         p
     }
     pub fn validate(&self) -> Result<()> {
+        ensure(self.fonts.len()<=128,"too many font assets")?;
+        let mut font_ids=HashSet::new();
+        for font in &self.fonts {
+            ensure(aem_effects::valid_id(&font.id)&&font_ids.insert(&font.id)&&font.face_index<=255&&font.name.len()<=256&&font.license.len()<=65536,"invalid font asset metadata")?;
+            crate::storage::validate_relative_path(&font.path)?;
+            ensure(font.path.starts_with("assets/fonts/")&&font.path.ends_with(".ttf"),"invalid managed font path")?;
+        }
         ensure((1..=9).contains(&self.version), "unsupported project format")?;
         ensure(self.plugin_dependencies == self.composition_dependencies(),
                "plugin dependency list does not match effect instances")?;
@@ -287,6 +306,7 @@ impl Project {
         self.validate_compositions()
     }
     pub(crate) fn validate_one(&self, document: &Project) -> Result<()> {
+        crate::effects::validate_image_graph(self)?;
         ensure(
             (1..=9).contains(&self.version),
             "unsupported project format",
@@ -442,6 +462,18 @@ impl Project {
             for e in &layer.effects {
                 ensure(effect_ids.insert(e.id), "duplicate effect instance ID")?;
                 e.validate(self.frames)?;
+                if let Some(input) = e.image_input {
+                    match input {
+                        crate::EffectImageInput::Layer { layer: source, .. } => {
+                            let source = self.layers.iter().find(|l| l.id == source)
+                                .ok_or_else(|| crate::Error::Invalid("effect image source must belong to the same composition".into()))?;
+                            ensure(!matches!(source.content, Content::Null | Content::Audio { .. } | Content::Adjustment),
+                                "effect image source has no independent pixels")?;
+                        }
+                        crate::EffectImageInput::Asset { asset } => ensure(document.assets.iter().any(|a| a.id == asset), "effect image asset missing")?,
+                        crate::EffectImageInput::Empty => {}
+                    }
+                }
             }
             match &layer.content {
                 Content::Adjustment => {

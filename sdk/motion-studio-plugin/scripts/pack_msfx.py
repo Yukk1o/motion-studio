@@ -15,6 +15,7 @@ import zipfile
 
 MAX_PACKAGE = 16 * 1024 * 1024
 MAX_SOURCE = 256 * 1024
+MAX_MANIFEST = 512 * 1024
 
 
 def require(condition: bool, message: str) -> None:
@@ -46,19 +47,19 @@ def pack(source: Path, output: Path, validator: Path | None = None) -> dict:
     require(base.is_dir(), "source must be a directory")
     manifest_path = (base / "manifest.json").resolve(strict=True)
     require(manifest_path.is_relative_to(base), "manifest resolves outside source")
-    require(manifest_path.stat().st_size <= MAX_SOURCE, "manifest exceeds 256 KiB")
+    require(manifest_path.stat().st_size <= MAX_MANIFEST, "manifest exceeds 512 KiB")
     with manifest_path.open("rb") as stream:
-        raw_manifest = stream.read(MAX_SOURCE + 1)
-    require(len(raw_manifest) <= MAX_SOURCE, "manifest exceeds 256 KiB")
+        raw_manifest = stream.read(MAX_MANIFEST + 1)
+    require(len(raw_manifest) <= MAX_MANIFEST, "manifest exceeds 512 KiB")
     manifest = json.loads(raw_manifest, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(f"non-finite JSON: {value}")))
     finite_json(manifest)
     require(isinstance(manifest, dict) and manifest.get("format_version") == 1, "unsupported package format")
     sdk = manifest.get("sdk_version")
-    require(type(sdk) is int and sdk >= 1, "sdk_version must be a positive integer")
+    require(type(sdk) is int and 1 <= sdk <= 6, "sdk_version must be 1–6")
     require(isinstance(manifest.get("id"), str) and re.fullmatch(r"[A-Za-z0-9_.-]+", manifest["id"]) is not None, "invalid plugin ID")
     require(isinstance(manifest.get("version"), str) and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", manifest["version"]) is not None, "version must use SemVer")
     effects = manifest.get("effects")
-    require(isinstance(effects, list) and 1 <= len(effects) <= 64, "package requires 1–64 effects")
+    require(isinstance(effects, list) and 1 <= len(effects) <= (128 if sdk >= 6 else 64), "package exceeds SDK effect count")
     names = {"manifest.json"}
     ids = set()
     for effect in effects:
@@ -71,6 +72,8 @@ def pack(source: Path, output: Path, validator: Path | None = None) -> dict:
         require(isinstance(params, list) and len(params) <= 32, "effect exceeds 32 parameters")
         require(isinstance(passes, list) and 1 <= len(passes) <= 8, "effect requires 1–8 passes")
         require(isinstance(resources, list) and len(resources) <= 4, "effect exceeds 4 resources")
+        if "image_input" in effect.get("required_capabilities", []):
+            require(sdk >= 6 and len(params) <= 30 and len(resources) == 1 and effect.get("renderer", "image") == "image", "image_input requires SDK 6, one resource and slots 30/31 reserved")
         for shader_pass in passes:
             require(isinstance(shader_pass, dict), "invalid pass")
             name = relative_name(shader_pass.get("shader"))
@@ -90,7 +93,7 @@ def pack(source: Path, output: Path, validator: Path | None = None) -> dict:
         path = (base / name).resolve(strict=True)
         require(path.is_relative_to(base) and path.is_file(), f"resource resolves outside source or is not a file: {name}")
         size = path.stat().st_size
-        require(size <= (MAX_SOURCE if name == "manifest.json" or name.endswith(".wgsl") else MAX_PACKAGE), f"file exceeds budget: {name}")
+        require(size <= (MAX_MANIFEST if name == "manifest.json" else MAX_SOURCE if name.endswith(".wgsl") else MAX_PACKAGE), f"file exceeds budget: {name}")
         total += size
         require(total <= MAX_PACKAGE, "expanded package exceeds 16 MiB")
         if name == "manifest.json":
