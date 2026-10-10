@@ -208,6 +208,10 @@ fn intervals(start: f32, end: f32, offset: f32) -> Vec<(f64, f64)> {
 /// Simultaneous: same fractional interval on every contour. Individual:
 /// one length-weighted interval over the stored contour order.
 pub fn trim(paths: &[SampledPath], t: &SampledTrimPaths) -> Result<Vec<SampledPath>> {
+    Ok(trim_by_path(paths, t)?.into_iter().flatten().collect())
+}
+/// Preserve contour ownership for ordered groups and their independent paints.
+pub fn trim_by_path(paths: &[SampledPath], t: &SampledTrimPaths) -> Result<Vec<Vec<SampledPath>>> {
     ensure(
         (0.0..=100.).contains(&t.start)
             && (0.0..=100.).contains(&t.end)
@@ -216,10 +220,10 @@ pub fn trim(paths: &[SampledPath], t: &SampledTrimPaths) -> Result<Vec<SampledPa
     )?;
     let ranges = intervals(t.start, t.end, t.offset);
     if ranges == [(0., 1.)] {
-        return Ok(paths.to_vec());
+        return Ok(paths.iter().cloned().map(|p| vec![p]).collect());
     }
     if ranges.is_empty() {
-        return Ok(vec![]);
+        return Ok(vec![vec![]; paths.len()]);
     }
     let measured = measure(paths)?;
     let total: f64 = measured.iter().map(|p| p.length).sum();
@@ -249,9 +253,9 @@ pub fn trim(paths: &[SampledPath], t: &SampledTrimPaths) -> Result<Vec<SampledPa
             let a = pieces.pop().unwrap();
             pieces.push(join(a, b));
         }
-        for piece in pieces {
-            append(&mut out, piece, &mut nodes)?;
-        }
+        nodes += pieces.iter().map(|p| p.nodes.len()).sum::<usize>();
+        ensure(nodes <= MAX_OUTPUT_NODES, "vector path-operation output node limit exceeded")?;
+        out.push(pieces);
         cursor += p.length;
     }
     Ok(out)

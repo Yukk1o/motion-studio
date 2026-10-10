@@ -2,9 +2,10 @@ package com.motionstudio.editor
 
 import java.nio.ByteBuffer
 
-/** v8 adds layer compositing records and retains word 19's scratch allowance. */
+/** v9 adds ordered vector paint commands; the header and scratch allowance remain stable. */
 internal object RenderPlanBudget {
-    const val VERSION=8
+    const val VERSION=9
+    const val VECTOR_RECORD_BYTES=40
     const val HEADER_BYTES=144
     fun compositingOffset(plan:ByteBuffer):Int {
         scratchBytes(plan)

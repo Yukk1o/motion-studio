@@ -160,6 +160,7 @@ impl Session {
             }
             Some(json!({"id":layer.id,"canvas_size":layer.source_size,"source_rect":layer.source_rect,
                 "mvp":(layer.view_projection*layer.model).to_cols_array(),"paths":paths,"parameters":parameters,"modifier_parameters":modifier_parameters,
+                "group_parameters":vector.group_parameters,
                 "fill":vector.fill,"stroke":vector.stroke.map(|s|json!({"color":s.0,"width":s.1,"cap":s.2,"join":s.3,"miter_limit":s.4}))}))
         }).collect();
         let camera_properties: Vec<&str> = if !p.camera.created {
@@ -210,8 +211,13 @@ impl Session {
                 "adapter":g.renderer.adapter_info.name,
                 "backend":format!("{:?}",g.renderer.adapter_info.backend),
                 "textureBytes":g.renderer.texture_bytes()}))});
-        snapshot["capabilities"]["composition_api"]["project_format"]=json!(11);
-        snapshot["capabilities"]["vector_drawing"]["protocol"]=json!(2);
+        snapshot["capabilities"]["composition_api"]["project_format"]=json!(12);
+        snapshot["capabilities"]["vector_drawing"]["protocol"]=json!(3);
+        snapshot["capabilities"]["vector_drawing"]["groups"]=json!({"supported":true,"project_format":12,
+            "max_depth":motion_core::vector::groups::MAX_DEPTH,"max_items":motion_core::vector::groups::MAX_ITEMS,
+            "ordered_paints":true,"isolated_opacity":true,"repeater":true,"multiple_repeaters":true,"max_copies":1024,
+            "position_coordinates":"group_local_pixels_y_down","expressions":false,"separated_axes":false,
+            "viewport_roi":"2d_without_effects_masks_or_image_consumers"});
         snapshot["capabilities"]["vector_drawing"]["path_modifiers"]=json!({"project_format":11,
             "trim_paths":true,"trim_modes":["simultaneously","individually"],"trim_range_percent":[0,100],
             "trim_offset_degrees":[-360000,360000],"stroke_dashes":true,"max_dash_pairs":3,

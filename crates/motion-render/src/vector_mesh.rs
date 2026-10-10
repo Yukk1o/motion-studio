@@ -18,6 +18,81 @@ pub struct VectorMesh {
     pub height: u32,
     pub fingerprint: u64,
     pub vertices: std::sync::Arc<Vec<VectorVertex>>,
+    pub commands: std::sync::Arc<Vec<RasterCommand>>,
+    pub root_opacity: f32,
+    pub origin: [f32; 2],
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct RasterCommand {
+    /// 0: draw triangles, 1: begin isolated group, 2: composite isolated group.
+    pub kind: u32,
+    pub start: u32,
+    pub end: u32,
+    pub opacity: f32,
+}
+impl VectorMesh {
+    pub fn scope_depth(&self) -> usize {
+        let (mut depth, mut maximum) = (0usize, 0usize);
+        for command in self.commands.iter() {
+            if command.kind == 1 { depth += 1; maximum = maximum.max(depth); }
+            else if command.kind == 2 { depth -= 1; }
+        }
+        maximum
+    }
+}
+pub struct RasterGeometry { pub vertices: Vec<VectorVertex>, pub commands: Vec<RasterCommand>, pub root_opacity: f32 }
+pub fn group_bounds(v: &SampledVector) -> Option<[f32; 4]> {
+    let batches = v.batches.as_ref()?;
+    let mut min = glam::Vec2::splat(f32::INFINITY);
+    let mut max = glam::Vec2::splat(f32::NEG_INFINITY);
+    for batch in batches {
+        let matrix = glam::Mat3::from_cols_array(&batch.transform);
+        let radius = batch.vector.stroke.map_or(0., |s| s.1*0.5*if s.3==LineJoin::Miter{s.4}else{1.});
+        let pad = (matrix.x_axis.truncate().abs()+matrix.y_axis.truncate().abs())*radius+glam::Vec2::ONE;
+        for n in batch.vector.paths.iter().flat_map(|p|&p.nodes) {
+            for p in [glam::Vec2::new(n[0],n[1]),glam::Vec2::new(n[0]+n[2],n[1]+n[3]),glam::Vec2::new(n[0]+n[4],n[1]+n[5])] {
+                let p=matrix.transform_point2(p);min=min.min(p-pad);max=max.max(p+pad);
+            }
+        }
+    }
+    if !min.is_finite() { return Some([-0.5,-0.5,1.,1.]); }
+    Some([min.x,min.y,max.x-min.x,max.y-min.y])
+}
+pub fn rasterize(v: &SampledVector, size: [f32; 2], scale: f32, origin: [f32; 2]) -> Result<RasterGeometry, String> {
+    let Some(batches) = &v.batches else {
+        return Ok(RasterGeometry { vertices: tessellate(v, size, scale)?, commands: vec![], root_opacity: 1. });
+    };
+    let mut vertices = Vec::new();
+    let mut commands = Vec::new();
+    let mut scopes: Vec<motion_model::vector::groups::PaintScope> = Vec::new();
+    for batch in batches {
+        let matrix = glam::Mat3::from_cols_array(&batch.transform);
+        let mut triangles = tessellate(&batch.vector,size,scale)?;
+        for vertex in &mut triangles {
+            let local=glam::Vec2::new(vertex.position[0]*size[0]*0.5,-vertex.position[1]*size[1]*0.5);
+            let point=matrix.transform_point2(local)-glam::Vec2::from_array(origin);
+            vertex.position=[point.x*2./size[0],-point.y*2./size[1]];
+        }
+        let visible:Vec<_>=triangles.chunks_exact(3).filter(|triangle| !(0..2).any(|axis|
+            triangle.iter().all(|v|v.position[axis]< -1.) || triangle.iter().all(|v|v.position[axis]>1.)))
+            .flat_map(|t|t.iter().copied()).collect();
+        if visible.is_empty() {continue;}
+        let common = scopes.iter().zip(&batch.scopes).take_while(|(a,b)| a == b).count();
+        for scope in scopes.drain(common..).rev() {
+            commands.push(RasterCommand { kind: 2, start: 0, end: 0, opacity: scope.opacity });
+        }
+        for scope in batch.scopes.iter().skip(common) {
+            commands.push(RasterCommand { kind: 1, start: 0, end: 0, opacity: scope.opacity });
+            scopes.push(scope.clone());
+        }
+        let start = vertices.len() as u32;
+        vertices.extend(visible);
+        if vertices.len() > 262144 { return Err("vector triangle vertex limit exceeded (262144)".into()); }
+        commands.push(RasterCommand { kind: 0, start, end: vertices.len() as u32, opacity: 1. });
+    }
+    for scope in scopes.into_iter().rev() { commands.push(RasterCommand {kind:2,start:0,end:0,opacity:scope.opacity}); }
+    Ok(RasterGeometry { vertices, commands, root_opacity: v.root_opacity })
 }
 fn paint(mut c: [f32; 4]) -> [f32; 4] {
     for i in 0..3 {
@@ -30,6 +105,9 @@ pub fn tessellate(
     size: [f32; 2],
     scale: f32,
 ) -> Result<Vec<VectorVertex>, String> {
+    if v.batches.is_some() {
+        return Err("grouped vector raster execution is not available yet".into());
+    }
     let trimmed = v
         .trim
         .as_ref()

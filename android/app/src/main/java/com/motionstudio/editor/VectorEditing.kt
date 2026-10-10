@@ -19,6 +19,7 @@ internal fun EditorViewModel.vectorValue(objectId:Long,key:String):Any? {
         "fill"->sample?.optJSONArray("fill")
         "stroke_color"->sample?.optJSONObject("stroke")?.optJSONArray("color")
         "stroke_width"->sample?.optJSONObject("stroke")?.opt("width")
+        "group"->sample?.optJSONObject("group_parameters")?.optJSONObject(parts.getOrNull(2)?:return null)?.opt(parts.drop(3).joinToString(":"))
         "node"->sample?.optJSONArray("paths").objects().firstOrNull{it.optLong("id")==parts.getOrNull(2)?.toLongOrNull()}
             ?.optJSONArray("nodes").objects().firstOrNull{it.optLong("id")==parts.getOrNull(3)?.toLongOrNull()}?.optJSONArray("geometry")
         else->sample?.optJSONObject("modifier_parameters")?.opt(parts.getOrNull(1)?:return null)
@@ -28,6 +29,7 @@ private fun vectorTrack(vector:JSONObject,key:String):JSONObject? {
     val parts=key.split(':')
     if(parts.firstOrNull()!="vector")return null
     return when(parts.getOrNull(1)) {
+        "group"->groupTrack(vector,parts.getOrNull(2)?.toLongOrNull()?:return null,parts.drop(3).joinToString(":"))
         "parameter"->vector.optJSONObject("source")?.optJSONObject("parameters")?.optJSONObject(parts.getOrNull(2)?:return null)
         "fill"->vector.optJSONObject("fill")
         "stroke_color"->vector.optJSONObject("stroke")?.optJSONObject("color")
@@ -52,9 +54,9 @@ internal fun EditorViewModel.routeVectorCommand(command:JSONObject):JSONObject? 
     val at=command.optInt("frame",floor(frame).toInt())-offset
     var keys=track.optJSONArray("keys").objects().map{JSONObject(it.toString())}.toMutableList()
     val sampled=vectorValue(objectId,key)?:track.get("value")
-    val discrete=key.startsWith("vector:parameter:")&&shapeCatalogue().firstOrNull{
+    val discrete=groupTrackDiscrete(vector,key,shapeCatalogue())||(key.startsWith("vector:parameter:")&&shapeCatalogue().firstOrNull{
         it.getString("id")==vector.getJSONObject("source").optString("shape")
-    }?.optJSONArray("parameters").objects().firstOrNull{it.getString("id")==key.substringAfterLast(':')}?.optBoolean("discrete")==true
+    }?.optJSONArray("parameters").objects().firstOrNull{it.getString("id")==key.substringAfterLast(':')}?.optBoolean("discrete")==true)
     fun row(value:Any,time:Int)=JSONObject().put("frame",time).put("value",value).put("ease",if(discrete)"hold"else"linear")
     try {
         when(command.getString("op")) {

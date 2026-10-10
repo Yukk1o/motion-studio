@@ -54,8 +54,8 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
     Column(modifier.background(Panel).testTag("vector-panel")) {
         Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
             if(curve)TextButton(onClick={curve=false}){Text("返回属性")}else {
-                (listOf("geometry" to if(source.getString("kind")=="shape")"形状"else"路径","style" to "样式")+
-                    if(vm.maskOpen)emptyList()else listOf("operations" to "路径操作")).forEach{(id,label)->
+                (if(source.optString("kind")=="group")listOf("geometry" to "形状组")else listOf("geometry" to if(source.getString("kind")=="shape")"形状"else"路径","style" to "样式")+
+                    if(vm.maskOpen||source.optString("kind")=="group")emptyList()else listOf("operations" to "路径操作")).forEach{(id,label)->
                     TextButton(onClick={vm.vectorTab=id},modifier=Modifier.testTag("vector-tab-$id").semantics{selected=vm.vectorTab==id}){Text(label,color=if(vm.vectorTab==id)Accent else Muted)}
                 }
             }
@@ -63,7 +63,8 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
         }
         if(curve)CurveEditor(vm,Modifier.weight(1f).fillMaxWidth())else {
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=12.dp)) {
-                if(vm.vectorTab=="operations")VectorPathOperations(vm,vector)
+                if(source.getString("kind")=="group")VectorGroupPanel(vm,vector)
+                else if(vm.vectorTab=="operations")VectorPathOperations(vm,vector)
                 else if(vm.vectorTab=="style")VectorPaint(vm,vector)
                 else if(source.getString("kind")=="shape") {
                     val shape=vm.shapeCatalogue().firstOrNull{it.getString("id")==source.getString("shape")}
@@ -72,9 +73,11 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
                     }
                     TextButton(onClick={convert=true},enabled=vm.editable(),modifier=Modifier.testTag("vector-convert")){Text("转换为可编辑路径")}
                 }else VectorPaths(vm,source)
+                if(source.optString("kind")!="group"&&!vm.maskOpen)TextButton(onClick={vm.vectorAction(JSONObject().put("action","convert_to_group"))},
+                    enabled=vm.editable(),modifier=Modifier.heightIn(min=48.dp).testTag("vector-convert-group")){Text("组织为形状组")}
             }
-            val discrete=vm.property.startsWith("vector:parameter:")&&vm.shapeCatalogue().firstOrNull{it.getString("id")==source.optString("shape")}
-                ?.optJSONArray("parameters").objects().firstOrNull{it.getString("id")==vm.property.substringAfterLast(':')}?.optBoolean("discrete")==true
+            val discrete=groupTrackDiscrete(vector,vm.property,vm.shapeCatalogue())||(vm.property.startsWith("vector:parameter:")&&vm.shapeCatalogue().firstOrNull{it.getString("id")==source.optString("shape")}
+                ?.optJSONArray("parameters").objects().firstOrNull{it.getString("id")==vm.property.substringAfterLast(':')}?.optBoolean("discrete")==true)
             Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceEvenly) {
                 Tool(Icons.Default.SkipPrevious,"上一关键帧",vm.keys().any{it.getInt("frame")<vm.frame}){vm.jumpKey(false)}
                 Box(Modifier.testTag("vector-key")){Tool(if(vm.currentKey()!=null)Icons.Default.Diamond else Icons.Default.Add,"添加或删除矢量关键帧",vm.editable()&&vm.vectorTrackRaw(vm.selected,vm.property)!=null,vm::toggleKey)}
@@ -87,7 +90,7 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
         confirmButton={TextButton(onClick={convert=false;vm.vectorDrawMode=false;vm.vectorAction(JSONObject().put("action","convert_to_path").put("frame",floor(vm.frame).toInt()))},modifier=Modifier.testTag("vector-convert-confirm")){Text("转换")}},dismissButton={TextButton(onClick={convert=false}){Text("取消")}})
 }
 
-@Composable private fun VectorNumber(vm:EditorViewModel,key:String,label:String,min:Double,max:Double,discrete:Boolean=false,axis:Int?=null) {
+@Composable internal fun VectorNumber(vm:EditorViewModel,key:String,label:String,min:Double,max:Double,discrete:Boolean=false,axis:Int?=null) {
     val sample=vm.vectorValue(vm.selected,key)?:return
     val value=if(axis==null)(sample as? Number)?.toDouble()?:return else (sample as? JSONArray)?.optDouble(axis)?:return
     var draft by remember(vm.selected,key,axis){mutableStateOf<Double?>(null)}
@@ -139,7 +142,7 @@ private val vectorLabels=mapOf("corner_ratio" to "圆角比例","points" to "顶
     VectorOptions("填充规则",vector.getString("fill_rule"),listOf("non_zero" to "非零","even_odd" to "奇偶"),vm.editable()){id->change{it.put("fill_rule",id)}}
 }
 
-private fun constantVectorTrack(value:Double)=JSONObject().put("value",value).put("keys",JSONArray())
+internal fun constantVectorTrack(value:Double)=JSONObject().put("value",value).put("keys",JSONArray())
 
 @Composable private fun VectorPathOperations(vm:EditorViewModel,vector:JSONObject) {
     val trim=vector.optJSONObject("trim")
@@ -194,7 +197,7 @@ private fun constantVectorTrack(value:Double)=JSONObject().put("value",value).pu
     }
 }
 
-@Composable private fun VectorOptions(label:String,chosen:String,items:List<Pair<String,String>>,enabled:Boolean,onChoose:(String)->Unit) {
+@Composable internal fun VectorOptions(label:String,chosen:String,items:List<Pair<String,String>>,enabled:Boolean,onChoose:(String)->Unit) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically){Text(label,color=Muted,fontSize=13.sp);items.forEach{(id,name)->TextButton(onClick={onChoose(id)},enabled=enabled,modifier=Modifier.heightIn(min=48.dp).semantics{selected=chosen==id}){Text(name,color=if(chosen==id)Accent else Muted)}}}
 }
 
