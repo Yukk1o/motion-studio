@@ -51,6 +51,7 @@ pub enum Request {
         request_id: String,
         /// Host-resolved location. `content://` URIs are normalised by the
         /// Android adapter before they reach this enum.
+        #[serde(alias = "uri")]
         path: String,
         kind: String,
         #[serde(default)]
@@ -66,6 +67,7 @@ pub enum Request {
     },
     ProbeMedia {
         request_id: String,
+        #[serde(alias = "uri")]
         path: String,
         kind: String,
         #[serde(default)]
@@ -740,4 +742,26 @@ pub fn frame_report(
         "decode_us":frame.decode_us,"codec_us":frame.codec_us,"transfer_us":frame.transfer_us,
         "pack_us":frame.pack_us,"source_transfer":frame.source_transfer,
         "decoder":frame.decoder_name})
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::Request;
+    #[test]
+    fn mobile_uri_and_desktop_path_preserve_the_same_import_and_probe_contract() {
+        for op in ["import_media", "probe_media"] {
+            for (field, location) in [("uri", "content://media/selected"), ("path", "/selected/movie.webm")] {
+                let mut value = serde_json::json!({"op":op,"request_id":"selected","kind":"video","audio_track":2});
+                value[field] = location.into();
+                let request: Request = serde_json::from_value(value).unwrap();
+                let (path, audio) = match request {
+                    Request::ImportMedia {path, audio_track, ..} | Request::ProbeMedia {path, audio_track, ..} => (path, audio_track),
+                    _ => panic!("wrong media operation"),
+                };
+                assert_eq!(path,location); assert_eq!(audio,Some(2));
+            }
+        }
+        let duplicate=serde_json::json!({"op":"import_media","request_id":"selected","kind":"audio","uri":"content://one","path":"/two"});
+        assert!(serde_json::from_value::<Request>(duplicate).is_err());
+    }
 }

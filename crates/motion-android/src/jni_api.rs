@@ -311,6 +311,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_surface(
                 if width <= 0 || height <= 0 {
                     return Err("surface dimensions must be positive".into());
                 }
+                // Android allows one producer per native window. Disconnect the
+                // old swapchain before creating its replacement on this window.
+                s.detach();
                 let target = host().attach_native_window(window, width as u32, height as u32)?;
                 s.attach(target)?;
             } else {
@@ -751,6 +754,7 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_request(
         let opener = if matches!(op, "import_media" | "probe_media") {
             let uri = value["path"]
                 .as_str()
+                .or_else(|| value["uri"].as_str())
                 .ok_or("media request requires a path or URI")?;
             Some(uri::uri_opener(&mut env, &context, uri.to_owned())?)
         } else {
