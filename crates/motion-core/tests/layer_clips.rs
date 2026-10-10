@@ -82,7 +82,7 @@ fn legacy_migration_is_in_memory_and_preserves_every_fractional_projection() {
         compare(&p, &migrated, f as f64 / 2.0, f as f64 / 2.0, 2, 2);
     }
     let mut unknown = p;
-    unknown.version = 12;
+    unknown.version = 13;
     assert!(Engine::new(unknown).is_err());
 }
 #[test]

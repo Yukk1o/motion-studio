@@ -5,6 +5,7 @@ use crate::{
 };
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
+mod groups;
 pub(crate) struct LayerGpu {
     vector: wgpu::RenderPipeline,
     vector_clear: wgpu::RenderPipeline,
@@ -17,8 +18,13 @@ pub(crate) struct LayerGpu {
     fingerprints: HashMap<u64, u64>,
     raster_scratch: HashMap<(u32, u32), wgpu::Texture>,
     raster_resolve: HashMap<(u32, u32), FxTexture>,
+    groups: groups::GroupGpu,
 }
 impl LayerGpu {
+    pub fn release(&mut self) {
+        self.accumulators.clear();self.size=[0;2];self.fingerprints.clear();
+        self.raster_scratch.clear();self.raster_resolve.clear();self.groups.release();
+    }
     pub fn new(
         device: &wgpu::Device,
         uniform: &wgpu::BindGroupLayout,
@@ -146,6 +152,7 @@ impl LayerGpu {
             fingerprints: HashMap::new(),
             raster_scratch: HashMap::new(),
             raster_resolve: HashMap::new(),
+            groups: groups::GroupGpu::new(device,image),
         }
     }
     pub fn prepare_accumulators(
@@ -175,7 +182,7 @@ impl LayerGpu {
         changed
     }
     pub fn bytes(&self) -> u64 {
-        self.accumulators.len() as u64 * u64::from(self.size[0]) * u64::from(self.size[1]) * 4
+        self.accumulators.len() as u64 * u64::from(self.size[0]) * u64::from(self.size[1]) * 4 + self.groups.bytes()
             + self
                 .raster_scratch
                 .iter()
@@ -184,15 +191,15 @@ impl LayerGpu {
     }
     pub fn pending_vector_bytes(&self, scene: &crate::Scene, meshes: &[crate::vector_mesh::VectorMesh], images: &HashMap<TextureKey, GpuImage>) -> u64 {
         let mut scratch: std::collections::HashSet<_> = self.raster_scratch.keys().copied()
-            .filter(|size| meshes.iter().any(|m| *size == (m.width, m.height))).collect();
-        let mut bytes = scratch.iter().map(|(w, h)| u64::from(*w) * u64::from(*h) * 20).sum();
+            .filter(|size| meshes.iter().any(|m| !groups::GroupGpu::grouped(m) && *size == (m.width, m.height))).collect();
+        let mut bytes = scratch.iter().map(|(w, h)| u64::from(*w) * u64::from(*h) * 20).sum::<u64>() + groups::GroupGpu::required_bytes(meshes);
         for mesh in meshes {
             let id = scene.layers[mesh.layer].id;
             let old = images.get(&TextureKey::Vector(id));
             if self.fingerprints.get(&id) == Some(&mesh.fingerprint) && old.is_some_and(|i| i.size == (mesh.width, mesh.height)) { continue; }
             let cost = u64::from(mesh.width) * u64::from(mesh.height) * 4;
             if old.is_none_or(|i| i.size != (mesh.width, mesh.height)) { bytes += cost; }
-            if scratch.insert((mesh.width, mesh.height)) { bytes += cost * 5; }
+            if !groups::GroupGpu::grouped(mesh) && scratch.insert((mesh.width, mesh.height)) { bytes += cost * 5; }
         }
         bytes
     }
@@ -230,9 +237,10 @@ impl LayerGpu {
         self.fingerprints
             .retain(|id, _| images.contains_key(&TextureKey::Vector(*id)));
         self.raster_scratch
-            .retain(|size, _| meshes.iter().any(|m| *size == (m.width, m.height)));
+            .retain(|size, _| meshes.iter().any(|m| !groups::GroupGpu::grouped(m) && *size == (m.width, m.height)));
         self.raster_resolve
-            .retain(|size, _| meshes.iter().any(|m| *size == (m.width, m.height)));
+            .retain(|size, _| meshes.iter().any(|m| !groups::GroupGpu::grouped(m) && *size == (m.width, m.height)));
+        self.groups.retain(meshes);
         for mesh in meshes {
             let id = scene.layers[mesh.layer].id;
             let key = TextureKey::Vector(id);
@@ -253,8 +261,8 @@ impl LayerGpu {
                 .raster_scratch
                 .iter()
                 .map(|((w, h), _)| u64::from(*w) * u64::from(*h) * 20)
-                .sum::<u64>();
-            let new_scratch = if self.raster_scratch.contains_key(&(mesh.width, mesh.height)) {
+                .sum::<u64>() + groups::GroupGpu::required_bytes(meshes);
+            let new_scratch = if groups::GroupGpu::grouped(mesh) || self.raster_scratch.contains_key(&(mesh.width, mesh.height)) {
                 0
             } else {
                 cost * 5
@@ -286,6 +294,11 @@ impl LayerGpu {
                 );
                 *bytes = *bytes - previous + cost;
                 changed = true;
+            }
+            if groups::GroupGpu::grouped(mesh) {
+                self.groups.draw(device,encoder,image,sampler,mesh,&images[&key].view,&self.vector,&self.vector_clear,&self.clear_vertices)?;
+                self.fingerprints.insert(id,mesh.fingerprint);
+                continue;
             }
             let multisample = self
                 .raster_scratch

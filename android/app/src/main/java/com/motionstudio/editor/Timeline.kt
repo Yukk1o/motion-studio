@@ -323,7 +323,9 @@ internal fun timelineRowHeightDp(fontScale:Float)=max(36f,12f*fontScale+18f)
             hoveredRow?.let{index->drawLine(Accent,Offset(48*density,head+index*rowHeight-vertical),Offset(size.width,head+index*rowHeight-vertical),2*density)}
         }
         drawLine(Ink.copy(alpha=.65f),Offset(center,head),Offset(center,size.height),density)
-        drawPath(Path().apply{moveTo(center-6*density,0f);lineTo(center+6*density,0f);lineTo(center,10*density);close()},Accent)
+        // A compact pointer joins the time label to the playhead below it.
+        drawPath(Path().apply{moveTo(center-3*density,head-4*density);lineTo(center,head);lineTo(center+3*density,head-4*density)},
+            Accent,style=Stroke(1.5f*density,cap=androidx.compose.ui.graphics.StrokeCap.Round,join=androidx.compose.ui.graphics.StrokeJoin.Round))
     }
     editKey?.let{key->InputKeyDialog(vm,key){editKey=null}}
     if(jumpDialog)InputDialog("跳到帧",floor(vm.frame).toInt().toString(),onDismiss={jumpDialog=false}){it.toIntOrNull()?.let{frame->vm.seek(frame.toDouble())};jumpDialog=false}

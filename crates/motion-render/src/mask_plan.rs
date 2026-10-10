@@ -119,6 +119,9 @@ impl MaskCache {
                         n[1] -= l.source_rect[1] + l.source_rect[3] * 0.5;
                     }
                     let vector = SampledVector {
+                        batches: None,
+                        root_opacity: 1.,
+                        group_parameters: Default::default(),
                         trim: None,
                         dashes: None,
                         paths: vec![SampledPath {

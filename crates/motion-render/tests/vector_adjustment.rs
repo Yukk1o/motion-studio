@@ -231,7 +231,7 @@ fn versioned_plan_contains_vector_sources_and_adjustment_boundary() {
     let word = |i: usize| u32::from_ne_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap());
     assert_eq!(word(1), motion_render::effect_plan::PLAN_VERSION);
     assert_eq!(word(22), 1);
-    assert_eq!(word(27), 28);
+    assert_eq!(word(27), 40);
 }
 
 #[test]

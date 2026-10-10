@@ -7,7 +7,7 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 8;
+pub const PLAN_VERSION: u32 = 9;
 pub const HEADER_BYTES: usize = 144;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 10;
@@ -149,7 +149,8 @@ impl EffectFramePlan {
             + self.batches.len() * 12
             + self.vertices.len() * 20
             + self.sprites.len() * 48
-            + self.vectors.len() * 28
+            + self.vectors.len() * 40
+            + self.vectors.iter().map(|v|v.commands.len()*16).sum::<usize>()
             + self
                 .vectors
                 .iter()
@@ -172,8 +173,9 @@ impl EffectFramePlan {
         let batch_offset = sprite_offset + self.sprites.len() * 48;
         let vertex_offset = batch_offset + self.batches.len() * 12;
         let vector_offset = vertex_offset + self.vertices.len() * 20;
-        let vector_data_offset = vector_offset + self.vectors.len() * 28;
-        let mask_offset = vector_data_offset + self.vectors.iter().map(|v|v.vertices.len()*24).sum::<usize>();
+        let vector_data_offset = vector_offset + self.vectors.len() * 40;
+        let vector_command_offset = vector_data_offset + self.vectors.iter().map(|v|v.vertices.len()*24).sum::<usize>();
+        let mask_offset = vector_command_offset + self.vectors.iter().map(|v|v.commands.len()*16).sum::<usize>();
         let mask_data_offset = mask_offset + self.masks.len()*crate::mask_plan::RECORD_BYTES;
         let compositing_offset=mask_data_offset+self.masks.iter().map(|m|m.vertices.len()*24).sum::<usize>();
         let header = [
@@ -204,7 +206,7 @@ impl EffectFramePlan {
             24,
             scene.width,
             scene.height,
-            28,
+            40,
             mask_offset as u32,
             self.masks.len() as u32,
             mask_data_offset as u32,
@@ -269,6 +271,7 @@ impl EffectFramePlan {
                 .copy_from_slice(bytemuck::cast_slice(&data));
         }
         let mut offset = vector_data_offset;
+        let mut command_offset = vector_command_offset;
         for (i, v) in self.vectors.iter().enumerate() {
             let record = [
                 v.layer as u32,
@@ -278,12 +281,18 @@ impl EffectFramePlan {
                 v.vertices.len() as u32,
                 v.fingerprint as u32,
                 (v.fingerprint >> 32) as u32,
+                command_offset as u32,
+                v.commands.len() as u32,
+                v.root_opacity.to_bits(),
             ];
-            out[vector_offset + i * 28..vector_offset + (i + 1) * 28]
+            out[vector_offset + i * 40..vector_offset + (i + 1) * 40]
                 .copy_from_slice(bytemuck::cast_slice(&record));
             let end = offset + v.vertices.len() * 24;
             out[offset..end].copy_from_slice(bytemuck::cast_slice(&v.vertices));
             offset = end;
+            let end = command_offset + v.commands.len()*16;
+            out[command_offset..end].copy_from_slice(bytemuck::cast_slice(&v.commands));
+            command_offset = end;
         }
         crate::mask_plan::write(&self.masks,out,mask_offset,mask_data_offset);
         for (i,c) in self.compositing.iter().enumerate(){let words=[c.blend,c.space,c.matte as u32,c.mode,u32::from(c.visible)];out[compositing_offset+i*20..compositing_offset+(i+1)*20].copy_from_slice(bytemuck::cast_slice(&words));}
@@ -848,9 +857,13 @@ impl PlanBuilder {
                 let dirty = self
                     .vector_cache
                     .get(&layer.id)
-                    .is_none_or(|(v, s, r, _)| v != vector || *s != layer.size || *r != scale);
+                    .is_none_or(|(v, s, r, mesh)| v != vector || *s != layer.size || *r != scale
+                        || mesh.origin != [layer.source_rect[0]+layer.size[0]*0.5-layer.source_size[0]*0.5,
+                            layer.source_rect[1]+layer.size[1]*0.5-layer.source_size[1]*0.5]);
                 if dirty {
-                    let vertices = crate::vector_mesh::tessellate(vector, layer.size, scale)
+                    let origin = [layer.source_rect[0]+layer.size[0]*0.5-layer.source_size[0]*0.5,
+                        layer.source_rect[1]+layer.size[1]*0.5-layer.source_size[1]*0.5];
+                    let geometry = crate::vector_mesh::rasterize(vector, layer.size, scale, origin)
                         .map_err(|e| format!("layer {}: {e}", layer.id))?;
                     let (w, h) = (
                         (layer.size[0] * scale).ceil() as u32,
@@ -864,7 +877,9 @@ impl PlanBuilder {
                     }
                     use std::hash::{Hash, Hasher};
                     let mut hash = std::collections::hash_map::DefaultHasher::new();
-                    bytemuck::cast_slice::<_, u8>(&vertices).hash(&mut hash);
+                    bytemuck::cast_slice::<_, u8>(&geometry.vertices).hash(&mut hash);
+                    bytemuck::cast_slice::<_, u8>(&geometry.commands).hash(&mut hash);
+                    geometry.root_opacity.to_bits().hash(&mut hash);
                     w.hash(&mut hash);
                     h.hash(&mut hash);
                     let mesh = crate::vector_mesh::VectorMesh {
@@ -872,7 +887,10 @@ impl PlanBuilder {
                         width: w,
                         height: h,
                         fingerprint: hash.finish(),
-                        vertices: Arc::new(vertices),
+                        vertices: Arc::new(geometry.vertices),
+                        commands: Arc::new(geometry.commands),
+                        root_opacity: geometry.root_opacity,
+                        origin,
                     };
                     self.vector_cache
                         .insert(layer.id, (vector.clone(), layer.size, scale, mesh));

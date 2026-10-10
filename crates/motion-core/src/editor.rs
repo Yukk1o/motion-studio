@@ -499,6 +499,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
                 | crate::vector::VectorAction::SetParameter { frame, .. }
                 | crate::vector::VectorAction::SetModifierParameter { frame, .. }
                 | crate::vector::VectorAction::SetModifierCurve { frame, .. }
+                | crate::vector::VectorAction::SetGroupParameter { frame, .. }
                 | crate::vector::VectorAction::ConvertToPath { frame } => Some(*frame),
                 _ => None,
             };
@@ -759,8 +760,8 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             layer.transform.anchor = anchor;
         }
     }
-    if project.layers.iter().any(|l| matches!(&l.content, Content::Vector { vector } if vector.has_path_modifiers())) {
-        project.version = project.version.max(11);
+    for layer in &project.layers {
+        if let Content::Vector { vector } = &layer.content { project.version = project.version.max(vector.required_format()); }
     }
     project.rebuild_plugin_dependencies();
     project.validate()?;

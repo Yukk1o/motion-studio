@@ -19,6 +19,10 @@ if (SOURCE/"VectorPathOperationsTest.kt").exists():
     classes += ["VectorPathOperationsBackendTest#trimDashAnimationMatchesGlesAndSurvivesFrozenProjectAndNestedPlayback",
                 "VectorPathOperationsUiTest#trimUsesSharedTimelineEasingAndGestureUndoWithoutReplacingThePath",
                 "VectorPathOperationsUiTest#dashPairsAndAnimatedOffsetUseExistingStyleControls"]
+if (SOURCE/"VectorGroupsTest.kt").exists():
+    classes += ["VectorGroupsBackendTest#groupedAlphaRepeatersAndViewportCropMatchUnencodedGles",
+                "VectorGroupsUiTest#groupPositionUsesSharedTouchpadAndUndoWhileKeepingPreviewAndTimeline",
+                "VectorGroupsUiTest#addedRepeaterSharesKeyframesCurveEditorAndStoredLocalTime"]
 expected=sum(1 if "#" in name else len(re.findall(r"@Test\b",(SOURCE/(name+".kt")).read_text(encoding="utf-8"))) for name in classes)
 subprocess.run(["adb","shell","wm","size","1080x1920"],check=True)
 subprocess.run(["adb","shell","wm","density","420"],check=True)
