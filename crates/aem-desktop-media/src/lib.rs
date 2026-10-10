@@ -4,11 +4,10 @@
 //! probing, decoding and encoding require libav and live behind the `ffmpeg`
 //! feature; without it the host still edits, previews and exports audio, and
 //! reports the missing capability instead of failing silently.
-use aem_core::VideoAsset;
+use aem_core::{AudioAsset, VideoAsset};
 use aem_host::platform::{Platform, SurfaceTarget, VideoDecoder, VideoQuery};
 use aem_host::Result;
-use aem_media::{AudioAsset, VideoProbe};
-use raw_window_handle::HasWindowHandle;
+use aem_media::VideoProbe;
 use serde_json::{json, Value};
 use std::{path::Path, sync::Arc};
 
@@ -20,9 +19,10 @@ pub mod av;
 /// Vulkan first because it gives the compositor the widest effect support and
 /// the best multi-queue behaviour; GL is the fallback that always works on
 /// older drivers. Only one backend's surface may stay alive for a window.
-pub const SURFACE_BACKENDS: [wgpu::Backends; 3] = [
+pub const SURFACE_BACKENDS: [wgpu::Backends; 4] = [
     wgpu::Backends::VULKAN,
     wgpu::Backends::METAL,
+    wgpu::Backends::DX12,
     wgpu::Backends::GL,
 ];
 
@@ -127,7 +127,7 @@ impl Platform for DesktopPlatform {
 
     fn attach_surface(
         &self,
-        window: Box<dyn HasWindowHandle + Send + Sync>,
+        window: Arc<dyn wgpu::WindowHandle + Send + Sync>,
         width: u32,
         height: u32,
     ) -> Result<SurfaceTarget> {
@@ -137,7 +137,7 @@ impl Platform for DesktopPlatform {
                 backends: *backend,
                 ..Default::default()
             });
-            let surface = match instance.create_surface(window) {
+            let surface = match instance.create_surface(window.clone()) {
                 Ok(surface) => surface,
                 Err(error) => {
                     failures.push(format!("{backend:?}: {error}"));
@@ -161,8 +161,7 @@ impl Platform for DesktopPlatform {
                         .ok_or("no supported surface pixel format")?;
                     // Immediate presents keep input latency low while still being
                     // paced by the compositor, matching the Android Fifo path.
-                    let present_mode = if caps.present_modes.contains(&wgpu::PresentMode::Mailbox)
-                    {
+                    let present_mode = if caps.present_modes.contains(&wgpu::PresentMode::Mailbox) {
                         wgpu::PresentMode::Mailbox
                     } else {
                         wgpu::PresentMode::Fifo
@@ -251,7 +250,12 @@ pub fn capabilities(has_video: bool, query: Option<&VideoQuery>) -> Value {
 }
 
 fn video_decoders() -> Value {
-    json!(["video/avc","video/hevc","video/x-vnd.on2.vp8","video/x-vnd.on2.vp9"])
+    json!([
+        "video/avc",
+        "video/hevc",
+        "video/x-vnd.on2.vp8",
+        "video/x-vnd.on2.vp9"
+    ])
 }
 
 fn video_encoders() -> Value {

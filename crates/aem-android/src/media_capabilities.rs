@@ -7,7 +7,12 @@ use jni::{
 };
 use serde_json::{json, Value};
 
-impl VideoQuery {
+trait QueryExtensions {
+    fn validate(&self) -> Result<()>;
+    fn backend_eligible(&self) -> bool;
+    fn to_json(&self) -> Value;
+}
+impl QueryExtensions for VideoQuery {
     fn validate(&self) -> Result<()> {
         let mime = self.mime.as_deref().unwrap_or_default();
         if !mime.starts_with("video/")
@@ -21,10 +26,9 @@ impl VideoQuery {
             );
         }
         if let Some(rate) = self.frame_rate {
-            if !matches!(rate, 1..=1000) {
+            if !rate.is_finite() || rate <= 0.0 || rate > 1000.0 {
                 return Err(
-                    "video_query requires MIME, dimensions 1..16384 and frame_rate >0..1000"
-                        .into(),
+                    "video_query requires MIME, dimensions 1..16384 and frame_rate >0..1000".into(),
                 );
             }
         }
@@ -40,7 +44,7 @@ impl VideoQuery {
             && width <= aem_core::MAX_VIDEO_DIMENSION
             && height <= aem_core::MAX_VIDEO_DIMENSION
             && u64::from(width) * u64::from(height) <= aem_core::MAX_VIDEO_PIXELS
-            && self.frame_rate.unwrap_or(0) <= aem_core::MAX_VIDEO_FPS
+            && self.frame_rate.unwrap_or(0.0) <= aem_core::MAX_VIDEO_FPS
     }
     fn to_json(&self) -> Value {
         json!({"mime":self.mime,"width":self.width,"height":self.height,"frame_rate":self.frame_rate})
@@ -92,7 +96,7 @@ fn video_capabilities(
             ];
             let size = env.call_method(&video,"isSizeSupported","(II)Z",&dimensions)?.z()?;
             let size_rate = env.call_method(&video,"areSizeAndRateSupported","(IID)Z",&[
-                dimensions[0],dimensions[1],JValue::Double(target.frame_rate.unwrap_or(0) as f64)])?.z()?;
+                dimensions[0],dimensions[1],JValue::Double(target.frame_rate.unwrap_or(0.0))])?.z()?;
             let rates = if size {range(env,&video,"getSupportedFrameRatesFor",&dimensions)?} else {Value::Null};
             value["query"] = json!({"size_supported":size,"size_and_rate_supported":size_rate,"frame_rates_for_size":rates});
         }
@@ -135,7 +139,7 @@ fn query_with_env(env: &mut JNIEnv, target: Option<&VideoQuery>) -> Result<Value
                     let mime_text:String=env.get_string(&mime)?.into();
                     if !(mime_text.starts_with("audio/")||mime_text.starts_with("video/")){continue;}
                     let caps=env.call_method(&info,"getCapabilitiesForType","(Ljava/lang/String;)Landroid/media/MediaCodecInfo$CodecCapabilities;",&[JValue::Object(&mime)])?.l()?;
-                    let target_for_type=target.as_ref().filter(|t| t.mime.as_deref()==Some(mime_text.as_str()));
+                    let target_for_type=target.filter(|t| t.mime.as_deref()==Some(mime_text.as_str()));
                     let video=if mime_text.starts_with("video/") {video_capabilities(env,&caps,target_for_type)?}else{Value::Null};
                     if target_for_type.is_some() {
                         matches.push(json!({"name":name,"hardware_accelerated":hardware,"software_only":software,"capabilities":video["query"]}));
@@ -185,7 +189,6 @@ pub fn query(target: Option<&VideoQuery>) -> Result<Value> {
     if let Some(t) = &target {
         t.validate()?;
     }
-    let _guard = crate::video_decode::attach().map_err(|e| e.to_string())?;
-    let mut env = _guard.env();
+    let mut env = crate::video_decode::attach().map_err(|e| e.to_string())?;
     query_with_env(&mut env, target)
 }

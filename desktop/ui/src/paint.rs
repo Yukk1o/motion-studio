@@ -26,6 +26,68 @@ pub struct PaintList {
     pub glyphs: Vec<Glyph>,
 }
 
+impl PaintList {
+    /// Bound flat UI geometry and adjust cropped glyph UVs to a panel rectangle.
+    pub fn clip_to(&mut self, area: Rect) {
+        let mut shapes = Vec::new();
+        let mut colors = Vec::new();
+        for (mut shape, color) in std::mem::take(&mut self.shapes)
+            .into_iter()
+            .zip(std::mem::take(&mut self.colors))
+        {
+            let points: &mut [[f32; 2]] = match &mut shape {
+                Shape::Quad { points } => points,
+                Shape::Line { points } => points,
+            };
+            let intersects = points.iter().any(|p| {
+                p[0] >= area.min[0]
+                    && p[0] <= area.max[0]
+                    && p[1] >= area.min[1]
+                    && p[1] <= area.max[1]
+            });
+            let spans = points.iter().any(|p| p[0] < area.min[0])
+                && points.iter().any(|p| p[0] > area.max[0])
+                || points.iter().any(|p| p[1] < area.min[1])
+                    && points.iter().any(|p| p[1] > area.max[1]);
+            if !intersects && !spans {
+                continue;
+            }
+            for point in points {
+                point[0] = point[0].clamp(area.min[0], area.max[0]);
+                point[1] = point[1].clamp(area.min[1], area.max[1]);
+            }
+            shapes.push(shape);
+            colors.push(color);
+        }
+        self.shapes = shapes;
+        self.colors = colors;
+        self.glyphs.retain_mut(|glyph| {
+            let left = glyph.position[0].max(area.min[0]);
+            let top = glyph.position[1].max(area.min[1]);
+            let right = (glyph.position[0] + glyph.size[0]).min(area.max[0]);
+            let bottom = (glyph.position[1] + glyph.size[1]).min(area.max[1]);
+            if right <= left || bottom <= top {
+                return false;
+            }
+            let [u0, v0, u1, v1] = glyph.uv;
+            glyph.uv = [
+                u0 + (u1 - u0) * (left - glyph.position[0]) / glyph.size[0],
+                v0 + (v1 - v0) * (top - glyph.position[1]) / glyph.size[1],
+                u0 + (u1 - u0) * (right - glyph.position[0]) / glyph.size[0],
+                v0 + (v1 - v0) * (bottom - glyph.position[1]) / glyph.size[1],
+            ];
+            glyph.position = [left, top];
+            glyph.size = [right - left, bottom - top];
+            true
+        });
+    }
+    pub fn append(&mut self, mut other: Self) {
+        self.shapes.append(&mut other.shapes);
+        self.colors.append(&mut other.colors);
+        self.glyphs.append(&mut other.glyphs);
+    }
+}
+
 /// One positioned glyph.
 #[derive(Clone, Copy, Debug)]
 pub struct Glyph {
@@ -68,6 +130,20 @@ pub fn rect(list: &mut PaintList, area: Rect, color: Color) {
 }
 
 /// Stroke a rectangle outline of `thickness` logical pixels.
+pub fn diamond(list: &mut PaintList, center: [f32; 2], radius: f32, color: Color) {
+    let [x, y] = center;
+    list.shapes.push(Shape::Quad {
+        points: [
+            [x, y - radius],
+            [x + radius, y],
+            [x, y + radius],
+            [x - radius, y],
+        ],
+    });
+    list.colors.push(color);
+}
+
+/// Stroke a rectangle outline of `thickness` logical pixels.
 pub fn stroke(list: &mut PaintList, area: Rect, color: Color, thickness: f32) {
     if thickness <= 0.0 {
         return;
@@ -79,7 +155,12 @@ pub fn stroke(list: &mut PaintList, area: Rect, color: Color, thickness: f32) {
     );
     rect(
         list,
-        Rect::new(area.min[0], area.max[1] - thickness, area.width(), thickness),
+        Rect::new(
+            area.min[0],
+            area.max[1] - thickness,
+            area.width(),
+            thickness,
+        ),
         color,
     );
     rect(
@@ -89,7 +170,12 @@ pub fn stroke(list: &mut PaintList, area: Rect, color: Color, thickness: f32) {
     );
     rect(
         list,
-        Rect::new(area.max[0] - thickness, area.min[1], thickness, area.height()),
+        Rect::new(
+            area.max[0] - thickness,
+            area.min[1],
+            thickness,
+            area.height(),
+        ),
         color,
     );
 }
@@ -120,26 +206,49 @@ pub fn checkerboard(list: &mut PaintList, area: Rect, light: Color, dark: Color,
 
 fn expand_quad(points: [[f32; 2]; 4]) -> [[f32; 2]; 6] {
     [
-        points[0],
-        points[1],
-        points[2],
-        points[0],
-        points[2],
-        points[3],
+        points[0], points[1], points[2], points[0], points[2], points[3],
     ]
 }
 
 fn expand_line(points: &[[f32; 2]]) -> Vec<[f32; 2]> {
-    let mut expanded = Vec::with_capacity(points.len() * 2);
+    let mut out = Vec::with_capacity(points.len().saturating_sub(1) * 6);
     for pair in points.windows(2) {
-        expanded.push(pair[0]);
-        expanded.push(pair[1]);
+        let a = pair[0];
+        let b = pair[1];
+        let dx = b[0] - a[0];
+        let dy = b[1] - a[1];
+        let length = dx.hypot(dy);
+        if length <= f32::EPSILON {
+            continue;
+        }
+        let nx = -dy / length * 0.5;
+        let ny = dx / length * 0.5;
+        out.extend_from_slice(&expand_quad([
+            [a[0] + nx, a[1] + ny],
+            [b[0] + nx, b[1] + ny],
+            [b[0] - nx, b[1] - ny],
+            [a[0] - nx, a[1] - ny],
+        ]));
     }
-    expanded
+    out
+}
+fn upload_color(mut rgba: [f32; 4], srgb: bool) -> [f32; 4] {
+    if srgb {
+        for component in &mut rgba[..3] {
+            let value = *component;
+            *component = if value <= 0.04045 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            };
+        }
+    }
+    rgba
 }
 
 /// GPU resources for the two-pass panel renderer.
 pub struct Painter {
+    srgb_target: bool,
     solid_pipeline: wgpu::RenderPipeline,
     glyph_pipeline: wgpu::RenderPipeline,
     solid_layout: wgpu::BindGroupLayout,
@@ -226,7 +335,11 @@ impl Painter {
             fragment: Some(wgpu::FragmentState {
                 module: &module,
                 entry_point: Some("solid_fs"),
-                targets: &[Some(format.into())],
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
@@ -258,7 +371,11 @@ impl Painter {
             fragment: Some(wgpu::FragmentState {
                 module: &module,
                 entry_point: Some("glyph_fs"),
-                targets: &[Some(format.into())],
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
@@ -272,6 +389,7 @@ impl Painter {
         });
         let uniform_bytes = bytemuck::bytes_of(&[0.0f32, 0.0, 1.0, 1.0]);
         Self {
+            srgb_target: format.is_srgb(),
             solid_pipeline,
             glyph_pipeline,
             solid_layout,
@@ -373,7 +491,7 @@ impl Painter {
     ) {
         let mut solids: Vec<SolidVertex> = Vec::with_capacity(list.shapes.len() * 6);
         for (shape, color) in list.shapes.iter().zip(list.colors.iter()) {
-            let rgba = color.0;
+            let rgba = upload_color(color.0, self.srgb_target);
             match shape {
                 Shape::Quad { points } => {
                     for vertex in expand_quad(*points) {
@@ -397,6 +515,7 @@ impl Painter {
             .glyphs
             .iter()
             .flat_map(|glyph| {
+                let rgba = upload_color(glyph.color.0, self.srgb_target);
                 let min = glyph.position;
                 let max = [
                     glyph.position[0] + glyph.size[0],
@@ -408,13 +527,13 @@ impl Painter {
                     (max, [glyph.uv[2], glyph.uv[3]]),
                     (min, [glyph.uv[0], glyph.uv[1]]),
                     (max, [glyph.uv[2], glyph.uv[3]]),
-                    ([max[0], min[1]], [glyph.uv[2], glyph.uv[1]]),
+                    ([min[0], max[1]], [glyph.uv[0], glyph.uv[3]]),
                 ]
                 .into_iter()
                 .map(|(position, uv)| GlyphVertex {
                     position,
                     uv,
-                    color: glyph.color.0,
+                    color: rgba,
                 })
                 .collect::<Vec<_>>()
             })
@@ -472,12 +591,7 @@ impl Painter {
                 view: target,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.075,
-                        g: 0.075,
-                        b: 0.082,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -508,12 +622,41 @@ impl Painter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn panel_clipping_crops_text_uvs_and_keeps_geometry_inside() {
+        let mut list = PaintList::default();
+        rect(
+            &mut list,
+            Rect::new(-5.0, -5.0, 20.0, 20.0),
+            Color::grey(30),
+        );
+        list.glyphs.push(Glyph {
+            uv: [0.0, 0.0, 1.0, 1.0],
+            position: [-5.0, 0.0],
+            size: [20.0, 10.0],
+            color: Color::grey(255),
+        });
+        list.clip_to(Rect::new(0.0, 0.0, 10.0, 10.0));
+        assert_eq!(list.glyphs[0].uv, [0.25, 0.0, 0.75, 1.0]);
+        assert_eq!(list.glyphs[0].size, [10.0, 10.0]);
+        assert!(
+            matches!(&list.shapes[0],Shape::Quad{points} if points.iter().all(|p|p[0]>=0.0&&p[0]<=10.0&&p[1]>=0.0&&p[1]<=10.0))
+        );
+    }
 
     #[test]
     fn degenerate_rectangles_emit_nothing() {
         let mut list = PaintList::default();
-        rect(&mut list, Rect::new(0.0, 0.0, 0.0, 10.0), Color::rgb(1, 2, 3));
-        rect(&mut list, Rect::new(0.0, 0.0, 10.0, 10.0), Color::rgba(1, 2, 3, 0.0));
+        rect(
+            &mut list,
+            Rect::new(0.0, 0.0, 0.0, 10.0),
+            Color::rgb(1, 2, 3),
+        );
+        rect(
+            &mut list,
+            Rect::new(0.0, 0.0, 10.0, 10.0),
+            Color::rgba(1, 2, 3, 0.0),
+        );
         assert!(list.shapes.is_empty());
     }
 
@@ -533,24 +676,30 @@ mod tests {
     }
 
     #[test]
-    fn polylines_expand_to_a_strip_without_dropping_the_last_segment() {
-        let points = vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
-        assert_eq!(expand_line(&points), vec![
-            [0.0, 0.0],
-            [1.0, 0.0],
-            [1.0, 0.0],
-            [1.0, 1.0],
-        ]);
-        assert!(expand_line(&[[0.0, 0.0]]).is_empty());
+    fn polylines_expand_to_triangles_without_dropping_the_last_segment() {
+        let line = expand_line(&[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0]]);
+        assert_eq!(line.len(), 12);
+        assert!(line.iter().any(|p| (p[1] - 10.0).abs() < 0.01));
+        assert!(expand_line(&[[1.0, 1.0], [1.0, 1.0]]).is_empty());
     }
 
     #[test]
     fn stroke_covers_four_edges() {
         let mut list = PaintList::default();
-        stroke(&mut list, Rect::new(0.0, 0.0, 10.0, 10.0), Color::grey(80), 1.0);
+        stroke(
+            &mut list,
+            Rect::new(0.0, 0.0, 10.0, 10.0),
+            Color::grey(80),
+            1.0,
+        );
         assert_eq!(list.shapes.len(), 4);
         let mut list = PaintList::default();
-        stroke(&mut list, Rect::new(0.0, 0.0, 10.0, 10.0), Color::grey(80), 0.0);
+        stroke(
+            &mut list,
+            Rect::new(0.0, 0.0, 10.0, 10.0),
+            Color::grey(80),
+            0.0,
+        );
         assert!(list.shapes.is_empty());
     }
 

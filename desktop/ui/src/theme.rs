@@ -10,12 +10,7 @@ pub struct Color(pub [f32; 4]);
 
 impl Color {
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self([
-            r as f32 / 255.0,
-            g as f32 / 255.0,
-            b as f32 / 255.0,
-            1.0,
-        ])
+        Self([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0])
     }
     pub const fn rgba(r: u8, g: u8, b: u8, a: f32) -> Self {
         Self([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, a])
@@ -33,19 +28,19 @@ pub mod palette {
     use super::Color;
 
     /// Window background behind all panels.
-    pub const APP_BACKGROUND: Color = Color::rgb(19, 19, 21);
+    pub const APP_BACKGROUND: Color = Color::rgb(18, 20, 26);
     /// Panel and dock background.
-    pub const PANEL: Color = Color::rgb(28, 28, 32);
+    pub const PANEL: Color = Color::rgb(27, 30, 36);
     /// Recessed areas: timeline background, list wells, viewer surround.
-    pub const SUNKEN: Color = Color::rgb(22, 22, 25);
+    pub const SUNKEN: Color = Color::rgb(17, 20, 26);
     /// Raised chrome: menu bar, toolbar, tab strip.
-    pub const CHROME: Color = Color::rgb(38, 38, 43);
+    pub const CHROME: Color = Color::rgb(31, 34, 41);
     /// Hairline borders between panels.
-    pub const BORDER: Color = Color::rgb(52, 52, 58);
+    pub const BORDER: Color = Color::rgb(49, 53, 62);
     /// Focus ring and selection accent.
-    pub const ACCENT: Color = Color::rgb(84, 220, 199);
+    pub const ACCENT: Color = Color::rgb(38, 154, 255);
     /// Secondary accent for the playhead.
-    pub const ACCENT_WARM: Color = Color::rgb(229, 193, 126);
+    pub const ACCENT_WARM: Color = Color::rgb(38, 154, 255);
     /// Primary text.
     pub const TEXT: Color = Color::rgb(237, 241, 245);
     /// Secondary text and disabled labels.
@@ -53,10 +48,10 @@ pub mod palette {
     /// Keyframe diamonds in the timeline.
     pub const KEYFRAME: Color = Color::rgb(240, 196, 92);
     /// Track colour for the camera row.
-    pub const TRACK_CAMERA: Color = Color::rgb(229, 193, 126);
+    pub const TRACK_CAMERA: Color = Color::rgb(38, 154, 255);
     /// Alternating layer track colours.
     pub const TRACKS: [Color; 3] = [
-        Color::rgb(110, 173, 232),
+        Color::rgb(48, 136, 248),
         Color::rgb(173, 157, 224),
         Color::rgb(103, 191, 175),
     ];
@@ -68,13 +63,13 @@ pub mod palette {
 /// Panel metrics in logical pixels at 100% UI scale.
 pub mod metrics {
     /// Height of the application menu bar.
-    pub const MENU_BAR: f32 = 26.0;
+    pub const MENU_BAR: f32 = 30.0;
     /// Height of the compact tool bar under the menu bar.
-    pub const TOOL_BAR: f32 = 34.0;
+    pub const TOOL_BAR: f32 = 42.0;
     /// Height of a panel tab strip.
-    pub const TAB_BAR: f32 = 26.0;
+    pub const TAB_BAR: f32 = 36.0;
     /// Height of one timeline layer row.
-    pub const ROW: f32 = 26.0;
+    pub const ROW: f32 = 30.0;
     /// Width of the timeline ruler gutter.
     pub const RULER: f32 = 92.0;
     /// Minimum width a dock may be dragged to.

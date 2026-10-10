@@ -9,10 +9,8 @@ use crate::bridge::{
 use crate::platform::{install, AndroidPlatform};
 use crate::{uri, video_decode};
 use aem_host::{
-    ops::{
-        composition, editing, effects, export, geometry, images, media, preview, project, session,
-    },
-    Session,
+    ops::{composition, editing, effects, export, geometry, images, media, preview, project},
+    session, Session,
 };
 use jni::{
     objects::{JByteBuffer, JClass, JObject, JString},
@@ -24,7 +22,10 @@ use std::sync::Arc;
 
 type Error = String;
 
-fn with<T>(id: jlong, operation: impl FnOnce(&mut Session) -> Result<T, Error>) -> Result<T, Error> {
+fn with<T>(
+    id: jlong,
+    operation: impl FnOnce(&mut Session) -> Result<T, Error>,
+) -> Result<T, Error> {
     session::with_session(id, operation)
 }
 
@@ -54,13 +55,12 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_create(
     root: JString,
     project: JString,
 ) -> jlong {
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-        || -> Result<jlong, Error> {
+    let result =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<jlong, Error> {
             let root = PathBuf::from(read_string(&mut env, &root)?);
             let text = read_string(&mut env, &project)?;
             project::create(root, &text, host())
-        },
-    ));
+        }));
     match result {
         Ok(Ok(id)) => {
             session::set_creation_error(String::new());
@@ -155,7 +155,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_importProject(
     file: JString,
 ) -> jstring {
     let path = read_string(&mut env, &file);
-    string_result(&mut env, || project::import_project(id, &PathBuf::from(path?)))
+    string_result(&mut env, || {
+        project::import_project(id, &PathBuf::from(path?))
+    })
 }
 
 #[no_mangle]
@@ -193,7 +195,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_drag(
     width: jint,
     height: jint,
 ) -> jstring {
-    string_result(&mut env, || editing::drag(id, object, dx, dy, width, height))
+    string_result(&mut env, || {
+        editing::drag(id, object, dx, dy, width, height)
+    })
 }
 
 #[no_mangle]
@@ -228,7 +232,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_configureMemory
     total_mem: jlong,
     guarded: jboolean,
 ) -> jstring {
-    string_result(&mut env, || preview::configure_memory(id, total_mem, guarded != 0))
+    string_result(&mut env, || {
+        preview::configure_memory(id, total_mem, guarded != 0)
+    })
 }
 
 #[no_mangle]
@@ -265,7 +271,9 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_navigate(
     width: jint,
     height: jint,
 ) -> jstring {
-    string_result(&mut env, || preview::navigate(id, dx, dy, zoom, multi != 0, width, height))
+    string_result(&mut env, || {
+        preview::navigate(id, dx, dy, zoom, multi != 0, width, height)
+    })
 }
 
 #[no_mangle]
@@ -291,7 +299,10 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_surface(
         None
     } else {
         unsafe {
-            ndk::native_window::NativeWindow::from_surface(env.get_native_interface(), surface.as_raw())
+            ndk::native_window::NativeWindow::from_surface(
+                env.get_native_interface(),
+                surface.as_raw(),
+            )
         }
     };
     string_result(&mut env, || {
@@ -505,18 +516,20 @@ pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_prepareImage(
 ) -> jstring {
     let root = read_string(&mut env, &root);
     let path = read_string(&mut env, &path);
-    string_result(&mut env, || images::prepare_image(PathBuf::from(root?), path?))
+    string_result(&mut env, || {
+        images::prepare_image(PathBuf::from(root?), path?)
+    })
 }
 
 #[no_mangle]
 pub extern "system" fn Java_com_motionstudio_editor_NativeBridge_assetPixelsInto(
-    env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     id: jlong,
     asset: jlong,
     buffer: JByteBuffer,
 ) -> jstring {
-    let writable = is_read_only(&env, &buffer);
+    let writable = is_read_only(&mut env, &buffer);
     let access = BufferAccess::capture(&env, &buffer);
     string_result(&mut env, || {
         if writable? {
@@ -593,8 +606,8 @@ pub extern "system" fn Java_com_motionstudio_editor_GeometryBridge_sampleGeometr
     // always reported read-only buffers before lookup failures.
     let parameter_access = BufferAccess::capture(&env, &parameters);
     let vertex_access = BufferAccess::capture(&env, &vertices);
-    let parameter_readonly = is_read_only(&env, &parameters);
-    let vertex_readonly = is_read_only(&env, &vertices);
+    let parameter_readonly = is_read_only(&mut env, &parameters);
+    let vertex_readonly = is_read_only(&mut env, &vertices);
     string_result(&mut env, || {
         if parameter_readonly? || vertex_readonly? {
             return Err("geometry buffers must be writable".into());
@@ -651,7 +664,7 @@ pub extern "system" fn Java_com_motionstudio_editor_CompositionBridge_sampleFram
 ) -> jint {
     let composition_id = read_string(&mut env, &composition_id);
     integer_result(|| {
-        if is_read_only(&env, &buffer)? {
+        if is_read_only(&mut env, &buffer)? {
             return Err("frame bundle buffer is read-only".into());
         }
         let (address, capacity) = BufferAccess::capacity_first(&env, &buffer)?;
@@ -704,7 +717,9 @@ fn copy_frame(
     let (address, capacity) = BufferAccess::address_first(env, buffer)?;
     let required = frame.width as usize * frame.height as usize * 4;
     if address.is_null() || capacity < required {
-        return Err(format!("video requires a direct buffer with {required} bytes"));
+        return Err(format!(
+            "video requires a direct buffer with {required} bytes"
+        ));
     }
     let pixels = frame.rgba()?;
     unsafe { crate::bridge::copy_bytes(address, &pixels) };
@@ -879,11 +894,8 @@ pub extern "system" fn Java_com_motionstudio_editor_MediaBridge_readFrozenCompos
     buffer: JByteBuffer,
 ) -> jstring {
     let result = (|| {
-        let frame = media::read_frozen_composition_video_into(
-            handle,
-            object as u64,
-            sequence as u64,
-        )?;
+        let frame =
+            media::read_frozen_composition_video_into(handle, object as u64, sequence as u64)?;
         copy_frame(&mut env, &buffer, &frame, object as u64, sequence as u64)
     })();
     string_result(&mut env, || result)

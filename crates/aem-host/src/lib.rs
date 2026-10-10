@@ -13,9 +13,9 @@
 //! #     fn name(&self) -> &'static str { "test" }
 //! #     fn probe_video(&self, _: &std::path::Path, _: Option<u32>, _: Option<u32>, _: &dyn Fn() -> aem_media::Result<()>) -> aem_media::Result<aem_media::VideoProbe> { unimplemented!() }
 //! #     fn open_decoder(&self, _: &std::path::Path, _: aem_core::VideoAsset, _: Vec<u64>) -> aem_host::Result<Box<dyn aem_host::platform::VideoDecoder>> { unimplemented!() }
-//! #     fn decode_audio(&self, _: &std::path::Path, _: &std::path::Path, _: Option<u32>, _: u64, _: &mut dyn FnMut(f64) -> aem_media::Result<()>) -> aem_media::Result<aem_media::AudioAsset> { unimplemented!() }
+//! #     fn decode_audio(&self, _: &std::path::Path, _: &std::path::Path, _: Option<u32>, _: u64, _: &mut dyn FnMut(f64) -> aem_media::Result<()>) -> aem_media::Result<aem_core::AudioAsset> { unimplemented!() }
 //! #     fn media_capabilities(&self, _: Option<&aem_host::platform::VideoQuery>) -> aem_host::Result<serde_json::Value> { Ok(serde_json::json!({})) }
-//! #     fn attach_surface(&self, _: Box<dyn raw_window_handle::HasWindowHandle + Send + Sync>, _: u32, _: u32) -> aem_host::Result<aem_host::platform::SurfaceTarget> { unimplemented!() }
+//! #     fn attach_surface(&self, _: Arc<dyn wgpu::WindowHandle + Send + Sync>, _: u32, _: u32) -> aem_host::Result<aem_host::platform::SurfaceTarget> { unimplemented!() }
 //! # }
 //! let host = Host::new(Arc::new(Desktop));
 //! assert_eq!(host.platform().name(), "test");
@@ -31,7 +31,7 @@ pub mod video_frame;
 pub mod video_frames;
 
 pub use platform::{Platform, SurfaceTarget, VideoDecoder, VideoQuery};
-pub use session::Session;
+pub use session::{Result, Session};
 
 /// Error type alias used across the host surface.
 pub type SessionError = String;

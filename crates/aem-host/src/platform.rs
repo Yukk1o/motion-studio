@@ -11,7 +11,6 @@
 use crate::video_frame::DecodedFrame;
 use aem_core::{AudioAsset, VideoAsset};
 use aem_media::{Result, VideoProbe};
-use raw_window_handle::HasWindowHandle;
 use serde_json::Value;
 use std::path::Path;
 
@@ -32,7 +31,9 @@ pub struct SurfaceTarget {
 /// `frame` must honour `check` between packets: a preview that scrubs or
 /// seeks away cancels the in-flight request instead of decoding to a target
 /// nobody will display.
-pub trait VideoDecoder: Send {
+// Decoders are created inside and remain on their dedicated decode worker.
+// Android's JNI attachment and codec objects must not cross threads.
+pub trait VideoDecoder {
     fn frame(&mut self, target_us: u64, check: &dyn Fn() -> Result<()>) -> Result<DecodedFrame>;
     /// Number of seeks performed so far, reported as preview metrics.
     fn seeks(&self) -> u64 {
@@ -52,7 +53,7 @@ pub struct VideoQuery {
     #[serde(default)]
     pub height: Option<u32>,
     #[serde(default)]
-    pub frame_rate: Option<u32>,
+    pub frame_rate: Option<f64>,
 }
 
 /// Host-provided media, surface and inventory capabilities.
@@ -102,7 +103,7 @@ pub trait Platform: Send + Sync {
     /// on the requested GPU API; the host decides which backends to try.
     fn attach_surface(
         &self,
-        window: Box<dyn HasWindowHandle + Send + Sync>,
+        window: std::sync::Arc<dyn wgpu::WindowHandle + Send + Sync>,
         width: u32,
         height: u32,
     ) -> Result<SurfaceTarget>;

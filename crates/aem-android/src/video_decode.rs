@@ -50,7 +50,7 @@ impl Drop for Permit {
     }
 }
 pub(crate) struct Extractor(pub(crate) NonNull<ffi::AMediaExtractor>);
-pub(crate) impl Extractor {
+impl Extractor {
     pub(super) fn open(path: &Path) -> Result<Self> {
         let file = File::open(path).map_err(|e| e.to_string())?;
         let bytes = file.metadata().map_err(|e| e.to_string())?.len();
@@ -443,7 +443,7 @@ impl Decoder {
                         }
                     }
                 }
-                result => return result.map_err(|error| crate::video_decode_policy::decoder_error(error, || format!(
+                result => return result.map_err(|error| aem_host::video_decode_policy::decoder_error(error, || format!(
                     "video decoder {} failed for {}x{} at {} fps (transfer {})",
                     self.decoder_name, self.asset.width, self.asset.height,
                     self.asset.nominal_frame_rate, self.reader_kind
@@ -462,7 +462,7 @@ impl Decoder {
             .get(index + 1)
             .copied()
             .unwrap_or(self.asset.video_end_us);
-        if crate::video_decode_policy::needs_seek(self.last_output, wanted, self.submitted_until) {
+        if aem_host::video_decode_policy::needs_seek(self.last_output, wanted, self.submitted_until) {
             ndk(self.codec.flush())?;
             self.extractor.seek(wanted)?;
             self.seeks += 1;
@@ -773,4 +773,9 @@ fn convert_buffer(bytes: &[u8], format: &MediaFormat, a: &VideoAsset) -> Result<
          VideoPlane { data: u, row_stride: chroma_stride, pixel_stride: if kind == 19 { 1 } else { 2 } },
          VideoPlane { data: v, row_stride: chroma_stride, pixel_stride: if kind == 19 { 1 } else { 2 } }])
          .map(VideoPixels::Yuv).map_err(|e| e.to_string())
+}
+
+impl aem_host::platform::VideoDecoder for Decoder {
+    fn frame(&mut self,target_us:u64,check:&dyn Fn()->Result<()>)->Result<DecodedFrame>{Decoder::frame(self,target_us,check)}
+    fn seeks(&self)->u64{self.seeks}
 }

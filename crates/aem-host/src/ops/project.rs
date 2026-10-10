@@ -18,11 +18,7 @@ fn project_name_allowed(name: &str, current: &str) -> bool {
         })
 }
 
-pub fn create(
-    root: PathBuf,
-    project_text: &str,
-    platform: Arc<dyn Platform>,
-) -> Result<i64> {
+pub fn create(root: PathBuf, project_text: &str, platform: Arc<dyn Platform>) -> Result<i64> {
     std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     let project = if project_text.is_empty() {
         if root.join("project.json").exists() {
@@ -122,6 +118,19 @@ pub fn replace(id: i64, text: &str) -> Result<Value> {
     })
 }
 
+/// Open an explicitly selected desktop project directory. Loading and asset
+/// validation finish before the current project is saved or replaced.
+pub fn open_directory(id: i64, directory: &std::path::Path) -> Result<Value> {
+    let destination = directory.canonicalize().map_err(|e| e.to_string())?;
+    let project = aem_core::storage::load(&destination).map_err(|e| e.to_string())?;
+    let engine = aem_core::Engine::new(project).map_err(|e| e.to_string())?;
+    crate::session::with_session(id, |s| {
+        aem_core::storage::save(&s.root, s.engine.project()).map_err(|e| e.to_string())?;
+        s.replace_project(engine, destination)?;
+        Ok(s.snapshot())
+    })
+}
+
 pub fn import_project(id: i64, file: &std::path::Path) -> Result<Value> {
     crate::session::with_session(id, |s| {
         let parent = s.root.parent().ok_or("project parent is missing")?;
@@ -129,6 +138,7 @@ pub fn import_project(id: i64, file: &std::path::Path) -> Result<Value> {
         let project =
             aem_core::storage::import_package(file, &destination).map_err(|e| e.to_string())?;
         let engine = aem_core::Engine::new(project).map_err(|e| e.to_string())?;
+        aem_core::storage::save(&s.root, s.engine.project()).map_err(|e| e.to_string())?;
         s.replace_project(engine, destination)?;
         Ok(s.snapshot())
     })

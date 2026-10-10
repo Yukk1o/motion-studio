@@ -13,6 +13,12 @@ pub enum MouseButton {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Key {
+    N,
+    O,
+    S,
+    Z,
+    Y,
+    D,
     Escape,
     Enter,
     Tab,
@@ -52,7 +58,9 @@ impl Default for Modifiers {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Event {
-    MouseMoved { position: [f32; 2] },
+    MouseMoved {
+        position: [f32; 2],
+    },
     MousePressed {
         position: [f32; 2],
         button: MouseButton,
@@ -61,7 +69,9 @@ pub enum Event {
         position: [f32; 2],
         button: MouseButton,
     },
-    MouseWheel { delta: [f32; 2] },
+    MouseWheel {
+        delta: [f32; 2],
+    },
     KeyPressed {
         key: Key,
         modifiers: Modifiers,
@@ -69,13 +79,16 @@ pub enum Event {
     TextInput(String),
     /// A press held past the long-press threshold; the timeline and preview use
     /// this to distinguish a scrub from an intended clip move.
-    LongPress { position: [f32; 2] },
+    LongPress {
+        position: [f32; 2],
+    },
     FocusLost,
 }
 
 /// Accumulated input for one frame.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Input {
+    pub held: Option<MouseButton>,
     pub mouse: [f32; 2],
     pub pressed: Option<(MouseButton, [f32; 2])>,
     pub released: Option<(MouseButton, [f32; 2])>,
@@ -98,7 +111,7 @@ impl Input {
 
     /// True while the primary button is held, whether or not it moved.
     pub fn dragging(&self) -> bool {
-        self.pressed.is_some() || self.released.is_some()
+        self.held == Some(MouseButton::Left)
     }
 }
 
@@ -130,9 +143,7 @@ impl Rect {
     }
     /// True when the point is within `slack` of the horizontal edge.
     pub fn near_edge(&self, point: [f32; 2], slack: f32) -> bool {
-        point[1] >= self.min[1]
-            && point[1] < self.max[1]
-            && (point[0] - self.min[0]).abs() <= slack
+        point[1] >= self.min[1] && point[1] < self.max[1] && (point[0] - self.min[0]).abs() <= slack
     }
     pub fn contains_rect(&self, other: Rect) -> bool {
         other.min[0] >= self.min[0]

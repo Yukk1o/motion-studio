@@ -10,7 +10,7 @@ use crate::input::Rect;
 use crate::theme::metrics;
 
 /// Which edge of the parent a dock occupies.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Edge {
     Left,
     Right,
@@ -25,11 +25,13 @@ impl Edge {
 }
 
 /// Identifies a dock. Stable across layout edits so open tabs keep their panel.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(
+    Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, serde::Serialize, serde::Deserialize,
+)]
 pub struct DockId(pub u32);
 
 /// A layout node.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Node {
     /// Two children sharing the parent along `edge`, sized by `split` in 0.05..0.95.
     Split {
@@ -39,7 +41,11 @@ pub enum Node {
         second: Box<Node>,
     },
     /// A tabbed panel stack.
-    Dock { id: DockId, tabs: Vec<DockId>, active: usize },
+    Dock {
+        id: DockId,
+        tabs: Vec<DockId>,
+        active: usize,
+    },
     /// Fixed chrome that is never a drop target, such as the menu bar.
     Fixed { edge: Edge, size: f32 },
 }
@@ -98,17 +104,20 @@ impl Node {
 
     pub fn find(&self, id: DockId) -> Option<&Node> {
         match self {
-            Node::Split { first, second, .. } => {
-                first.find(id).or_else(|| second.find(id))
-            }
-            Node::Dock { id: found, .. } if *found == id {
-                Some(self)
-            }
+            Node::Split { first, second, .. } => first.find(id).or_else(|| second.find(id)),
+            Node::Dock {
+                id: found, tabs, ..
+            } if *found == id || tabs.contains(&id) => Some(self),
             _ => None,
         }
     }
 
     pub fn activate(&mut self, id: DockId, tab: DockId) -> bool {
+        if let Some(Node::Dock { id: owner, .. }) = self.find(tab) {
+            if !matches!(self.find(id), Some(Node::Dock { id: target, .. }) if target == owner) {
+                return false;
+            }
+        }
         match self {
             Node::Split { first, second, .. } => {
                 first.activate(id, tab) || second.activate(id, tab)
@@ -180,7 +189,10 @@ fn solve_into(node: &Node, area: Rect, out: &mut Vec<Placement>) {
             let child = take(*edge, area, *size);
             solve_into_fixed(*edge, child, out);
         }
-        Node::Dock { id, .. } => out.push(Placement { id: *id, area }),
+        Node::Dock { id, tabs, active } => out.push(Placement {
+            id: tabs.get(*active).copied().unwrap_or(*id),
+            area,
+        }),
         Node::Split {
             edge,
             split,
@@ -200,19 +212,9 @@ fn solve_into_fixed(_edge: Edge, _area: Rect, _out: &mut Vec<Placement>) {}
 fn take(edge: Edge, area: Rect, size: f32) -> Rect {
     match edge {
         Edge::Top => Rect::new(area.min[0], area.min[1], area.width(), size),
-        Edge::Bottom => Rect::new(
-            area.min[0],
-            area.max[1] - size,
-            area.width(),
-            size,
-        ),
+        Edge::Bottom => Rect::new(area.min[0], area.max[1] - size, area.width(), size),
         Edge::Left => Rect::new(area.min[0], area.min[1], size, area.height()),
-        Edge::Right => Rect::new(
-            area.max[0] - size,
-            area.min[1],
-            size,
-            area.height(),
-        ),
+        Edge::Right => Rect::new(area.max[0] - size, area.min[1], size, area.height()),
     }
 }
 
@@ -222,13 +224,23 @@ fn divide(edge: Edge, area: Rect, split: f32) -> (Rect, Rect) {
             let width = area.width() * split;
             (
                 Rect::new(area.min[0], area.min[1], width, area.height()),
-                Rect::new(area.min[0] + width, area.min[1], area.width() - width, area.height()),
+                Rect::new(
+                    area.min[0] + width,
+                    area.min[1],
+                    area.width() - width,
+                    area.height(),
+                ),
             )
         }
         Edge::Right => {
             let width = area.width() * split;
             (
-                Rect::new(area.min[0], area.min[1], area.width() - width, area.height()),
+                Rect::new(
+                    area.min[0],
+                    area.min[1],
+                    area.width() - width,
+                    area.height(),
+                ),
                 Rect::new(area.max[0] - width, area.min[1], width, area.height()),
             )
         }
@@ -236,13 +248,23 @@ fn divide(edge: Edge, area: Rect, split: f32) -> (Rect, Rect) {
             let height = area.height() * split;
             (
                 Rect::new(area.min[0], area.min[1], area.width(), height),
-                Rect::new(area.min[0], area.min[1] + height, area.width(), area.height() - height),
+                Rect::new(
+                    area.min[0],
+                    area.min[1] + height,
+                    area.width(),
+                    area.height() - height,
+                ),
             )
         }
         Edge::Bottom => {
             let height = area.height() * split;
             (
-                Rect::new(area.min[0], area.min[1], area.width(), area.height() - height),
+                Rect::new(
+                    area.min[0],
+                    area.min[1],
+                    area.width(),
+                    area.height() - height,
+                ),
                 Rect::new(area.min[0], area.max[1] - height, area.width(), height),
             )
         }
@@ -288,17 +310,17 @@ fn collect_splitters(node: &Node, out: &mut Vec<Splitter>) {
 /// Left: Project. Right: Effect Controls over Composition. Bottom: Timeline.
 pub fn editor_layout() -> Node {
     Node::Split {
-        edge: Edge::Bottom,
-        split: 0.72,
+        edge: Edge::Top,
+        split: 0.64,
         first: Box::new(Node::Split {
-            edge: Edge::Right,
-            split: 0.68,
+            edge: Edge::Left,
+            split: 0.20,
             first: Box::new(Node::dock(DockId(1))),
             second: Box::new(Node::Split {
-                edge: Edge::Bottom,
-                split: 0.55,
-                first: Box::new(Node::dock(DockId(2))),
-                second: Box::new(Node::dock(DockId(3))),
+                edge: Edge::Right,
+                split: 0.28,
+                first: Box::new(Node::dock(DockId(3))),
+                second: Box::new(Node::dock(DockId(2))),
             }),
         }),
         second: Box::new(Node::dock(DockId(4))),
@@ -379,8 +401,8 @@ mod tests {
             placements.iter().map(|p| p.id).collect::<Vec<_>>(),
             vec![
                 Panel::Project.dock(),
-                Panel::EffectControls.dock(),
                 Panel::Composition.dock(),
+                Panel::EffectControls.dock(),
                 Panel::Timeline.dock()
             ]
         );
@@ -397,10 +419,7 @@ mod tests {
             for b in placements.iter().skip(i + 1) {
                 let overlap_x = (a.area.max[0] - b.area.min[0]).min(b.area.max[0] - a.area.min[0]);
                 let overlap_y = (a.area.max[1] - b.area.min[1]).min(b.area.max[1] - a.area.min[1]);
-                assert!(
-                    overlap_x <= 0.0 || overlap_y <= 0.0,
-                    "{a:?} overlaps {b:?}"
-                );
+                assert!(overlap_x <= 0.0 || overlap_y <= 0.0, "{a:?} overlaps {b:?}");
             }
         }
     }
@@ -438,8 +457,10 @@ mod tests {
         assert!(!node.activate(Panel::Project.dock(), Panel::Effects.dock()));
         let effects = node
             .find(Panel::EffectControls.dock())
-            .map(|n| matches!(n, Node::Dock { tabs, active, .. }
-                if tabs.len() == 2 && tabs[*active] == Panel::Effects.dock()))
+            .map(|n| {
+                matches!(n, Node::Dock { tabs, active, .. }
+                if tabs.len() == 2 && tabs[*active] == Panel::Effects.dock())
+            })
             .unwrap_or(false);
         assert!(effects);
     }

@@ -7,11 +7,10 @@ use crate::android_window::AndroidWindow;
 use crate::audio_decode;
 use crate::media_capabilities;
 use crate::video_decode;
-use aem_core::VideoAsset;
+use aem_core::{AudioAsset, VideoAsset};
 use aem_host::platform::{Platform, SurfaceTarget, VideoDecoder, VideoQuery};
 use aem_host::Result;
-use aem_media::{AudioAsset, VideoProbe};
-use raw_window_handle::HasWindowHandle;
+use aem_media::VideoProbe;
 use serde_json::Value;
 use std::{path::Path, sync::Arc};
 
@@ -21,9 +20,7 @@ static PLATFORM: std::sync::OnceLock<Arc<AndroidPlatform>> = std::sync::OnceLock
 
 /// Install the process-wide Android platform. Returns the shared handle.
 pub fn install() -> Arc<AndroidPlatform> {
-    PLATFORM
-        .get_or_init(|| Arc::new(AndroidPlatform))
-        .clone()
+    PLATFORM.get_or_init(|| Arc::new(AndroidPlatform)).clone()
 }
 
 /// The installed Android platform, if the runtime has been started.
@@ -41,8 +38,8 @@ impl AndroidPlatform {
         width: u32,
         height: u32,
     ) -> Result<SurfaceTarget> {
-        let handle: Box<dyn HasWindowHandle + Send + Sync> =
-            Box::new(AndroidWindow(window.clone()));
+        let handle: Arc<dyn wgpu::WindowHandle + Send + Sync> =
+            Arc::new(AndroidWindow(window.clone()));
         self.attach_surface(handle, width, height)
     }
 }
@@ -88,7 +85,7 @@ impl Platform for AndroidPlatform {
 
     fn attach_surface(
         &self,
-        window: Box<dyn HasWindowHandle + Send + Sync>,
+        window: Arc<dyn wgpu::WindowHandle + Send + Sync>,
         width: u32,
         height: u32,
     ) -> Result<SurfaceTarget> {
@@ -101,7 +98,7 @@ impl Platform for AndroidPlatform {
                 backends: backend,
                 ..Default::default()
             });
-            let surface = match instance.create_surface(window) {
+            let surface = match instance.create_surface(window.clone()) {
                 Ok(surface) => surface,
                 Err(error) => {
                     failures.push(error.to_string());
@@ -130,16 +127,11 @@ impl Platform for AndroidPlatform {
                         height,
                         present_mode: wgpu::PresentMode::Fifo,
                         desired_maximum_frame_latency: 2,
-                        alpha_mode: if caps
-                            .alpha_modes
-                            .contains(&wgpu::CompositeAlphaMode::Opaque)
+                        alpha_mode: if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque)
                         {
                             wgpu::CompositeAlphaMode::Opaque
                         } else {
-                            *caps
-                                .alpha_modes
-                                .first()
-                                .ok_or("no surface alpha mode")?
+                            *caps.alpha_modes.first().ok_or("no surface alpha mode")?
                         },
                         view_formats: vec![],
                     };
@@ -153,6 +145,9 @@ impl Platform for AndroidPlatform {
                 Err(error) => failures.push(error.to_string()),
             }
         }
-        Err(format!("no Android surface backend: {}", failures.join("; ")))
+        Err(format!(
+            "no Android surface backend: {}",
+            failures.join("; ")
+        ))
     }
 }

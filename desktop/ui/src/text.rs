@@ -42,6 +42,7 @@ impl Default for AtlasConfig {
 /// read regardless of how many times it is drawn.
 pub struct TextAtlas {
     font: PxScaleFont<FontArc>,
+    fallback: Option<PxScaleFont<FontArc>>,
     config: AtlasConfig,
     pixels: Vec<u8>,
     entries: std::collections::HashMap<char, GlyphEntry>,
@@ -57,10 +58,23 @@ pub struct TextAtlas {
 impl TextAtlas {
     /// Build an atlas from the system UI font at `scale` logical pixels.
     pub fn from_system(scale: f32) -> Result<Self, String> {
-        let (font, families) = load_system_font()?;
+        let (font, families) = load_system_font(false)?;
         Ok(Self::new(font, scale, families))
     }
 
+    pub fn from_system_language(scale: f32, chinese: bool) -> Result<Self, String> {
+        let (font, families) = load_system_font(chinese)?;
+        let mut atlas = Self::new(font, scale, families);
+        if !chinese {
+            if let Ok((fallback, _)) = load_system_font(true) {
+                atlas.fallback = Some(PxScaleFont {
+                    font: fallback,
+                    scale: PxScale::from(scale),
+                });
+            }
+        }
+        Ok(atlas)
+    }
     pub fn new(font: FontArc, scale: f32, families: Vec<String>) -> Self {
         let font = PxScaleFont {
             font,
@@ -72,6 +86,7 @@ impl TextAtlas {
         let pixels = vec![0u8; (config.width * config.height * 4) as usize];
         Self {
             font,
+            fallback: None,
             config,
             pixels,
             entries: std::collections::HashMap::new(),
@@ -85,11 +100,14 @@ impl TextAtlas {
 
     /// Scale the rasterisation size, for example after a display scale change.
     pub fn set_scale(&mut self, scale: f32) {
-        let current = self.font.scale.to_pt();
+        let current = self.font.scale.y;
         if (scale - current).abs() < f32::EPSILON {
             return;
         }
         self.font.scale = PxScale::from(scale);
+        if let Some(fallback) = &mut self.fallback {
+            fallback.scale = PxScale::from(scale);
+        }
         self.ascent = self.font.ascent();
         self.line_height = self.font.height().max(scale);
         self.clear();
@@ -119,12 +137,23 @@ impl TextAtlas {
     ///
     /// Unmapped code points take a fixed width so a layout never collapses when
     /// a label contains a character the system font lacks.
-    fn advance(&self, character: char) -> f32 {
-        let id = self.font.glyph_id(character);
-        if id.0 == 0 {
-            return self.font.scale.to_pt() * 0.5;
+    fn face(&self, character: char) -> &PxScaleFont<FontArc> {
+        if self.font.glyph_id(character).0 == 0 {
+            if let Some(fallback) = &self.fallback {
+                if fallback.glyph_id(character).0 != 0 {
+                    return fallback;
+                }
+            }
         }
-        self.font.h_advance(id)
+        &self.font
+    }
+    fn advance(&self, character: char) -> f32 {
+        let font = self.face(character);
+        let id = font.glyph_id(character);
+        if id.0 == 0 {
+            return font.scale.x * 0.5;
+        }
+        font.h_advance(id)
     }
 
     /// Rasterise a character if it is not already cached.
@@ -138,12 +167,13 @@ impl TextAtlas {
             offset: [0.0, 0.0],
             advance,
         };
-        let id = self.font.glyph_id(character);
+        let font = self.face(character);
+        let id = font.glyph_id(character);
         if id.0 == 0 {
             self.entries.insert(character, blank);
             return blank;
         }
-        let Some(outlined) = self.font.outline_glyph(self.font.scaled_glyph(character)) else {
+        let Some(outlined) = font.outline_glyph(font.scaled_glyph(character)) else {
             self.entries.insert(character, blank);
             return blank;
         };
@@ -174,12 +204,13 @@ impl TextAtlas {
         let stride = self.config.width as usize;
         let pixels = &mut self.pixels;
         outlined.draw(|column, row, coverage| {
-            let local_column = column - bounds.min.x;
-            let local_row = row - bounds.min.y;
+            let local_column = column;
+            let local_row = row;
             if local_column >= width || local_row >= height {
                 return;
             }
-            let index = ((y + local_row) as usize * stride + x as usize + local_column as usize) * 4;
+            let index =
+                ((y + local_row) as usize * stride + x as usize + local_column as usize) * 4;
             pixels[index..index + 4].fill((coverage.clamp(0.0, 1.0) * 255.0).round() as u8);
         });
         self.cursor[0] += width as f32 + padding as f32;
@@ -191,10 +222,7 @@ impl TextAtlas {
                 (y + height) as f32 / self.config.height as f32,
             ],
             // Atlas rows advance downward; glyph space advances upward.
-            offset: [
-                bounds.min.x as f32,
-                (self.ascent - bounds.min.y as f32).round(),
-            ],
+            offset: [bounds.min.x as f32, bounds.min.y],
             advance,
         };
         self.entries.insert(character, entry);
@@ -229,7 +257,7 @@ impl TextAtlas {
 }
 
 /// Prefer a platform UI face, then fall back to any installed font.
-fn load_system_font() -> Result<(FontArc, Vec<String>), String> {
+fn load_system_font(chinese: bool) -> Result<(FontArc, Vec<String>), String> {
     let mut database = fontdb::Database::new();
     database.load_system_fonts();
     let families: Vec<String> = database
@@ -239,7 +267,17 @@ fn load_system_font() -> Result<(FontArc, Vec<String>), String> {
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
         .collect();
-    let preferred = [
+    let mut preferred = Vec::new();
+    if chinese {
+        preferred.extend([
+            "Microsoft YaHei UI",
+            "Microsoft YaHei",
+            "PingFang SC",
+            "Noto Sans CJK SC",
+            "WenQuanYi Micro Hei",
+        ]);
+    }
+    preferred.extend([
         "Segoe UI",
         "SF Pro Text",
         "Helvetica Neue",
@@ -248,7 +286,7 @@ fn load_system_font() -> Result<(FontArc, Vec<String>), String> {
         "Noto Sans",
         "DejaVu Sans",
         "Arial",
-    ];
+    ]);
     let mut candidates: Vec<fontdb::ID> = Vec::new();
     for wanted in preferred {
         if let Some(id) = database.query(&fontdb::Query {
@@ -267,7 +305,9 @@ fn load_system_font() -> Result<(FontArc, Vec<String>), String> {
     );
     candidates.extend(database.faces().map(|face| face.id));
     for id in candidates {
-        let font = database.with_face_data(id, |data, _| FontArc::try_from_vec(data.to_vec()));
+        let font = database.with_face_data(id, |data, index| {
+            ab_glyph::FontVec::try_from_vec_and_index(data.to_vec(), index).map(FontArc::new)
+        });
         if let Some(Ok(font)) = font {
             return Ok((font, families));
         }

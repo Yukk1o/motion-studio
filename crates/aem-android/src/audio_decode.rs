@@ -122,7 +122,7 @@ fn native(
     let mut channels = f.i32("channel-count").unwrap_or(0) as u32;
     let valid = |r, c| (8000..=192000).contains(&r) && matches!(c, 1 | 2);
     if !valid(rate, channels) {
-        return Err("audio requires mono/stereo at 8â€?92 kHz".into());
+        return Err("audio requires mono/stereo at 8-192 kHz".into());
     }
     let declared = f.i64("durationUs").unwrap_or(0);
     if declared > 3_600_000_000 {

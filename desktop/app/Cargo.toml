@@ -25,6 +25,8 @@ serde_json.workspace = true
 wgpu.workspace = true
 pollster.workspace = true
 raw-window-handle = "0.6"
+rfd = "0.15"
+image.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 winit = "0.30"

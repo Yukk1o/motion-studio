@@ -113,9 +113,7 @@ impl Session {
                 for expression in &mut base.expressions {
                     expression.enabled = false;
                 }
-                scene
-                    .sample(&base, 0.0, None)
-                    .map_err(|e| e.to_string())?;
+                scene.sample(&base, 0.0, None).map_err(|e| e.to_string())?;
                 Some(error.to_string())
             }
             Err(error) => return Err(error.to_string()),
@@ -181,11 +179,8 @@ impl Session {
 
     pub fn replace_project(&mut self, engine: Engine, root: PathBuf) -> Result<()> {
         let platform = self.platform.clone();
-        let audio_jobs = AudioJobs::with_decoder(
-            root.clone(),
-            Limits::default(),
-            audio_decoder(&platform),
-        )?;
+        let audio_jobs =
+            AudioJobs::with_decoder(root.clone(), Limits::default(), audio_decoder(&platform))?;
         let video_jobs = VideoJobs::with_audio_decoder(root.clone(), audio_decoder(&platform))?;
         if let Some(g) = &mut self.graphics {
             g.renderer
@@ -287,6 +282,16 @@ impl Session {
     }
 
     pub fn render(&mut self, frame: f64) -> Result<bool> {
+        self.render_with_overlay(frame, None, |_, _, _| {})
+    }
+
+    /// Present once, with host chrome on the same GPU device and session thread.
+    pub fn render_with_overlay(
+        &mut self,
+        frame: f64,
+        viewport: Option<[f32; 4]>,
+        overlay: impl FnOnce(&Renderer, &mut wgpu::CommandEncoder, &wgpu::TextureView),
+    ) -> Result<bool> {
         let began = Instant::now();
         self.render_attempts += 1;
         self.frame = frame;
@@ -295,10 +300,24 @@ impl Session {
         let Some(g) = &mut self.graphics else {
             return Ok(false);
         };
+        let [vx, vy, vw, vh] =
+            viewport.unwrap_or([0.0, 0.0, g.config.width as f32, g.config.height as f32]);
+        if ![vx, vy, vw, vh].iter().all(|v| v.is_finite())
+            || vx < 0.0
+            || vy < 0.0
+            || vw <= 0.0
+            || vh <= 0.0
+            || vx + vw > g.config.width as f32 + 0.01
+            || vy + vh > g.config.height as f32 + 0.01
+        {
+            return Err("invalid composition viewport".into());
+        }
         g.renderer.retain_video_instances(&self.scene);
-        g.renderer.set_image_prefetch(
-            aem_render::image_resources::upcoming_assets(self.engine.project(), frame),
-        );
+        g.renderer
+            .set_image_prefetch(aem_render::image_resources::upcoming_assets(
+                self.engine.project(),
+                frame,
+            ));
         let image_resolution = if self.preview.mode == PreviewMode::High {
             aem_render::image_resources::Resolution::Full
         } else {
@@ -311,9 +330,12 @@ impl Session {
             .prepare_scene_assets(&self.scene, image_resolution, true)
             .map_err(|e| e.to_string())?;
         let preparing = Instant::now();
-        let frames =
-            self.video_frames
-                .prepare_scene(self.engine.project(), &self.root, &self.scene, frame)?;
+        let frames = self.video_frames.prepare_scene(
+            self.engine.project(),
+            &self.root,
+            &self.scene,
+            frame,
+        )?;
         self.video_prepare_us = preparing.elapsed().as_micros() as u64;
         let Some(frames) = frames else {
             self.video_pending_attempts += 1;
@@ -353,8 +375,8 @@ impl Session {
         let (rw, rh) = self.preview.render_dimensions(
             self.scene.width,
             self.scene.height,
-            g.config.width,
-            g.config.height,
+            vw.ceil() as u32,
+            vh.ceil() as u32,
         );
         if (g.scratch.width, g.scratch.height) != (rw, rh) {
             let target = g
@@ -377,12 +399,12 @@ impl Session {
         let acquire_us = acquiring.elapsed().as_micros() as u64;
         let sequence = self.presented + 1;
         let slot = g.timer.as_mut().and_then(|t| t.begin(sequence));
-        let mut encoder = g
-            .renderer
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Motion Studio composition and presentation"),
-            });
+        let mut encoder =
+            g.renderer
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Motion Studio composition and presentation"),
+                });
         let timestamps = slot.map(|i| g.timer.as_ref().unwrap().writes(i, 0));
         let encoded = if self.preview.mode == PreviewMode::High {
             g.renderer.encode(
@@ -410,22 +432,22 @@ impl Session {
             return Err(error.to_string());
         }
         let view = output.texture.create_view(&Default::default());
-        let scale = (g.config.width as f32 / self.scene.width as f32)
-            .min(g.config.height as f32 / self.scene.height as f32);
-        let vw = self.scene.width as f32 * scale;
-        let vh = self.scene.height as f32 * scale;
+        let scale = (vw / self.scene.width as f32).min(vh / self.scene.height as f32);
+        let shown_width = self.scene.width as f32 * scale;
+        let shown_height = self.scene.height as f32 * scale;
         g.presenter.encode(
             &mut encoder,
             &view,
             slot.map(|i| g.timer.as_ref().unwrap().writes(i, 1)),
             Some([
-                (g.config.width as f32 - vw) / 2.0,
-                (g.config.height as f32 - vh) / 2.0,
-                vw,
-                vh,
+                vx + (vw - shown_width) / 2.0,
+                vy + (vh - shown_height) / 2.0,
+                shown_width,
+                shown_height,
             ]),
             self.scene.background,
         );
+        overlay(&g.renderer, &mut encoder, &view);
         if let Some(i) = slot {
             g.timer.as_ref().unwrap().resolve(i, &mut encoder);
         }
@@ -557,8 +579,10 @@ pub fn resource_info(directory: &std::path::Path) -> Result<Value> {
             targets += g.scratch.texture_bytes();
         }
     }
-    Ok(json!({"sessions":count,"graphics":graphics,"assetTextureBytes":assets,"renderTargetBytes":targets,
-        "scope":"Application-owned sessions and textures in the requested project directory; not driver/system allocations"}))
+    Ok(
+        json!({"sessions":count,"graphics":graphics,"assetTextureBytes":assets,"renderTargetBytes":targets,
+        "scope":"Application-owned sessions and textures in the requested project directory; not driver/system allocations"}),
+    )
 }
 
 /// Create a session and register it. Returns `0` on failure and stores the
@@ -582,7 +606,7 @@ pub fn creation_error() -> String {
     CREATION_ERROR.with(|e| e.borrow().clone())
 }
 
-pub(crate) fn set_creation_error(error: String) {
+pub fn set_creation_error(error: String) {
     CREATION_ERROR.with(|e| *e.borrow_mut() = error);
 }
 

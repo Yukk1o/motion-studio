@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-diagnostics = []
+diagnostics = ["aem-host/diagnostics"]
 
 [dependencies]
 aem-host = { path = "../aem-host" }
@@ -20,9 +20,11 @@ aem-render = { path = "../aem-render" }
 aem-media = { path = "../aem-media" }
 serde_json.workspace = true
 wgpu.workspace = true
+pollster.workspace = true
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 ndk = { version = "0.9", features = ["media", "api-level-29"] }
 ndk-sys = { version = "0.6", features = ["media"] }
 libc = "0.2"
+raw-window-handle = "0.6"

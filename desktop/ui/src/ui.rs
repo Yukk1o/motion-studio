@@ -6,7 +6,7 @@
 
 use crate::input::{Event, Input, Key, MouseButton, Rect};
 use crate::paint::{self, PaintList};
-use crate::theme::{palette, Color, metrics};
+use crate::theme::{metrics, palette, Color};
 
 /// Interaction result for one widget.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -63,7 +63,12 @@ pub fn button(
     text(
         list,
         atlas,
-        Rect::new(area.min[0] + 4.0, area.min[1], (area.width() - 8.0).max(0.0), area.height()),
+        Rect::new(
+            area.min[0] + 4.0,
+            area.min[1],
+            (area.width() - 8.0).max(0.0),
+            area.height(),
+        ),
         label,
         color,
         Align::Center,
@@ -180,15 +185,15 @@ pub fn scrub_field(
         area.width() * 0.55,
         area.height(),
     );
+    text(list, atlas, area, label, palette::TEXT_MUTED, Align::Left);
     text(
         list,
         atlas,
-        area,
-        label,
-        palette::TEXT_MUTED,
-        Align::Left,
+        right,
+        &format_value(value),
+        palette::TEXT,
+        Align::Right,
     );
-    text(list, atlas, right, &format_value(value), palette::TEXT, Align::Right);
     Response {
         hovered,
         clicked: grabbed,
@@ -214,7 +219,12 @@ pub fn format_value(value: f32) -> String {
     } else {
         format!("{value:.4}")
     };
-    text.trim_end_matches('0').trim_end_matches('.').to_owned()
+    let trimmed = text.trim_end_matches('0');
+    if magnitude >= 1000.0 && trimmed.ends_with('.') {
+        format!("{trimmed}0")
+    } else {
+        trimmed.trim_end_matches('.').to_owned()
+    }
 }
 
 /// Tab strip for a dock. Returns the tab index that was clicked, if any.
@@ -269,7 +279,12 @@ pub fn tab_strip(
         text(
             list,
             atlas,
-            Rect::new(tab.min[0] + 6.0, tab.min[1], tab.width() - 12.0, tab.height()),
+            Rect::new(
+                tab.min[0] + 6.0,
+                tab.min[1],
+                tab.width() - 12.0,
+                tab.height(),
+            ),
             title,
             color,
             Align::Left,
@@ -294,8 +309,8 @@ pub fn checkbox(
 ) -> Response {
     let box_area = Rect::new(area.min[0] + 2.0, area.min[1] + 3.0, 12.0, 12.0);
     let hovered = area.contains(input.mouse);
-    let clicked = hovered
-        && matches!(input.pressed, Some((MouseButton::Left, p)) if area.contains(p));
+    let clicked =
+        hovered && matches!(input.pressed, Some((MouseButton::Left, p)) if area.contains(p));
     if clicked {
         *value = !*value;
     }
@@ -303,7 +318,11 @@ pub fn checkbox(
     paint::stroke(
         list,
         box_area,
-        if *value { palette::ACCENT } else { palette::BORDER },
+        if *value {
+            palette::ACCENT
+        } else {
+            palette::BORDER
+        },
         1.0,
     );
     if *value {
@@ -316,7 +335,12 @@ pub fn checkbox(
     text(
         list,
         atlas,
-        Rect::new(box_area.max[0] + 6.0, area.min[1], area.width(), area.height()),
+        Rect::new(
+            box_area.max[0] + 6.0,
+            area.min[1],
+            area.width(),
+            area.height(),
+        ),
         label,
         palette::TEXT,
         Align::Left,
@@ -419,8 +443,16 @@ pub fn layer_list(
         );
         let eye = Rect::new(row_area.min[0] + 12.0, top, 14.0, row_height);
         let lock = Rect::new(row_area.min[0] + 28.0, top, 14.0, row_height);
-        icon(list, eye, if row.visible { Icon::Eye } else { Icon::EyeOff });
-        icon(list, lock, if row.locked { Icon::Lock } else { Icon::Unlock });
+        icon(
+            list,
+            eye,
+            if row.visible { Icon::Eye } else { Icon::EyeOff },
+        );
+        icon(
+            list,
+            lock,
+            if row.locked { Icon::Lock } else { Icon::Unlock },
+        );
         if let Some((MouseButton::Left, point)) = input.pressed {
             if row_area.contains(point) {
                 hit.row = Some(row.id);
@@ -484,11 +516,7 @@ pub fn icon(list: &mut PaintList, area: Rect, icon: Icon) {
                 ],
                 color,
             );
-            paint::rect(
-                list,
-                Rect::new(min[0] + 5.0, min[1] + 5.0, 2.0, 2.0),
-                color,
-            );
+            paint::rect(list, Rect::new(min[0] + 5.0, min[1] + 5.0, 2.0, 2.0), color);
             if icon == Icon::EyeOff {
                 paint::line(
                     list,
@@ -498,15 +526,21 @@ pub fn icon(list: &mut PaintList, area: Rect, icon: Icon) {
             }
         }
         Icon::Lock | Icon::Unlock => {
-            paint::rect(
-                list,
-                Rect::new(min[0] + 2.0, min[1] + 6.0, 8.0, 5.0),
-                color,
-            );
+            paint::rect(list, Rect::new(min[0] + 2.0, min[1] + 6.0, 8.0, 5.0), color);
             let shackle = if icon == Icon::Lock {
-                vec![[min[0] + 3.0, min[1] + 6.0], [min[0] + 3.0, min[1] + 3.0], [min[0] + 9.0, min[1] + 3.0], [min[0] + 9.0, min[1] + 6.0]]
+                vec![
+                    [min[0] + 3.0, min[1] + 6.0],
+                    [min[0] + 3.0, min[1] + 3.0],
+                    [min[0] + 9.0, min[1] + 3.0],
+                    [min[0] + 9.0, min[1] + 6.0],
+                ]
             } else {
-                vec![[min[0] + 3.0, min[1] + 6.0], [min[0] + 3.0, min[1] + 4.0], [min[0] + 9.0, min[1] + 3.0], [min[0] + 9.0, min[1] + 1.0]]
+                vec![
+                    [min[0] + 3.0, min[1] + 6.0],
+                    [min[0] + 3.0, min[1] + 4.0],
+                    [min[0] + 9.0, min[1] + 3.0],
+                    [min[0] + 9.0, min[1] + 1.0],
+                ]
             };
             paint::line(list, shackle, color);
         }
@@ -527,11 +561,7 @@ pub fn icon(list: &mut PaintList, area: Rect, icon: Icon) {
             );
         }
         Icon::Stopwatch => {
-            paint::rect(
-                list,
-                Rect::new(min[0] + 2.0, min[1] + 4.0, 8.0, 7.0),
-                color,
-            );
+            paint::rect(list, Rect::new(min[0] + 2.0, min[1] + 4.0, 8.0, 7.0), color);
             paint::line(
                 list,
                 vec![[min[0] + 6.0, min[1] + 2.0], [min[0] + 6.0, min[1] + 4.0]],
@@ -539,14 +569,15 @@ pub fn icon(list: &mut PaintList, area: Rect, icon: Icon) {
             );
         }
         Icon::Camera => {
-            paint::rect(
-                list,
-                Rect::new(min[0], min[1] + 3.0, 9.0, 6.0),
-                color,
-            );
+            paint::rect(list, Rect::new(min[0], min[1] + 3.0, 9.0, 6.0), color);
             paint::line(
                 list,
-                vec![[min[0] + 9.0, min[1] + 5.0], [min[0] + 12.0, min[1] + 3.0], [min[0] + 12.0, min[1] + 9.0], [min[0] + 9.0, min[1] + 7.0]],
+                vec![
+                    [min[0] + 9.0, min[1] + 5.0],
+                    [min[0] + 12.0, min[1] + 3.0],
+                    [min[0] + 12.0, min[1] + 9.0],
+                    [min[0] + 9.0, min[1] + 7.0],
+                ],
                 color,
             );
         }
@@ -560,10 +591,12 @@ pub fn accumulate(input: &mut Input, event: Event) {
         Event::MouseMoved { position } => input.mouse = position,
         Event::MousePressed { position, button } => {
             input.mouse = position;
+            input.held = Some(button);
             input.pressed = Some((button, position));
         }
         Event::MouseReleased { position, button } => {
             input.mouse = position;
+            input.held = None;
             input.released = Some((button, position));
         }
         Event::MouseWheel { delta } => input.wheel = delta,
@@ -574,6 +607,7 @@ pub fn accumulate(input: &mut Input, event: Event) {
         Event::TextInput(text) => input.text.push_str(&text),
         Event::LongPress { position } => input.long_press = Some(position),
         Event::FocusLost => {
+            input.held = None;
             input.pressed = None;
             input.released = None;
             input.modifiers = Default::default();

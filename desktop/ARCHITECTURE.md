@@ -83,22 +83,35 @@ purpose one:
   GPU dependency, so the layout rules carry their own tests.
 * `ui` draws widgets — buttons, scrub fields, tab strips, checkboxes, the layer
   list, the timeline — and reports interaction through `input`.
-* `text` rasterises glyphs into a single atlas.
+* `text` rasterises glyphs into a single atlas, with system CJK fonts and the selected font collection face index.
+* The desktop shell owns a mutable dock tree and native floating windows. All windows use one session, adapter and GPU device; each window has one swapchain.
 
 The panels in `desktop/app/src/panels.rs` follow the After Effects arrangement:
-Project on the left, Effect Controls above Composition on the right, Timeline
+Project on the left, Composition in the centre, Effect Controls on the right, Timeline
 across the bottom, with a menu bar and toolbar above.
 
 ## Performance
 
-The preview is presented by `aem-host` straight into the swapchain. There is no
-readback and no copy between the engine and the screen, and the panel chrome is
-drawn over the same target.
+The preview is presented by aem-host into one swapchain per window. The panel
+painter loads the same target after the composition pass. Preview has no pixel
+readback; diagnostic screenshots explicitly use a separate capture target.
+
+Winit window handles and surfaces are created on the GUI thread, including on
+Windows, and then transferred to the session worker. Attach, resize and present
+requests return asynchronously so the GUI can continue pumping OS messages.
+Floating composition windows temporarily select their target during the render;
+other floating panels share the device and atlas without creating a second
+editing session.
+
+MCP stdio may run headless or share the GUI's Arc<Engine>. Successful tools wake
+the GUI through a winit user event. ToolRouter is the embedded-agent boundary:
+read-only/edit permissions and atomic revision-checked batches use the existing
+command queue, and an active pointer gesture rejects agent edits.
 
 * **Present mode.** Mailbox where the platform supports it, Fifo otherwise, with
   `desired_maximum_frame_latency: 2`. This matches the Android path's Fifo choice
   while allowing lower latency on desktop.
-* **Backend order.** Vulkan, then Metal, then GL. Only one backend's surface
+* **Backend order.** Vulkan, then Metal, DX12 and GL. Only one backend's surface
   stays alive for a window, because creating a surface can connect the window's
   buffer producer even when the adapter turns out to be unusable.
 * **Preview policy.** `PreviewPolicy` is the existing engine code: clear, smooth,

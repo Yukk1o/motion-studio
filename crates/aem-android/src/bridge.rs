@@ -1,9 +1,9 @@
 //! JNI value conversion and the stable ok/data/error envelope.
-use aem_host::ops::{dispatch, error_envelope};
+use aem_host::ops::dispatch;
 use aem_host::Result;
 use jni::{
-    objects::{JByteBuffer, JClass, JObject, JString},
-    sys::{jboolean, jbyteArray, jdouble, jint, jlong, jstring},
+    objects::{JByteBuffer, JString},
+    sys::{jbyteArray, jint, jstring},
     JNIEnv,
 };
 use serde_json::Value;
@@ -15,10 +15,10 @@ pub fn string_result(env: &mut JNIEnv<'_>, operation: impl FnOnce() -> Result<Va
         .map_or(std::ptr::null_mut(), |s| s.into_raw())
 }
 
-pub use aem_host::ops::error_envelope as error_payload;
-
 pub fn read_string(env: &mut JNIEnv<'_>, text: &JString<'_>) -> Result<String> {
-    env.get_string(text).map(|s| s.into()).map_err(|e| e.to_string())
+    env.get_string(text)
+        .map(|s| s.into())
+        .map_err(|e| e.to_string())
 }
 
 /// Legacy packed-buffer endpoints report every native failure as -1.
@@ -76,13 +76,13 @@ impl BufferAccess {
     }
 
     pub fn resolve(&self) -> Result<(*mut u8, usize)> {
-        let address = self.address.map_err(|e| e.to_string())?;
-        let capacity = self.capacity.map_err(|e| e.to_string())?;
+        let address = *self.address.as_ref().map_err(|e| e.to_string())?;
+        let capacity = *self.capacity.as_ref().map_err(|e| e.to_string())?;
         Ok((address, capacity))
     }
 }
 
-pub fn is_read_only(env: &JNIEnv<'_>, buffer: &JByteBuffer<'_>) -> Result<bool> {
+pub fn is_read_only(env: &mut JNIEnv<'_>, buffer: &JByteBuffer<'_>) -> Result<bool> {
     env.call_method(buffer, "isReadOnly", "()Z", &[])
         .and_then(|v| v.z())
         .map_err(|e| e.to_string())
@@ -103,5 +103,3 @@ pub unsafe fn output_bytes<'a>(address: *mut u8, bytes: usize) -> &'a mut [u8] {
 pub unsafe fn copy_bytes(address: *mut u8, bytes: &[u8]) {
     unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), address, bytes.len()) }
 }
-
-pub use jboolean as JBooleanAlias;

@@ -40,7 +40,7 @@ jobs:
       - name: Install headless Vulkan and native build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev fonts-noto-cjk
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
           rustup toolchain install 1.97.1 --profile minimal
@@ -93,7 +93,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev fonts-noto-cjk xvfb libxkbcommon0
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
       - name: Install Rust
@@ -108,9 +108,14 @@ jobs:
       - name: Build the desktop shell
         run: python tools/build_desktop.py --task check
       - name: Run desktop unit tests
-        run: cargo test -p aem-host -p aem-ui --locked -- --test-threads=1
+        run: cargo test -p aem-desktop -p aem-host -p aem-ui -p aem-desktop-media --locked -- --test-threads=1
       - name: Release desktop binary without video support
         run: python tools/build_desktop.py --task build --report artifacts/desktop/desktop-build.json
+      - name: Verify native windows, language and shared MCP
+        if: runner.os == 'Linux'
+        env:
+          WGPU_BACKEND: vulkan
+        run: xvfb-run -a python tools/ci_desktop.py --binary target/release/motion-studio --output artifacts/desktop
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

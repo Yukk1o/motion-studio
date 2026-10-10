@@ -5,8 +5,8 @@ The workspace shares its engine with the Android app, so a desktop build links
 the same `aem-host` session the phone build uses. Two feature switches control
 what the resulting binary can do:
 
-* ``--ffmpeg`` enables video import and export through libav. Without it the
-  shell still edits, previews and exports audio, and reports the missing
+* ``--ffmpeg`` enables video probing and decoding through libav. Without it the
+  shell still edits and previews, and reports the missing
   capability instead of failing silently.
 * ``--debug`` produces an unoptimised build for development.
 
@@ -91,7 +91,7 @@ def main() -> int:
     parser.add_argument(
         "--ffmpeg",
         action="store_true",
-        help="enable libav video import and export",
+        help="enable libav video import and decoding (MP4 encoder is pending)",
     )
     parser.add_argument("--ffmpeg-include", help="libav header directory")
     parser.add_argument("--ffmpeg-lib", help="libav library directory")
@@ -151,15 +151,32 @@ def main() -> int:
     run(["cargo", *cargo_task], env)
 
     if args.report:
+        report_path = Path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        executable = None
+        if args.task == "build":
+            target_root = Path(args.target_dir)
+            if args.target:
+                target_root /= args.target
+            profile = "debug" if args.debug else "release"
+            windows = "windows" in args.target if args.target else sys.platform == "win32"
+            filename = binary + (".exe" if windows else "")
+            source = target_root / profile / filename
+            destination = report_path.parent / filename
+            if source.resolve() != destination.resolve():
+                shutil.copy2(source, destination)
+            executable = str(destination)
+            shutil.copy2(REPO / "LICENSE", report_path.parent / "LICENSE")
         report = {
             "task": args.task,
             "ffmpeg": args.ffmpeg,
             "release": not args.debug,
             "target": args.target,
             "version": DEFAULT_VERSION,
+            "executable": executable,
+            "video_encoder": False,
         }
-        Path(args.report).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.report).write_text(json.dumps(report, indent=2), encoding="utf-8")
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return 0
 
 

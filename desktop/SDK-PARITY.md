@@ -35,7 +35,7 @@ yet implemented on desktop.
 | Parameter animation | yes | Shared |
 | Five-channel colour curves | yes | Shared (`aem_core::color_curves`) |
 | Per-instance parameter ranges | yes | Shared (`PlanBuilder::preflight_project`) |
-| Effect pack install/enable/uninstall | yes | Shared (`Registry`); desktop file dialog pending |
+| Effect pack install/enable/uninstall | yes | Shared (`Registry`); native project file dialog available; plugin pack picker pending |
 | SDK 5 native plugin editors | partial | Engine side shared; slot widgets not drawn yet |
 | SDK 2 HTML plugin editors | no | Needs WebView2 or WKWebView |
 
@@ -71,7 +71,7 @@ render the slot kinds: parameters, layer source, image sprite, seed, transform,
 preview, timeline and note.
 
 **Multi-select UI.** The engine command surface is shared. The desktop batch
-panel is not built.
+panel is not built. MCP motion_edit accepts shared-core atomic command batches.
 
 **Plugin pack management UI.** Install, enable and uninstall all work; picking a
 `.msfx` needs a native file dialog.
@@ -82,3 +82,8 @@ panel is not built.
 UIs read. When a host cannot satisfy a capability it must report it there rather
 than omitting a field, so this table can be regenerated from a running build
 instead of being maintained by hand.
+## Desktop workspace and automation
+
+Basic desktop panels now support typed numeric transform editing, animation toggles, timeline scrubbing, clip movement, undo/redo, project open/save and package export. Panels can resize, dock, combine tabs or float in native windows, including the composition preview. Chinese and English UI preferences persist separately from projects.
+
+The stdio MCP adapter exposes state, atomic revision-checked editing, seek, history and save. --mcp-ui shares the displayed project and undo history with the client; --mcp is headless. Node authoring and msfx export from nodes remain a design proposal.
