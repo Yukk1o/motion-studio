@@ -307,6 +307,13 @@ fn sample_group(g: &VectorGroup, f: f64, serial: &mut u32) -> Result<State> {
                         values.insert(format!("shape:{name}"), json!(t.sample(f)));
                     }
                 }
+                if let VectorSource::Paths { paths } = &v.source {
+                    for path in paths {
+                        for node in &path.nodes {
+                            values.insert(format!("node:{}:{}", path.id, node.id), json!(node.geometry.sample(f)));
+                        }
+                    }
+                }
                 if let Some(t) = &v.trim {
                     values.insert("trim_start".into(), json!(t.start.sample(f)));
                     values.insert("trim_end".into(), json!(t.end.sample(f)));
@@ -346,6 +353,7 @@ fn sample_group(g: &VectorGroup, f: f64, serial: &mut u32) -> Result<State> {
                 let width = scalar(&s.width, f, 0., 4096.)?;
                 let mut v = empty_paint();
                 v.stroke = Some((c, width, s.cap, s.join, s.miter_limit));
+                let mut values = BTreeMap::from([("color".into(), json!(c)), ("width".into(), json!(width))]);
                 if let Some(d) = &s.dashes {
                     v.dashes = Some(SampledDashes {
                         pattern: d
@@ -356,9 +364,14 @@ fn sample_group(g: &VectorGroup, f: f64, serial: &mut u32) -> Result<State> {
                             .collect::<Result<_>>()?,
                         offset: scalar(&d.offset, f, -32768., 32768.)?,
                     });
+                    let sampled = v.dashes.as_ref().unwrap();
+                    values.insert("dash_offset".into(), json!(sampled.offset));
+                    for (i, value) in sampled.pattern.iter().enumerate() {
+                        values.insert(format!("dash_{i}"), json!(value));
+                    }
                 }
                 state.paint(v, *composite)?;
-                BTreeMap::from([("color".into(), json!(c)), ("width".into(), json!(width))])
+                values
             }
             GroupItem::Trim { trim: t, .. } => {
                 let start = scalar(&t.start, f, 0., 100.)?;

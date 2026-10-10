@@ -90,6 +90,16 @@ frame 为合成时间，后端转换到片段局部时间；value 支持标量�
 
 安卓“组织为形状组”进入内容编辑；支持分组、形状、独立填充/描边、修剪和中继器的添加、排序、删除。位置和锚点的 X/Y 复用 NumericWheel，数值按钮支持精确输入；可切换到 TransformTouchpad，再返回滑轮。颜色复用颜色面板；动画继续使用现有时间轴和 CurveEditor。一次拖动一次撤销。桌面 UI 本次不修改。
 
-当前安卓组内自由路径保留完整数据，但节点/切线编辑尚未接入该内容页；描边的完整虚线模式可通过数据接口设置。后续接入这两个编辑入口，不自动固定路径动画。组内混合模式、渐变绘制和 Merge Paths 尚未提供。
+组内自由路径的内容页支持选择路径/节点、增删、开闭合、节点位置与相对入/出切线编辑。节点参数使用 `node:<path_id>:<node_id>`，例如 `node:1:2`；值为 `[x,y,in_x,in_y,out_x,out_y]`，每个分量范围 -32768..=32768。节点坐标属于该 geometry 的原始局部空间；组变换及中继器在渲染时应用。编辑一个源节点会更新所有虚拟副本，存储中不复制副本节点。
+
+```json
+{"op":"vector","object":7,"action":{"action":"set_group_parameter","item":2,"parameter":"node:1:2","frame":30,"value":[20,10,-8,-8,0,0],"animated":true}}
+```
+
+节点位置复用滑轮和触控板；相对切线复用滑轮。geometry 的 size 只控制参数化形状，原始路径按节点的像素坐标绘制，内容页不显示无作用的宽高控件。原始节点轨道完整保存已有关键帧/曲线，动画操作使用图层局部时间，删除节点或路径后退回该 geometry 的位置轨道。
+
+独立 stroke 和 geometry 内置描边复用同一描边组件，提供端点、拐角、尖角限制、虚线启停、线段/间隔长度、虚线偏移及一到三组模式。stroke 的动画参数包括 `width`、`color`、`dash_offset`、`dash_0`..`dash_5`；geometry 保留 `stroke_width`、`stroke_color` 和同名虚线参数。采样的 `group_parameters` 返回这些参数及源节点的六维 geometry，供前端显示当前帧值；不返回虚拟副本节点。关闭虚线后选择有效的宽度轨道。
+
+组路径在合成预览中的点位/曲柄拖动尚未接入；当前通过内容页控件编辑并实时预览。组内混合模式、渐变绘制和 Merge Paths 尚未提供。虚线目前只支持显式线段/间隔对，尚未声明 AE 的缺省间隔规则已验收。
 
 行为参考 [Adobe 形状属性、绘制和路径操作文档](https://helpx.adobe.com/after-effects/desktop/drawing-painting-and-paths/shapes-and-shape-attributes/shape-attributes-paint-operations-path.html)。复制、保存、恢复和冻结输出保存整个组结构；不等同于完整 AE 工程还原。

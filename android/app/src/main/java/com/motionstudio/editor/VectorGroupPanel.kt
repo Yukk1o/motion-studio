@@ -21,7 +21,7 @@ private fun repeater()=JSONObject().put("copies",track(3)).put("offset",track(0)
     .put("start_opacity",track(100)).put("end_opacity",track(100)).put("composite","below")
 private val names=mapOf("group" to "组","geometry" to "形状","fill" to "填充","stroke" to "描边","trim" to "修剪路径","repeater" to "中继器")
 
-@Composable internal fun VectorGroupPanel(vm:EditorViewModel,vector:JSONObject) {
+@Composable internal fun VectorGroupPanel(vm:EditorViewModel,vector:JSONObject,onItemChanged:()->Unit={}) {
     val root=vector.getJSONObject("source").getJSONObject("group")
     var selected by remember(vm.root,vm.selected){mutableLongStateOf(
         vm.property.takeIf{it.startsWith("vector:group:")}?.split(':')?.getOrNull(2)?.toLongOrNull()
@@ -39,7 +39,9 @@ private val names=mapOf("group" to "组","geometry" to "形状","fill" to "填�
     val kind=if(item.has("items"))"group"else item.getString("kind")
     val id=item.getLong("id");fun key(p:String)="vector:group:$id:$p"
     fun choose(node:JSONObject) {
+        val changed=selected!=node.getLong("id")
         selected=node.getLong("id")
+        if(changed)onItemChanged()
         val parameter=if(node.has("items"))"position"else when(node.optString("kind")) {
             "geometry"->"position";"fill","stroke"->"color";"trim"->"end";"repeater"->"copies";else->"position"
         }
@@ -95,10 +97,10 @@ private val names=mapOf("group" to "组","geometry" to "形状","fill" to "填�
             }
         }
         "geometry"->{
-            GroupPosition(vm,key("position"),"形状位置")
-            for(axis in 0..1)VectorNumber(vm,key("size"),if(axis==0)"宽度"else"高度",0.0,32768.0,axis=axis)
             val v=item.getJSONObject("vector");val source=v.getJSONObject("source")
+            GroupPosition(vm,key("position"),"形状位置")
             if(source.optString("kind")=="shape") {
+                for(axis in 0..1)VectorNumber(vm,key("size"),if(axis==0)"宽度"else"高度",0.0,32768.0,axis=axis)
                 var shapeMenu by remember{mutableStateOf(false)}
                 Box {TextButton(onClick={shapeMenu=true},enabled=vm.editable()){Text("形状 · ${source.getString("shape")}")}
                     DropdownMenu(expanded=shapeMenu,onDismissRequest={shapeMenu=false}){vm.shapeCatalogue().forEach{shape->DropdownMenuItem(text={Text(shape.getString("name"))},onClick={
@@ -108,12 +110,17 @@ private val names=mapOf("group" to "组","geometry" to "形状","fill" to "填�
                 vm.shapeCatalogue().firstOrNull{it.getString("id")==source.getString("shape")}?.optJSONArray("parameters").objects().forEach{p->
                     VectorNumber(vm,key("shape:${p.getString("id")}"),p.getString("id"),p.getDouble("min"),p.getDouble("max"),p.optBoolean("discrete"))}
             }
+            if(source.optString("kind")=="paths")GroupPathControls(vm,"vector:group:$id",source){paths->change{_,g->g.getJSONObject("vector").getJSONObject("source").put("paths",paths)}}
             for((field,label)in listOf("fill" to "填充颜色","stroke_color" to "描边颜色"))GroupColor(vm,key(field),label)
-            if(v.optJSONObject("stroke")!=null)VectorNumber(vm,key("stroke_width"),"描边宽度",0.0,4096.0)
+            v.optJSONObject("stroke")?.let{stroke->
+                VectorNumber(vm,key("stroke_width"),"描边宽度",0.0,4096.0)
+                VectorStrokeOptions(vm,stroke,"vector:group:$id"){next->change{_,g->g.getJSONObject("vector").put("stroke",next)}}
+            }
         }
         "fill"->{GroupColor(vm,key("color"),"填充颜色");VectorOptions("绘制顺序",item.getString("composite"),listOf("below" to "位于前项下方","above" to "位于前项上方"),vm.editable()){value->change{_,g->g.put("composite",value)}}
             VectorOptions("填充规则",item.getString("fill_rule"),listOf("non_zero" to "非零","even_odd" to "奇偶"),vm.editable()){value->change{_,g->g.put("fill_rule",value)}}}
         "stroke"->{GroupColor(vm,key("color"),"描边颜色");VectorNumber(vm,key("width"),"描边宽度",0.0,4096.0)
+            VectorStrokeOptions(vm,item.getJSONObject("stroke"),"vector:group:$id"){next->change{_,g->g.put("stroke",next)}}
             VectorOptions("绘制顺序",item.getString("composite"),listOf("below" to "位于前项下方","above" to "位于前项上方"),vm.editable()){value->change{_,g->g.put("composite",value)}}}
         "trim"->{VectorNumber(vm,key("start"),"开始（%）",0.0,100.0);VectorNumber(vm,key("end"),"结束（%）",0.0,100.0);VectorNumber(vm,key("offset"),"偏移（°）",-360000.0,360000.0)
             VectorOptions("多条路径",item.getJSONObject("trim").getString("mode"),listOf("simultaneously" to "同时修剪","individually" to "依次修剪"),vm.editable()){value->change{_,g->g.getJSONObject("trim").put("mode",value)}}}
@@ -129,7 +136,7 @@ private val names=mapOf("group" to "组","geometry" to "形状","fill" to "填�
     val objectId=vm.selected
     ColorProperty(vm,label,"group-color-$key",value,vm.editable(),onSelect={vm.selectVectorTrack(key)}){rgba,at->vm.setPropertyValue(objectId,key,at,rgba,false)}
 }
-@Composable private fun GroupPosition(vm:EditorViewModel,key:String,label:String) {
+@Composable internal fun GroupPosition(vm:EditorViewModel,key:String,label:String) {
     val value=vm.vectorValue(vm.selected,key) as? JSONArray?:return
     var pad by remember(vm.selected,key){mutableStateOf(false)}
     var captured by remember(vm.selected,key){mutableStateOf<JSONArray?>(null)}

@@ -274,6 +274,21 @@ pub struct Stroke {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dashes: Option<StrokeDashes>,
 }
+impl Stroke {
+    fn dash_track_mut(&mut self, parameter: &str) -> Result<&mut Track<f32>> {
+        if let Some(d) = &mut self.dashes {
+            if parameter == "dash_offset" {
+                return Ok(&mut d.offset);
+            }
+            if let Some(i) = parameter.strip_prefix("dash_").and_then(|s| s.parse::<usize>().ok()) {
+                if let Some(t) = d.pattern.get_mut(i) {
+                    return Ok(t);
+                }
+            }
+        }
+        Err(crate::Error::Invalid(format!("vector modifier parameter missing: {parameter}")))
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct VectorContent {
@@ -401,18 +416,8 @@ impl VectorContent {
                 _ => {}
             }
         }
-        if let Some(d) = self.stroke.as_mut().and_then(|s| s.dashes.as_mut()) {
-            if parameter == "dash_offset" {
-                return Ok(&mut d.offset);
-            }
-            if let Some(i) = parameter
-                .strip_prefix("dash_")
-                .and_then(|s| s.parse::<usize>().ok())
-            {
-                if let Some(t) = d.pattern.get_mut(i) {
-                    return Ok(t);
-                }
-            }
+        if let Some(stroke) = &mut self.stroke {
+            return stroke.dash_track_mut(parameter);
         }
         Err(crate::Error::Invalid(format!(
             "vector modifier parameter missing: {parameter}"
