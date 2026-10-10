@@ -131,22 +131,17 @@ private val names=mapOf("group" to "组","geometry" to "形状","fill" to "填�
 }
 @Composable private fun GroupPosition(vm:EditorViewModel,key:String,label:String) {
     val value=vm.vectorValue(vm.selected,key) as? JSONArray?:return
-    var input by remember(vm.selected,key){mutableStateOf<Int?>(null)}
     var pad by remember(vm.selected,key){mutableStateOf(false)}
     var captured by remember(vm.selected,key){mutableStateOf<JSONArray?>(null)}
     var at by remember{mutableIntStateOf(0)}
     fun edit(next:JSONArray,save:Boolean){vm.selectVectorTrack(key);vm.edit(JSONObject().put("op","set_vector").put("object",vm.selected).put("property",key).put("frame",at).put("value",next),save)}
     Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
-        TextButton(onClick={vm.selectVectorTrack(key)},modifier=Modifier.width(100.dp)){Text(label,color=if(vm.property==key)Accent else Ink)}
-        for(axis in 0..1)TextButton(onClick={input=axis},enabled=vm.editable(),modifier=Modifier.weight(1f).testTag("group-position-$key-$axis")){Text("${if(axis==0)"X"else"Y"} ${"%.1f".format(value.getDouble(axis))}",fontSize=12.sp)}
-        TextButton(onClick={pad=!pad},enabled=vm.editable(),modifier=Modifier.heightIn(min=48.dp).testTag("group-pad-$key")){Text(if(pad)"数值"else"触控板")}
+        TextButton(onClick={vm.selectVectorTrack(key)},modifier=Modifier.weight(1f)){Text(label,color=if(vm.property==key)Accent else Ink)}
+        TextButton(onClick={pad=!pad},enabled=vm.editable(),modifier=Modifier.heightIn(min=48.dp).testTag("group-pad-$key")){Text(if(pad)"滑轮"else"触控板")}
     }
+    if(!pad)for(axis in 0..1)VectorNumber(vm,key,"${if(axis==0)"X"else"Y"}",-32768.0,32768.0,axis=axis)
     if(pad)TransformTouchpad(Modifier.fillMaxWidth().height(132.dp).testTag("group-touchpad-$key"),listOf(0,1),vm.editable(),onBegin={
         vm.pause();vm.selectVectorTrack(key);captured=JSONArray(value.toString());at=floor(vm.frame).toInt();vm.beginGesture()
     },onDelta={dx,dy,_->captured?.let{v->v.put(0,(v.getDouble(0)+dx).coerceIn(-32768.0,32768.0));v.put(1,(v.getDouble(1)+dy).coerceIn(-32768.0,32768.0));edit(JSONArray(v.toString()),false)}},
         onFinish={commit->if(captured!=null){if(commit)vm.endGesture()else vm.cancelGesture();captured=null}})
-    input?.let{axis->InputDialog("$label ${if(axis==0)"X"else"Y"}",value.getDouble(axis).toString(),{input=null},true){text->
-        val number=text.toDoubleOrNull();if(number==null||!number.isFinite()||number !in -32768.0..32768.0)vm.showOperationError("请输入 -32768 到 32768 之间的数值")
-        else{at=floor(vm.frame).toInt();edit(JSONArray(value.toString()).put(axis,number),true);input=null}
-    }}
 }

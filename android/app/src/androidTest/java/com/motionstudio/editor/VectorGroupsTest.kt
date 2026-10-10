@@ -89,12 +89,19 @@ class VectorGroupsUiTest {
     @Test fun groupPositionUsesSharedTouchpadAndUndoWhileKeepingPreviewAndTimeline() {
         compose.onNodeWithTag("preview-gesture").assertIsDisplayed();compose.onNodeWithTag("timeline").assertIsDisplayed()
         val before=group().getJSONObject("transform").getJSONObject("position").toString()
+        compose.onNodeWithTag("vector-wheel-group:1:position-0").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress){it(12f)}
+        settled{group().getJSONObject("transform").getJSONObject("position").getJSONArray("value").getDouble(0)==12.0}
+        assertEquals(0.0,group().getJSONObject("transform").getJSONObject("position").getJSONArray("value").getDouble(1),0.0)
+        scenario.onActivity{vm.undo()};settled{group().getJSONObject("transform").getJSONObject("position").toString()==before}
         compose.onNodeWithTag("group-pad-vector:group:1:position").performScrollTo().performClick()
+        compose.onNodeWithTag("vector-wheel-group:1:position-0").assertDoesNotExist()
         compose.onNodeWithTag("group-touchpad-vector:group:1:position").performScrollTo().performTouchInput{
             swipe(center,Offset(center.x+60f,center.y),400)
         }
         settled{group().getJSONObject("transform").getJSONObject("position").getJSONArray("value").getDouble(0)!=0.0}
         scenario.onActivity{vm.undo()};settled{group().getJSONObject("transform").getJSONObject("position").toString()==before}
+        compose.onNodeWithTag("group-pad-vector:group:1:position").performScrollTo().performClick()
+        compose.onNodeWithTag("vector-wheel-group:1:position-0").assertExists()
         compose.waitForIdle();val shot=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         File(root,"group-position.png").outputStream().use{shot.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};shot.recycle()
     }
