@@ -102,3 +102,44 @@ fn stream_selection_and_cancel_do_not_silently_fall_back() {
         probed.timestamps[0]
     );
 }
+
+#[test]
+fn advertised_containers_and_codecs_decode_but_ten_bit_is_rejected() {
+    let folder =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../motion-media/tests/fixtures/formats");
+    for (name, mime) in [
+        ("avc.mov", "video/avc"),
+        ("avc.mkv", "video/avc"),
+        ("hevc.mp4", "video/hevc"),
+        ("hevc.mkv", "video/hevc"),
+        ("vp8.webm", "video/x-vnd.on2.vp8"),
+        ("vp8-601.webm", "video/x-vnd.on2.vp8"),
+        ("vp9.webm", "video/x-vnd.on2.vp9"),
+        ("vp9-delayed.webm", "video/x-vnd.on2.vp9"),
+    ] {
+        let path = folder.join(name);
+        let probed = probe(&path, None, Some(u32::MAX), &|| Ok(()))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(probed.asset.mime, mime);
+        let mut decoder = Decoder::open(&path, probed.asset, probed.timestamps.clone()).unwrap();
+        for time in [
+            probed.timestamps[0],
+            *probed.timestamps.last().unwrap(),
+            probed.timestamps[probed.timestamps.len() / 2],
+        ] {
+            assert_eq!(
+                decoder
+                    .frame(time, &|| Ok(()))
+                    .unwrap_or_else(|e| panic!("{name} at {time}: {e}"))
+                    .pts,
+                time
+            );
+        }
+    }
+    for name in ["reject-hevc10.mp4", "reject-vp9-10.webm"] {
+        assert!(
+            probe(&folder.join(name), None, Some(u32::MAX), &|| Ok(())).is_err(),
+            "{name}"
+        );
+    }
+}
