@@ -725,6 +725,9 @@ fn copy_frame(
         ));
     }
     let pixels = frame.rgba()?;
+    if pixels.len() != required {
+        return Err("decoded video RGBA dimensions do not match its pixel buffer".into());
+    }
     unsafe { crate::bridge::copy_bytes(address, &pixels) };
     Ok(media::frame_report(frame, object, sequence))
 }

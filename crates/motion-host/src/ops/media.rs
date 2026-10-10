@@ -738,7 +738,7 @@ pub fn frame_report(
     sequence: u64,
 ) -> Value {
     json!({"object":object,"sequence":sequence,"width":frame.width,"height":frame.height,
-        "bytes":frame.bytes(),"format":"rgba8","pts_us":frame.pts,"end_us":frame.end,
+        "bytes":u64::from(frame.width)*u64::from(frame.height)*4,"format":"rgba8","pts_us":frame.pts,"end_us":frame.end,
         "decode_us":frame.decode_us,"codec_us":frame.codec_us,"transfer_us":frame.transfer_us,
         "pack_us":frame.pack_us,"source_transfer":frame.source_transfer,
         "decoder":frame.decoder_name})
@@ -763,5 +763,23 @@ mod request_tests {
         }
         let duplicate=serde_json::json!({"op":"import_media","request_id":"selected","kind":"audio","uri":"content://one","path":"/two"});
         assert!(serde_json::from_value::<Request>(duplicate).is_err());
+    }
+    #[test]
+    fn pixel_readback_reports_rgba_bytes_instead_of_native_yuv_cache_bytes() {
+        use crate::video_frame::{DecodedFrame,VideoPixels};
+        use motion_render::{VideoPlane,Yuv420Frame};
+        let y=[16,80,192,235];let chroma=[128];
+        let pixels=Yuv420Frame::pack(2,2,[0,0],0,4,2,[
+            VideoPlane {data:&y,row_stride:2,pixel_stride:1},
+            VideoPlane {data:&chroma,row_stride:1,pixel_stride:1},
+            VideoPlane {data:&chroma,row_stride:1,pixel_stride:1},
+        ]).unwrap();
+        let frame=DecodedFrame {pixels:VideoPixels::Yuv(pixels),pts:0,end:33333,width:2,height:2,decode_us:0,codec_us:0,transfer_us:0,pack_us:0,source_transfer:"yuv",decoder_name:"test".into()};
+        assert_eq!(frame.bytes(),6);
+        let rgba=frame.rgba().unwrap();
+        assert_eq!(rgba.len(),16);
+        let report=super::frame_report(&frame,1,1);
+        assert_eq!(report["format"],"rgba8");
+        assert_eq!(report["bytes"].as_u64().unwrap() as usize,rgba.len());
     }
 }

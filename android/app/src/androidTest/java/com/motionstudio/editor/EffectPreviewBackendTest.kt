@@ -24,7 +24,8 @@ class EffectPreviewBackendTest {
     @Test fun repeatedBindingDisconnectsTheOldProducerBeforeCreatingAnotherSurface() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val root=File(context.filesDir,"acceptance/surface-rebind-${UUID.randomUUID()}").apply{mkdirs()}
-        val project=data(NativeBridge.projectTemplate(1)).put("width",96).put("height",64)
+        val project=data(NativeBridge.projectTemplate(0)).put("width",96).put("height",64).put("layers",JSONArray())
+        project.getJSONObject("camera").put("created",false)
         val id=NativeBridge.create(root.absolutePath,project.toString())
         assertTrue(NativeBridge.creationError(),id>0)
         val consumer=HandlerThread("surface-rebind-consumer").apply{start()}
