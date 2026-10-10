@@ -73,9 +73,7 @@ impl Session {
                     .import_face(&PathBuf::from(path), license, index)?;
                 let commands = self.font_commands(&info);
                 if !commands.is_empty() {
-                    self.engine
-                        .apply_batch(commands)
-                        .map_err(|e| e.to_string())?;
+                    self.apply_command_batch(commands)?;
                 }
                 return Ok(json!({"font":info,"revision":self.engine.revision()}));
             }
@@ -164,10 +162,7 @@ impl Session {
                     }
                 }
                 if !commands.is_empty() {
-                    self.engine
-                        .apply_batch(commands)
-                        .map_err(|e| e.to_string())?;
-                    self.sample()?;
+                    self.apply_command_batch(commands)?;
                 }
                 return Ok(
                     json!({"asset":asset,"font":id,"layout":layout,"revision":self.engine.revision(),"glyphCacheBytes":self.fonts()?.cache_bytes()}),

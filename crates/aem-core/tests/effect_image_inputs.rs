@@ -102,3 +102,19 @@ fn reference_changes_and_deleted_sources_are_atomic_and_undoable() {
     });
     assert!(invalid.validate().is_err());
 }
+
+#[test]
+fn removing_a_material_through_the_editor_clears_references_and_undo_restores_them() {
+    let mut p = fixture();
+    let input = Some(EffectImageInput::Layer { layer: 2, stage: EffectImageStage::Effects });
+    p.layers[0].effects[0].image_input = input;
+    let mut engine = Engine::new(p).unwrap();
+    engine.apply(Command::Remove { object: 2, frame: 0 }).unwrap();
+    assert_eq!(engine.project().layers.len(), 1);
+    assert_eq!(engine.project().layers[0].effects[0].image_input, Some(EffectImageInput::Empty));
+    engine.undo().unwrap();
+    assert_eq!(engine.project().layers.len(), 2);
+    assert_eq!(engine.project().layers[0].effects[0].image_input, input);
+    engine.redo().unwrap();
+    assert_eq!(engine.project().layers[0].effects[0].image_input, Some(EffectImageInput::Empty));
+}

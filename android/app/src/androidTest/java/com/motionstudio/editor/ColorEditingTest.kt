@@ -217,6 +217,27 @@ class ColorEditingTest {
         compose.onNodeWithTag("color-cancel").performClick()
         scenario.onActivity{it.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_PORTRAIT}
     }
+    @Test fun nativeBuiltinColorsExposeAlphaAndCommitAsOneUndo() {
+        scenario.onActivity{vm.openEffects()};settled{vm.effectsOpen&&vm.catalogue!=null}
+        scenario.onActivity{
+            val pkg=effectPackages(vm).first{it.getJSONObject("manifest").getString("version")=="2.0.0"}
+            val manifest=pkg.getJSONObject("manifest")
+            vm.pluginOperation(JSONObject().put("op","add").put("object",1).put("plugin",manifest.getString("id"))
+                .put("version",manifest.getString("version")).put("hash",pkg.getString("hash")).put("effect","drop_shadow"),true)
+        }
+        settled{vm.layer(1)!!.getJSONArray("effects").length()==2}
+        compose.onNodeWithTag("effect-instance-2").onChildAt(0).performClick()
+        compose.onNodeWithTag("effect-color-2-color-palette").performScrollTo().performClick()
+        settled{vm.colorEditor!=null}
+        assertTrue("Native RGBA effects must retain editable opacity",vm.colorEditor!!.alphaEditable)
+        scenario.onActivity{vm.previewColor(Rgba(.8,.2,.1,.25))}
+        fun alpha()=vm.effectParam(1,2,"color")!!.getJSONObject("track").getJSONArray("value").getDouble(3)
+        settled{abs(alpha()-.25)<.001}
+        compose.onNodeWithTag("color-confirm").performClick();settled{vm.colorEditor==null&&vm.state.saved}
+        scenario.onActivity{vm.undo()};settled{abs(alpha()-.65)<.001}
+        scenario.onActivity{vm.redo()};settled{abs(alpha()-.25)<.001}
+    }
+
     @Test fun rgbOverviewContainsAlphaAndDraggingAlphaLeavesRgbAlone() {
         scenario.onActivity{vm.openEffects()};settled{vm.effectsOpen&&vm.catalogue!=null}
         compose.onNodeWithTag("effect-instance-1").onChildAt(0).performClick()

@@ -258,6 +258,15 @@ pub enum EffectImageInput {
 impl EffectImageInput {
     pub fn layer(self) -> Option<u64> { if let Self::Layer { layer, .. } = self { Some(layer) } else { None } }
 }
+pub(crate) fn clear_layer_image_inputs(layers: &mut [Layer], source: u64) {
+    for layer in layers {
+        for effect in &mut layer.effects {
+            if effect.image_input.and_then(EffectImageInput::layer) == Some(source) {
+                effect.image_input = Some(EffectImageInput::Empty);
+            }
+        }
+    }
+}
 pub(crate) fn validate_image_graph(project: &crate::Project) -> Result<()> {
     fn visit(project: &crate::Project, id: u64, marks: &mut BTreeMap<u64, u8>) -> Result<()> {
         match marks.get(&id) {

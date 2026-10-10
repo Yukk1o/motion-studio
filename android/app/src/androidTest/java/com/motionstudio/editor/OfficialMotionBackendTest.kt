@@ -1,6 +1,12 @@
 package com.motionstudio.editor
 
 import androidx.test.platform.app.InstrumentationRegistry
+import android.graphics.ImageFormat
+import android.hardware.HardwareBuffer
+import android.media.ImageReader
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.SystemClock
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -80,6 +86,78 @@ class OfficialMotionBackendTest {
                 try{val first=render(7);render(31);assertArrayEquals("$name depends on playback history",first,render(7))}finally{gpu.close()}
                 data(NativeBridge.command(id,JSONObject().put("op","effect").put("object",1).put("action",JSONObject().put("kind","remove").put("effect",1)).toString()))
             }
+        }finally{NativeBridge.destroy(id)}
+    }
+
+    @Test fun generatedFontAtlasRefreshesAnAlreadyAttachedPreview() {
+        val (_,id)=fixture()
+        val consumer=HandlerThread("font-preview-consumer").apply{start()}
+        val reader=ImageReader.newInstance(64,64,ImageFormat.PRIVATE,3,HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE)
+        reader.setOnImageAvailableListener({it.acquireLatestImage()?.close()},Handler(consumer.looper))
+        fun render() {
+            val deadline=SystemClock.elapsedRealtime()+5000
+            while(!NativeBridge.render(id,0.0)) {
+                assertTrue(NativeBridge.state(id),SystemClock.elapsedRealtime()<deadline)
+                Thread.sleep(10)
+            }
+        }
+        try {
+            data(NativeBridge.surface(id,reader.surface,64,64));render()
+            add(id,1,"ascii")
+            data(NativeBridge.plugin(id,"""{"op":"font_atlas","size":32,"characters":" .#@","object":1,"instance":1}"""))
+            render()
+            assertFalse(NativeBridge.state(id).contains("is not registered"))
+        }finally{
+            data(NativeBridge.surface(id,null,0,0));NativeBridge.destroy(id)
+            reader.setOnImageAvailableListener(null,null);consumer.quitSafely();consumer.join(3000);reader.close()
+        }
+    }
+
+    @Test fun copiedMaterialGraphBindsToCopiedSourcesAndMissingExternalSourcesRejectPaste() {
+        val (root,id)=fixture()
+        try {
+            val p=data(NativeBridge.state(id)).getJSONObject("project")
+            val source=JSONObject(p.getJSONArray("layers").getJSONObject(0).toString()).put("id",2).put("visible",false)
+            data(NativeBridge.command(id,JSONObject().put("op","add").put("layer",source).toString()))
+            add(id,1,"displacement_map")
+            data(NativeBridge.plugin(id,"""{"op":"image_input","object":1,"instance":1,"input":{"kind":"layer","layer":2}}"""))
+            val before=data(NativeBridge.state(id)).getJSONObject("project")
+            val clip=LayerClipboard.capture(root,before,setOf(1L,2L))!!
+            val external=LayerClipboard.capture(root,before,setOf(1L))!!
+            val paste=clip.plan(before,0)!!
+            data(NativeBridge.command(id,paste.commands.toString()))
+            val copied=data(NativeBridge.state(id)).getJSONObject("project").getJSONArray("layers").objects().first{it.getLong("id")==3L}
+            assertEquals(4L,copied.getJSONArray("effects").getJSONObject(0).getJSONObject("image_input").getLong("layer"))
+            data(NativeBridge.command(id,"""{"op":"remove","object":2,"frame":0}"""))
+            val after=data(NativeBridge.state(id)).getJSONObject("project")
+            assertFalse("A stale external material cannot be silently reused",external.available(after))
+            assertNull(external.plan(after,0))
+        }finally{NativeBridge.destroy(id)}
+    }
+
+    @Test fun copyingMutualSourceStageInputsIsAtomicAndKeepsTheCopiedGraph() {
+        val (root,id)=fixture()
+        try {
+            val p=data(NativeBridge.state(id)).getJSONObject("project")
+            val source=JSONObject(p.getJSONArray("layers").getJSONObject(0).toString()).put("id",2)
+            data(NativeBridge.command(id,JSONObject().put("op","add").put("layer",source).toString()))
+            for(objectId in listOf(1,2)) {
+                add(id,objectId,"displacement_map")
+                data(NativeBridge.plugin(id,JSONObject().put("op","image_input").put("object",objectId).put("instance",1)
+                    .put("input",JSONObject().put("kind","layer").put("stage","source").put("layer",3-objectId)).toString()))
+            }
+            val before=data(NativeBridge.state(id)).getJSONObject("project")
+            val paste=LayerClipboard.capture(root,before,setOf(1L,2L))!!.plan(before,0)!!
+            data(NativeBridge.command(id,paste.commands.toString()))
+            val copies=data(NativeBridge.state(id)).getJSONObject("project").getJSONArray("layers").objects().associateBy{it.getLong("id")}
+            for((objectId,sourceId) in listOf(3L to 4L,4L to 3L)) {
+                val input=copies.getValue(objectId).getJSONArray("effects").getJSONObject(0).getJSONObject("image_input")
+                assertEquals(sourceId,input.getLong("layer"));assertEquals("source",input.getString("stage"))
+            }
+            data(NativeBridge.history(id,0))
+            assertEquals("Paste must be undone in one step",before.toString(),data(NativeBridge.state(id)).getJSONObject("project").toString())
+            data(NativeBridge.history(id,1))
+            assertEquals(4,data(NativeBridge.state(id)).getJSONObject("project").getJSONArray("layers").length())
         }finally{NativeBridge.destroy(id)}
     }
 }
