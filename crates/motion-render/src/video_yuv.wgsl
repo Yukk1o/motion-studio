@@ -1,4 +1,4 @@
-struct Params { size_rotation_standard: vec4<u32>, range_phase: vec4<u32> }
+struct Params { size_rotation_standard: vec4<u32>, range_phase: vec4<u32>, output_size: vec4<u32> }
 @group(0) @binding(0) var y_plane: texture_2d<u32>;
 @group(0) @binding(1) var uv_plane: texture_2d<u32>;
 @group(0) @binding(2) var<uniform> params: Params;
@@ -10,7 +10,9 @@ struct Params { size_rotation_standard: vec4<u32>, range_phase: vec4<u32> }
 }
 fn convert_pixel(pos: vec4<f32>) -> vec4<f32> {
     let size = params.size_rotation_standard.xy;
-    let dst = vec2<u32>(pos.xy);
+    let rotated = params.size_rotation_standard.z == 90u || params.size_rotation_standard.z == 270u;
+    let display_size = select(size, size.yx, rotated);
+    let dst = min(vec2<u32>(pos.xy * vec2<f32>(display_size) / vec2<f32>(params.output_size.xy)), display_size - vec2<u32>(1u));
     var src = dst;
     switch params.size_rotation_standard.z {
         case 90u: { src = vec2<u32>(dst.y, size.y - 1u - dst.x); }

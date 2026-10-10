@@ -57,6 +57,7 @@ pub struct Session {
     pub media_compositions: HashMap<String, String>,
     pub video_jobs: VideoJobs,
     pub video_frames: VideoFrames,
+    pub preview_inputs: crate::preview_inputs::PreviewInputReader,
     pub audio_jobs: AudioJobs,
     pub package_jobs: PackageJobs,
     pub audio_mixer: Option<(u64, AudioMixer)>,
@@ -137,6 +138,7 @@ impl Session {
             media_compositions: Default::default(),
             video_jobs,
             video_frames: VideoFrames::new(platform.clone()),
+            preview_inputs: crate::preview_inputs::PreviewInputReader::new(platform.clone()),
             audio_jobs,
             package_jobs: PackageJobs::default(),
             audio_mixer: None,
@@ -208,6 +210,7 @@ impl Session {
         // Frozen package exports stay queryable across project replacement, but
         // their open source handles belong to the old snapshot.
         self.video_frames.clear();
+        self.preview_inputs.cancel();
         self.audio_mixer = None;
         self.root = root;
         self.font_store = None;
@@ -232,6 +235,7 @@ impl Session {
     }
 
     pub fn detach(&mut self) {
+        self.preview_inputs.cancel();
         self.video_frames.clear();
         if let Some(g) = self.graphics.take() {
             g.renderer.device.poll(wgpu::Maintain::Wait);

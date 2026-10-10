@@ -62,7 +62,11 @@ impl VideoGpu {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some(if format == wgpu::TextureFormat::Rgba8Unorm { "fragment_main" } else { "fragment_srgb" }),
+                entry_point: Some(if format == wgpu::TextureFormat::Rgba8Unorm {
+                    "fragment_main"
+                } else {
+                    "fragment_srgb"
+                }),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
@@ -112,6 +116,17 @@ impl VideoGpu {
         frame: &Yuv420Frame,
         target: &wgpu::TextureView,
     ) {
+        self.convert_resized(device, queue, object, frame, target, frame.display_size());
+    }
+    pub fn convert_resized(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        object: u64,
+        frame: &Yuv420Frame,
+        target: &wgpu::TextureView,
+        output_size: (u32, u32),
+    ) {
         let (cw, ch) = frame.chroma_size();
         let size = (frame.width, frame.height, cw, ch);
         if self.inputs.get(&object).is_none_or(|i| i.size != size) {
@@ -135,7 +150,7 @@ impl VideoGpu {
             let uv = create(cw, ch, wgpu::TextureFormat::Rg8Uint);
             let uniform = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("video conversion parameters"),
-                size: 32,
+                size: 48,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -205,6 +220,10 @@ impl VideoGpu {
             frame.phase[0],
             frame.phase[1],
             frame.chroma_layout as u32,
+            output_size.0,
+            output_size.1,
+            0,
+            0,
         ];
         queue.write_buffer(&input.uniform, 0, bytemuck::cast_slice(&params));
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

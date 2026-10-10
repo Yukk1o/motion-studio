@@ -24,6 +24,7 @@
 
 pub mod ops;
 pub mod platform;
+pub mod preview_inputs;
 pub mod session;
 pub mod video_cache;
 pub mod video_decode_policy;
