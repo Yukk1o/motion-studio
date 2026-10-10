@@ -85,12 +85,12 @@ def main():
         features=["--features","diagnostics"] if diagnostics else []
         overrides=[]
         if args.codegen_units:
-            for package in ("aem-core","aem-effects","aem-render","aem-media","aem-android"):
+            for package in ("motion-core","motion-effects","motion-render","motion-media","motion-android"):
                 overrides.extend(["--config",f'profile.release.package.{package}.codegen-units={args.codegen_units}'])
-        subprocess.run(["cargo","build","--locked","-p","aem-android","--target",target,"--release",*features,*overrides],cwd=ROOT,env=build_env,check=True)
+        subprocess.run(["cargo","build","--locked","-p","motion-android","--target",target,"--release",*features,*overrides],cwd=ROOT,env=build_env,check=True)
         destination=ROOT/"android/app/src/main/jniLibs"/abi
         destination.mkdir(parents=True,exist_ok=True)
-        shutil.copy2(target_dir/target/"release/libaem_android.so",destination/"libmotion_engine.so")
+        shutil.copy2(target_dir/target/"release/libmotion_android.so",destination/"libmotion_engine.so")
     if not args.rust_only:
         android=ROOT/"android"
         sdk=Path(config["sdk"]).as_posix().replace(":","\\:")

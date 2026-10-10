@@ -4,7 +4,7 @@ import json
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-DEST = ROOT / "crates/aem-effects/scene-library"
+DEST = ROOT / "crates/motion-effects/scene-library"
 
 def parameter(id, name, kind, default, low, high, units="", animate=True, options=None):
     values = default if isinstance(default, list) else [default]

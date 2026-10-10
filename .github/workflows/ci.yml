@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/desktop']
   push:
-    branches: [main]
+    branches: [main, 'feat/desktop']
     tags: ['v*']
   workflow_dispatch:
 
@@ -40,7 +40,7 @@ jobs:
       - name: Install headless Vulkan and native build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev fonts-noto-cjk
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
           rustup toolchain install 1.97.1 --profile minimal
@@ -56,7 +56,7 @@ jobs:
           python -m unittest discover -s tools -p 'test_ci_*.py' -v
           test -z "$(git ls-files docs)"
       - name: Run Rust and software Vulkan tests
-        run: cargo test --workspace --locked --features aem-android/diagnostics -- --test-threads=1
+        run: cargo test --workspace --locked --features motion-android/diagnostics -- --test-threads=1
       - name: Summarize effect costs
         if: always()
         run: |
@@ -70,6 +70,86 @@ jobs:
           path: artifacts/effect-costs/**
           if-no-files-found: warn
           retention-days: 30
+
+  desktop:
+    name: Desktop build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+    env:
+      XDG_RUNTIME_DIR: /tmp/motion-runtime
+      LIBCLANG_PATH: /usr/lib/llvm-18/lib
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install headless Vulkan and native build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libclang-18-dev fonts-noto-cjk xvfb libxkbcommon0 libxkbcommon-x11-0
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+      - name: Install Rust
+        run: rustup toolchain install 1.97.1 --profile minimal --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: desktop-native
+          save-if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          cache-on-failure: true
+      # The libav backend is optional so the shell builds on a machine without
+      # FFmpeg; a separate job turns it on to prove the desktop media path links.
+      - name: Build the desktop shell
+        run: python tools/build_desktop.py --task check
+      - name: Run desktop unit tests
+        run: cargo test -p motion-desktop -p motion-host -p motion-ui -p motion-desktop-media --locked -- --test-threads=1
+      - name: Release desktop binary without video support
+        run: python tools/build_desktop.py --task build --report artifacts/desktop/desktop-build.json
+      - name: Verify native windows, language and shared MCP
+        if: runner.os == 'Linux'
+        env:
+          WGPU_BACKEND: vulkan
+        run: xvfb-run -a python tools/ci_desktop.py --binary target/release/motion-studio --output artifacts/desktop
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: desktop-build-${{ matrix.os }}
+          path: artifacts/desktop/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  desktop-media:
+    name: Desktop libav backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install libav, Vulkan and native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev \
+            libavfilter-dev libswscale-dev libswresample-dev \
+            mesa-vulkan-drivers libvulkan1 libclang-18-dev
+      - name: Install Rust
+        run: rustup toolchain install 1.97.1 --profile minimal --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: desktop-ffmpeg
+      - name: Build with video import and decoding
+        run: python tools/build_desktop.py --task check --ffmpeg
+      - name: Test libav probing, seeks and YUV frames
+        run: cargo test -p motion-desktop-media --locked --features ffmpeg -- --test-threads=1
 
   android:
     name: Android build
@@ -204,7 +284,7 @@ jobs:
   publish:
     name: Publish release
     if: github.event_name == 'push'
-    needs: [checks, android, ui]
+    needs: [checks, desktop, desktop-media, android, ui]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

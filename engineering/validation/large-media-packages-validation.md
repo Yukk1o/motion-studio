@@ -7,7 +7,7 @@
 Windows 主机，Rust stable 1.97.1，运行：
 
 ```powershell
-cargo test --locked --workspace --features aem-android/diagnostics -- --test-threads=1
+cargo test --locked --workspace --features motion-android/diagnostics -- --test-threads=1
 ```
 
 全工作区结果：201 通过、0 失败、2 个大型文件用例默认忽略；其中新的大文件用例已按下文另行运行。补充源文件句柄尺寸检查后，直接受影响的 10 个工程包／视频事务用例再次通过。
@@ -28,7 +28,7 @@ cargo test --locked --workspace --features aem-android/diagnostics -- --test-thr
 ```powershell
 $env:MOTION_LARGE_VIDEO_SOURCE='E:/local-input/large-mp4-with-aac.mp4'
 $env:MOTION_LARGE_VIDEO_REPORT='E:/local-output/host-large-source.json'
-cargo test --locked -p aem-media --test video_transactions large_source_roundtrip -- --ignored --nocapture --test-threads=1
+cargo test --locked -p motion-media --test video_transactions large_source_roundtrip -- --ignored --nocapture --test-threads=1
 ```
 
 输入需要 512 MiB 以上、2 GiB 以内，音轨索引 1 为可解码 AAC；另需约源文件三倍的临时磁盘空间。注入的视频探测沿用合成测试图的元数据，不能据此判断真实视频尺寸、帧率、MediaCodec 支持或预览画质。

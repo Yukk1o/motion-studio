@@ -5,7 +5,7 @@ import json
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT/'crates/aem-media/tests/fixtures/inputs'
+OUT = ROOT/'crates/motion-media/tests/fixtures/inputs'
 OUT.mkdir(parents=True,exist_ok=True)
 CASES = [
     ('uhd-60.mp4',3840,2160,'60','0.25'),

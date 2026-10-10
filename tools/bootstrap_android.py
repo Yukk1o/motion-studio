@@ -18,7 +18,7 @@ NDK = "27.0.12077973"
 
 
 def get(url):
-    return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "AEM-build/0.1"}), timeout=90)
+    return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "Motion Studio-build/0.1"}), timeout=90)
 
 
 def download(url, name, checksum=None):

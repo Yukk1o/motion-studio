@@ -182,4 +182,4 @@ GLES 使用相同三角网格，处理 FBO 与插件输入的 Y 方向差异。�
 
 格式 1–6 打开时在内存迁移为 7，不修改旧文件，保留已有图层、效果、媒体和关键帧，包括格式 6 的矢量与调整图层。前端识别 `vector/adjustment` 后使用上述能力描述生成控件，避免把它们当作纯色层。
 
-回归用例见 `crates/aem-core/tests/vector_layers.rs`、`crates/aem-render/tests/vector_adjustment.rs` 和 Android `VectorAdjustmentTest`。前端接入应覆盖：创建与排序、开放到闭合、节点增删和切线拖动、样式动画、转换提示、一次拖动一次撤销、工程保存恢复、调整层区域变换、错误展示与冻结导出。
+回归用例见 `crates/motion-core/tests/vector_layers.rs`、`crates/motion-render/tests/vector_adjustment.rs` 和 Android `VectorAdjustmentTest`。前端接入应覆盖：创建与排序、开放到闭合、节点增删和切线拖动、样式动画、转换提示、一次拖动一次撤销、工程保存恢复、调整层区域变换、错误展示与冻结导出。

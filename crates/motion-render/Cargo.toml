@@ -1,0 +1,24 @@
+[package]
+name = "motion-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+motion-effects = { path = "../motion-effects" }
+motion-core = { path = "../motion-core" }
+wgpu.workspace = true
+glam.workspace = true
+bytemuck.workspace = true
+image.workspace = true
+png = "0.18.1"
+sha2 = "0.10"
+pollster.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+lyon_tessellation = "1.0.22"
+
+[dev-dependencies]
+motion-media = { path = "../motion-media" }
+serde.workspace = true
+tempfile = "3.17"

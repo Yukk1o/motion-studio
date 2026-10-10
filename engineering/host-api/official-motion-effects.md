@@ -87,4 +87,4 @@ TTF / OTF / TTC 共享 Rust 字形模块。单文件上限 32 MiB，字号 4–2
 
 `MOTION_EFFECT_REPORT` 在原 `effect-costs.json` / `.md` 路径产出统一内置包全部 95 项的 4K 计划成本，scope 为 `current_builtin_manifest`；CI 汇总并上传这份报告。这个默认单层报告不包含多图层来源快照，不冒充设备性能测量。
 
-构建内置包：先运行 `generate_motion.py`，再运行 `generate_builtin.py`，最后 `effect_tool pack crates/aem-effects/builtin-library crates/aem-effects/builtin-library/builtin-effects.msfx`。SDK 6 单包上限 128 项、manifest 上限 512 KiB；旧 SDK 单包上限仍为 64 项，layer 参数/pass/循环/资源限制不变。
+构建内置包：先运行 `generate_motion.py`，再运行 `generate_builtin.py`，最后 `effect_tool pack crates/motion-effects/builtin-library crates/motion-effects/builtin-library/builtin-effects.msfx`。SDK 6 单包上限 128 项、manifest 上限 512 KiB；旧 SDK 单包上限仍为 64 项，layer 参数/pass/循环/资源限制不变。

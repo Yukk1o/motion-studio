@@ -4,7 +4,7 @@
 
 基线为 `main@55830ed`，包含空间效果边界（#29）、视频输入和导入顺序修复。
 完整 Rust 工作区回归 **172 项通过，0 项失败，1 项既有大文件测试忽略**。
-命令增加 `--features aem-android/diagnostics`，Windows GPU 使用 DX12。
+命令增加 `--features motion-android/diagnostics`，Windows GPU 使用 DX12。
 日志在本地 `artifacts/pr24-host-validation.log`，不提交 Git。
 
 补充 GPU 回归覆盖：两个调整层的顺序、旋转且带父级的作用区域、相交 3D 图层、

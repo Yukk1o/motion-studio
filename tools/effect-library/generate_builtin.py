@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
-EFFECTS=ROOT/"crates/aem-effects"
+EFFECTS=ROOT/"crates/motion-effects"
 OUT=EFFECTS/"builtin-library"
 OUT.mkdir(exist_ok=True)
 groups=[EFFECTS/"library",EFFECTS/"motion-library"]

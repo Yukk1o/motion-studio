@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LIB = ROOT / 'crates/aem-effects/library'
+LIB = ROOT / 'crates/motion-effects/library'
 
 
 def param(id, name, value, minimum=0, maximum=1, units='', kind='float', **extra):

@@ -25,7 +25,7 @@ SDK 5 原生插件专属页也复用相同的参数行、色盘及收藏。选�
 
 “设置常用色块”进入配置模式：点选内置色或收藏色加入／移出常用，列表中的前移、后移和移除决定参数行显示哪些颜色以及显示顺序。用户可以清空全部常用色，不会被默认列表自动覆盖。删除收藏同时移除它的常用引用。默认提供六个色块，用户配置不随工程变化。
 
-`ColorBookmarks` 使用 App 私有 SharedPreferences `motion-color-palette`，键 `favorites` 和 `common`。收藏使用稳定 UUID；常用引用为 `builtin:#RRGGBB` 或 `favorite:<UUID>`，按列表顺序显示。配置属于本机用户偏好，不写入 `.aem` 或效果包；重新打开 App／切换工程保留设置。
+`ColorBookmarks` 使用 App 私有 SharedPreferences `motion-color-palette`，键 `favorites` 和 `common`。收藏使用稳定 UUID；常用引用为 `builtin:#RRGGBB` 或 `favorite:<UUID>`，按列表顺序显示。配置属于本机用户偏好，不写入 `.msproj` 或效果包；重新打开 App／切换工程保留设置。
 
 ### 吸管
 

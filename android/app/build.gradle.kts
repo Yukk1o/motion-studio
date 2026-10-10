@@ -18,7 +18,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
-    sourceSets.getByName("androidTest").assets.srcDir("../../crates/aem-media/tests/fixtures")
+    sourceSets.getByName("androidTest").assets.srcDir("../../crates/motion-media/tests/fixtures")
     androidResources { noCompress += listOf("wav", "mp3", "m4a", "mp4", "bin", "mov", "mkv", "webm", "flac", "ogg", "aac", "aiff") }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

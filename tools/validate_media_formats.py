@@ -23,7 +23,7 @@ def main():
     args=parser.parse_args()
     assert 1<=args.adb_port<=65535
     adb=[args.adb,'-P',str(args.adb_port),'-s',args.serial,'exec-out','run-as','com.motionstudio.editor']
-    fixtures=Path(__file__).resolve().parents[1]/'crates/aem-media/tests/fixtures/formats'
+    fixtures=Path(__file__).resolve().parents[1]/'crates/motion-media/tests/fixtures/formats'
     manifest=json.loads((fixtures/'manifest.json').read_text())
     args.output.mkdir(parents=True,exist_ok=True)
     latest={}

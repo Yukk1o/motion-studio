@@ -27,7 +27,7 @@ def main():
     roots = args.remote_project or [str(Path(p).parent).replace("\\", "/") for p in run(
         *adb, "find", "files/acceptance", "-name", "video-report.json"
     ).decode().splitlines()]
-    fixtures = Path(__file__).resolve().parents[1] / "crates/aem-media/tests/fixtures/video"
+    fixtures = Path(__file__).resolve().parents[1] / "crates/motion-media/tests/fixtures/video"
     manifest = json.loads((fixtures / "manifest.json").read_text())
     if args.latest_per_fixture:
         latest = {}

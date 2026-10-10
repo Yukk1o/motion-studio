@@ -3,7 +3,7 @@ from pathlib import Path
 import json, math, struct, subprocess, tempfile, wave
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / 'crates/aem-media/tests/fixtures/video'
+OUT = ROOT / 'crates/motion-media/tests/fixtures/video'
 OUT.mkdir(parents=True, exist_ok=True)
 WIDTH, HEIGHT = 256, 144
 COLORS = [(230, 30, 30), (30, 220, 30), (30, 30, 230), (220, 220, 30)]

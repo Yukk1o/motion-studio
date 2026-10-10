@@ -5,7 +5,7 @@ from pathlib import Path
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-LIB = ROOT / 'crates/aem-effects/library'
+LIB = ROOT / 'crates/motion-effects/library'
 
 
 def c(value): return dict(op='constant', value=value)

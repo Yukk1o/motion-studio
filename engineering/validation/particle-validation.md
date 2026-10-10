@@ -75,7 +75,7 @@ adb -s <serial> shell am instrument -w -r -e class com.motionstudio.editor.Nativ
 正序/倒序/随机寻帧画面、引用撤销重做及保存恢复，帧间对照 MAE ≤3。
 场景生成器的现有图层预合成限制继续生效；该用例使用已有合成引用 API。
 
-补验结果：Rust workspace `aem-android/diagnostics` 206 成功、0 失败、1 个原有用例忽略；
+补验结果：Rust workspace `motion-android/diagnostics` 206 成功、0 失败、1 个原有用例忽略；
 arm64-v8a / x86_64、APK / test APK、10 个 JVM 用例、lint 构建成功。
 11 个设备用例执行 46.792 s，其中原生粒子/场景/目录 6 项与合成后端 3 项成功；
 2 项原有子合成未编码对照未达阈值，保留为环境兼容性待查项：

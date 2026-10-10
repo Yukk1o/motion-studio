@@ -5,7 +5,7 @@
 
 ## 同步主分支后的补充验证
 
-完整 Rust 工作区（含 `aem-android/diagnostics`）**177 项通过，0 项失败，1 项既有大文件测试忽略**。
+完整 Rust 工作区（含 `motion-android/diagnostics`）**177 项通过，0 项失败，1 项既有大文件测试忽略**。
 日志在本地 `artifacts/pr28-host-validation.log`。主分支带入空间效果边界、视频输入能力和导入顺序修复。
 
 修复合成设置仍限制 30/60 fps 的问题，与主分支统一为整数 **1–240 fps**。

@@ -6,7 +6,7 @@ from pathlib import Path
 import hashlib, json, subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = ROOT / 'crates/aem-media/tests/fixtures'
+FIXTURES = ROOT / 'crates/motion-media/tests/fixtures'
 OUT = FIXTURES / 'formats'
 OUT.mkdir(parents=True, exist_ok=True)
 
