@@ -36,6 +36,9 @@ fn same_layer(a: &DrawLayer, b: &DrawLayer) -> bool {
         }
         && Arc::ptr_eq(&a.masks, &b.masks)
         && a.adjustment == b.adjustment
+        && a.blend == b.blend
+        && a.track_matte == b.track_matte
+        && a.composite_visible == b.composite_visible
         && a.composition == b.composition
         && a.depth.to_bits() == b.depth.to_bits()
         && a.order == b.order

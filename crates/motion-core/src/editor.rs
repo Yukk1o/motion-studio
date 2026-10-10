@@ -523,6 +523,15 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             if layer.locked { return Err(Error::Locked(object)); }
             crate::masks::edit(&mut layer.masks, action, layer.timeline.map_or(0, |t| t.offset_frame))?;
         }
+        Command::SetLayerBlend {object,mode,space}=> {
+            project.version=project.version.max(10);
+            let l=project.layer_mut(object)?;if l.locked{return Err(Error::Locked(object));}
+            if let Some(mode)=mode {l.blend.mode=mode;}if let Some(space)=space {l.blend.space=space;}
+        }
+        Command::SetTrackMatte {object,matte}=> {
+            project.version=project.version.max(10);
+            let l=project.layer_mut(object)?;if l.locked{return Err(Error::Locked(object));}l.track_matte=matte;
+        }
         Command::RegisterAsset { asset } => project.assets.push(asset),
         Command::RegisterFontAsset { asset } => project.fonts.push(asset),
         Command::Content {
@@ -548,6 +557,7 @@ fn apply_to(project: &mut Project, command: Command) -> Result<Option<EditResult
             project.camera = crate::Camera::new(project.width, project.height);
         }
         Command::Remove { object, frame } => {
+            ensure(!project.layers.iter().any(|l|l.track_matte.is_some_and(|m|m.source==object)),"layer is referenced as a track matte; clear dependent references before deletion")?;
             valid_frame(frame)?;
             if object == 0 {
                 ensure(project.camera.created, "camera does not exist")?;

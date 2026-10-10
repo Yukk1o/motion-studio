@@ -62,6 +62,7 @@ import kotlin.math.*
                         }
                         if(kind in listOf("solid","image","text","video","vector","adjustment","composition"))LayerCategory("效果","open-effects",vm::openEffects)
                         if(kind in listOf("solid","image","text","video","vector","composition"))LayerCategory("蒙版","open-masks",vm::openMasks)
+                        if(kind in listOf("solid","image","text","video","vector","composition"))LayerCategory("混合","footer-compositing"){vm.openProperty("compositing")}
                         if(kind=="vector") {
                             LayerCategory(if(vm.vectorData()?.getJSONObject("source")?.optString("kind")=="shape")"形状"else"路径","footer-vector"){vm.openVector()}
                             LayerCategory("样式","footer-vector-style"){vm.openVector("style")}
@@ -142,6 +143,7 @@ private class ValueDrag(private val vm:EditorViewModel) {
 }
 
 @Composable internal fun Properties(vm:EditorViewModel,modifier:Modifier,backEnabled:Boolean=true,onCurveMode:(Boolean)->Unit={}) {
+    if(vm.property=="compositing"){LayerCompositingPanel(vm,modifier,backEnabled);return}
     if(vm.contentKind()=="audio"||vm.property=="audio") {AudioProperties(vm,modifier);return}
     var rename by remember{mutableStateOf(false)}
     var anchor by remember{mutableStateOf(false)}

@@ -14,6 +14,7 @@ pub mod hierarchy;
 mod model;
 pub mod particle_history;
 pub mod masks;
+pub mod compositing;
 pub mod storage;
 mod timeline;
 mod video;

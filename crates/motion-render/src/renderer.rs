@@ -1,5 +1,6 @@
 use motion_model::{Project, MAX_LAYERS};
 use crate::{PlaneCompositor, Scene};
+mod compositing;
 use bytemuck::{Pod, Zeroable};
 use image::ImageReader;
 use std::{
@@ -34,7 +35,7 @@ pub(crate) type Result<T> = std::result::Result<T, RenderError>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct DrawUniform {
+pub(crate) struct DrawUniform {
     mvp: [[f32; 4]; 4],
     color: [f32; 4],
     extent_opacity: [f32; 4],
@@ -108,6 +109,7 @@ pub struct Renderer {
     additive_pipeline: wgpu::RenderPipeline,
     masked_pipeline: wgpu::RenderPipeline,
     image_layout: wgpu::BindGroupLayout,
+    uniform_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     uniform_buffer: wgpu::Buffer,
     uniform_group: wgpu::BindGroup,
@@ -123,6 +125,7 @@ pub struct Renderer {
     effect_gpu: crate::effect_gpu::EffectGpu,
     layer_gpu: crate::layer_gpu::LayerGpu,
     mask_gpu: crate::mask_gpu::MaskGpu,
+    compositing_gpu: Option<crate::compositing_gpu::CompositingGpu>,
     video_gpu: Option<crate::video_gpu::VideoGpu>,
     pub video_upload_bytes: u64,
     pub video_uploads: u64,
@@ -341,6 +344,7 @@ impl Renderer {
             additive_pipeline,
             masked_pipeline,
             image_layout,
+            uniform_layout,
             sampler,
             uniform_buffer,
             uniform_group,
@@ -376,6 +380,7 @@ impl Renderer {
             image_memory_cache_hits: 0,
             image_prefetches: 0,
             effect_diagnostics: Vec::new(),
+            compositing_gpu: None,
         };
         renderer.effect_gpu.builder.device_dimension =
             renderer.device.limits().max_texture_dimension_2d.min(8192);
@@ -401,6 +406,7 @@ impl Renderer {
             + self.effect_gpu.state.bytes()
             + self.layer_gpu.bytes()
             + self.mask_gpu.scratch_bytes()
+            + self.compositing_gpu.as_ref().map_or(0,|gpu|gpu.bytes())
     }
     fn video_plane_bytes(&self) -> u64 {
         self.video_gpu.as_ref().map_or(0, |v| v.bytes())
@@ -1020,6 +1026,7 @@ impl Renderer {
         Ok(())
     }
     pub fn clear_assets(&mut self) {
+        if let Some(gpu)=&mut self.compositing_gpu{gpu.release();}
         self.image_decode.cancel();
         self.image_active.clear();
         self.image_access.clear();
@@ -1170,7 +1177,8 @@ impl Renderer {
             || scene
                 .layers
                 .iter()
-                .any(|l| l.vector.is_some() || l.adjustment)
+                .any(|l| l.vector.is_some() || l.adjustment || l.track_matte.is_some()
+                    || l.blend != motion_model::compositing::LayerBlend::default() || !l.composite_visible)
         {
             return self.encode_effects(scene, view, width, height, encoder, timestamps, preview);
         }
@@ -1182,6 +1190,7 @@ impl Renderer {
             self.mask_gpu.clear();self.effect_gpu.state.invalidate();
         }
         self.effect_diagnostics.clear();
+        self.compositing_gpu = None;
         if self.layer_gpu.prepare_vectors(
             &self.device,
             encoder,
@@ -1405,6 +1414,9 @@ impl Renderer {
             .draws
             .iter()
             .any(|d| d.words[31] == 2. && d.pass_start < d.pass_end);
+        let has_transfer = frame.compositing.iter().any(|c| c.visible && (c.blend != 0 || c.space != 0));
+        let has_accumulator = has_adjustment || has_transfer;
+        let has_compositing = has_transfer || frame.compositing.iter().any(|c| c.mode != 0);
         let render_scale = (width as f32 / scene.width as f32)
             .min(height as f32 / scene.height as f32)
             .min(1.)
@@ -1418,8 +1430,20 @@ impl Renderer {
             &self.image_layout,
             &self.sampler,
             self.target_format,
-            has_adjustment.then_some(composition_size),
+            has_accumulator.then_some(composition_size),
         );
+        if has_compositing {
+            let source_bytes=self.texture_bytes + self.video_plane_bytes() + self.effect_gpu.state.resource_bytes;
+            let gpu = self.compositing_gpu.get_or_insert_with(|| crate::compositing_gpu::CompositingGpu::new(
+                &self.device, &self.queue, &self.uniform_layout, &self.image_layout, &self.sampler, self.target_format));
+            let needed: Vec<_> = frame.compositing.iter().filter(|c| c.matte >= 0)
+                .map(|c| (frame.draws[c.matte as usize].layer, c.mode >= 3)).collect();
+            gpu.prepare_mattes(&self.device, &self.image_layout, &self.sampler, composition_size, &needed,
+                source_bytes)?;
+            let changed = gpu.prepare_source(&self.device, &self.image_layout, &self.sampler, has_transfer)?;
+            gpu.prepare_blend_inputs(&self.device, &self.queue, &self.sampler, &self.layer_gpu.accumulators,
+                &scene.layers, changed || accumulators_changed);
+        } else if let Some(gpu) = &mut self.compositing_gpu { gpu.release(); }
         if masks_changed || vectors_changed || accumulators_changed {
             self.effect_gpu.state.invalidate();
             self.effect_gpu.state.prepare(
@@ -1445,13 +1469,21 @@ impl Renderer {
             );
         }
         self.effect_diagnostics.clone_from(&frame.diagnostics);
+        let viewport = if has_accumulator {composition_size.map(|v|v as f32)} else {
+            let scale=(width as f32/scene.width as f32).min(height as f32/scene.height as f32);
+            [scene.width as f32*scale,scene.height as f32*scale]
+        };
+        let viewport_origin=if has_accumulator {[0.;2]}else{[(width as f32-viewport[0])*0.5,(height as f32-viewport[1])*0.5]};
         for (i, draw) in frame.draws.iter().enumerate() {
             let w = &draw.words;
+            let c=frame.compositing[i];
+            let flags=u32::from(w[27]<0.&&!scene.layers[i].masks.is_empty())
+                +2*u32::from(c.mode!=0)+4*u32::from(c.mode==2||c.mode==4);
             let uniform = DrawUniform {
                 mvp: std::array::from_fn(|c| std::array::from_fn(|r| w[c * 4 + r])),
                 color: w[16..20].try_into().unwrap(),
-                extent_opacity: [w[20], w[21], w[22], 0.0],
-                uv_scale: [w[25], w[26], scene.width as f32, scene.height as f32],
+                extent_opacity: if has_compositing&&!scene.layers[i].adjustment {[viewport_origin[0],viewport_origin[1],w[22],flags as f32]}else{[w[20],w[21],w[22],0.]},
+                uv_scale: [w[25], w[26], if has_compositing&&!scene.layers[i].adjustment{viewport[0]}else{scene.width as f32}, if has_compositing&&!scene.layers[i].adjustment{viewport[1]}else{scene.height as f32}],
             };
             self.upload[i * self.uniform_stride..i * self.uniform_stride + DRAW_SIZE as usize]
                 .copy_from_slice(bytemuck::bytes_of(&uniform));
@@ -1479,14 +1511,14 @@ impl Renderer {
             let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("effect composition clear"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: if has_adjustment {
+                    view: if has_accumulator {
                         &self.layer_gpu.accumulators[0].view
                     } else {
                         view
                     },
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(if has_adjustment {
+                        load: wgpu::LoadOp::Clear(if has_accumulator {
                             wgpu::Color::TRANSPARENT
                         } else {
                             clear
@@ -1518,9 +1550,11 @@ impl Renderer {
                 wgpu::TexelCopyTextureInfo{texture:&self.images[&TextureKey::EffectInput(draw.layer)]._texture,mip_level:0,origin:wgpu::Origin3d::ZERO,aspect:wgpu::TextureAspect::All},
                 wgpu::Extent3d{width:output.width,height:output.height,depth_or_array_layers:1});
         }
+        composition_draws += self.encode_track_mattes(encoder,composition_size)?;
         for (batch_index, batch) in frame.batches.iter().enumerate() {
             let i = batch.layer;
             let draw = &frame.draws[i];
+            if !frame.compositing[i].visible {continue;}
             if materialized!=Some(i) {
                 if let Some(cached)=self.images.get(&TextureKey::EffectInput(draw.layer)) {
                     encoder.copy_texture_to_texture(
@@ -1592,7 +1626,8 @@ impl Renderer {
                 accumulator = next;
                 continue;
             }
-            let writes = if !has_adjustment && batch_index + 1 == frame.batches.len() {
+            let transfer=frame.compositing[i].blend!=0||frame.compositing[i].space!=0;
+            let writes = if !has_accumulator && batch_index + 1 == frame.batches.len() {
                 timestamps
                     .as_ref()
                     .map(|t| wgpu::RenderPassTimestampWrites {
@@ -1606,14 +1641,16 @@ impl Renderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("effect composition layer"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: if has_adjustment {
+                    view: if transfer {
+                        &self.compositing_gpu.as_ref().unwrap().source.as_ref().unwrap().view
+                    } else if has_accumulator {
                         &self.layer_gpu.accumulators[accumulator].view
                     } else {
                         view
                     },
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: if transfer{wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)}else{wgpu::LoadOp::Load},
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -1621,7 +1658,7 @@ impl Renderer {
                 timestamp_writes: writes,
                 occlusion_query_set: None,
             });
-            let (vw, vh) = if has_adjustment {
+            let (vw, vh) = if has_accumulator {
                 (composition_size[0] as f32, composition_size[1] as f32)
             } else {
                 let scale =
@@ -1629,12 +1666,12 @@ impl Renderer {
                 (scene.width as f32 * scale, scene.height as f32 * scale)
             };
             pass.set_viewport(
-                if has_adjustment {
+                if has_accumulator {
                     0.
                 } else {
                     (width as f32 - vw) / 2.0
                 },
-                if has_adjustment {
+                if has_accumulator {
                     0.
                 } else {
                     (height as f32 - vh) / 2.0
@@ -1645,7 +1682,10 @@ impl Renderer {
                 1.0,
             );
             let masked=draw.words[27]<0. && !scene.layers[i].masks.is_empty();
-            pass.set_pipeline(if masked {&self.masked_pipeline} else if draw.words[23] > 0.5 {
+            pass.set_pipeline(if has_compositing {
+                let gpu=self.compositing_gpu.as_ref().unwrap();
+                if draw.words[23]>0.5&&!transfer{&gpu.additive}else{&gpu.normal}
+            } else if masked {&self.masked_pipeline} else if draw.words[23] > 0.5 {
                 &self.additive_pipeline
             } else {
                 &self.pipeline
@@ -1658,11 +1698,26 @@ impl Renderer {
                 &self.images[&texture_key(&scene.layers[i])].bind_group
             };
             pass.set_bind_group(1, group, &[]);
-            if masked {pass.set_bind_group(2,&self.images[&TextureKey::Mask(scene.layers[i].id)].bind_group,&[]);}
+            if has_compositing {
+                let gpu=self.compositing_gpu.as_ref().unwrap();let c=frame.compositing[i];
+                pass.set_bind_group(2,if masked{&self.images[&TextureKey::Mask(scene.layers[i].id)].bind_group}else{&gpu.zero.composite},&[]);
+                pass.set_bind_group(3,if c.matte>=0{&gpu.mattes[&(frame.draws[c.matte as usize].layer,c.mode>=3)].composite}else{&gpu.zero.composite},&[]);
+            }else if masked {pass.set_bind_group(2,&self.images[&TextureKey::Mask(scene.layers[i].id)].bind_group,&[]);}
             pass.draw(batch.vertices.clone(), 0..1);
+            drop(pass);
             composition_draws += 1;
+            if transfer {
+                let gpu=self.compositing_gpu.as_ref().unwrap();let next=1-accumulator;
+                let mut pass=encoder.begin_render_pass(&wgpu::RenderPassDescriptor{label:Some("layer blend transfer"),
+                    color_attachments:&[Some(wgpu::RenderPassColorAttachment{view:&self.layer_gpu.accumulators[next].view,resolve_target:None,
+                        ops:wgpu::Operations{load:wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),store:wgpu::StoreOp::Store}})],
+                    depth_stencil_attachment:None,timestamp_writes:None,occlusion_query_set:None});
+                pass.set_pipeline(&gpu.blend);pass.set_bind_group(0,&gpu.blend_group,&[gpu.blend_offset(i)]);
+                pass.set_bind_group(1,&gpu.blend_inputs[accumulator],&[]);pass.draw(0..3,0..1);
+                accumulator=next;composition_draws+=1;
+            }
         }
-        if has_adjustment {
+        if has_accumulator {
             let writes = timestamps
                 .as_ref()
                 .map(|t| wgpu::RenderPassTimestampWrites {
@@ -1707,7 +1762,8 @@ impl Renderer {
             texture_bytes: self.texture_bytes
                 + self.video_plane_bytes()
                 + self.effect_gpu.state.bytes()
-                + self.layer_gpu.bytes(),
+                + self.layer_gpu.bytes()
+                + self.compositing_gpu.as_ref().map_or(0,|g|g.bytes()),
             parameter_upload_bytes: (bytes
                 + executed_passes * motion_effects::shader::UNIFORM_BYTES
                 + frame.vertices.len() * 20) as u64,

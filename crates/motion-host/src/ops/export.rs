@@ -63,7 +63,7 @@ pub fn render_plan_info(id: i64) -> Result<serde_json::Value> {
             .sum::<usize>();
         let passes = count * 10 + p.layers.len() * 2;
         let buffer_bytes = motion_render::effect_plan::HEADER_BYTES
-            + p.layers.len() * 128
+            + p.layers.len() * (128 + 20)
             + passes * (40 + motion_effects::shader::UNIFORM_BYTES)
             + count * 1024
             + motion_effects::MAX_SPRITES * 48
@@ -73,7 +73,7 @@ pub fn render_plan_info(id: i64) -> Result<serde_json::Value> {
             + 262144 * 24
             + motion_core::MAX_LAYERS * motion_core::masks::MAX_MASKS * motion_render::mask_plan::RECORD_BYTES
             + 262144 * 24;
-        Ok(json!({"version":motion_render::effect_plan::PLAN_VERSION,
+        let mut info=json!({"version":motion_render::effect_plan::PLAN_VERSION,
             "scratchBudgetBytes":s.effects.scratch_budget(),
             "headerBytes":motion_render::effect_plan::HEADER_BYTES,
             "composition_bundle_version":1,"composition_bundle_buffer_hint":131072,
@@ -87,7 +87,11 @@ pub fn render_plan_info(id: i64) -> Result<serde_json::Value> {
             "declaredAssetBytes":4+p.assets.iter().map(|a|u64::from(a.width)*u64::from(a.height)*4).sum::<u64>(),
             "imageResources":{"version":1,"demandLoading":true,
                 "previewMaxEdge":motion_render::image_resources::MAX_PREVIEW_EDGE,
-                "fullResolutionExport":true,"directBuffer":true}}))
+                "fullResolutionExport":true,"directBuffer":true}});
+        let needed=p.layers.iter().chain(p.compositions.iter().flat_map(|c|&c.layers))
+            .any(|l|l.track_matte.is_some()||l.blend!=motion_core::compositing::LayerBlend::default());
+        if needed {info["compositing"]=json!({"version":1,"planes":motion_render::compositing_plan::plane_programs()?,"blend":motion_render::compositing_plan::shader()?.glsl});}
+        Ok(info)
     })
 }
 

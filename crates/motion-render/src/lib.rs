@@ -18,6 +18,8 @@ mod video_gpu;
 mod vector_mesh;
 mod layer_gpu;
 pub mod mask_plan;
+pub mod compositing_plan;
+mod compositing_gpu;
 mod mask_gpu;
 pub use video_pixels::{ChromaLayout, VideoPlane, Yuv420Frame};
 pub use measurement::{FrameMeasurement, FrameRecorder};

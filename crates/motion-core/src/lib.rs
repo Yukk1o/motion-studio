@@ -5,7 +5,7 @@ mod hierarchy;
 pub mod plugin_editor;
 pub mod storage;
 
-pub use motion_model::{composition, color_curves, particle_history, masks, vector};
+pub use motion_model::{compositing, composition, color_curves, particle_history, masks, vector};
 pub use editor::{parse_commands, Engine};
 pub use expressions::{ExpressionEvaluator, ProjectExpressions};
 pub use motion_model::{Axis, AxisTracks, Ease, Keyframe, SpatialTangents, Track, Tween};

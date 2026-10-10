@@ -18,7 +18,7 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
     private var framebuffer=0;private var uniform=0;private var sprites=0;private var spriteVao=0
     init {
         try {
-            check(info.getInt("version")==RenderPlanBudget.VERSION&&info.getInt("headerBytes")==128&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
+            check(info.getInt("version")==RenderPlanBudget.VERSION&&info.getInt("headerBytes")==RenderPlanBudget.HEADER_BYTES&&info.getInt("uniformBytes")==624){"不兼容的效果渲染协议"}
             val ids=IntArray(1);GL.glGenFramebuffers(1,ids,0);framebuffer=ids[0]
             GL.glGenBuffers(1,ids,0);uniform=ids[0];GL.glBindBuffer(GL.GL_UNIFORM_BUFFER,uniform)
             GL.glBufferData(GL.GL_UNIFORM_BUFFER,624,null,GL.GL_DYNAMIC_DRAW)
@@ -132,7 +132,10 @@ internal class GlEffects(info:JSONObject,native:Long,private val assets:List<Int
             for(i in plan.getFloat(draw+112).toInt() until plan.getFloat(draw+116).toInt())dependency(i)?.let(::visit)
             marks[index]=2;result.add(index)
         }
-        repeat(plan.getInt(12)){i->dependency(i)?.let(::visit)};return result
+        repeat(plan.getInt(12)){i->dependency(i)?.let(::visit)}
+        val composites=plan.getInt(128)
+        repeat(draws){i->val source=plan.getInt(composites+i*20+8);if(source>=0)visit(source)}
+        return result
     }
     /** Sprite PNGs are effect inputs even when the emitting layer has no image source. */
     fun spriteAssetSlots(plan:ByteBuffer):Set<Int> {

@@ -40,7 +40,7 @@ class LayerMasksTest {
             val png=nativeData(NativeBridge.capture(id));val bitmap=BitmapFactory.decodeFile(png.getString("path"))
             assertEquals(255,bitmap.getPixel(500,900) ushr 24);assertEquals(0,bitmap.getPixel(100,900) ushr 24);bitmap.recycle()
             val p=nativeData(NativeBridge.state(id)).getJSONObject("project")
-            val info=nativeData(NativeBridge.renderPlanInfo(id));assertEquals(RenderPlanBudget.VERSION,info.getInt("version"));assertEquals(128,info.getInt("headerBytes"));assertEquals(2,info.getJSONArray("maskPrograms").length())
+            val info=nativeData(NativeBridge.renderPlanInfo(id));assertEquals(RenderPlanBudget.VERSION,info.getInt("version"));assertEquals(RenderPlanBudget.HEADER_BYTES,info.getInt("headerBytes"));assertEquals(2,info.getJSONArray("maskPrograms").length())
             val plan=ByteBuffer.allocateDirect(info.getInt("bufferBytes")).order(ByteOrder.nativeOrder());assertTrue(NativeBridge.sampleRenderPlanInto(id,0,plan)>0)
             assertEquals(1,plan.getInt(116))
             val gpu=EglMovieRenderer(null,1080,1920,p,id,info)
