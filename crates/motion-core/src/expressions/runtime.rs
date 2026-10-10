@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::{Duration, Instant},
 };
@@ -52,17 +52,20 @@ impl JsEngine {
         source: &str,
         data: &str,
         sample: impl Fn(f64) -> String + 'static,
-        deadline: Instant,
+        frame_deadline: Instant,
         cancel: Arc<AtomicBool>,
     ) -> Result<Vec<f32>> {
         self.compile(source)?;
         let expired = Arc::new(AtomicBool::new(false));
+        let execution_deadline = Arc::new(Mutex::new(None::<Instant>));
+        let execution_clock = execution_deadline.clone();
         let mark = expired.clone();
+        let cancellation = cancel.clone();
         self.runtime.set_interrupt_handler(Some(Box::new(move || {
-            let stop = cancel.load(Ordering::Relaxed) || Instant::now() >= deadline;
-            if stop {
-                mark.store(true, Ordering::Relaxed);
-            }
+            let now = Instant::now();
+            let stop = cancellation.load(Ordering::Relaxed) || now >= frame_deadline
+                || execution_clock.lock().unwrap().is_some_and(|deadline| now >= deadline);
+            if stop { mark.store(true, Ordering::Relaxed); }
             stop
         })));
         let result = (|| {
@@ -79,6 +82,15 @@ impl JsEngine {
                     let (module, promise) = module.eval()?;
                     promise.finish::<()>()?;
                     let function: Function = module.get("default")?;
+                    // Source compilation, context creation and our fixed module
+                    // declaration do not execute user code. Start its 20 ms
+                    // allowance here, still capped by the whole-frame deadline.
+                    let deadline = frame_deadline.min(Instant::now() + Duration::from_millis(20));
+                    if cancel.load(Ordering::Relaxed) || Instant::now() >= deadline {
+                        expired.store(true, Ordering::Relaxed);
+                        return Err(rquickjs::Error::Exception);
+                    }
+                    *execution_deadline.lock().unwrap() = Some(deadline);
                     let result: Value = function.call(())?;
                     if let Some(n) = result.as_number() { return Ok(vec![n as f32]); }
                     if let Some(a) = result.as_array() {
@@ -151,11 +163,10 @@ pub(super) fn evaluate(
     frame_deadline: Instant,
     cancel: Arc<AtomicBool>,
 ) -> Result<Vec<f32>> {
-    let deadline = frame_deadline.min(Instant::now() + Duration::from_millis(20));
-    if cancel.load(Ordering::Relaxed) || Instant::now() >= deadline {
+    if cancel.load(Ordering::Relaxed) || Instant::now() >= frame_deadline {
         return Err(Error::Invalid(
             "expression cancelled or frame budget exceeded".into(),
         ));
     }
-    with_engine(|e| e.evaluate(source, data, sample, deadline, cancel))
+    with_engine(|e| e.evaluate(source, data, sample, frame_deadline, cancel))
 }

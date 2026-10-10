@@ -304,7 +304,7 @@ impl Project {
             crate::storage::validate_relative_path(&font.path)?;
             ensure(font.path.starts_with("assets/fonts/")&&font.path.ends_with(".ttf"),"invalid managed font path")?;
         }
-        ensure((1..=10).contains(&self.version), "unsupported project format")?;
+        ensure((1..=11).contains(&self.version), "unsupported project format")?;
         ensure(self.plugin_dependencies == self.composition_dependencies(),
                "plugin dependency list does not match effect instances")?;
         self.validate_one(self)?;
@@ -313,7 +313,7 @@ impl Project {
     pub(crate) fn validate_one(&self, document: &Project) -> Result<()> {
         crate::effects::validate_image_graph(self)?;
         ensure(
-            (1..=10).contains(&self.version),
+            (1..=11).contains(&self.version),
             "unsupported project format",
         )?;
         let spatial = [&self.camera.position, &self.camera.target].iter().any(|t| t.keys.iter().any(|k| k.spatial.is_some()))
@@ -493,6 +493,7 @@ impl Project {
                 }
                 Content::Vector { vector } => {
                     ensure(self.version >= 6, "vector layers require format six")?;
+                    ensure(self.version >= 11 || !vector.has_path_modifiers(), "vector path modifiers require format eleven")?;
                     vector.validate().map_err(|e| {
                         crate::Error::Invalid(format!("layer {} vector: {e}", layer.id))
                     })?;

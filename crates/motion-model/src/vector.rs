@@ -5,6 +5,59 @@ use std::collections::{BTreeMap, HashSet};
 
 pub const MAX_PATHS: usize = 64;
 pub const MAX_NODES: usize = 2048;
+pub mod path_ops;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TrimMode {
+    Simultaneously,
+    Individually,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrimPaths {
+    pub start: Track<f32>,
+    pub end: Track<f32>,
+    pub offset: Track<f32>,
+    pub mode: TrimMode,
+}
+impl Default for TrimPaths {
+    fn default() -> Self {
+        Self {
+            start: Track::constant(0.),
+            end: Track::constant(100.),
+            offset: Track::constant(0.),
+            mode: TrimMode::Simultaneously,
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StrokeDashes {
+    /// Alternating positive dash and nonnegative gap lengths, in canvas pixels.
+    pub pattern: Vec<Track<f32>>,
+    pub offset: Track<f32>,
+}
+impl Default for StrokeDashes {
+    fn default() -> Self {
+        Self {
+            pattern: vec![Track::constant(12.), Track::constant(8.)],
+            offset: Track::constant(0.),
+        }
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledTrimPaths {
+    pub start: f32,
+    pub end: f32,
+    pub offset: f32,
+    pub mode: TrimMode,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledDashes {
+    pub pattern: Vec<f32>,
+    pub offset: f32,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -216,6 +269,8 @@ pub struct Stroke {
     pub cap: LineCap,
     pub join: LineJoin,
     pub miter_limit: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dashes: Option<StrokeDashes>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -224,6 +279,8 @@ pub struct VectorContent {
     pub fill: Option<Track<[f32; 4]>>,
     pub fill_rule: FillRule,
     pub stroke: Option<Stroke>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trim: Option<TrimPaths>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct SampledPath {
@@ -236,10 +293,30 @@ pub struct SampledVector {
     pub fill: Option<[f32; 4]>,
     pub fill_rule: FillRule,
     pub stroke: Option<([f32; 4], f32, LineCap, LineJoin, f32)>,
+    pub trim: Option<SampledTrimPaths>,
+    pub dashes: Option<SampledDashes>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VectorAction {
+    SetTrim {
+        trim: Option<TrimPaths>,
+    },
+    SetDashes {
+        dashes: Option<StrokeDashes>,
+    },
+    SetModifierParameter {
+        parameter: String,
+        frame: u32,
+        value: f32,
+        #[serde(default)]
+        animated: Option<bool>,
+    },
+    SetModifierCurve {
+        parameter: String,
+        frame: u32,
+        easing: crate::Easing,
+    },
     Replace {
         vector: VectorContent,
     },
@@ -300,8 +377,45 @@ fn color_valid(track: &Track<[f32; 4]>) -> Result<()> {
     Ok(())
 }
 impl VectorContent {
+    pub fn has_path_modifiers(&self) -> bool {
+        self.trim.is_some() || self.stroke.as_ref().is_some_and(|s| s.dashes.is_some())
+    }
+    fn modifier_track_mut(&mut self, parameter: &str) -> Result<&mut Track<f32>> {
+        if let Some(t) = &mut self.trim {
+            match parameter {
+                "trim_start" => return Ok(&mut t.start),
+                "trim_end" => return Ok(&mut t.end),
+                "trim_offset" => return Ok(&mut t.offset),
+                _ => {}
+            }
+        }
+        if let Some(d) = self.stroke.as_mut().and_then(|s| s.dashes.as_mut()) {
+            if parameter == "dash_offset" {
+                return Ok(&mut d.offset);
+            }
+            if let Some(i) = parameter
+                .strip_prefix("dash_")
+                .and_then(|s| s.parse::<usize>().ok())
+            {
+                if let Some(t) = d.pattern.get_mut(i) {
+                    return Ok(t);
+                }
+            }
+        }
+        Err(crate::Error::Invalid(format!(
+            "vector modifier parameter missing: {parameter}"
+        )))
+    }
     pub fn animated(&self) -> bool {
-        self.fill.as_ref().is_some_and(|t| t.is_animated())
+        self.trim
+            .as_ref()
+            .is_some_and(|t| t.start.is_animated() || t.end.is_animated() || t.offset.is_animated())
+            || self
+                .stroke
+                .as_ref()
+                .and_then(|s| s.dashes.as_ref())
+                .is_some_and(|d| d.offset.is_animated() || d.pattern.iter().any(Track::is_animated))
+            || self.fill.as_ref().is_some_and(|t| t.is_animated())
             || self
                 .stroke
                 .as_ref()
@@ -318,6 +432,7 @@ impl VectorContent {
     }
     pub fn shape(shape: ShapeKind) -> Self {
         Self {
+            trim: None,
             source: VectorSource::Shape {
                 shape,
                 parameters: shape_parameters(shape)
@@ -338,6 +453,7 @@ impl VectorContent {
                     cap: LineCap::Round,
                     join: LineJoin::Round,
                     miter_limit: 4.,
+                    dashes: None,
                 })
             } else {
                 None
@@ -345,10 +461,25 @@ impl VectorContent {
         }
     }
     pub fn validate(&self) -> Result<()> {
+        if let Some(t) = &self.trim {
+            scalar_valid(&t.start, 0., 100., false)?;
+            scalar_valid(&t.end, 0., 100., false)?;
+            scalar_valid(&t.offset, -360000., 360000., false)?;
+        }
         if let Some(fill) = &self.fill {
             color_valid(fill)?;
         }
         if let Some(stroke) = &self.stroke {
+            if let Some(d) = &stroke.dashes {
+                ensure(
+                    matches!(d.pattern.len(), 2 | 4 | 6),
+                    "dashes require one to three dash/gap pairs",
+                )?;
+                for (i, t) in d.pattern.iter().enumerate() {
+                    scalar_valid(t, if i % 2 == 0 { 0.1 } else { 0. }, 32768., false)?;
+                }
+                scalar_valid(&d.offset, -32768., 32768., false)?;
+            }
             color_valid(&stroke.color)?;
             scalar_valid(&stroke.width, 0., 4096., false)?;
             ensure(
@@ -423,6 +554,20 @@ impl VectorContent {
             }
         };
         let sampled = SampledVector {
+            trim: self.trim.as_ref().map(|t| SampledTrimPaths {
+                start: t.start.sample(frame),
+                end: t.end.sample(frame),
+                offset: t.offset.sample(frame),
+                mode: t.mode,
+            }),
+            dashes: self
+                .stroke
+                .as_ref()
+                .and_then(|s| s.dashes.as_ref())
+                .map(|d| SampledDashes {
+                    pattern: d.pattern.iter().map(|t| t.sample(frame)).collect(),
+                    offset: d.offset.sample(frame),
+                }),
             paths,
             fill: self.fill.as_ref().map(|f| f.sample(frame)),
             fill_rule: self.fill_rule,
@@ -458,6 +603,24 @@ impl VectorContent {
             sampled.stroke.is_none_or(|s| (0.0..=4096.0).contains(&s.1)),
             "sampled stroke width outside valid range",
         )?;
+        if let Some(t) = &sampled.trim {
+            ensure(
+                (0.0..=100.).contains(&t.start)
+                    && (0.0..=100.).contains(&t.end)
+                    && (-360000.0..=360000.).contains(&t.offset),
+                "sampled trim parameter outside valid range",
+            )?;
+        }
+        if let Some(d) = &sampled.dashes {
+            ensure(
+                d.pattern
+                    .iter()
+                    .enumerate()
+                    .all(|(i, v)| (if i % 2 == 0 { 0.1 } else { 0. }..=32768.).contains(v))
+                    && (-32768.0..=32768.).contains(&d.offset),
+                "sampled dash parameter outside valid range",
+            )?;
+        }
         Ok(sampled)
     }
     pub fn edit(&mut self, action: VectorAction, size: [f32; 2], offset: i32) -> Result<()> {
@@ -466,6 +629,33 @@ impl VectorContent {
                 .map_err(|_| crate::Error::Invalid("vector local frame overflow".into()))
         };
         match action {
+            VectorAction::SetTrim { trim } => self.trim = trim,
+            VectorAction::SetDashes { dashes } => {
+                let stroke = self.stroke.as_mut().ok_or_else(|| {
+                    crate::Error::Invalid("add a stroke before setting dashes".into())
+                })?;
+                stroke.dashes = dashes;
+            }
+            VectorAction::SetModifierParameter {
+                parameter,
+                frame,
+                value,
+                animated,
+            } => {
+                let t = self.modifier_track_mut(&parameter)?;
+                if let Some(enabled) = animated {
+                    t.set_animated(local(frame)?, enabled)?;
+                }
+                t.set_at(local(frame)?, value)?;
+            }
+            VectorAction::SetModifierCurve {
+                parameter,
+                frame,
+                easing,
+            } => {
+                self.modifier_track_mut(&parameter)?
+                    .set_curve(local(frame)?, easing)?;
+            }
             VectorAction::Replace { vector } => *self = vector,
             VectorAction::SetPaths { paths } => self.source = VectorSource::Paths { paths },
             VectorAction::SetPaint {
