@@ -1026,6 +1026,7 @@ impl Renderer {
         Ok(())
     }
     pub fn clear_assets(&mut self) {
+        self.layer_gpu.release();
         if let Some(gpu)=&mut self.compositing_gpu{gpu.release();}
         self.image_decode.cancel();
         self.image_active.clear();

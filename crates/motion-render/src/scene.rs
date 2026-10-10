@@ -326,6 +326,7 @@ impl Scene {
                 None
             };
             let mut size = layer.size;
+            let mut vector_center = Vec3::ZERO;
             let mask_time = layer.masks.iter().any(|m| m.animated()).then_some(layer.local_frame(frame));
             if self.mask_cache.get(&layer.id).is_none_or(|(m,t,_)| m != &layer.masks || *t != mask_time) {
                 let masks = layer.masks.iter().map(|m| m.sample(layer.local_frame(frame)))
@@ -335,6 +336,34 @@ impl Scene {
             }
             let masks = self.mask_cache[&layer.id].2.clone();
             if let Some(v) = &vector {
+                if let Some(mut bounds) = crate::vector_mesh::group_bounds(v) {
+                    let dependencies = project.layers.iter().any(|l| l.effects.iter().any(|e|
+                        e.enabled && e.image_input.and_then(motion_model::EffectImageInput::layer)==Some(layer.id)));
+                    let world = self.node_world[order] * geometry_offset(layer);
+                    let m = glam::Mat3::from_cols(world.x_axis.truncate().truncate().extend(0.),
+                        world.y_axis.truncate().truncate().extend(0.),world.w_axis.truncate().truncate().extend(1.));
+                    let spatial_input = layer.effects.iter().any(|e|e.enabled) || !layer.masks.is_empty() || dependencies;
+                    if !layer.three_d && !spatial_input && m.determinant().abs()>1e-8
+                        && world.x_axis.w.abs()<1e-8 && world.y_axis.w.abs()<1e-8 && (world.w_axis.w-1.).abs()<1e-8 {
+                        let inverse=m.inverse();let mut min=glam::Vec2::splat(f32::INFINITY);let mut max=glam::Vec2::splat(f32::NEG_INFINITY);
+                        for x in [-(self.width as f32)*0.5,self.width as f32*0.5] {
+                            for y in [-(self.height as f32)*0.5,self.height as f32*0.5] {
+                                let p=inverse.transform_point2(glam::Vec2::new(x,y));let p=glam::Vec2::new(p.x,-p.y);
+                                min=min.min(p-glam::Vec2::ONE);max=max.max(p+glam::Vec2::ONE);
+                            }
+                        }
+                        let a=glam::Vec2::new(bounds[0],bounds[1]).max(min);
+                        let b=glam::Vec2::new(bounds[0]+bounds[2],bounds[1]+bounds[3]).min(max);
+                        bounds=if b.x>a.x&&b.y>a.y {[a.x,a.y,b.x-a.x,b.y-a.y]}else{[-0.5,-0.5,1.,1.]};
+                    } else if spatial_input {
+                        let x=bounds[0].min(-layer.size[0]*0.5);let y=bounds[1].min(-layer.size[1]*0.5);
+                        bounds=[x,y,(bounds[0]+bounds[2]).max(layer.size[0]*0.5)-x,(bounds[1]+bounds[3]).max(layer.size[1]*0.5)-y];
+                    }
+                    let right=(bounds[0]+bounds[2]).ceil();let bottom=(bounds[1]+bounds[3]).ceil();
+                    bounds[0]=bounds[0].floor();bounds[1]=bounds[1].floor();bounds[2]=(right-bounds[0]).max(1.);bounds[3]=(bottom-bounds[1]).max(1.);
+                    size=[bounds[2],bounds[3]];
+                    vector_center=Vec3::new(bounds[0]+size[0]*0.5,-bounds[1]-size[1]*0.5,0.);
+                }
                 let pad = v.stroke.map_or(0., |s| {
                     s.1 * 0.5
                         * if s.3 == motion_model::vector::LineJoin::Miter {
@@ -355,12 +384,12 @@ impl Scene {
             }
             self.layers.push(DrawLayer {
                 id: layer.id,
-                model: self.node_world[order] * geometry_offset(layer),
+                model: self.node_world[order] * geometry_offset(layer) * Mat4::from_translation(vector_center),
                 size,
                 source_size: layer.size,
                 source_rect: [
-                    (layer.size[0] - size[0]) * 0.5,
-                    (layer.size[1] - size[1]) * 0.5,
+                    (layer.size[0] - size[0]) * 0.5 + vector_center.x,
+                    (layer.size[1] - size[1]) * 0.5 - vector_center.y,
                     size[0],
                     size[1],
                 ],

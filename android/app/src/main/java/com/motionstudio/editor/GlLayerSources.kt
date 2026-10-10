@@ -12,6 +12,7 @@ internal class GlLayerSources {
     private val accumulators=IntArray(2)
     private val rasterScratch=HashMap<Pair<Int,Int>,Int>()
     private val rasterResolve=HashMap<Pair<Int,Int>,Int>()
+    private val groups=GlVectorGroups()
     private var width=0;private var height=0
     private var fbo=0;private var resolveFbo=0;private var vbo=0;private var vao=0
     private var vectorProgram=0;private var mixProgram=0;private var copyProgram=0
@@ -40,24 +41,26 @@ internal class GlLayerSources {
         }catch(error:Throwable){close();throw error}
     }
     fun prepare(plan:ByteBuffer,hasAdjustment:Boolean,w:Int,h:Int,assetBytes:Long,scratchBytes:Long) {
-        check(plan.getInt(4)==RenderPlanBudget.VERSION&&plan.getInt(96)==24&&plan.getInt(108)==28){"不兼容的矢量计划"}
+        check(plan.getInt(4)==RenderPlanBudget.VERSION&&plan.getInt(96)==24&&plan.getInt(108)==RenderPlanBudget.VECTOR_RECORD_BYTES){"不兼容的矢量计划"}
         val table=plan.getInt(84);val count=plan.getInt(88);val total=plan.getInt(28)
-        check(count in 0..128&&table>=128&&table.toLong()+count*28<=total){"矢量资源表失效"}
+        check(count in 0..128&&table>=128&&table.toLong()+count*RenderPlanBudget.VECTOR_RECORD_BYTES<=total){"矢量资源表失效"}
         if(count>0&&!msaaProbed) {
             val samples=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_SAMPLES,samples,0);check(samples[0]>=4){"矢量描边需要 4x MSAA"}
             msaaDrawClear=!probeMsaaClear();graphicsCapabilityReadbackBytes=4;msaaProbed=true
         }
         val active=HashSet<Int>()
-        for(i in 0 until count)active.add(plan.getInt(table+i*28))
+        for(i in 0 until count)active.add(plan.getInt(table+i*RenderPlanBudget.VECTOR_RECORD_BYTES))
         val stale=vectors.keys.filter{it !in active}
         for(key in stale){GL.glDeleteTextures(1,intArrayOf(vectors.remove(key)!!.texture),0)}
-        val sizes=(0 until count).map{val p=table+it*28;plan.getInt(p+4) to plan.getInt(p+8)}.toSet()
+        val groupKeys=groups.required(plan);groups.retain(groupKeys)
+        val groupBytes=groupKeys.sumOf{it.first.toLong()*it.second*20}
+        val sizes=(0 until count).filter{!groups.grouped(plan,table+it*RenderPlanBudget.VECTOR_RECORD_BYTES)}.map{val p=table+it*RenderPlanBudget.VECTOR_RECORD_BYTES;plan.getInt(p+4) to plan.getInt(p+8)}.toSet()
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,fbo);GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_RENDERBUFFER,0)
         val unused=rasterScratch.keys.filter{it !in sizes}
         for(size in unused){GL.glDeleteRenderbuffers(1,intArrayOf(rasterScratch.remove(size)!!),0);rasterResolve.remove(size)?.let{GL.glDeleteTextures(1,intArrayOf(it),0)}}
         var resident=vectors.values.sumOf{it.width.toLong()*it.height*4}
         for(i in 0 until count) {
-            val p=table+i*28;val layer=plan.getInt(p);val sw=plan.getInt(p+4);val sh=plan.getInt(p+8)
+            val p=table+i*RenderPlanBudget.VECTOR_RECORD_BYTES;val layer=plan.getInt(p);val sw=plan.getInt(p+4);val sh=plan.getInt(p+8)
             val offset=plan.getInt(p+12);val vertices=plan.getInt(p+16)
             val fingerprint=(plan.getInt(p+20).toLong() and 0xffffffffL) or (plan.getInt(p+24).toLong() shl 32)
             check(layer in 0 until plan.getInt(8)&&vertices in 0..262144&&offset>=plan.getInt(92)&&offset.toLong()+vertices*24<=total){"矢量顶点范围失效"}
@@ -65,11 +68,17 @@ internal class GlLayerSources {
             if(old?.fingerprint==fingerprint&&old.width==sw&&old.height==sh)continue
             val cost=sw.toLong()*sh*4;val resize=old==null||old.width!=sw||old.height!=sh
             val previous=old?.let{it.width.toLong()*it.height*4}?:0
-            val scratchCost=rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}
-            val newScratch=if(sw to sh in rasterScratch)0L else cost*5
+            val scratchCost=rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}+groupBytes
+            val newScratch=if(groups.grouped(plan,p)||sw to sh in rasterScratch)0L else cost*5
             check(assetBytes+resident+(if(resize)cost else 0L)+scratchCost+newScratch<=128L*1024*1024){"矢量纹理与 MSAA 资源超过 128 MiB"}
             val target=if(resize)texture(sw,sh,true)else old!!.texture
             try {
+                if(groups.grouped(plan,p)){
+                    groups.draw(plan,p,target,vectorProgram,copyProgram,vao,vbo,clearVao,msaaDrawClear)
+                    if(resize)old?.let{GL.glDeleteTextures(1,intArrayOf(it.texture),0)}
+                    vectors[layer]=Source(target,sw,sh,fingerprint);if(resize)resident=resident-previous+cost
+                    continue
+                }
                 val samples=IntArray(1);GL.glGetIntegerv(GL.GL_MAX_SAMPLES,samples,0);check(samples[0]>=4){"矢量描边需要 4x MSAA"}
                 val renderbuffer=rasterScratch[sw to sh]?:run {
                     val ids=IntArray(1);GL.glGenRenderbuffers(1,ids,0);GL.glBindRenderbuffer(GL.GL_RENDERBUFFER,ids[0])
@@ -98,7 +107,7 @@ internal class GlLayerSources {
                 GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER,fbo);GL.glBlitFramebuffer(0,0,sw,sh,0,0,sw,sh,GL.GL_COLOR_BUFFER_BIT,GL.GL_NEAREST)
                 GL.glInvalidateFramebuffer(GL.GL_READ_FRAMEBUFFER,1,colorAttachment,0)
                 GL.glBindFramebuffer(GL.GL_FRAMEBUFFER,resolveFbo);GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,GL.GL_COLOR_ATTACHMENT0,GL.GL_TEXTURE_2D,target,0)
-                GL.glBindVertexArray(0);GL.glUseProgram(copyProgram)
+                GL.glBindVertexArray(0);GL.glUseProgram(copyProgram);GL.glUniform1f(GL.glGetUniformLocation(copyProgram,"opacity"),1f)
                 GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"image"),0);GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"flipY"),0)
                 GL.glActiveTexture(GL.GL_TEXTURE0);GL.glBindTexture(GL.GL_TEXTURE_2D,linearTarget);GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
                 check(GL.glGetError()==GL.GL_NO_ERROR){"矢量绘制失败"}
@@ -116,7 +125,7 @@ internal class GlLayerSources {
         }
     }
     fun vector(layer:Int)=vectors[layer]?.texture?:error("矢量源缺失")
-    fun resourceBytes():Long=vectors.values.sumOf{it.width.toLong()*it.height*4}+rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}+effectInputs.values.sumOf{it.width.toLong()*it.height*4}
+    fun resourceBytes():Long=groups.bytes()+vectors.values.sumOf{it.width.toLong()*it.height*4}+rasterScratch.keys.sumOf{it.first.toLong()*it.second*20}+effectInputs.values.sumOf{it.width.toLong()*it.height*4}
     fun prepareEffectInputs(plan:ByteBuffer,order:List<Int>,assetBytes:Long) {
         effectInputs.keys.filter{it !in order}.forEach{GL.glDeleteTextures(1,intArrayOf(effectInputs.remove(it)!!.texture),0)}
         for(layer in order) {
@@ -178,7 +187,7 @@ internal class GlLayerSources {
     /** Turn the composition FBO into the SDK's top-row-first input in the other accumulator. */
     fun input(current:Int):Int {
         val dest=1-current;target(accumulator(dest),width,height)
-        GL.glDisable(GL.GL_BLEND);GL.glBindVertexArray(0);GL.glUseProgram(copyProgram)
+        GL.glDisable(GL.GL_BLEND);GL.glBindVertexArray(0);GL.glUseProgram(copyProgram);GL.glUniform1f(GL.glGetUniformLocation(copyProgram,"opacity"),1f)
         GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"image"),0);GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"flipY"),1)
         GL.glActiveTexture(GL.GL_TEXTURE0);GL.glBindTexture(GL.GL_TEXTURE_2D,accumulator(current));GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
         return accumulator(dest)
@@ -197,12 +206,13 @@ internal class GlLayerSources {
         return next
     }
     fun composite(current:Int,flip:Boolean=false) {
-        GL.glBindVertexArray(0);GL.glUseProgram(copyProgram)
+        GL.glBindVertexArray(0);GL.glUseProgram(copyProgram);GL.glUniform1f(GL.glGetUniformLocation(copyProgram,"opacity"),1f)
         GL.glEnable(GL.GL_BLEND);GL.glBlendFunc(GL.GL_ONE,GL.GL_ONE_MINUS_SRC_ALPHA)
         GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"image"),0);GL.glUniform1i(GL.glGetUniformLocation(copyProgram,"flipY"),if(flip)1 else 0)
         GL.glActiveTexture(GL.GL_TEXTURE0);GL.glBindTexture(GL.GL_TEXTURE_2D,accumulator(current));GL.glDrawArrays(GL.GL_TRIANGLES,0,3)
     }
     fun close() {
+        groups.close()
         effectInputs.values.forEach{GL.glDeleteTextures(1,intArrayOf(it.texture),0)};effectInputs.clear()
         vectors.values.forEach{GL.glDeleteTextures(1,intArrayOf(it.texture),0)};vectors.clear();GL.glDeleteTextures(2,accumulators,0);accumulators.fill(0)
         GL.glDeleteRenderbuffers(rasterScratch.size,rasterScratch.values.toIntArray(),0);rasterScratch.clear()
@@ -235,8 +245,8 @@ internal class GlLayerSources {
         out vec2 uv;
         void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2))*2.-1.;gl_Position=vec4(p,0.,1.);uv=p*.5+.5;}"""
         private const val COPY_FRAGMENT="""#version 300 es
-        precision highp float;uniform sampler2D image;uniform int flipY;in vec2 uv;out vec4 result;
-        void main(){result=texture(image,vec2(uv.x,flipY==1?1.-uv.y:uv.y));}"""
+        precision highp float;uniform sampler2D image;uniform int flipY;uniform float opacity;in vec2 uv;out vec4 result;
+        void main(){result=texture(image,vec2(uv.x,flipY==1?1.-uv.y:uv.y))*opacity;}"""
         private const val MIX_FRAGMENT="""#version 300 es
         precision highp float;uniform sampler2D original;uniform sampler2D filtered;uniform mat4 inverseModel;
         uniform vec4 region;uniform vec3 maskOpacity;uniform vec2 uvScale;uniform vec2 compositionSize;in vec2 uv;out vec4 result;

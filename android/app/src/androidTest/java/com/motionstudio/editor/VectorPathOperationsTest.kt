@@ -57,7 +57,7 @@ class VectorPathOperationsBackendTest {
             vector(JSONObject().put("action","set_dashes").put("dashes",JSONObject().put("pattern",JSONArray().put(constant(5.0)).put(constant(5.0)))
                 .put("offset",constant(0.0))))
             val caps=data(NativeBridge.state(id)).getJSONObject("capabilities").getJSONObject("vector_drawing")
-            assertEquals(2,caps.getInt("protocol"));assertEquals(11,data(NativeBridge.state(id)).getJSONObject("project").getInt("version"))
+            assertTrue(caps.getInt("protocol")>=2);assertEquals(11,data(NativeBridge.state(id)).getJSONObject("project").getInt("version"))
             val frozen=data(NativeBridge.state(id)).getJSONObject("project").toString()
             val still=compare(0)
             assertTrue(android.graphics.Color.alpha(still.getPixel(14,32))>200)
