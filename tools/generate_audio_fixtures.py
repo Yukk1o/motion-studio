@@ -6,7 +6,7 @@ import struct
 import subprocess
 import wave
 
-root = Path(__file__).resolve().parents[1] / "crates/aem-media/tests/fixtures"
+root = Path(__file__).resolve().parents[1] / "crates/motion-media/tests/fixtures"
 root.mkdir(parents=True, exist_ok=True)
 ffmpeg = shutil.which("ffmpeg")
 if not ffmpeg:

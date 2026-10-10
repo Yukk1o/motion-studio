@@ -131,7 +131,7 @@ class PackageBackendApiTest {
             assertTrue(done.toString(), done.getString("state") in listOf("cancelled", "succeeded"))
             if (cancelled.getString("state") != "succeeded") {
                 assertEquals("cancelled", done.getString("state")); assertFalse(done.has("path"))
-                assertEquals(0, File(root, "exports").listFiles()?.count { it.extension == "aem" } ?: 0)
+                assertEquals(0, File(root, "exports").listFiles()?.count { it.extension == "msproj" } ?: 0)
             }
             assertFalse(File(root, "exports").listFiles()?.any { it.name.startsWith(".ms-package-") } ?: false)
             req(id, "release_media_task", "cancel")

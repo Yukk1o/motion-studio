@@ -49,7 +49,7 @@
 {"op":"media_status","request_id":"package-1"}
 ```
 
-成功任务追加 `path`，是 App 私有目录下唯一的 `.aem` 文件；失败追加 `error`，不会返回可分享路径。状态为 `running / succeeded / failed / cancelled`，没有导入任务的 `ready` 和 `finish_media_import` 步骤。
+成功任务追加 `path`，是 App 私有目录下唯一的 `.msproj` 文件；失败追加 `error`，不会返回可分享路径。状态为 `running / succeeded / failed / cancelled`，没有导入任务的 `ready` 和 `finish_media_import` 步骤。
 
 冻结规则：启动后的图层编辑、撤销、保存、切换工程不会改变输出内容和 `frozen_revision`。源文件句柄保持打开，替换／移除原路径不改变已打开文件的内容；宿主自身不原地改写导入源文件。对同一已打开文件原地改写属于不支持的外部操作，大小变化会报错，等长内容修改没有逐字节锁定。效果包保持工程依赖记录，插件安装目录和缓存不打入工程包。
 

@@ -22,7 +22,7 @@
 
 ## 可复现入口
 
-- Rust：`cargo test --workspace --locked --features aem-android/diagnostics -- --test-threads=1`。
+- Rust：`cargo test --workspace --locked --features motion-android/diagnostics -- --test-threads=1`。
 - Android 构建：`python tools/build_android.py --abis arm64-v8a,x86_64 --effects-acceptance --task assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug`。
 - 交互：`ColorEditingTest`，共 6 项；底层契约与持久化：`ColorCurvesApiTest`、`ColorBookmarksTest`，共 4 项。三组已接入 `tools/ci_android_ui.py`。
 - 契约与迁移：[host-color-curves.md](../host-api/host-color-curves.md)。

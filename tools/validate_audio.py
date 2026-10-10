@@ -22,7 +22,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     reports = []
     for name in ("tone-stereo-48000.wav", "tone-mono-44100.mp3", "tone-stereo-48000.m4a"):
-        source = ROOT / "crates/aem-media/tests/fixtures" / name
+        source = ROOT / "crates/motion-media/tests/fixtures" / name
         project = args.output / source.name.replace(".", "-")
         run = subprocess.run([str(args.probe.resolve()), str(source), str(project)], check=True, capture_output=True, text=True, encoding="utf-8")
         task = json.loads(run.stdout)

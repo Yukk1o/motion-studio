@@ -1,0 +1,25 @@
+[package]
+name = "motion-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+motion-effects = { path = "../motion-effects" }
+serde.workspace = true
+serde_json.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+rquickjs = { version = "0.14", default-features = false, features = ["std"] }
+swc_common = "26"
+swc_ecma_ast = "29"
+swc_ecma_parser = { version = "45", default-features = false, features = ["stacker"] }
+swc_ecma_codegen = "32"
+swc_ecma_visit = "29"
+
+[target.'cfg(target_os = "android")'.dependencies]
+rquickjs = { version = "0.14", default-features = false, features = ["std", "bindgen"] }
+
+[dev-dependencies]
+tempfile = "3.17"

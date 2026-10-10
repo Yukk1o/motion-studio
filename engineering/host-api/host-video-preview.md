@@ -53,8 +53,8 @@ ImageReader 的 RGB 格式兼容回退仍使用 CPU 像素搬运/旋转。预览
 
 ## 验证入口
 
-- `cargo test --locked -p aem-render --test video_yuv --test video_instances`：矩阵/范围、四种旋转、奇数 crop、三种 chroma 布局、输入 stride、末尾 plane 范围、GPU/CPU 结果与纹理复用。
-- `cargo test --locked -p aem-android --lib`：VFR 区间、窗口失效及字节上限。
+- `cargo test --locked -p motion-render --test video_yuv --test video_instances`：矩阵/范围、四种旋转、奇数 crop、三种 chroma 布局、输入 stride、末尾 plane 范围、GPU/CPU 结果与纹理复用。
+- `cargo test --locked -p motion-android --lib`：VFR 区间、窗口失效及字节上限。
 - Android `VideoBackendApiTest`：真实 Codec 寻帧、冻结 reader、RGBA 输出；新增用例验证没有更多 render 请求时预取仍推进、下一张预取帧立即可呈现，以及逆向/跳转的 GPU 捕获一致性。
 - `tools/validate_video.py`：Android 实际帧与项目生成素材的 FFmpeg 对照。
 

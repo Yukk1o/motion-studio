@@ -13,7 +13,7 @@ cargo test --offline --locked --workspace --config profile.test.debug=0 --config
 
 | 检查 | 证据 |
 | --- | --- |
-| Shake 完整平面移动 | `aem-render/tests/spatial_effects.rs`：不损失超过 4% 的源 Alpha 覆盖，重心移动，原矩形之外出现非透明像素，原属性不变 |
+| Shake 完整平面移动 | `motion-render/tests/spatial_effects.rs`：不损失超过 4% 的源 Alpha 覆盖，重心移动，原矩形之外出现非透明像素，原属性不变 |
 | 随机寻帧与预览缩放 | 同一帧重复输出完全一致；半分辨率重心与原分辨率对齐误差小于 2 像素 |
 | 效果叠加 | Shake 后叠加 Tint，Alpha 覆盖不变，原点不被丢弃 |
 | 变换与效果透明度 | 完整平面按指定偏移移动；50% 效果透明度同时保留原像素与移动后的像素，原矩形以外不被边缘重复填满 |

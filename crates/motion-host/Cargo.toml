@@ -1,0 +1,29 @@
+[package]
+name = "motion-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Platform-neutral editing host shared by the Android and desktop applications"
+
+[lib]
+crate-type = ["rlib"]
+
+[features]
+default = []
+# Reports GPU fault-injection availability in the state snapshot. The Android
+# adapter gates actual injection on its own `diagnostics` feature; the host only
+# advertises it, so an acceptance build on either platform reports the same key.
+diagnostics = []
+
+[dependencies]
+motion-effects = { path = "../motion-effects" }
+motion-core = { path = "../motion-core" }
+motion-render = { path = "../motion-render" }
+motion-media = { path = "../motion-media" }
+serde.workspace = true
+serde_json.workspace = true
+pollster.workspace = true
+wgpu.workspace = true
+image.workspace = true
+bytemuck.workspace = true
+raw-window-handle = "0.6"

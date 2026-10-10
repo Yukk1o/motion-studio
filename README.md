@@ -1,6 +1,6 @@
 <h1 align="center">Motion Studio</h1>
 
-<p align="center">Android 动效编辑器 · 图层动画 · 3D 摄影机</p>
+<p align="center">Android 与桌面动效编辑器 · 图层动画 · 3D 摄影机</p>
 
 <p align="center"><strong>AI 自主驱动的实验项目</strong></p>
 
@@ -10,11 +10,11 @@
 
 ## 关于项目
 
-Motion Studio 是一个由 AI 自主驱动开发的 Android 动效编辑器实验项目，目标是在手机上实现流畅的图层动画、3D 运镜与曲线编辑。
+Motion Studio 是一个由 AI 自主驱动开发的动效编辑器实验项目，提供 Android 编辑器与共享 Rust 核心的桌面编辑器，探索流畅的图层动画、3D 运镜与曲线编辑。
 
 目前已实现关键帧、摄影机与父子级、自定义曲线、工程保存及视频导出，正在继续完善交互、稳定性与设备适配。
 
-编辑界面支持视频与音频导入、视频原声、真实波形、音量和静音；播放使用混音采样时钟，MP4 导出同时编码画面和声音。效果属性使用内嵌面板，支持效果链、参数动画、五通道颜色曲线和效果包管理。接口与资源范围见 [音频 API](crates/aem-media/README.md) 和 [视频 API](crates/aem-media/VIDEO.md)。
+编辑界面支持视频与音频导入、视频原声、真实波形、音量和静音；播放使用混音采样时钟，MP4 导出同时编码画面和声音。效果属性使用内嵌面板，支持效果链、参数动画、五通道颜色曲线和效果包管理。接口与资源范围见 [音频 API](crates/motion-media/README.md) 和 [视频 API](crates/motion-media/VIDEO.md)。
 
 统一内置效果包现有 95 项，包含原有 59 项与新增 36 项创作效果；场景效果包提供 6 项粒子和镜头效果。参数范围和未支持选项按实例绑定的精确包显示；全部效果仍为近似实现，不能将渲染一致性检查视为视觉兼容性已完整验收。
 
@@ -27,6 +27,12 @@ Motion Studio 是一个由 AI 自主驱动开发的 Android 动效编辑器实�
 合成外侧使用独立灰色背景和细边线。主页设置集中管理效果包和布局；“调整布局”允许改变预览、面板和时间轴比例，并保存横竖屏各自的布局，抓手只在调整模式显示。工程主页支持搜索、继续编辑和自定义尺寸、帧率及时长；图层可多选并批量编辑，数值滑轮和时间轴松手后逐渐减速，再次触摸即停止。
 
 图层底栏提供变换、效果及视频原声分类，超出可用宽度时左右滑动。透明度与位置、旋转、缩放一起归入变换。播放控制栏可在当前播放头切割选中图层；更多菜单支持同一工程内复制和粘贴单层或多层，保留动画、效果、表达式及选中图层之间的父子关系，一次撤销整个粘贴。立即生成副本的操作命名为“创建副本”。
+
+## 桌面编辑器
+
+主分支包含原生 Rust 桌面端：可调整的面板与浮窗、基础编辑与保存、中英文界面，以及与窗口共享会话的 MCP 工具。运行方式与当前界面范围见 [桌面端说明](desktop/README.md)，自动化接入见 [MCP](desktop/MCP.md)。[节点创作与手机效果包导出](desktop/NODE-AUTHORING.md)目前是下一阶段的设计方案。
+
+源码包与目录统一使用 `motion-*`，产品名为 **Motion Studio**。新导出的工程包使用 `.msproj` 扩展名，旧 `.aem` 工程包保持读取兼容；工程数据和效果包 ID 不因改名而变化。
 
 ## 从图层到镜头
 
@@ -42,7 +48,7 @@ Motion Studio 是一个由 AI 自主驱动开发的 Android 动效编辑器实�
 
 工程可在本地自动保存，支持工程库、完整工程包导入/导出、指定帧 PNG 和 H.264 MP4。
 
-媒体后端支持 MP4 / MOV / MKV / WebM 的 H.264、H.265、VP8、VP9 导入，以及 FLAC、ALAC、Vorbis、Opus、AAC、MP3 和多种 WAV 位深。音频源采样率为 8–192 kHz；视频源支持 4K、最高 240 fps、8 位 SDR，不限预设画幅比例，仍受像素与边长预算约束，具体组合以设备探测结果为准。工程帧率可设为 1–240 的整数，源帧率与工程设置独立。设备解码器查询与格式范围见 [媒体格式 API](crates/aem-media/FORMATS.md)。
+媒体后端支持 MP4 / MOV / MKV / WebM 的 H.264、H.265、VP8、VP9 导入，以及 FLAC、ALAC、Vorbis、Opus、AAC、MP3 和多种 WAV 位深。音频源采样率为 8–192 kHz；视频源支持 4K、最高 240 fps、8 位 SDR，不限预设画幅比例，仍受像素与边长预算约束，具体组合以设备探测结果为准。工程帧率可设为 1–240 的整数，源帧率与工程设置独立。设备解码器查询与格式范围见 [媒体格式 API](crates/motion-media/FORMATS.md)。
 
 属性面板的图层操作菜单提供“分离 XYZ”；分离后，轴选择器控制当前关键帧和曲线。新图层默认 2D，点击面板上的 2D/3D 可切换模式并保留各轴动画。
 
@@ -58,10 +64,11 @@ Motion Studio 是一个由 AI 自主驱动开发的 Android 动效编辑器实�
 
 | 层 | 技术与职责 |
 | --- | --- |
-| 界面 | Kotlin、Jetpack Compose、SurfaceView |
+| Android 界面 | Kotlin、Jetpack Compose、SurfaceView |
+| 桌面界面 | Rust、winit、wgpu，自由停靠面板与浮窗 |
 | 动画核心 | Rust：工程模型、关键帧、曲线与摄影机 |
 | GPU 预览 | wgpu：合成、呈现与 PNG |
-| 平台边界 | JNI |
+| 平台边界 | Android JNI、桌面原生窗口，共享 `motion-host` 编辑会话 |
 | 媒体导入 | Rust 工程事务与磁盘缓存，Android MediaExtractor/MediaCodec 视频解码，确定性 PCM 混音 |
 | 视频输出 | 冻结工程逐帧求值，EGL/GLES 写入 MediaCodec 输入 Surface |
 
@@ -98,7 +105,7 @@ py tools/build_android.py --task assembleDebug
 
 ```powershell
 cargo test --workspace --locked
-cargo run -p aem-render --bin render_probe -- artifacts/render-probe
+cargo run -p motion-render --bin render_probe -- artifacts/render-probe
 ```
 
 GPU 检查不会在缺少 GPU 时静默跳过。

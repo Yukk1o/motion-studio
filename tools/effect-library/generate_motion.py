@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LIB = ROOT / "crates/aem-effects/motion-library"
+LIB = ROOT / "crates/motion-effects/motion-library"
 LIB.mkdir(parents=True, exist_ok=True)
 (LIB / "shaders").mkdir(exist_ok=True)
 LICENSE = (LIB / "LICENSE.shaders.txt").read_text(encoding="utf-8")

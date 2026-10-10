@@ -34,9 +34,9 @@
 
 ## 回归和可复现测量
 
-- `cargo test --locked -p aem-render --test effect_preview_density`：预览尺寸、GPU/等待信号降档、旋转/镜像/非等比缩放、Scene 生成器回退、混合密度的池 UV、透明边缘画面、纹理复用和释放、切换后正式计划不变。
+- `cargo test --locked -p motion-render --test effect_preview_density`：预览尺寸、GPU/等待信号降档、旋转/镜像/非等比缩放、Scene 生成器回退、混合密度的池 UV、透明边缘画面、纹理复用和释放、切换后正式计划不变。
 - Android `EffectPreviewBackendTest`：4K 合成在 640×360 Surface 叠加光效及有效非零定向模糊，无问题效果；切换模式不改工程或正式导出检查，停止录制不关闭 GPU 测量。
-- `cargo run --locked -p aem-render --bin effect_preview_probe -- artifacts/effect-preview`：生成报告和前后 PNG，输出目录不要入 Git。
+- `cargo run --locked -p motion-render --bin effect_preview_probe -- artifacts/effect-preview`：生成报告和前后 PNG，输出目录不要入 Git。
 
 本地检查：workspace 的 165 项 Rust 测试全部通过；最后修改后复跑 5 项预览/计时测试通过。Android arm64-v8a、x86_64 原生编译、Debug/测试 APK、单元测试及 lint 通过。API 35 SwiftShader/Vulkan 模拟器上的 4 项定向回归通过，包含上面的 4K 效果链、视频预取与准确寻帧、预览档位切换不改全分辨率 PNG，以及 wgpu/GLES 的编码视频对照；这不是手机性能验收。
 

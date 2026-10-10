@@ -9,7 +9,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const ui = path.join(root, "crates/aem-effects/scene-library/ui");
+const ui = path.join(root, "crates/motion-effects/scene-library/ui");
 const output = path.join(root, "artifacts/plugin-editor-browser");
 await mkdir(output, {recursive: true});
 const executable = process.env.EDITOR_PROBE_BIN || path.join(root, "target/debug/plugin_editor_probe" + (process.platform === "win32" ? ".exe" : ""));

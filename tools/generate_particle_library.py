@@ -5,7 +5,7 @@ import zipfile
 from generate_scene_library import parameter
 
 ROOT = Path(__file__).resolve().parents[1]
-DEST = ROOT / "crates/aem-effects/particle-library"
+DEST = ROOT / "crates/motion-effects/particle-library"
 
 def main():
     params = [

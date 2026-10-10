@@ -49,10 +49,10 @@
 ## 复现
 
 ```powershell
-cargo test --locked --workspace --features aem-android/diagnostics -- --test-threads=1
-cargo test --locked -p aem-render --test image_working_set -- --nocapture
+cargo test --locked --workspace --features motion-android/diagnostics -- --test-threads=1
+cargo test --locked -p motion-render --test image_working_set -- --nocapture
 $env:MOTION_IMAGE_SOURCE = '<本地 PNG 的绝对路径>'
-cargo test --locked -p aem-render --test image_resources -- --include-ignored --test-threads=1 --nocapture
+cargo test --locked -p motion-render --test image_resources -- --include-ignored --test-threads=1 --nocapture
 ```
 
 `optional_local_original_image_probe` 默认忽略，需要本地文件环境变量；本次已显式执行。合成 fixture 的大 PNG、181 字节 Adam7 样本均由测试生成，不包含用户图片。

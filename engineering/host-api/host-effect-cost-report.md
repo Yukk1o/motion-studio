@@ -1,12 +1,12 @@
 # 核心效果成本报告
 
-报告由 `crates/aem-render/tests/effect_cost.rs` 生成，范围为当前核心包 manifest 的全部效果（目前 59 项、4 个 profile），使用 3840×2160 单层工程、第 0 帧、按工程尺寸初始化的默认参数。场景/粒子包、历史核心包、自定义插件及非默认参数场景不属于这份快照。
+报告由 `crates/motion-render/tests/effect_cost.rs` 生成，范围为当前核心包 manifest 的全部效果（目前 59 项、4 个 profile），使用 3840×2160 单层工程、第 0 帧、按工程尺寸初始化的默认参数。场景/粒子包、历史核心包、自定义插件及非默认参数场景不属于这份快照。
 
 此快照使用 PlanBuilder 的保守默认预算 64 MiB，明确作为可重复的基线；不读取手机 RAM，也不代表设备分档后的实际预览或导出。设备预算仍使用主分支的配置接口和协议 v6，诊断记录不会把它改回固定 64 MiB。
 
 ```powershell
 $env:MOTION_EFFECT_REPORT = 'E:/Dev/aem/artifacts/effect-costs'
-cargo test --locked -p aem-render --test effect_cost -- --nocapture
+cargo test --locked -p motion-render --test effect_cost -- --nocapture
 ```
 
 环境变量表示目录，测试写入 `effect-costs.json` 和 `effect-costs.md`。未设置时只输出表格与告警，Rust 测试框架会默认捕获成功测试的输出。本报告仅进行 CPU 侧正式规划，不创建 GPU device，也不分配 GPU scratch。

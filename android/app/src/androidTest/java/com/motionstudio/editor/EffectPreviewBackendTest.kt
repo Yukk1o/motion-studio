@@ -21,6 +21,30 @@ class EffectPreviewBackendTest {
     private fun data(raw: String): JSONObject = JSONObject(raw).let {
         assertTrue(it.toString(), it.optBoolean("ok")); it.getJSONObject("data")
     }
+    @Test fun repeatedBindingDisconnectsTheOldProducerBeforeCreatingAnotherSurface() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val root=File(context.filesDir,"acceptance/surface-rebind-${UUID.randomUUID()}").apply{mkdirs()}
+        val project=data(NativeBridge.projectTemplate(0)).put("width",96).put("height",64).put("layers",JSONArray())
+        project.getJSONObject("camera").put("created",false)
+        val id=NativeBridge.create(root.absolutePath,project.toString())
+        assertTrue(NativeBridge.creationError(),id>0)
+        val consumer=HandlerThread("surface-rebind-consumer").apply{start()}
+        val reader=ImageReader.newInstance(96,64,ImageFormat.PRIVATE,3,HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE)
+        reader.setOnImageAvailableListener({it.acquireLatestImage()?.close()},Handler(consumer.looper))
+        try {
+            for(frame in 0..2) {
+                data(NativeBridge.surface(id,reader.surface,96,64))
+                assertTrue(NativeBridge.state(id),NativeBridge.render(id,frame.toDouble()))
+                assertTrue(data(NativeBridge.state(id)).isNull("renderError"))
+            }
+            assertFalse(JSONObject(NativeBridge.surface(id,reader.surface,0,64)).getBoolean("ok"))
+            assertTrue("Invalid dimensions must preserve the valid preview",NativeBridge.render(id,3.0))
+        } finally {
+            data(NativeBridge.surface(id,null,0,0));NativeBridge.destroy(id)
+            reader.setOnImageAvailableListener(null,null)
+            consumer.quitSafely();consumer.join(3000);assertFalse(consumer.isAlive);reader.close()
+        }
+    }
     @Test fun fourKLightingAndBlurFitTheSurfaceWithoutChangingFormalPlansOrProject() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val root = File(context.filesDir, "acceptance/effect-preview-${UUID.randomUUID()}").apply { mkdirs() }

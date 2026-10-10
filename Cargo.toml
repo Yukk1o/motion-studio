@@ -1,5 +1,15 @@
 [workspace]
-members = ["crates/aem-effects", "crates/aem-core", "crates/aem-render", "crates/aem-android", "crates/aem-media"]
+members = [
+    "crates/motion-effects",
+    "crates/motion-core",
+    "crates/motion-render",
+    "crates/motion-media",
+    "crates/motion-host",
+    "crates/motion-android",
+    "crates/motion-desktop-media",
+    "desktop/ui",
+    "desktop/app",
+]
 exclude = ["vendor/naga"]
 resolver = "2"
 

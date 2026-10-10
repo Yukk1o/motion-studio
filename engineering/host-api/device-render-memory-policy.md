@@ -13,7 +13,7 @@ Android 创建编辑会话时从 ActivityManager 读取物理内存与低内存�
 
 这些数字是应用策略的初始分档，不是显存容量、可分配内存保证或驱动能力测量。还需要真机校准；384 MiB 尤其不能当作所有高内存手机的已验证安全值。物理内存、当前可用内存、进程限制、解码器缓冲、预览/导出并行及驱动占用是不同口径；本次没有把所有资源合并为一个新的进程总预算，也没有新增运行中的内存压力自适应。仍保留设备纹理尺寸检查，超出合法布局或策略预算时明确失败。
 
-`aem_effects::SCRATCH_BUDGET_FLOOR` 表示保守默认值。旧公开名字 `SCRATCH_BUDGET` 保留为该值的别名，避免破坏已有 SDK 代码；它不再代表所有设备的实际上限。
+`motion_effects::SCRATCH_BUDGET_FLOOR` 表示保守默认值。旧公开名字 `SCRATCH_BUDGET` 保留为该值的别名，避免破坏已有 SDK 代码；它不再代表所有设备的实际上限。
 
 帧计划保持 128 字节头，版本从 5 升到 6。原保留字段 word 19（byte 76）为 `u32 scratch_budget_bytes`。Rust 检查并写入该值；GLES 的效果池、调整图层源和蒙版池从同一头字段读取，拒绝旧版本或失效预算。`renderPlanInfo` 和 `previewInfo` 均返回 `scratchBudgetBytes`。预算改变会失效已有预览规划缓存；设备策略不会改变参数、颜色、Alpha、采样或包哈希。
 

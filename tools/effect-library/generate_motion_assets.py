@@ -11,7 +11,7 @@ import zlib
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
-LIB=ROOT/"crates/aem-effects/motion-library"
+LIB=ROOT/"crates/motion-effects/motion-library"
 OUT=LIB/"assets"
 OUT.mkdir(parents=True,exist_ok=True)
 

@@ -2,7 +2,7 @@
 
 基于主分支 `0ca9665285197c0d35c22ac3b5d4d1b57ef118e4`，分支 `codex/android-runtime-modules-20261008`。本次只调整代码边界，不引入颜色或蒙版工作树的协议／功能变化。
 
-`runtime.rs` 从 2178 行降为 546 行，保留 Session 生命周期、线程归属检查、GPU/Surface 资源及 render/sample 核心。JNI 入口、参数转换、响应封装、命令／插件分发和 snapshot 移入 [runtime 模块说明](../../crates/aem-android/src/runtime/README.md) 中列出的模块。
+`runtime.rs` 从 2178 行降为 546 行，保留 Session 生命周期、线程归属检查、GPU/Surface 资源及 render/sample 核心。JNI 入口、参数转换、响应封装、命令／插件分发和 snapshot 移入 [runtime 模块说明](../../crates/motion-android/src/runtime/README.md) 中列出的模块。
 
 已验证：
 

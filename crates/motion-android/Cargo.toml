@@ -1,0 +1,30 @@
+[package]
+name = "motion-android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Android JNI adapter over the shared editing host"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+diagnostics = ["motion-host/diagnostics"]
+
+[dependencies]
+motion-host = { path = "../motion-host" }
+motion-effects = { path = "../motion-effects" }
+motion-core = { path = "../motion-core" }
+motion-render = { path = "../motion-render" }
+motion-media = { path = "../motion-media" }
+serde_json.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk = { version = "0.9", features = ["media", "api-level-29"] }
+ndk-sys = { version = "0.6", features = ["media"] }
+libc = "0.2"
+raw-window-handle = "0.6"

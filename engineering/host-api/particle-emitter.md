@@ -97,4 +97,4 @@
 
 Android NativeParticleEditorTest 验证原生控件、共享 wgpu 预览、播放与定位、内外关键帧同步、整页提交/撤销/重做和取消。旧 WebView 插件编辑器及浏览器测试继续为原有场景包提供兼容支持。
 
-`cargo run -p aem-render --bin particle_probe -- <输出目录> [--sprite]` 输出 6 s / 30 fps / 960×540 路径示例、工程和每秒渲染读回 FPS。该指标含场景采样、渲染和同步读回，不含 PNG/MP4 编码，也不等同于手机预览帧率。Android SceneEffectsTest 对七种生成器（含运动发射器的自定义 PNG）进行未编码 wgpu/GLES RGB/Alpha MAE ≤3 的对照。
+`cargo run -p motion-render --bin particle_probe -- <输出目录> [--sprite]` 输出 6 s / 30 fps / 960×540 路径示例、工程和每秒渲染读回 FPS。该指标含场景采样、渲染和同步读回，不含 PNG/MP4 编码，也不等同于手机预览帧率。Android SceneEffectsTest 对七种生成器（含运动发射器的自定义 PNG）进行未编码 wgpu/GLES RGB/Alpha MAE ≤3 的对照。

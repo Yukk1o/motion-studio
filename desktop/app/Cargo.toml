@@ -1,0 +1,35 @@
+[package]
+name = "motion-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Motion Studio desktop application"
+
+[[bin]]
+name = "motion-studio"
+path = "src/main.rs"
+
+[features]
+default = []
+ffmpeg = ["motion-desktop-media/ffmpeg"]
+
+[dependencies]
+motion-host = { path = "../../crates/motion-host" }
+motion-core = { path = "../../crates/motion-core" }
+motion-render = { path = "../../crates/motion-render" }
+motion-media = { path = "../../crates/motion-media" }
+motion-desktop-media = { path = "../../crates/motion-desktop-media" }
+motion-ui = { path = "../ui" }
+serde.workspace = true
+serde_json.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+raw-window-handle = "0.6"
+rfd = "0.15"
+image.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+winit = "0.30"
+
+[dev-dependencies]
+tempfile = "3"

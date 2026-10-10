@@ -1,0 +1,33 @@
+[package]
+name = "motion-desktop-media"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Desktop media backend for the shared editing host"
+
+[lib]
+crate-type = ["rlib"]
+
+[features]
+default = []
+# Requires libav (ffmpeg) development libraries at build time. Off by default so
+# the workspace and CI build on machines without libav; `tools/build_desktop.py
+# --ffmpeg` turns it on for distributable builds.
+ffmpeg = ["dep:ffmpeg-next"]
+
+[dependencies]
+motion-host = { path = "../motion-host" }
+motion-core = { path = "../motion-core" }
+motion-render = { path = "../motion-render" }
+motion-media = { path = "../motion-media" }
+serde.workspace = true
+serde_json.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+raw-window-handle = "0.6"
+
+ffmpeg-next = { version = "9", optional = true, default-features = false, features = [
+    "codec",
+    "format",
+    "software-scaling",
+] }
