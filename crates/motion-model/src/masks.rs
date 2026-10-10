@@ -112,6 +112,7 @@ impl LayerMask {
             "invalid mask ID or name",
         )?;
         VectorContent {
+            trim: None,
             source: VectorSource::Paths {
                 paths: vec![self.path.clone()],
             },
