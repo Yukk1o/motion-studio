@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, HashSet};
 pub const MAX_PATHS: usize = 64;
 pub const MAX_NODES: usize = 2048;
 pub mod path_ops;
+pub mod groups;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -233,6 +234,7 @@ pub struct VectorPath {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VectorSource {
+    Group { group: Box<groups::VectorGroup> },
     Paths {
         paths: Vec<VectorPath>,
     },
@@ -295,10 +297,16 @@ pub struct SampledVector {
     pub stroke: Option<([f32; 4], f32, LineCap, LineJoin, f32)>,
     pub trim: Option<SampledTrimPaths>,
     pub dashes: Option<SampledDashes>,
+    pub batches: Option<Vec<groups::PaintBatch>>,
+    pub root_opacity: f32,
+    pub group_parameters: BTreeMap<u64, BTreeMap<String, serde_json::Value>>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VectorAction {
+    ConvertToGroup,
+    SetGroupParameter { item: u64, parameter: String, frame: u32,
+        value: groups::ParameterValue, #[serde(default)] animated: Option<bool> },
     SetTrim {
         trim: Option<TrimPaths>,
     },
@@ -377,6 +385,10 @@ fn color_valid(track: &Track<[f32; 4]>) -> Result<()> {
     Ok(())
 }
 impl VectorContent {
+    pub fn required_format(&self) -> u32 {
+        if matches!(self.source, VectorSource::Group { .. }) { 12 }
+        else if self.has_path_modifiers() { 11 } else { 6 }
+    }
     pub fn has_path_modifiers(&self) -> bool {
         self.trim.is_some() || self.stroke.as_ref().is_some_and(|s| s.dashes.is_some())
     }
@@ -421,6 +433,7 @@ impl VectorContent {
                 .as_ref()
                 .is_some_and(|s| s.color.is_animated() || s.width.is_animated())
             || match &self.source {
+                VectorSource::Group { group } => group.animated(),
                 VectorSource::Paths { paths } => paths
                     .iter()
                     .flat_map(|p| &p.nodes)
@@ -488,6 +501,10 @@ impl VectorContent {
             )?;
         }
         match &self.source {
+            VectorSource::Group { group } => {
+                ensure(self.fill.is_none() && self.stroke.is_none() && self.trim.is_none(), "group paints and modifiers must be stored inside the group")?;
+                group.validate()?;
+            }
             VectorSource::Paths { paths } => {
                 ensure(paths.len() <= MAX_PATHS, "too many vector paths")?;
                 let mut ids = HashSet::new();
@@ -532,7 +549,9 @@ impl VectorContent {
         Ok(())
     }
     pub fn sample(&self, frame: f64, size: [f32; 2]) -> Result<SampledVector> {
+        if let VectorSource::Group { group } = &self.source { return group.sample(frame); }
         let paths = match &self.source {
+            VectorSource::Group { .. } => unreachable!(),
             VectorSource::Paths { paths } => paths
                 .iter()
                 .map(|p| SampledPath {
@@ -554,6 +573,9 @@ impl VectorContent {
             }
         };
         let sampled = SampledVector {
+            batches: None,
+            root_opacity: 1.,
+            group_parameters: BTreeMap::new(),
             trim: self.trim.as_ref().map(|t| SampledTrimPaths {
                 start: t.start.sample(frame),
                 end: t.end.sample(frame),
@@ -629,6 +651,15 @@ impl VectorContent {
                 .map_err(|_| crate::Error::Invalid("vector local frame overflow".into()))
         };
         match action {
+            VectorAction::ConvertToGroup => {
+                ensure(!matches!(self.source, VectorSource::Group { .. }), "already a vector group")?;
+                let content = self.clone();
+                *self = groups::VectorGroup::wrap(content, size);
+            }
+            VectorAction::SetGroupParameter { item, parameter, frame, value, animated } => {
+                let VectorSource::Group { group } = &mut self.source else { return Err(crate::Error::Invalid("not a vector group".into())); };
+                group.set_parameter(item, &parameter, local(frame)?, value, animated)?;
+            }
             VectorAction::SetTrim { trim } => self.trim = trim,
             VectorAction::SetDashes { dashes } => {
                 let stroke = self.stroke.as_mut().ok_or_else(|| {

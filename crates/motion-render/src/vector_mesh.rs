@@ -30,6 +30,9 @@ pub fn tessellate(
     size: [f32; 2],
     scale: f32,
 ) -> Result<Vec<VectorVertex>, String> {
+    if v.batches.is_some() {
+        return Err("grouped vector raster execution is not available yet".into());
+    }
     let trimmed = v
         .trim
         .as_ref()
