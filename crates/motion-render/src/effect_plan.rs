@@ -7,8 +7,8 @@ use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 
 pub const PLAN_MAGIC: u32 = 0x46584d53;
-pub const PLAN_VERSION: u32 = 7;
-pub const HEADER_BYTES: usize = 128;
+pub const PLAN_VERSION: u32 = 8;
+pub const HEADER_BYTES: usize = 144;
 pub const DRAW_WORDS: usize = 32;
 pub const PASS_WORDS: usize = 10;
 pub fn scratch_bytes(width: u32, height: u32, slots: u32) -> u64 {
@@ -87,7 +87,10 @@ pub struct EffectFramePlan {
     pub generator_stats: crate::scene_generator::GeneratorStats,
     pub vectors: Vec<crate::vector_mesh::VectorMesh>,
     pub masks: Vec<crate::mask_plan::MaskRaster>,
+    pub compositing:Vec<LayerComposite>,
 }
+#[derive(Clone,Copy,Debug)]
+pub struct LayerComposite {pub blend:u32,pub space:u32,pub matte:i32,pub mode:u32,pub visible:bool}
 /// GPU snapshots are evaluated once in dependency order, before compositing.
 pub fn image_input_order(frame: &EffectFramePlan) -> Result<Vec<usize>, String> {
     fn visit(
@@ -128,6 +131,11 @@ pub fn image_input_order(frame: &EffectFramePlan) -> Result<Vec<usize>, String> 
             )?;
         }
     }
+    for composite in &frame.compositing {
+        if composite.matte >= 0 {
+            visit(frame, composite.matte as usize, &mut marks, &mut order)?;
+        }
+    }
     Ok(order)
 }
 
@@ -149,6 +157,7 @@ impl EffectFramePlan {
                 .sum::<usize>()
             + self.masks.len() * crate::mask_plan::RECORD_BYTES
             + self.masks.iter().map(|m|m.vertices.len()*24).sum::<usize>()
+            + self.compositing.len()*20
     }
     pub fn write(&self, scene: &Scene, out: &mut [u8]) -> Result<usize, String> {
         let size = self.buffer_bytes(scene);
@@ -166,6 +175,7 @@ impl EffectFramePlan {
         let vector_data_offset = vector_offset + self.vectors.len() * 28;
         let mask_offset = vector_data_offset + self.vectors.iter().map(|v|v.vertices.len()*24).sum::<usize>();
         let mask_data_offset = mask_offset + self.masks.len()*crate::mask_plan::RECORD_BYTES;
+        let compositing_offset=mask_data_offset+self.masks.iter().map(|m|m.vertices.len()*24).sum::<usize>();
         let header = [
             PLAN_MAGIC,
             PLAN_VERSION,
@@ -199,6 +209,7 @@ impl EffectFramePlan {
             self.masks.len() as u32,
             mask_data_offset as u32,
             crate::mask_plan::RECORD_BYTES as u32,
+            compositing_offset as u32,self.compositing.len() as u32,20,0,
         ];
         out[..HEADER_BYTES].copy_from_slice(bytemuck::cast_slice(&header));
         for (i, d) in self.draws.iter().enumerate() {
@@ -275,6 +286,7 @@ impl EffectFramePlan {
             offset = end;
         }
         crate::mask_plan::write(&self.masks,out,mask_offset,mask_data_offset);
+        for (i,c) in self.compositing.iter().enumerate(){let words=[c.blend,c.space,c.matte as u32,c.mode,u32::from(c.visible)];out[compositing_offset+i*20..compositing_offset+(i+1)*20].copy_from_slice(bytemuck::cast_slice(&words));}
         Ok(size)
     }
 }
@@ -809,13 +821,15 @@ impl PlanBuilder {
             .min(1.0)
             .max(0.001);
         self.frame.masks=self.mask_cache.build(scene,scale,preview)?;
+        self.frame.compositing=scene.layers.iter().map(|l|LayerComposite {blend:l.blend.mode.code(),space:u32::from(l.blend.space==motion_model::compositing::BlendSpace::Srgb),matte:l.track_matte.and_then(|m|scene.layers.iter().position(|s|s.id==m.source)).map_or(-1,|i|i as i32),mode:l.track_matte.map_or(0,|m|m.mode.code()),visible:l.composite_visible}).collect();
         for mask in &self.frame.masks {
             if mask.width>self.device_dimension || mask.height>self.device_dimension {
                 return Err(format!("layer {}, mask {}: raster exceeds device dimensions",scene.layers[mask.layer].id,mask.id));
             }
         }
         let post_sources:std::collections::HashSet<_>=scene.effects.iter().filter(|e|e.enabled&&scene.layers.iter().any(|l|l.id==e.layer))
-            .filter_map(|e| match e.image_input {Some(motion_model::EffectImageInput::Layer{layer,stage:motion_model::EffectImageStage::Effects})=>Some(layer),_=>None}).collect();
+            .filter_map(|e| match e.image_input {Some(motion_model::EffectImageInput::Layer{layer,stage:motion_model::EffectImageStage::Effects})=>Some(layer),_=>None})
+            .chain(scene.layers.iter().filter_map(|l|l.track_matte.map(|m|m.source))).collect();
         let image_sources:std::collections::HashSet<_>=scene.effects.iter().filter(|e|e.enabled)
             .filter_map(|e|e.image_input.and_then(motion_model::EffectImageInput::layer)).collect();
         for (layer_index, layer) in scene.layers.iter().enumerate() {

@@ -24,7 +24,10 @@ internal class LayerClipboard private constructor(
             val layer=JSONObject(raw);val parent=layer.optJSONObject("parent")
             val parentAvailable=parent==null||parent.isNull("object")||parent.optLong("object") in ids||
                 (if(parent.optLong("object")==0L)project.optJSONObject("camera")?.optBoolean("created")==true else parent.optLong("object") in current)
-            parentAvailable&&layer.optJSONArray("effects").objects().all{effect->
+            val matte=layer.optJSONObject("track_matte")
+            val matteAvailable=matte==null||matte.optLong("source") in ids||
+                current[matte.optLong("source")]?.getJSONObject("content")?.getString("kind")?.let{it !in setOf("null","audio","adjustment")}==true
+            parentAvailable&&matteAvailable&&layer.optJSONArray("effects").objects().all{effect->
                 val input=effect.optJSONObject("image_input")
                 input==null||input.optString("kind")!="layer"||input.optLong("layer") in ids||
                     current[input.optLong("layer")]?.getJSONObject("content")?.getString("kind")?.let{it !in setOf("null","audio","adjustment")}==true
@@ -42,9 +45,15 @@ internal class LayerClipboard private constructor(
         val copies=layers.map(::JSONObject)
         val ids=copies.mapIndexed{i,l->l.getLong("id") to highest+i+1}.toMap()
         val materialBindings=JSONArray()
+        val matteBindings=JSONArray()
         copies.forEach{layer->
             layer.put("id",ids.getValue(layer.getLong("id"))).put("locked",false)
             layer.optJSONObject("parent")?.let{parent->ids[parent.optLong("object")]?.let{parent.put("object",it)}}
+            layer.optJSONObject("track_matte")?.let{matte->
+                ids[matte.getLong("source")]?.let{matte.put("source",it)}
+                matteBindings.put(JSONObject().put("op","set_track_matte").put("object",layer.getLong("id")).put("matte",matte))
+                layer.remove("track_matte")
+            }
             layer.optJSONArray("effects").objects().forEach{effect->
                 val input=effect.optJSONObject("image_input")
                 if(input?.optString("kind")=="layer") {
@@ -68,6 +77,7 @@ internal class LayerClipboard private constructor(
             added+=next.getLong("id");pending.remove(next)
         }
         materialBindings.objects().forEach{commands.put(it)}
+        matteBindings.objects().forEach{commands.put(it)}
         // Restore the copied stacking order after adding dependencies.
         copies.forEachIndexed{i,layer->commands.put(JSONObject().put("op","reorder").put("object",layer.getLong("id")).put("index",current.size+i))}
         expressions.forEach{raw->

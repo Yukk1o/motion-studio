@@ -212,6 +212,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
     private var effects:GlEffects?=null
     private var layerSources:GlLayerSources?=null
     private var masks:GlMasks?=null
+    private var compositing:GlCompositing?=null
     val graphicsCapabilityReadbackBytes:Long get()=layerSources?.graphicsCapabilityReadbackBytes?:0L
     init {
         try {
@@ -226,6 +227,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
             else EGL14.eglCreateWindowSurface(display,configs[0],surface,intArrayOf(EGL14.EGL_NONE),0)
         check(window!=EGL14.EGL_NO_SURFACE&&EGL14.eglMakeCurrent(display,window,window,context)){"编码 Surface 创建失败"}
         plane=program(PLANE_VERTEX,PLANE_FRAGMENT);presentProgram=program(PRESENT_VERTEX,PRESENT_FRAGMENT)
+        if(planInfo.has("compositing"))compositing=GlCompositing(planInfo)
         val names=IntArray(1)
         GLES30.glGenVertexArrays(1,names,0);vertexArray=names[0];GLES30.glBindVertexArray(vertexArray)
         GLES30.glGenBuffers(1,names,0);vertexBuffer=names[0];GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
@@ -358,17 +360,21 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         val maskBudget=masks!!.stage(buffer)
         effects?.prepare(buffer)
         val values=buffer.asFloatBuffer()
+        val compositeOffset=RenderPlanBudget.compositingOffset(buffer)
+        val comp=compositing?.takeIf{it.active(buffer)}
         val hasAdjustment=(0 until buffer.getInt(8)).any{values.get(buffer.getInt(16)/4+it*32+31)==2f&&values.get(buffer.getInt(16)/4+it*32+28)<values.get(buffer.getInt(16)/4+it*32+29)}
-        layerSources!!.prepare(buffer,hasAdjustment,w,h,imageBytes+effects!!.resourceBytes()+maskBudget.outputs,effects!!.scratchBytes()+maskBudget.scratch)
+        val hasAccumulator=hasAdjustment||comp?.hasTransfer(buffer)==true
+        layerSources!!.prepare(buffer,hasAccumulator,w,h,imageBytes+effects!!.resourceBytes()+maskBudget.outputs+(compositing?.coverageBytes()?:0L),effects!!.scratchBytes()+maskBudget.scratch)
         val sourceOrder=effects!!.imageInputOrder(buffer)
-        layerSources!!.prepareEffectInputs(buffer,sourceOrder,imageBytes+effects!!.resourceBytes()+maskBudget.outputs)
-        masks!!.prepare(buffer,imageBytes+effects!!.resourceBytes()+layerSources!!.resourceBytes(),effects!!.scratchBytes()+layerSources!!.accumulatorBytes())
+        layerSources!!.prepareEffectInputs(buffer,sourceOrder,imageBytes+effects!!.resourceBytes()+maskBudget.outputs+(compositing?.coverageBytes()?:0L))
+        masks!!.prepare(buffer,imageBytes+effects!!.resourceBytes()+layerSources!!.resourceBytes()+(compositing?.coverageBytes()?:0L),effects!!.scratchBytes())
+        compositing?.prepare(buffer,w,h,imageBytes+effects!!.resourceBytes()+layerSources!!.resourceBytes()+maskBudget.outputs)
         var accumulator=0
-        if(hasAdjustment)layerSources!!.target(layerSources!!.accumulator(0),w,h,true)
+        if(hasAccumulator)layerSources!!.target(layerSources!!.accumulator(0),w,h,true)
         GLES30.glBindVertexArray(vertexArray);GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,vertexBuffer)
         val vertices=buffer.duplicate().apply{position(vertexOffset);limit(vertexOffset+bytes)}.slice()
         if(bytes>0)GLES30.glBufferSubData(GLES30.GL_ARRAY_BUFFER,0,bytes,vertices)
-        if(!hasAdjustment) {
+        if(!hasAccumulator) {
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER,GLES30.GL_COLOR_ATTACHMENT0,GLES30.GL_TEXTURE_2D,target,0);GLES30.glViewport(0,0,w,h)
             GLES30.glClearColor(background[0],background[1],background[2],background[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         }
@@ -389,11 +395,13 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
             effects!!.passes(buffer,values.get(base+28).toInt(),values.get(base+29).toInt(),sourceTexture(inputLayer,false),masks!!::textureFor,::sourceTexture)
             layerSources!!.copyEffectInput(inputLayer,effects!!.texture(0))
         }
+        comp?.extract(buffer,w,h,vertexArray,layerSources!!::effectInput)
         val batchOffset=buffer.getInt(52);val count=buffer.getInt(56)
         check(batchOffset>=128&&count in 0..8192&&batchOffset.toLong()+count*12<=vertexOffset){"几何批次范围失效"}
         for(i in 0 until count) {
             val batch=batchOffset+i*12;val layer=buffer.getInt(batch)
             check(layer in 0 until buffer.getInt(8)){"图层计划索引失效"}
+            if(buffer.getInt(compositeOffset+layer*20+16)==0)continue
             val base=buffer.getInt(16)/4+layer*32
             val sourceKind=values.get(base+31).toInt()
             val asset=values.get(base+24).toInt();if(sourceKind==0&&asset in skippedSlots)continue
@@ -413,26 +421,32 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
                 if(passStart<passEnd&&values.get(base+22)>0f)accumulator=layerSources!!.adjust(accumulator,effects!!.texture(0),buffer,base)
                 continue
             }
-            if(hasAdjustment)layerSources!!.target(layerSources!!.accumulator(accumulator),w,h)
+            val transfer=comp?.transfer(buffer,layer)==true
+            if(transfer)comp!!.sourceTarget(w,h)
+            else if(hasAccumulator)layerSources!!.target(layerSources!!.accumulator(accumulator),w,h)
             else {GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glViewport(0,0,w,h)}
             GLES30.glEnable(GLES30.GL_BLEND);GLES30.glBlendFunc(GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
-            GLES30.glBindVertexArray(vertexArray);GLES30.glUseProgram(plane);GLES30.glUniform1i(imageLocation,0)
             val masked=values.get(base+27)<0f&&masks!!.hasLayer(layer)
-            GLES30.glUniform1i(maskLocation,1);GLES30.glUniform1i(maskedLocation,if(masked)1 else 0)
-            GLES30.glActiveTexture(GLES30.GL_TEXTURE1);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,if(masked)masks!!.textureFor(layer)else textures[0])
-            GLES30.glUniform2f(uvLocation,values.get(base+25),values.get(base+26))
-            values.position(base);values.get(matrix);values.get(color)
-            if(flip&&!hasAdjustment)for(k in intArrayOf(1,5,9,13))matrix[k]=-matrix[k]
-            GLES30.glUniformMatrix4fv(mvpLocation,1,false,matrix,0);GLES30.glUniform4fv(colorLocation,1,color,0)
-            GLES30.glUniform3f(extentLocation,values.get(base+20),values.get(base+21),values.get(base+22))
             val image=if(values.get(base+27)>=0f)effects!!.texture(values.get(base+27).toInt()) else if(sourceKind==1)layerSources!!.vector(layer) else if(asset<0)dynamic[asset]?:error("视频画面未就绪") else textures.getOrNull(asset)?:error("图片资源失效")
-            GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,image)
+            if(comp!=null)comp.plane(buffer,layer,image,if(masked)masks!!.textureFor(layer)else 0,w,h,vertexArray,flip&&!hasAccumulator)
+            else {
+                GLES30.glBindVertexArray(vertexArray);GLES30.glUseProgram(plane);GLES30.glUniform1i(imageLocation,0)
+                GLES30.glUniform1i(maskLocation,1);GLES30.glUniform1i(maskedLocation,if(masked)1 else 0)
+                GLES30.glActiveTexture(GLES30.GL_TEXTURE1);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,if(masked)masks!!.textureFor(layer)else textures[0])
+                GLES30.glUniform2f(uvLocation,values.get(base+25),values.get(base+26))
+                values.position(base);values.get(matrix);values.get(color)
+                if(flip&&!hasAccumulator)for(k in intArrayOf(1,5,9,13))matrix[k]=-matrix[k]
+                GLES30.glUniformMatrix4fv(mvpLocation,1,false,matrix,0);GLES30.glUniform4fv(colorLocation,1,color,0)
+                GLES30.glUniform3f(extentLocation,values.get(base+20),values.get(base+21),values.get(base+22))
+                GLES30.glActiveTexture(GLES30.GL_TEXTURE0);GLES30.glBindTexture(GLES30.GL_TEXTURE_2D,image)
+            }
             val first=buffer.getInt(batch+4);val size=buffer.getInt(batch+8)
             check(first>=0&&size>=0&&(first.toLong()+size)*20<=bytes){"几何顶点范围失效"}
-            GLES30.glBlendFuncSeparate(GLES30.GL_ONE,if(values.get(base+23)>0.5f)GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA,GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
+            GLES30.glBlendFuncSeparate(GLES30.GL_ONE,if(values.get(base+23)>0.5f&&!transfer)GLES30.GL_ONE else GLES30.GL_ONE_MINUS_SRC_ALPHA,GLES30.GL_ONE,GLES30.GL_ONE_MINUS_SRC_ALPHA)
             GLES30.glDrawArrays(GLES30.GL_TRIANGLES,first,size)
+            if(transfer){val next=1-accumulator;comp!!.blend(buffer,layer,layerSources!!.accumulator(accumulator),layerSources!!.accumulator(next),w,h);accumulator=next}
         }
-        if(hasAdjustment) {
+        if(hasAccumulator) {
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,framebuffer);GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER,GLES30.GL_COLOR_ATTACHMENT0,GLES30.GL_TEXTURE_2D,target,0);GLES30.glViewport(0,0,w,h)
             GLES30.glClearColor(background[0],background[1],background[2],background[3]);GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
             layerSources!!.composite(accumulator,flip)
@@ -468,6 +482,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
             effects?.close();effects=null
             layerSources?.close();layerSources=null
             masks?.close();masks=null
+            compositing?.close();compositing=null
             GLES30.glDeleteProgram(plane);GLES30.glDeleteProgram(presentProgram)
             GLES30.glDeleteBuffers(1,intArrayOf(vertexBuffer),0);GLES30.glDeleteVertexArrays(1,intArrayOf(vertexArray),0)
             GLES30.glDeleteTextures(videoTextures.size,videoTextures.values.toIntArray(),0);videoTextures.clear()
@@ -491,7 +506,7 @@ internal class EglMovieRenderer(surface:Surface?,private val width:Int,private v
         GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D,0,GLES30.GL_SRGB8_ALPHA8,w,h,0,GLES30.GL_RGBA,GLES30.GL_UNSIGNED_BYTE,data)
         return id[0]
     }
-    private fun sourceResourceBytes():Long=(effects?.resourceBytes()?:0L)+(layerSources?.resourceBytes()?:0L)+(masks?.resourceBytes()?:0L)
+    private fun sourceResourceBytes():Long=(effects?.resourceBytes()?:0L)+(layerSources?.resourceBytes()?:0L)+(masks?.resourceBytes()?:0L)+(compositing?.coverageBytes()?:0L)
     private fun program(vertex:String,fragment:String):Int {
         fun compile(type:Int,code:String):Int {
             val shader=GLES30.glCreateShader(type);GLES30.glShaderSource(shader,code);GLES30.glCompileShader(shader)

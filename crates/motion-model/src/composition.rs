@@ -726,6 +726,11 @@ impl Project {
             );
         }
         for l in &self.layers {
+            if let Some(matte)=l.track_matte {
+                if selected.contains(&l.id)!=selected.contains(&matte.source) {
+                    return fail(&source,"cross_selection_matte","Track matte and target must move together",json!({"object":l.id,"source":matte.source}));
+                }
+            }
             if l.effects.iter().any(|e| e.image_input.and_then(crate::EffectImageInput::layer)
                 .is_some_and(|id| selected.contains(&id) != selected.contains(&l.id))) {
                 return fail(&source, "external_reference", "Image input crosses the composition selection", json!({"object":l.id}));

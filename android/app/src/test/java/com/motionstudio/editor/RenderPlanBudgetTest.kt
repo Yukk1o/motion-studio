@@ -7,7 +7,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class RenderPlanBudgetTest {
-    private fun plan(bytes:Int,version:Int=RenderPlanBudget.VERSION)=ByteBuffer.allocate(128).order(ByteOrder.nativeOrder()).apply {
+    private fun plan(bytes:Int,version:Int=RenderPlanBudget.VERSION)=ByteBuffer.allocate(RenderPlanBudget.HEADER_BYTES).order(ByteOrder.nativeOrder()).apply {
         putInt(0,0x46584d53);putInt(4,version);putInt(76,bytes)
     }
     @Test fun readsAllNativeTiersWithoutAnIndependentScratchConstant() {

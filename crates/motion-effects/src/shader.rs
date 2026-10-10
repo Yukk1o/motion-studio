@@ -218,6 +218,19 @@ fn compile_internal(
     let info = Validator::new(ValidationFlags::all(), Capabilities::empty())
         .validate(&module)
         .map_err(|e| Error::Invalid(format!("WGSL validation: {e}")))?;
+    let glsl = host_glsl(&module, &info, "sdk_vertex", "sdk_fragment")?;
+    Ok(CompiledShader { wgsl, glsl, sprite, additive, loop_work })
+}
+
+/// Host-owned geometry programs use the same Naga reflection and ES compiler.
+/// Package shaders still pass through the SDK binding and instruction checks.
+pub fn compile_host_program(source: &str, vertex: &str, fragment: &str) -> Result<GlslShader> {
+    let module=naga::front::wgsl::parse_str(source).map_err(|e|Error::Invalid(e.emit_to_string(source)))?;
+    let info=Validator::new(ValidationFlags::all(),Capabilities::empty()).validate(&module)
+        .map_err(|e|Error::Invalid(format!("host WGSL validation: {e}")))?;
+    host_glsl(&module,&info,vertex,fragment)
+}
+fn host_glsl(module: &naga::Module, info: &naga::valid::ModuleInfo, vertex: &str, fragment: &str) -> Result<GlslShader> {
     let options = glsl::Options {
         version: glsl::Version::new_gles(300),
         ..Default::default()
@@ -229,8 +242,8 @@ fn compile_internal(
         textures: BTreeMap::new(),
     };
     for (stage, ep) in [
-        (ShaderStage::Vertex, "sdk_vertex"),
-        (ShaderStage::Fragment, "sdk_fragment"),
+        (ShaderStage::Vertex, vertex),
+        (ShaderStage::Fragment, fragment),
     ] {
         let mut output = String::new();
         let pipeline = glsl::PipelineOptions {
@@ -270,13 +283,7 @@ fn compile_internal(
             result.fragment = output;
         }
     }
-    Ok(CompiledShader {
-        wgsl,
-        glsl: result,
-        sprite,
-        additive,
-        loop_work,
-    })
+    Ok(result)
 }
 
 /// Screen-space rectangles projected by the host; 48 bytes per instance.

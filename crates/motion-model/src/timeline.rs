@@ -75,6 +75,8 @@ pub struct TimelineLayer {
     pub video: Option<TimelineVideo>,
     pub properties: TimelineProperties,
     pub masks: Vec<TimelineMask>,
+    pub blend:crate::compositing::LayerBlend,
+    pub track_matte:Option<crate::compositing::TrackMatte>,
 }
 #[derive(Debug, Serialize)]
 pub struct TimelineMask {
@@ -176,6 +178,7 @@ impl Project {
                         feather: m.feather.timeline(clip.offset_frame), expansion: m.expansion.timeline(clip.offset_frame),
                         nodes: m.path.nodes.iter().map(|n| TimelineMaskNode { id:n.id, geometry:n.geometry.timeline(clip.offset_frame) }).collect(),
                     }).collect(),
+                    blend:l.blend,track_matte:l.track_matte,
                 }
             })
             .collect()

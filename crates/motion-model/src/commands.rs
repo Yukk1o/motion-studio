@@ -38,6 +38,8 @@ pub enum Command {
         action: crate::vector::VectorAction,
     },
     Mask { object: u64, action: crate::masks::MaskAction },
+    SetLayerBlend {object:u64,#[serde(default)]mode:Option<crate::compositing::BlendMode>,#[serde(default)]space:Option<crate::compositing::BlendSpace>},
+    SetTrackMatte {object:u64,matte:Option<crate::compositing::TrackMatte>},
     InComposition { composition: String, command: Box<Command> },
     Composition { action: crate::CompositionAction },
     RegisterAudioAsset {

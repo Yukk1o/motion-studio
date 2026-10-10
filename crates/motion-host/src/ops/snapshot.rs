@@ -159,7 +159,7 @@ impl Session {
         } else {
             vec!["target"]
         };
-        json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
+        let mut snapshot=json!({"project":original,"root":self.root.to_string_lossy(),"frame":f,"revision":self.engine.revision(),"canUndo":self.engine.can_undo(),
             "main_composition":"comp-main","composition":p.composition_id,"compositions":p.composition_list(),
             "has_audio":p.audio_voices().is_ok_and(|v|!v.is_empty()),
             "composition_context":self.composition_context_snapshot(),
@@ -199,6 +199,14 @@ impl Session {
                 "renderTargetBytes":g.scratch.texture_bytes(),"previewImageReadbackBytes":0,
                 "adapter":g.renderer.adapter_info.name,
                 "backend":format!("{:?}",g.renderer.adapter_info.backend),
-                "textureBytes":g.renderer.texture_bytes()}))})
+                "textureBytes":g.renderer.texture_bytes()}))});
+        snapshot["capabilities"]["composition_api"]["project_format"]=json!(10);
+        snapshot["capabilities"]["layer_compositing"]=json!({"supported":true,"version":1,"project_format":10,
+            "blend_command":"set_layer_blend","matte_command":"set_track_matte",
+            "blend_modes":["normal","add","multiply","screen","overlay","darken","lighten","difference","exclusion","subtract","divide","color_dodge","color_burn","hard_light","soft_light"],
+            "blend_spaces":["linear","srgb"],"matte_modes":["alpha","alpha_inverted","luma","luma_inverted"],
+            "stage":"after_effects_transforms_opacity","background":"excluded","source_scope":"same_composition",
+            "max_matte_depth":motion_core::compositing::MAX_MATTE_DEPTH,"source_deletion":"reject_while_referenced","three_d":true});
+        snapshot
     }
 }

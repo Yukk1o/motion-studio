@@ -24,6 +24,9 @@ pub struct DrawLayer {
     pub video: Option<motion_model::VideoSample>,
     pub vector: Option<std::sync::Arc<motion_model::vector::SampledVector>>,
     pub masks: std::sync::Arc<Vec<motion_model::masks::SampledMask>>,
+    pub blend:motion_model::compositing::LayerBlend,
+    pub track_matte:Option<motion_model::compositing::TrackMatte>,
+    pub composite_visible:bool,
     pub adjustment: bool,
     pub composition: bool,
     pub depth: f32,
@@ -227,20 +230,22 @@ impl Scene {
             -1.0,
             1.0,
         );
+        let matte_sources=motion_model::compositing::matte_sources(&project.layers);
+        let hidden_sources=motion_model::compositing::hidden_sources(&project.layers);
         for (order, layer) in project.layers.iter().enumerate() {
             if matches!(layer.content, Content::Null | Content::Audio { .. }) {
                 continue;
             }
-            let referenced = self.effects.iter().any(|e| e.enabled && e.image_input.and_then(motion_model::EffectImageInput::layer) == Some(layer.id));
+            let referenced = matte_sources.contains(&layer.id) || self.effects.iter().any(|e| e.enabled && e.image_input.and_then(motion_model::EffectImageInput::layer) == Some(layer.id));
             let clip=layer.clip(project.frames);
             if frame<f64::from(clip.in_frame)||frame>=f64::from(clip.out_frame)||(!layer.visible&&!referenced) {
                 continue;
             }
-            let opacity = if !layer.visible {0.}else{layer
+            let opacity = layer
                 .transform
                 .opacity
                 .sample(layer.local_frame(frame))
-                .clamp(0.0, 1.0)};
+                .clamp(0.0, 1.0);
             if opacity <= 0.0 && !referenced {
                 continue;
             }
@@ -365,6 +370,8 @@ impl Scene {
                 video,
                 vector,
                 masks,
+                blend:layer.blend,track_matte:layer.track_matte,
+                composite_visible:layer.visible&&!hidden_sources.contains(&layer.id),
                 adjustment: matches!(layer.content, Content::Adjustment),
                 composition: matches!(layer.content,Content::Composition {..}),
                 depth: (center - self.camera.eye).dot(forward),
@@ -408,7 +415,7 @@ impl Scene {
             let target=*next;*next+=1;used.insert(target);mapping.insert(*id,target);*id=target;
         }}
         self.source_objects.extend(mapping.iter().map(|(source,alias)|(*alias,*source)));
-        for l in &mut self.layers {l.id=mapping[&l.id];}
+        for l in &mut self.layers {l.id=mapping[&l.id];if let Some(m)=&mut l.track_matte{m.source=mapping[&m.source];}}
         for e in &mut self.effects {
             e.layer=mapping[&e.layer];
             if let Some(motion_model::EffectImageInput::Layer { layer, .. }) = &mut e.image_input { *layer=mapping[layer]; }
@@ -491,7 +498,7 @@ impl Scene {
             };
             let group_start = hits.len();
             for l in &self.layers[start..end] {
-                if l.opacity <= 0.0 { continue; }
+                if l.opacity <= 0.0 || !l.composite_visible { continue; }
                 let mvp = (l.view_projection * l.model).as_dmat4();
                 if mvp.determinant().abs() < 1e-20 {
                     continue;
