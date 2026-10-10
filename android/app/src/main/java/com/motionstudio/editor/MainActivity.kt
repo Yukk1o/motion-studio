@@ -434,7 +434,7 @@ open class MainActivity:ComponentActivity() {
                 color=MaterialTheme.colorScheme.error,fontSize=12.sp,maxLines=3,overflow=TextOverflow.Ellipsis)
         }
         Canvas(Modifier.fillMaxSize()) {
-            if(!vm.playing&&vm.selected!=0L&&!vm.vectorOpen) {
+            if(!vm.playing&&!vm.eyedropperActive&&vm.selected!=0L&&!vm.vectorOpen) {
                 previewPolygons(vm,size.width,size.height).filter{if(vm.layerSelectionMode)it.first in vm.selectedLayerIds else it.first==vm.selected}.forEach{(objectId,points)->
                     val outline=Path().apply{moveTo(points[0].x,points[0].y);points.drop(1).forEach{lineTo(it.x,it.y)};close()}
                     drawPath(outline,Accent,style=androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
