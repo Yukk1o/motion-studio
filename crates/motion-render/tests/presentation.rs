@@ -1,4 +1,5 @@
-use motion_core::{Layer, Project, Scene};
+use motion_core::{Layer, Project};
+use motion_render::Scene;
 use motion_render::{Presenter, Renderer};
 #[test]
 fn android_presentation_shader_is_valid_on_an_actual_gpu() {
@@ -12,7 +13,7 @@ fn android_presentation_shader_is_valid_on_an_actual_gpu() {
         [0.4, 0.6, 0.8, 1.0],
     ));
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let source = r.capture_target(64, 64).unwrap();
     r.draw(&scene, &source.view, 64, 64).unwrap();
     let output = r.device.create_texture(&wgpu::TextureDescriptor {

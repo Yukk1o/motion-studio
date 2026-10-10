@@ -1,7 +1,6 @@
-use motion_core::{
-    Axis, Command, Ease, Engine, ExpressionTarget, Layer, LayerTimeline, Project, Property,
-    PropertyExpression, Scene, EXPRESSION_PROFILE,
-};
+use motion_core::ProjectExpressions;
+use motion_core::{Axis, Command, Ease, Engine, ExpressionTarget, Layer, LayerTimeline, Project, Property, PropertyExpression, EXPRESSION_PROFILE};
+use motion_render::Scene;
 use std::sync::{atomic::AtomicBool, Arc};
 fn fixture() -> Project {
     let mut p = Project::new(100, 100, 30, 180).unwrap();
@@ -143,7 +142,7 @@ fn opacity_percent_axis_accumulation_camera_and_scene_use_computed_values() {
     );
     let p = set(p, "value+5", target(Property::Position, Some(Axis::Y)));
     let mut s = Scene::new(&p);
-    s.sample(&p, 30.0, None).unwrap();
+    s.sample(&p, 30.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         s.sampled_project(&p).layers[0].transform.position.value,
         [40.0, 25.0, 0.0]

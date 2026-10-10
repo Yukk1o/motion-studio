@@ -1,4 +1,5 @@
-use motion_core::{Command, EffectAction, EffectInstance, Engine, Layer, Project, Scene};
+use motion_core::{Command, EffectAction, EffectInstance, Engine, Layer, Project};
+use motion_render::Scene;
 fn fixture(effect: &str) -> (Engine, u64) {
     let package = motion_effects::builtin::package().unwrap();
     let definition = package
@@ -154,10 +155,10 @@ fn numeric_animation_and_curve_luts_are_independent_of_seek_order() {
         },
     );
     let mut scene = Scene::new(engine.project());
-    scene.sample(engine.project(), 15.0, None).unwrap();
+    scene.sample(engine.project(), 15.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let middle = scene.curve_luts.clone();
     for frame in [29.0, 0.0, 59.0, 9.0, 15.0] {
-        scene.sample(engine.project(), frame, None).unwrap();
+        scene.sample(engine.project(), frame, None, &motion_core::ExpressionEvaluator).unwrap();
     }
     assert_eq!(middle, scene.curve_luts);
     assert!((middle[0][0][0] - 0.5).abs() < 1e-6);
@@ -170,7 +171,7 @@ fn numeric_animation_and_curve_luts_are_independent_of_seek_order() {
             enabled: false,
         },
     );
-    scene.sample(engine.project(), 15.0, None).unwrap();
+    scene.sample(engine.project(), 15.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(middle, scene.curve_luts);
     apply(
         &mut engine,
@@ -300,7 +301,7 @@ fn disabled_curves_keep_saved_keys_without_materializing_parameter_resources() {
         },
     );
     let mut scene = Scene::new(engine.project());
-    scene.sample(engine.project(), 0.0, None).unwrap();
+    scene.sample(engine.project(), 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(scene.curve_luts.is_empty());
     assert!(scene.effects[0].lut.is_none());
     assert!(engine.project().layers[0].effects[0].params["p0001"]
@@ -313,7 +314,7 @@ fn disabled_curves_keep_saved_keys_without_materializing_parameter_resources() {
             enabled: true,
         },
     );
-    scene.sample(engine.project(), 0.0, None).unwrap();
+    scene.sample(engine.project(), 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(scene.curve_luts.len(), 1);
 }
 
@@ -362,7 +363,7 @@ fn effect_keys_follow_clip_local_time_through_trim_move_split_and_undo() {
         .unwrap();
     let mut scene = Scene::new(engine.project());
     for frame in [0.0, 19.0, 5.0] {
-        scene.sample(engine.project(), frame, None).unwrap();
+        scene.sample(engine.project(), frame, None, &motion_core::ExpressionEvaluator).unwrap();
         let effect = &scene.effects[0];
         assert_eq!(effect.local_frame, frame + 10.0);
         let index = effect
@@ -383,7 +384,7 @@ fn effect_keys_follow_clip_local_time_through_trim_move_split_and_undo() {
         engine.project().layers[0].effects,
         engine.project().layers[1].effects
     );
-    scene.sample(engine.project(), 20.0, None).unwrap();
+    scene.sample(engine.project(), 20.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(scene.layers.len(), 1);
     assert_eq!(scene.layers[0].id, engine.project().layers[1].id);
     assert_eq!(scene.effects[1].local_frame, 30.0);
@@ -486,7 +487,7 @@ fn curve_object_keys_support_negative_local_time_and_full_signed_span() {
         [-15, 5]
     );
     let mut scene = Scene::new(engine.project());
-    scene.sample(engine.project(), 20.0, None).unwrap();
+    scene.sample(engine.project(), 20.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!((scene.curve_luts[0][255][0] - 0.25).abs() < 0.001);
     let mut project = engine.project().clone();
     let curve = project.layers[0].effects[0]

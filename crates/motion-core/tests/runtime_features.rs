@@ -1,7 +1,5 @@
-use motion_core::{
-    Asset, Command, Content, Ease, Engine, ObservationView, Observer, Project, ProjectionKind,
-    Property, Scene,
-};
+use motion_core::{Asset, Command, Content, Ease, Engine, ObservationView, Observer, Project, ProjectionKind, Property};
+use motion_render::Scene;
 #[test]
 fn copied_keys_preserve_values_and_easing_and_are_undoable() {
     let mut e = Engine::new(Project::demo()).unwrap();
@@ -46,16 +44,16 @@ fn orthographic_observation_views_stay_independent_and_finite() {
     for view in [ObservationView::Top, ObservationView::Side] {
         observer.view = view;
         observer.pan(100.0, 50.0, p.width, p.height).unwrap();
-        scene.sample(&p, 0.0, Some(&observer)).unwrap();
+        scene.sample(&p, 0.0, Some(&observer), &motion_core::ExpressionEvaluator).unwrap();
         assert_eq!(scene.camera.projection, ProjectionKind::Orthographic);
         assert!(scene.camera.view_projection.is_finite());
         let c = scene.camera.view_projection * scene.camera.target.extend(1.0);
         assert!(c.x.abs() < 1e-4 && c.y.abs() < 1e-4);
     }
     observer.view = ObservationView::Free;
-    scene.sample(&p, 0.0, Some(&observer)).unwrap();
+    scene.sample(&p, 0.0, Some(&observer), &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(scene.camera.projection, ProjectionKind::Perspective);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(scene.camera.projection, ProjectionKind::Perspective);
     assert_eq!(e.project(), &p);
     assert_eq!(e.revision(), 0);

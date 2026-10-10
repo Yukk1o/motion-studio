@@ -1,176 +1,157 @@
-<h1 align="center">Motion Studio</h1>
+# Motion Studio
 
-<p align="center">Android 与桌面动效编辑器 · 图层动画 · 3D 摄影机</p>
+**面向 Android 与桌面的开源动效编辑器。**
 
-<p align="center"><strong>AI 自主驱动的实验项目</strong></p>
+用图层组织画面，用关键帧和曲线控制运动，用 3D 摄影机连接空间。Motion Studio 以 Rust 和 GPU 合成为基础，提供 Android 编辑器、原生桌面工作区，以及共享的工程与编辑后端。
 
-<p align="center"><a href="#从图层到镜头">功能</a> · <a href="#技术结构">技术结构</a> · <a href="#构建与运行">快速开始</a> · <a href="LICENSE">MIT 许可证</a></p>
+这是一个由 **AI 自主驱动开发的实验项目**，正在持续完善创作体验与平台支持。
 
----
+[动画与曲线](#动画与曲线) · [3D 摄影机](#3d-摄影机) · [效果与插件](#效果与插件) · [桌面与自动化](#桌面与自动化) · [开始使用](#开始使用) · [当前进展](#当前进展) · [参与开发](#参与开发)
 
-## 关于项目
+## 为运动画面而做
 
-Motion Studio 是一个由 AI 自主驱动开发的动效编辑器实验项目，提供 Android 编辑器与共享 Rust 核心的桌面编辑器，探索流畅的图层动画、3D 运镜与曲线编辑。
+Motion Studio 用于图层动画、动态标题、镜头运动和画面合成。你可以把图片、形状、文字、视频和其他合成放进工程，给属性添加关键帧，组合效果，再预览和导出作品。
 
-目前已实现关键帧、摄影机与父子级、自定义曲线、工程保存及视频导出，正在继续完善交互、稳定性与设备适配。
+Android 端以触屏操作为主，属性编辑保留预览与时间轴。桌面端提供项目、合成、效果控件和时间轴工作区，面板可以调整、停靠或拆成浮窗。两个平台共享工程数据与编辑后端，界面能力按各自的开发进度开放。
 
-编辑界面支持视频与音频导入、视频原声、真实波形、音量和静音；播放使用混音采样时钟，MP4 导出同时编码画面和声音。效果属性使用内嵌面板，支持效果链、参数动画、五通道颜色曲线和效果包管理。接口与资源范围见 [音频 API](crates/motion-media/README.md) 和 [视频 API](crates/motion-media/VIDEO.md)。
+## 动画与曲线
 
-统一内置效果包现有 95 项，包含原有 59 项与新增 36 项创作效果；场景效果包提供 6 项粒子和镜头效果。参数范围和未支持选项按实例绑定的精确包显示；全部效果仍为近似实现，不能将渲染一致性检查视为视觉兼容性已完整验收。
+- **图层动画**：位置、旋转、缩放、透明度、锚点，以及效果参数的关键帧。
+- **独立维度**：由用户主动分离 XYZ，每轴拥有自己的关键帧时间和区间曲线。
+- **曲线编辑**：二次与三次贝塞尔、弹性曲线，进度与速度视图，曲线复制和粘贴。
+- **时间轴**：片段移动、非破坏裁剪、分割、层级调整与图层复制。
+- **编辑历史**：撤销、重做与连续手势事务；批量修改可以作为一次操作提交。
+- **表达式**：属性和连续效果参数支持 JavaScript 数值表达式，包含常用动画函数、随机种子与分量表达式。
 
-内置包的新增效果包含渐变与噪声生成器、独立通道模糊、字符画、投影、散景、材质与压缩失真。置换贴图可以引用另一图层的原始或效果后像素；字体后端提供系统字体目录、用户 TTF/OTF/TTC 导入，以及 ASCII 和文字共用的栅格缓存。前端接入、参数范围和实现差异见 [创作效果与字体 API](engineering/host-api/official-motion-effects.md)。
+表达式目前提供数值与动画函数子集，跨图层属性引用仍待实现。XYZ 分离后的轨道可以独立编辑，合并回整体轨道尚未开放。
 
-第三方效果开发见 [插件 SDK](sdk/README.md)，提供可安装的 `motion-studio-plugin` skill、WGSL/原生 UI 契约与独立 `.msfx` 打包器。普通效果可直接打包、导入测试，无需重新构建 App。
+## 3D 摄影机
 
-属性与连续效果参数支持 JavaScript 数值表达式。属性菜单可打开表达式工作区，支持启停、随机种子、整体或 XYZ 分量、保存草稿、移除和撤销；编译失败保留原值和代码。当前提供数值和动画函数子集，不支持跨图层属性引用。粒子与镜头的专用编辑器也在效果工作区打开，支持参数、元件、图层引用与拖动事务；编辑时保留预览和时间轴。
+摄影机由用户主动创建。可以直接调整位置与目标点，也可以通过空对象和父子级搭建运镜控制结构。
 
-合成外侧使用独立灰色背景和细边线。主页设置集中管理效果包和布局；“调整布局”允许改变预览、面板和时间轴比例，并保存横竖屏各自的布局，抓手只在调整模式显示。工程主页支持搜索、继续编辑和自定义尺寸、帧率及时长；图层可多选并批量编辑，数值滑轮和时间轴松手后逐渐减速，再次触摸即停止。
+- 图层默认使用 2D，由用户选择开启 3D。
+- 摄影机支持位置与环绕模式，以及推进、平移和环绕操作。
+- 摄影机与普通图层都能绑定父级，支持多级关系与循环检查。
+- 提供独立观察、顶视与侧视，便于安排空间中的图层。
+- 交叉平面与透明纹理使用几何合成，支持对应的预览和导出路径。
 
-图层底栏提供变换、效果及视频原声分类，超出可用宽度时左右滑动。透明度与位置、旋转、缩放一起归入变换。播放控制栏可在当前播放头切割选中图层；更多菜单支持同一工程内复制和粘贴单层或多层，保留动画、效果、表达式及选中图层之间的父子关系，一次撤销整个粘贴。立即生成副本的操作命名为“创建副本”。
+## 效果与插件
 
-## 桌面编辑器
+统一内置效果包提供 **95 项效果**，覆盖调色、模糊、扭曲、渐变、噪声、字符画、投影和材质纹理；场景效果包另提供 **6 项粒子与镜头效果**。
 
-主分支包含原生 Rust 桌面端：可调整的面板与浮窗、基础编辑与保存、中英文界面，以及与窗口共享会话的 MCP 工具。运行方式与当前界面范围见 [桌面端说明](desktop/README.md)，自动化接入见 [MCP](desktop/MCP.md)。[节点创作与手机效果包导出](desktop/NODE-AUTHORING.md)目前是下一阶段的设计方案。
+效果可以堆叠、排序、启停和设置参数动画。置换贴图支持引用其他图层的原始像素或效果后像素，颜色曲线支持五通道编辑。字体后端支持系统字体与用户导入的 TTF、OTF、TTC，文字和 ASCII 效果共用栅格缓存。
 
-源码包与目录统一使用 `motion-*`，产品名为 **Motion Studio**。新导出的工程包使用 `.msproj` 扩展名，旧 `.aem` 工程包保持读取兼容；工程数据和效果包 ID 不因改名而变化。
+第三方效果以 `.msfx` 打包，导入后即可测试，无需重新构建应用。[插件 SDK](sdk/README.md) 提供 WGSL 契约、参数与原生编辑器协议、打包工具，以及可安装的 `motion-studio-plugin` skill。
 
-## 从图层到镜头
+效果采用独立实现，部分行为与参数仍有近似或未支持项；具体范围见[效果与字体 API](engineering/host-api/official-motion-effects.md)。
 
-| 图层与动画 | 摄影机与空间 |
-| --- | --- |
-| 图片、形状与缓存文字 | 用户主动创建摄影机 |
-| 位置、旋转、缩放、透明度与锚点 | 空对象与通用多级父子关系 |
-| 属性关键帧、时间轴、撤销与重做 | 推进、平移与环绕 |
-| 显式 XYZ 分离、每轴关键帧与曲线 | 2D/3D 图层切换、交叉平面点选 |
-| 长按移动片段与层级、边缘裁剪、分割 | 交叉平面和透明纹理的几何导出 |
-| 二次/三次贝塞尔、弹性曲线 | 独立观察、顶视与侧视 |
-| 进度/速度图、参数编辑、曲线复制 | 父级循环检查与姿态保持 |
+## 素材、工程与输出
 
-工程可在本地自动保存，支持工程库、完整工程包导入/导出、指定帧 PNG 和 H.264 MP4。
+媒体后端支持 MP4、MOV、MKV、WebM 中的 H.264、H.265、VP8、VP9，以及 AAC、MP3、FLAC、ALAC、Vorbis、Opus、AIFF 和多种 WAV 位深。
 
-媒体后端支持 MP4 / MOV / MKV / WebM 的 H.264、H.265、VP8、VP9 导入，以及 FLAC、ALAC、Vorbis、Opus、AAC、MP3 和多种 WAV 位深。音频源采样率为 8–192 kHz；视频源支持 4K、最高 240 fps、8 位 SDR，不限预设画幅比例，仍受像素与边长预算约束，具体组合以设备探测结果为准。工程帧率可设为 1–240 的整数，源帧率与工程设置独立。设备解码器查询与格式范围见 [媒体格式 API](crates/motion-media/FORMATS.md)。
+视频源支持最高 4K、240 fps、8 位 SDR 和任意画幅比例，仍受边长、像素和设备解码能力约束。音频源支持 8–192 kHz；工程帧率与素材帧率独立，工程可设置为 1–240 的整数帧率。
 
-属性面板的图层操作菜单提供“分离 XYZ”；分离后，轴选择器控制当前关键帧和曲线。新图层默认 2D，点击面板上的 2D/3D 可切换模式并保留各轴动画。
+Android 端提供视频原声、波形、音量、静音和带音频的 H.264 MP4 导出。工程支持本地保存、工程库、指定帧 PNG，以及包含素材的 `.msproj` 工程包；旧 `.aem` 工程包保持读取兼容。
 
-分离后的拖动区只编辑选中的轴：位置和目标点的 X 轴左右拖动，Y/Z 轴上下拖动。缩放分离后默认解除 XY 比例联动，手动开启时显示联动提示。分离操作可撤销；编辑独立轨道后，目前尚不支持直接合并回整体轨道。
+[媒体格式](crates/motion-media/FORMATS.md) · [音频 API](crates/motion-media/README.md) · [视频 API](crates/motion-media/VIDEO.md)
 
-在时间轴长按片段后横向拖动可移动开始时间，纵向拖动可调整图层层级；选中片段的两端可直接拖动裁剪。长按菜单提供精确移动、精确裁剪和在当前帧分割。移动与裁剪保留完整动画轨道，拖动支持单次撤销和取消恢复。
+## 桌面与自动化
 
-关键帧需要先长按再拖动，进入移动时提供触觉反馈；普通滑动用于浏览时间轴，点按定位与长按操作菜单保留。关键帧移动支持一次撤销，取消拖动保留原位置。
+桌面工作区采用原生 Rust 窗口，支持中文与英文、面板缩放与停靠、标签组合、浮窗和布局保存。当前界面已提供工程打开与保存、GPU 预览、时间轴定位、片段移动和基础属性编辑。
 
-曲线、层级、求值与渲染采用独立实现。
+桌面程序也提供 MCP：
 
-## 技术结构
+- `--mcp`：无窗口工程会话，供脚本或 agent 操作。
+- `--mcp-ui`：打开编辑器，用户与 MCP 客户端共享工程、播放头与撤销历史。
+- `--mcp-read-only`：只读取状态。
 
-| 层 | 技术与职责 |
-| --- | --- |
-| Android 界面 | Kotlin、Jetpack Compose、SurfaceView |
-| 桌面界面 | Rust、winit、wgpu，自由停靠面板与浮窗 |
-| 动画核心 | Rust：工程模型、关键帧、曲线与摄影机 |
-| GPU 预览 | wgpu：合成、呈现与 PNG |
-| 平台边界 | Android JNI、桌面原生窗口，共享 `motion-host` 编辑会话 |
-| 媒体导入 | Rust 工程事务与磁盘缓存，Android MediaExtractor/MediaCodec 视频解码，确定性 PCM 混音 |
-| 视频输出 | 冻结工程逐帧求值，EGL/GLES 写入 MediaCodec 输入 Surface |
+编辑接口支持 revision 检查、原子命令批次、撤销和保存。内置 agent 的接口已预留，模型供应商与聊天界面尚未接入。
 
-播放采样复用内存，素材纹理在上传后复用。预览提供清晰、流畅、省电与自动档位。静态图层的原有 GLES 导出路径无需应用层整帧读回；导入的视频使用有界 PTS 预取缓存，默认 SDR YUV420 由 GPU 转色，输入纹理复用。接入约定与测量范围见 [视频预览后端](engineering/host-api/host-video-preview.md)。系统与驱动内部拷贝尚未完整测量，性能结论保留具体运行条件。
+[桌面使用说明](desktop/README.md) · [MCP 配置与工具](desktop/MCP.md)
 
-## 构建与运行
+## 开始使用
 
-当前 Android 工具链脚本面向 **Windows / PowerShell**。需要 Git、Python 3.12+、Rust/rustup；Windows 原生核心检查需要可用的 MSVC C++ 构建工具。Android 应用最低 API 29，默认构建 `arm64-v8a` 与 `x86_64`。
+### Android
 
-GitHub Actions 使用 Ubuntu 24.04、Rust 1.97.1、JDK 21、Gradle 8.11.1、Android 35 与 NDK 27.0.12077973。构建脚本也接受 Linux 环境中的 `JAVA_HOME`、`ANDROID_HOME`、`ANDROID_NDK_HOME` 和 PATH 中的 Gradle。
+从[预览版](https://github.com/Yukk1o/motion-studio/releases/tag/preview)获取 APK，或在[发布页](https://github.com/Yukk1o/motion-studio/releases)选择版本。预览包面向体验与问题反馈，正式版本以对应发布说明为准。
 
-**1. 准备独立工具链**
+下载附件中的 `SHA256SUMS` 和 `build-info.json` 可用于核对文件与构建来源。
+
+### 从源码运行桌面端
+
+准备 Rust 1.97.1 和 Python；Windows 还需要 MSVC 工具链。
+
+```powershell
+git clone https://github.com/Yukk1o/motion-studio.git
+cd motion-studio
+py tools/build_desktop.py --task build
+./target/release/motion-studio.exe --locale zh
+```
+
+默认构建提供编辑与预览。桌面视频解码需要 FFmpeg 开发库，并在构建时添加 `--ffmpeg`；安装方式和运行参数见[桌面说明](desktop/README.md)。
+
+### 从源码构建 Android
 
 ```powershell
 py tools/bootstrap_android.py
-```
-
-脚本将 JDK、Gradle、Android SDK/NDK 放在 `.tools` 中，不修改系统 PATH。工具链及生成产物不提交到 Git。
-
-**2. 构建普通开发 APK**
-
-```powershell
 py tools/build_android.py --task assembleDebug
 ```
 
-产物：`android/app/build/outputs/apk/debug/app-debug.apk`。仅构建模拟器版本可加 `--abis x86_64`。
+工具链放在项目的 `.tools` 目录；APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。只构建模拟器版本时可加 `--abis x86_64`。
 
-本机原生链接内存不足时可加 `--codegen-units 8`，仅覆盖项目 crate 的本次 release 构建参数，保持优化级别和仓库发布配置。
+## 当前进展
 
-## 让结果能够复现
+| 部分 | 当前范围 |
+| --- | --- |
+| Android 编辑器 | 图层动画、曲线、摄影机、效果、音视频导入与导出；持续改进交互和设备适配 |
+| 桌面编辑器 | 基础编辑流程、自由布局、浮窗、中英文和 MCP；完整创作面板仍在完善 |
+| 桌面音频与视频输出 | 视频解码后端已提供；桌面音频播放与 MP4 编码仍在开发 |
+| 节点创作 | 规划桌面节点图生成 WGSL 并导出 `.msfx`，手机执行效果包；主分支尚未提供节点编辑器 |
+| 兼容性与性能 | 持续进行 GPU、模拟器与真机验证；设备支持范围以实际记录为准 |
 
-<details>
-<summary><strong>核心与 GPU 检查</strong></summary>
+本项目已有可运行的编辑与渲染流程，也有尚未完成的能力。共享后端支持某项功能，并不表示两个平台的所有面板都已接入。节点路线见[节点创作方案](desktop/NODE-AUTHORING.md)。
+
+## 技术结构
+
+| Crate / 界面 | 职责 |
+| --- | --- |
+| `motion-model` | 稳定工程数据、序列化、校验、曲线与父子级矩阵求值 |
+| `motion-core` | 命令执行、撤销、编辑事务和 JavaScript 表达式引擎 |
+| `motion-effects` | 效果包、WGSL 与参数协议 |
+| `motion-render` | 场景采样、GPU 合成、预览与 PNG 输出 |
+| `motion-media` | 素材导入、缓存、音频混音与媒体任务 |
+| `motion-host` | 聚合编辑、渲染、效果与媒体，供平台共享会话 |
+| Android | Kotlin、Jetpack Compose、SurfaceView、JNI、MediaCodec |
+| Desktop | Rust、winit、wgpu、原生面板与窗口 |
+
+render 和 media 的生产依赖通过 model 与编辑内核解耦。宿主显式提供 `FrameEvaluator`、`EditSink` 和冻结打包接口；JS 引擎与文件发布实现留在 core。model 保留现有效果 schema 与 ZIP 错误类型依赖。
+
+Rust 调用方从 `motion-render` 导入 `Scene`，采样时传入求值器；直接调用工程表达式方法时需导入 `motion_core::ProjectExpressions`。工程格式、命令 JSON 与平台协议保持原定义。
+
+## 参与开发
+
+Motion Studio 由 AI 编程代理推进实现、测试与迭代，人类提供产品方向、反馈和代码审阅。欢迎通过 [Issue](https://github.com/Yukk1o/motion-studio/issues) 报告问题，或通过独立分支与 Pull Request 提交改进。
+
+反馈时请附上复现步骤、平台、应用版本和相关素材范围。提交改动时说明解决的问题、验证方式，以及 AI 工具的参与情况。
+
+基础检查：
 
 ```powershell
-cargo test --workspace --locked
-cargo run -p motion-render --bin render_probe -- artifacts/render-probe
+cargo test --workspace --locked -- --test-threads=1
+cargo run -p motion-render --example render_probe -- artifacts/render-probe
 ```
 
-GPU 检查不会在缺少 GPU 时静默跳过。
+CI 覆盖 Rust/GPU、桌面平台构建、libav、Android 构建与模拟器交互。测试与报告保存在 Actions artifacts；真机持续性能、热状态和设备兼容性仍单独验收。
 
-</details>
-
-<details>
-<summary><strong>Android 功能验证</strong></summary>
+Android 设备验证：
 
 ```powershell
 py tools/build_android.py --task assembleDebug assembleDebugAndroidTest
 py tools/validate_android.py --serial <adb-device-serial>
 ```
 
-验证包启用测试所需的 GPU 故障注入，普通开发 APK 不启用。测试使用独立工程，保存日志、PNG、MP4 与 JSON 记录；请使用专门的验收设备或虚拟机。
+测试代码位于 `crates/*/tests/` 和 `android/app/src/androidTest/`。更具体的源码接入文档见 [host API](engineering/host-api/)，效果开发见 [SDK](sdk/README.md)。
 
-</details>
+## 许可证
 
-<details>
-<summary><strong>非 Debuggable 性能测量</strong></summary>
-
-```powershell
-py tools/build_android.py --task assembleBenchmark assembleBenchmarkAndroidTest
-py tools/validate_performance.py --serial <adb-device-serial> --seconds 600 --output <report-directory>
-```
-
-该命令生成指定环境的测量结果。桌面 GPU、模拟器与手机性能分别记录，不互相替代。
-
-</details>
-
-## 已有验证与待完成事项
-
-当前整合版本已通过 151 项 Rust/GPU 检查，并在 Android 模拟器验证表达式工作区、真实插件页面操作、媒体格式导入、视频特效、几何透明纹理导出、取消后再次导出及六秒 Surface 播放。新增七项图像效果已逐项比较编码帧与 PNG，动态拼贴包含动画输出边界检查；媒体格式检查还包含 19 个素材的画面和音频对照。运行日志与生成产物保存在本地 `artifacts/`，不纳入版本管理。另有一项超大工程的 release 专项测试未运行。
-
-无效预览时间导致的状态污染已修复，播放时钟也处理了早于播放开始的帧回调；编码输出由独立线程读取，避免输入 Surface 在输出队列积压时阻塞整个导出。短时资源释放及已保存工程的进程终止恢复检查通过。更长时间的资源趋势、输入到显示延迟、完整呈现归因，以及正式手机的性能/热状态仍需补齐。
-
-布局检查可分别运行效果面板和表达式/专用编辑器两组，覆盖窄屏、横屏与大字体，完成后恢复设备显示设置：
-
-```powershell
-py tools/validate_layout_profiles.py --serial <adb-device-serial> --suite integrated --output artifacts/layout-integrated
-py tools/validate_layout_profiles.py --serial <adb-device-serial> --suite workspaces --output artifacts/layout-workspaces
-```
-
-供安装测试的预览包使用本地开发证书签名，关闭调试与故障注入：
-
-```powershell
-py tools/build_android.py --task assemblePreview
-```
-
-产物：`android/app/build/outputs/apk/preview/app-preview.apk`。
-
-### 持续集成与自动发布
-
-Pull Request 和 main 更新会运行 Rust/GPU 测试、工具与 SVG 检查、Android 双架构构建、JVM 测试、Lint 和 Android 35 模拟器交互检查。运行日志与测试报告作为 Actions artifacts 保存。模拟器套件明确选择稳定的编辑交互用例；完整视频导入、导出与设备性能验收仍使用上面的专用命令。
-
-main 的检查全部通过后自动更新 [预览版](https://github.com/Yukk1o/motion-studio/releases/tag/preview)。推送 `vMAJOR.MINOR.PATCH` 标签后自动发布正式版，带 `-rc.1` 等后缀的标签发布预发行版。标签必须指向需要发布的代码；发布脚本核对构建提交和校验和，已发布的正式版本不能被替换。Android versionCode 使用同一工作流的递增运行编号。
-
-下载包同时包含 arm64-v8a 与 x86_64，发布附件提供 APK、`SHA256SUMS` 和 `build-info.json`。发布前检查签名、包名、版本和非调试状态；预览/正式包不启用 GPU 故障注入。构建或交互检查失败时不会发布。手动运行工作流仅执行 CI。
-
-签名材料从仓库 Actions secrets 读取：预览使用 `PREVIEW_KEYSTORE_BASE64`、`PREVIEW_KEYSTORE_PASSWORD`、`PREVIEW_KEY_ALIAS`、`PREVIEW_KEY_PASSWORD`；正式版使用对应的 `RELEASE_` 前缀。密钥不会进入 Git、日志或构建附件，临时 keystore 在构建后删除。预览沿用开发证书以保持现有预览包的覆盖安装，正式版使用独立发布证书；两种证书的安装包不能直接互相覆盖。维护者必须在仓库以外备份正式签名文件和密码，后续版本保持同一证书。
-
-测试代码位于 `crates/*/tests/` 和 `android/app/src/androidTest/`。需要了解具体断言、测试负载与边界时，可直接检查这些实现。
-
-## 一起改进这个实验
-
-欢迎通过 Issue 提供可复现问题，通过独立分支和 Pull Request 提交改动。请附上触发步骤、环境和相关验证结果；说明使用了哪些 AI 工具，以及哪些结论经过实际检查。
-
-项目采用 [MIT License](LICENSE)，与现有 Cargo 项目声明一致。第三方依赖保留各自的许可证。本项目提供实验代码与证据，不为尚未测量的设备或场景作质量保证。
+Motion Studio 采用 [MIT License](LICENSE)。第三方依赖、字体与其他素材保留各自的许可证。

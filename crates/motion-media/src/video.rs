@@ -1,6 +1,6 @@
 //! Streaming source transactions; platform probing is supplied by the Android backend.
 use crate::{contained_dir, Result};
-use motion_core::{AudioAsset, Command, Content, Engine, Layer, LayerTimeline, VideoAsset, VideoClip};
+use motion_model::{AudioAsset, Command, Content, EditSink, Layer, LayerTimeline, VideoAsset, VideoClip};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
@@ -228,13 +228,13 @@ impl VideoJobs {
             let _worker=worker;
             let result=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||->Result<Prepared>{
                 update(&t,"opening",0.0)?;let(mut reader,size)=open()?;
-                if size.is_some_and(|s|s>motion_core::storage::MAX_MEDIA_ASSET){return Err("video exceeds 2 GiB".into());}
+                if size.is_some_and(|s|s>motion_model::storage::MAX_MEDIA_ASSET){return Err("video exceeds 2 GiB".into());}
                 if fs2::available_space(&root).map_err(|e|e.to_string())?<size.unwrap_or(0).saturating_add(1024*1024){return Err("insufficient video source storage".into());}
                 let stage=Stage::new(&root)?;let source=stage.0.join("source.mp4");let mut file=File::create(&source).map_err(|e|e.to_string())?;
-                let mut buf=[0u8;motion_core::storage::TRANSFER_BUFFER_BYTES];let mut bytes=0u64;
+                let mut buf=[0u8;motion_model::storage::TRANSFER_BUFFER_BYTES];let mut bytes=0u64;
                 loop {update(&t,"copying",size.map_or(0.0,|s|bytes as f64/s.max(1) as f64))?;
                     let n=reader.read(&mut buf).map_err(|e|e.to_string())?;if n==0{break;}bytes+=n as u64;
-                    if bytes>motion_core::storage::MAX_MEDIA_ASSET{return Err("video exceeds 2 GiB".into());}
+                    if bytes>motion_model::storage::MAX_MEDIA_ASSET{return Err("video exceeds 2 GiB".into());}
                     if bytes%(1024*1024)<n as u64&&fs2::available_space(&root).map_err(|e|e.to_string())?<1024*1024{return Err("insufficient video import storage".into());}
                     file.write_all(&buf[..n]).map_err(|e|e.to_string())?;
                 }
@@ -265,7 +265,7 @@ impl VideoJobs {
         }
         Ok(initial)
     }
-    pub fn commit(&self, id: &str, engine: &mut Engine) -> Result<VideoTaskStatus> {
+    pub fn commit(&self, id: &str, engine: &mut impl EditSink) -> Result<VideoTaskStatus> {
         let task = self.task(id)?;
         let mut t = task.lock().map_err(|_| "video task poisoned")?;
         if t.status.terminal() {
@@ -492,7 +492,7 @@ fn update(task: &Mutex<Task>, phase: &str, progress: f64) -> Result<()> {
     Ok(())
 }
 pub fn video_cache_path(root: &Path, asset: &VideoAsset) -> Result<PathBuf> {
-    motion_core::storage::validate_relative_path(&asset.path).map_err(|e| e.to_string())?;
+    motion_model::storage::validate_relative_path(&asset.path).map_err(|e| e.to_string())?;
     let stem = Path::new(&asset.path)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -521,7 +521,7 @@ pub fn load_video_index(root: &Path, asset: &VideoAsset) -> Result<Vec<u64>> {
     let mut f = File::open(path).map_err(|e| e.to_string())?;
     let size = f.metadata().map_err(|e| e.to_string())?.len();
     if size != 16 + u64::from(asset.frame_count) * 8
-        || size > 16 + u64::from(motion_core::MAX_VIDEO_FRAMES) * 8
+        || size > 16 + u64::from(motion_model::MAX_VIDEO_FRAMES) * 8
     {
         return Err("video cache invalid; call prepare_video".into());
     }

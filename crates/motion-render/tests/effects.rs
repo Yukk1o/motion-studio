@@ -1,4 +1,5 @@
-use motion_core::{EffectInstance, Layer, Project, Scene};
+use motion_core::{EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::{effect_plan::PlanBuilder, Renderer};
 fn instance(name: &str, id: u64) -> EffectInstance {
     let p = motion_effects::builtin::package().unwrap();
@@ -32,7 +33,7 @@ fn gpu_chain_preserves_alpha_changes_order_and_bypasses_missing_plugins() {
     let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
     let target = renderer.capture_target(64, 64).unwrap();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (pixels, stats) = renderer.capture(&scene, &target).unwrap();
     let pixel = &pixels[(32 * 64 + 32) * 4..(32 * 64 + 32) * 4 + 4];
     assert!(pixel[0].abs_diff(76) <= 3 && pixel[0] == pixel[1] && pixel[1] == pixel[2]);
@@ -50,24 +51,24 @@ fn gpu_chain_preserves_alpha_changes_order_and_bypasses_missing_plugins() {
         .channels[1] = vec![[0.0, 0.0], [1.0, 0.0]];
     p.layers[0].effects.push(curves);
     p.rebuild_plugin_dependencies();
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (a, stats) = renderer.capture(&scene, &target).unwrap();
     assert_eq!(stats.parameter_resource_upload_bytes, 1024);
     let (_, stable_stats) = renderer.capture(&scene, &target).unwrap();
     assert_eq!(stable_stats.parameter_resource_upload_bytes, 0);
     p.layers[0].effects.swap(0, 1);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (b, _) = renderer.capture(&scene, &target).unwrap();
     assert_ne!(a, b);
     p.layers[0].effects.truncate(1);
     p.layers[0].effects[0].hash = "a".repeat(64);
     p.rebuild_plugin_dependencies();
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(renderer.capture(&scene, &target).is_err());
     renderer.draw(&scene, &target.view, 64, 64).unwrap();
     assert_eq!(renderer.effect_diagnostics.len(), 1);
     p.layers[0].effects[0].enabled = false;
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(renderer.capture(&scene, &target).is_ok());
 }
 #[test]
@@ -76,7 +77,7 @@ fn strict_plan_checks_hidden_layers_and_binary_buffer_bounds() {
     p.layers[0].effects.push(instance("tint", 1));
     p.rebuild_plugin_dependencies();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let plan = builder.build(&scene, &[0], 64, 64, true).unwrap();
@@ -90,7 +91,7 @@ fn strict_plan_checks_hidden_layers_and_binary_buffer_bounds() {
     p.layers[0].visible = false;
     p.layers[0].effects[0].hash = "a".repeat(64);
     p.rebuild_plugin_dependencies();
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(builder.build(&scene, &[0], 64, 64, true).is_err());
 }
 
@@ -115,7 +116,7 @@ fn effect_outputs_preserve_crossing_plane_batches_in_both_stack_orders() {
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     for _ in 0..2 {
-        scene.sample(&p, 0.0, None).unwrap();
+        scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
         let plan = builder.build(&scene, &[0, 0], 256, 256, true).unwrap();
         assert_eq!(plan.batches.len(), 3);
         let mut bytes = vec![0; plan.buffer_bytes(&scene)];
@@ -141,7 +142,7 @@ fn over_budget_effect_is_reported_and_preview_keeps_input() {
     p.layers[0].effects.push(instance("gaussian_blur", 1));
     p.rebuild_plugin_dependencies();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let error = builder.build(&scene, &[0], 64, 64, true).err().unwrap();
@@ -196,7 +197,7 @@ fn full_hd_polar_then_edge_glow_fits_and_every_capacity_matches_written_passes()
         .value[0] = 48.;
     p.rebuild_plugin_dependencies();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let plan = builder.build(&scene, &[0], 1080, 1920, true).unwrap();
@@ -239,7 +240,7 @@ fn shared_execution_plan_uses_layer_local_effect_clock() {
     p.rebuild_plugin_dependencies();
     p.validate().unwrap();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 25.0, None).unwrap();
+    scene.sample(&p, 25.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let plan = builder.build(&scene, &[0], 64, 64, true).unwrap();
@@ -259,7 +260,7 @@ fn zero_opacity_avoids_all_scratch_but_keeps_dependency_checks() {
     p.layers[0].effects = vec![effect];
     p.rebuild_plugin_dependencies();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut builder =
         PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let plan = builder.build(&scene, &[0], 64, 64, true).unwrap();
@@ -271,6 +272,6 @@ fn zero_opacity_avoids_all_scratch_but_keeps_dependency_checks() {
     );
     p.layers[0].effects[0].hash = "a".repeat(64);
     p.rebuild_plugin_dependencies();
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(builder.build(&scene, &[0], 64, 64, true).is_err());
 }

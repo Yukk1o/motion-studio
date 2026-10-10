@@ -1,5 +1,5 @@
 //! Both GPU backends consume the same tessellated triangles and linear paints.
-use motion_core::vector::{FillRule, LineCap, LineJoin, SampledVector};
+use motion_model::vector::{FillRule, LineCap, LineJoin, SampledVector};
 use bytemuck::{Pod, Zeroable};
 use lyon_tessellation::{
     math::point, path::Path, BuffersBuilder, FillOptions, FillTessellator, FillVertex,

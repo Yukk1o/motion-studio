@@ -1,4 +1,5 @@
 use motion_core::{composition::*, vector::{ShapeKind, VectorContent}, *};
+use motion_render::Scene;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -36,10 +37,10 @@ fn large_staggered_library_saves_reopens_and_samples_only_current_ranges() {
     let p = staggered(); p.validate().unwrap();
     let mut scene = Scene::new(&p);
     for frame in [0.,1.5,3.,87.,190.,0.,87.] {
-        scene.sample(&p,frame,None).unwrap();
+        scene.sample(&p,frame,None, &motion_core::ExpressionEvaluator).unwrap();
         assert_eq!(scene.nested.len(),1);
     }
-    scene.sample(&p,220.,None).unwrap();
+    scene.sample(&p,220.,None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(scene.nested.is_empty());
     let folder = tempfile::tempdir().unwrap();
     motion_core::storage::save(folder.path(),&p).unwrap();
@@ -59,11 +60,11 @@ fn document_and_live_frame_budgets_are_distinct_and_live_failure_is_structured()
     for l in &mut p.layers { l.timeline = None; }
     p.validate().unwrap();
     let mut scene = Scene::new(&p);
-    assert_eq!(error_code(scene.sample(&p,0.,None).unwrap_err()),"render_resource_limit");
+    assert_eq!(error_code(scene.sample(&p,0.,None, &motion_core::ExpressionEvaluator).unwrap_err()),"render_resource_limit");
     for l in &mut p.layers { l.visible=false; }
-    scene.sample(&p,0.,None).unwrap(); assert!(scene.nested.is_empty());
+    scene.sample(&p,0.,None, &motion_core::ExpressionEvaluator).unwrap(); assert!(scene.nested.is_empty());
     for l in p.layers.iter_mut().take(MAX_RENDER_COMPOSITION_INSTANCES-1) { l.visible=true; }
-    scene.sample(&p,0.,None).unwrap();
+    scene.sample(&p,0.,None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(scene.nested.len(),MAX_RENDER_COMPOSITION_INSTANCES-1);
 }
 
@@ -113,16 +114,16 @@ fn deep_active_views_keep_static_vector_caches_and_restore_instance_aliases() {
     }
     p.validate().unwrap();
     fn leaf(s:&Scene)->&Scene { if s.nested.is_empty() {s} else {leaf(&s.nested[0].scene)} }
-    let mut s=Scene::new(&p); s.sample(&p,0.,None).unwrap();
+    let mut s=Scene::new(&p); s.sample(&p,0.,None, &motion_core::ExpressionEvaluator).unwrap();
     let cached=leaf(&s).layers[0].vector.as_ref().unwrap().clone();
     for frame in [2.,1.,0.,14.5,2.] {
-        s.sample(&p,frame,None).unwrap();
+        s.sample(&p,frame,None, &motion_core::ExpressionEvaluator).unwrap();
         assert!(Arc::ptr_eq(&cached,leaf(&s).layers[0].vector.as_ref().unwrap()));
         assert_eq!(leaf(&s).source_object(leaf(&s).layers[0].id),1);
         assert_eq!(s.nested[0].layer,1);
     }
     p.compositions[8].layers[0].content=Content::Vector {vector:VectorContent::shape(ShapeKind::Triangle)};
-    s.sample(&p,2.,None).unwrap();
+    s.sample(&p,2.,None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(!Arc::ptr_eq(&cached,leaf(&s).layers[0].vector.as_ref().unwrap()));
 }
 

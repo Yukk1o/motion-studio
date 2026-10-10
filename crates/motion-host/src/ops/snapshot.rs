@@ -97,7 +97,7 @@ impl Session {
             .layers
             .iter()
             .filter_map(|layer| {
-                let corners = motion_core::selection_geometry::polygon(layer, &self.scene, &self.effects.registry)?;
+                let corners = motion_render::selection_geometry::polygon(layer, &self.scene, &self.effects.registry)?;
                 let anchor = p
                     .layers
                     .iter()

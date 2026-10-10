@@ -1,6 +1,6 @@
 //! Versioned, postorder GPU composition bundle. Child pixels stay on the GPU.
 use crate::effect_plan::PlanBuilder;
-use motion_core::Scene;
+use crate::Scene;
 pub const MAGIC: u32 = 0x4243534d;
 pub const VERSION: u32 = 1;
 pub const HEADER: usize = 32;
@@ -14,7 +14,7 @@ struct Entry<'a> {
     slot: i32,
 }
 fn entries<'a>(s: &'a Scene, reference: u64, slot: i32, out: &mut Vec<Entry<'a>>, depth: usize, visited: &mut usize) -> Result<usize, String> {
-    if depth >= motion_core::composition::MAX_COMPOSITION_DEPTH || *visited >= motion_core::composition::MAX_RENDER_COMPOSITION_INSTANCES {
+    if depth >= motion_model::composition::MAX_COMPOSITION_DEPTH || *visited >= motion_model::composition::MAX_RENDER_COMPOSITION_INSTANCES {
         return Err("composition frame exceeds depth or active instance limit".into());
     }
     *visited += 1;
@@ -51,7 +51,7 @@ fn long(out: &mut [u8], offset: usize, v: u64) {
 pub fn build(
     builder: &mut PlanBuilder,
     scene: &Scene,
-    project: &motion_core::Project,
+    project: &motion_model::Project,
     assets: &[u64],
     out: &mut Vec<u8>,
 ) -> Result<(), String> {

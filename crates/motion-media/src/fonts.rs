@@ -435,7 +435,7 @@ pub fn raster_key(raster: &Raster) -> String {
     format!("{:x}", hash.finalize())
 }
 pub fn save_raster(root: &Path, relative: &str, raster: &Raster) -> Result<()> {
-    motion_core::storage::validate_relative_path(relative).map_err(|e| e.to_string())?;
+    motion_model::storage::validate_relative_path(relative).map_err(|e| e.to_string())?;
     let path = root.join(relative);
     crate::contained_dir(root, path.parent().unwrap())?;
     if path.exists()

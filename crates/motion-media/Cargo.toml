@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 image.workspace = true
-motion-core = { path = "../motion-core" }
+motion-model = { path = "../motion-model" }
 serde.workspace = true
 serde_json.workspace = true
 fs2 = "0.4.3"
@@ -15,5 +15,7 @@ fontdue = { version = "=0.9.4", default-features = false, features = ["std"] }
 sha2 = "0.10"
 
 [dev-dependencies]
+motion-core = { path = "../motion-core" }
+motion-render = { path = "../motion-render" }
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 tempfile = "3"

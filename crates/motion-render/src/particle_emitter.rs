@@ -1,6 +1,7 @@
 //! SDK 5 world-birth particles: bounded pose cache + seek-independent analytic motion.
 use crate::scene_generator::{random, GeneratorScratch, GeneratorStats, Sprite};
-use motion_core::{particle_history::ParticleHistory, DrawLayer, SampledEffect, Scene};
+use motion_model::{particle_history::ParticleHistory, SampledEffect};
+use crate::{DrawLayer, Scene};
 use glam::{Mat4, Vec3};
 use std::{collections::VecDeque, sync::Arc};
 

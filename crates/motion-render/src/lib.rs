@@ -20,10 +20,16 @@ mod layer_gpu;
 pub mod mask_plan;
 mod mask_gpu;
 pub use video_pixels::{ChromaLayout, VideoPlane, Yuv420Frame};
-pub use motion_core::Scene;
 pub use measurement::{FrameMeasurement, FrameRecorder};
 pub use presenter::Presenter;
 pub use quality::{PreviewMode, PreviewPolicy, PreviewTier};
 pub use renderer::premultiply_pixels;
 pub use renderer::{CaptureTarget, RenderError, RenderStats, RenderTarget, Renderer};
 pub use timing::{GpuTimer, GpuTiming};
+
+mod scene;
+mod compositor;
+pub mod selection_geometry;
+pub mod position_path;
+pub use scene::{DrawLayer, HitCandidate, NestedScene, Scene};
+pub use compositor::{PlaneBatch, PlaneCompositor, PlaneVertex};

@@ -1,6 +1,7 @@
 //! Frozen project packages. Payload I/O never runs on the engine owner thread.
 use crate::Result;
-use motion_core::storage::{PackageSnapshot, MAX_PACKAGE, MAX_PACKAGE_ARCHIVE};
+use motion_model::storage::{MAX_PACKAGE, MAX_PACKAGE_ARCHIVE};
+use motion_model::{PackageExportSource, PackagePublication};
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -101,7 +102,7 @@ impl PackageJobs {
     pub fn start_export(
         &self,
         id: &str,
-        snapshot: PackageSnapshot,
+        snapshot: impl PackageExportSource,
         output: PathBuf,
         frozen_revision: u64,
     ) -> Result<PackageTaskStatus> {
@@ -158,7 +159,7 @@ impl PackageJobs {
                 let _worker = worker;
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     let parent = output.parent().ok_or_else(|| {
-                        motion_core::Error::Invalid("invalid package destination".into())
+                        motion_model::Error::Invalid("invalid package destination".into())
                     })?;
                     std::fs::create_dir_all(parent)?;
                     if fs2::available_space(parent)?
@@ -166,14 +167,14 @@ impl PackageJobs {
                             .total_bytes()
                             .saturating_add(MAX_PACKAGE_ARCHIVE - MAX_PACKAGE)
                     {
-                        return Err(motion_core::Error::Invalid(
+                        return Err(motion_model::Error::Invalid(
                             "insufficient package output storage".into(),
                         ));
                     }
                     snapshot.prepare(&output, |done, total| {
                         let mut task = spawn_task.lock().unwrap_or_else(|e| e.into_inner());
                         if task.cancel {
-                            return Err(motion_core::Error::Invalid(
+                            return Err(motion_model::Error::Invalid(
                                 "package export cancelled".into(),
                             ));
                         }

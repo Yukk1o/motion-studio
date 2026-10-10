@@ -2,7 +2,8 @@
 use crate::platform::VideoDecoder;
 use crate::video_cache::{FrameCache, LOOKAHEAD};
 use crate::video_frame::DecodedFrame;
-use motion_core::{Content, Project, Scene, VideoAsset};
+use motion_core::{Content, Project, VideoAsset};
+use motion_render::Scene;
 use motion_media::Result;
 use serde_json::{json, Value};
 use std::{

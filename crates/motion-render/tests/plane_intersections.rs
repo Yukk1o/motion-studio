@@ -1,4 +1,5 @@
-use motion_core::{Content, Layer, Project, Scene};
+use motion_core::{Content, Layer, Project};
+use motion_render::Scene;
 use motion_render::Renderer;
 
 fn pixel(pixels: &[u8], x: usize, y: usize) -> [u8; 4] {
@@ -43,7 +44,7 @@ fn opaque_and_translucent_crossing_planes_occlude_per_pixel_in_both_stack_orders
     let mut p = project();
     let mut scene = Scene::new(&p);
     for _ in 0..2 {
-        scene.sample(&p, 0.0, None).unwrap();
+        scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
         let (pixels, stats) = renderer.capture(&scene, &target).unwrap();
         assert_eq!(stats.draw_calls, 3);
         color(pixel(&pixels, 96, 128), [0, 0, 255, 255]);
@@ -52,7 +53,7 @@ fn opaque_and_translucent_crossing_planes_occlude_per_pixel_in_both_stack_orders
     }
     p.layers[0].transform.opacity.value = 0.65;
     p.layers[1].transform.opacity.value = 0.35;
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (pixels, _) = renderer.capture(&scene, &target).unwrap();
     color(
         pixel(&pixels, 96, 128),
@@ -69,7 +70,7 @@ fn opaque_and_translucent_crossing_planes_occlude_per_pixel_in_both_stack_orders
     renderer
         .upload_image(7, 2, 1, &[255, 255, 255, 0, 255, 0, 0, 255])
         .unwrap();
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (pixels, _) = renderer.capture(&scene, &target).unwrap();
     color(pixel(&pixels, 96, 128), [0, 0, 255, 255]);
     color(pixel(&pixels, 190, 128), [255, 0, 0, 255]);
@@ -83,7 +84,7 @@ fn opaque_and_translucent_crossing_planes_occlude_per_pixel_in_both_stack_orders
     ));
     p.camera.created = true;
     p.camera.position.value = [500.0, 300.0, -300.0];
-    scene.sample(&p, 0.0, None).unwrap();
+    scene.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (pixels, _) = renderer.capture(&scene, &target).unwrap();
     color(pixel(&pixels, 96, 128), [0, 255, 0, 255]);
     color(pixel(&pixels, 160, 128), [0, 255, 0, 255]);

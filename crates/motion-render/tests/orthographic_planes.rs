@@ -1,4 +1,5 @@
-use motion_core::{Layer, ObservationView, Observer, Project, Scene};
+use motion_core::{Layer, ObservationView, Observer, Project};
+use motion_render::Scene;
 use motion_render::Renderer;
 
 fn project(view: ObservationView) -> Project {
@@ -48,7 +49,7 @@ fn check(view: ObservationView, point: [usize; 2]) {
                     .transform
                     .opacity
                     .value = opacity;
-                scene.sample(&project, 0.0, Some(&observer)).unwrap();
+                scene.sample(&project, 0.0, Some(&observer), &motion_core::ExpressionEvaluator).unwrap();
                 let hits = scene.hit_candidates(point.map(|v| v as f32)).unwrap();
                 assert_eq!(hits.len(), 2);
                 assert_eq!(hits[0].id, 2, "blue is nearer along this parallel ray");

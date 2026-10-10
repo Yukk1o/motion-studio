@@ -6,7 +6,8 @@
 //! surface creation and media decoding through [`crate::platform::Platform`].
 use crate::platform::{Platform, SurfaceTarget};
 use crate::video_frames::VideoFrames;
-use motion_core::{Engine, Observer, Project, Scene};
+use motion_core::{Engine, Observer, Project};
+use motion_render::Scene;
 use motion_media::{AudioJobs, AudioMixer, Limits, PackageJobs, VideoJobs};
 use motion_render::{
     FrameMeasurement, FrameRecorder, GpuTimer, Presenter, PreviewMode, PreviewPolicy, RenderTarget,
@@ -63,7 +64,7 @@ pub struct Session {
     pub font_store: Option<motion_media::fonts::FontStore>,
     pub engine: Engine,
     pub scene: Scene,
-    pub geometry: motion_core::PlaneCompositor,
+    pub geometry: motion_render::PlaneCompositor,
     pub observer: Observer,
     pub observing: bool,
     pub frame: f64,
@@ -107,14 +108,14 @@ impl Session {
         let engine = Engine::new(project).map_err(|e| e.to_string())?;
         let project = engine.project();
         let mut scene = Scene::new(project);
-        let initial_error = match scene.sample(project, 0.0, None) {
+        let initial_error = match scene.sample(project, 0.0, None, &motion_core::ExpressionEvaluator) {
             Ok(()) => None,
             Err(error @ motion_core::Error::Expression { .. }) => {
                 let mut base = project.clone();
                 for expression in &mut base.expressions {
                     expression.enabled = false;
                 }
-                scene.sample(&base, 0.0, None).map_err(|e| e.to_string())?;
+                scene.sample(&base, 0.0, None, &motion_core::ExpressionEvaluator).map_err(|e| e.to_string())?;
                 Some(error.to_string())
             }
             Err(error) => return Err(error.to_string()),
@@ -143,7 +144,7 @@ impl Session {
             font_store: None,
             engine,
             scene,
-            geometry: motion_core::PlaneCompositor::new(),
+            geometry: motion_render::PlaneCompositor::new(),
             observer,
             observing: false,
             frame: 0.0,
@@ -514,8 +515,7 @@ impl Session {
                     Some(&self.observer)
                 } else {
                     None
-                },
-            )
+                }, &motion_core::ExpressionEvaluator)
             .map_err(|e| e.to_string());
         if let Err(error) = &result {
             self.last_error = Some(error.clone());

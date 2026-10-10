@@ -1,4 +1,5 @@
-use motion_core::{masks::*, vector::{PathNode, VectorPath}, Layer, Project, Scene, Track};
+use motion_core::{masks::*, vector::{PathNode, VectorPath}, Layer, Project, Track};
+use motion_render::Scene;
 use motion_render::{effect_plan::PlanBuilder, Renderer};
 
 fn rectangle(id:u64,x:f32,y:f32,w:f32,h:f32)->LayerMask {
@@ -9,7 +10,7 @@ fn project()->Project {
     p.layers.push(Layer::solid(1,"masked",[1080.,1920.],[540.,960.,0.],[1.,0.,0.,1.]));p
 }
 fn capture(r:&mut Renderer,p:&Project)->Vec<u8> {
-    let mut scene=Scene::new(p);scene.sample(p,0.,None).unwrap();
+    let mut scene=Scene::new(p);scene.sample(p,0.,None, &motion_core::ExpressionEvaluator).unwrap();
     let target=r.capture_target(1080,1920).unwrap();r.capture(&scene,&target).unwrap().0
 }
 fn alpha(p:&[u8],x:usize,y:usize)->u8 {p[(y*1080+x)*4+3]}
@@ -49,13 +50,13 @@ fn feather_expansion_and_masked_input_before_effect() {
 #[test]
 fn portable_mask_records_keep_cached_geometry_and_utility_program() {
     let mut p=project();p.layers[0].masks.push(rectangle(1,200.,300.,600.,1200.));
-    let mut s=Scene::new(&p);s.sample(&p,0.,None).unwrap();
+    let mut s=Scene::new(&p);s.sample(&p,0.,None, &motion_core::ExpressionEvaluator).unwrap();
     let mut plan=PlanBuilder::new(motion_effects::Registry::new_with_builtins().unwrap()).unwrap();
     let frame=plan.build(&s,&[0],1080,1920,false).unwrap();assert_eq!(frame.masks.len(),1);
     let geometry=frame.masks[0].vertices.clone();let mut bytes=vec![0;frame.buffer_bytes(&s)];frame.write(&s,&mut bytes).unwrap();
     let word=|offset:usize|u32::from_ne_bytes(bytes[offset..offset+4].try_into().unwrap());
     assert_eq!(word(4),motion_render::effect_plan::PLAN_VERSION);assert_eq!(word(116),1);assert_eq!(word(124),64);assert!(word(112)>=128);
-    s.sample(&p,20.,None).unwrap();let frame=plan.build(&s,&[0],1080,1920,false).unwrap();
+    s.sample(&p,20.,None, &motion_core::ExpressionEvaluator).unwrap();let frame=plan.build(&s,&[0],1080,1920,false).unwrap();
     assert!(std::sync::Arc::ptr_eq(&geometry,&frame.masks[0].vertices));
     assert_eq!(plan.programs[2].key,"sdk-mask-source");
 }

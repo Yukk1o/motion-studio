@@ -1,6 +1,5 @@
-use motion_core::{
-    Command, Content, Engine, Layer, LayerTimeline, Project, Scene, VideoAsset, VideoClip,
-};
+use motion_core::{Command, Content, Engine, Layer, LayerTimeline, Project, VideoAsset, VideoClip};
+use motion_render::Scene;
 fn project() -> Project {
     let mut p = Project::new(64, 64, 60, 240).unwrap();
     p.video_assets.push(VideoAsset {
@@ -41,9 +40,9 @@ fn project() -> Project {
 fn video_uses_source_time_and_leading_and_trailing_transparency_through_clip_edits() {
     let mut e = Engine::new(project()).unwrap();
     let mut scene = Scene::new(e.project());
-    scene.sample(e.project(), 0., None).unwrap();
+    scene.sample(e.project(), 0., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(scene.layers.is_empty());
-    scene.sample(e.project(), 30.5, None).unwrap();
+    scene.sample(e.project(), 30.5, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         scene.layers[0].video.as_ref().unwrap().source_time_us,
         508333
@@ -59,12 +58,12 @@ fn video_uses_source_time_and_leading_and_trailing_transparency_through_clip_edi
         },
     ])
     .unwrap();
-    scene.sample(e.project(), 60.5, None).unwrap();
+    scene.sample(e.project(), 60.5, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         scene.layers[0].video.as_ref().unwrap().source_time_us,
         508333
     );
-    scene.sample(e.project(), 150., None).unwrap();
+    scene.sample(e.project(), 150., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(scene.layers.is_empty());
     let before = e.snapshot();
     assert!(e

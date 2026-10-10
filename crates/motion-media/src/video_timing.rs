@@ -2,7 +2,7 @@
 /// Retain a bounded deadline without treating a multi-GiB cold read as a hang.
 pub fn timestamp_scan_budget(source_bytes: u64) -> std::time::Duration {
     let chunks = source_bytes
-        .min(motion_core::storage::MAX_MEDIA_ASSET)
+        .min(motion_model::storage::MAX_MEDIA_ASSET)
         .div_ceil(16 * 1024 * 1024);
     std::time::Duration::from_secs(30 + chunks)
 }
@@ -47,7 +47,7 @@ mod tests {
         assert_eq!(timestamp_scan_budget(16 * 1024 * 1024 + 1).as_secs(), 32);
         assert_eq!(timestamp_scan_budget(512 * 1024 * 1024).as_secs(), 62);
         assert_eq!(
-            timestamp_scan_budget(motion_core::storage::MAX_MEDIA_ASSET).as_secs(),
+            timestamp_scan_budget(motion_model::storage::MAX_MEDIA_ASSET).as_secs(),
             158
         );
         assert_eq!(timestamp_scan_budget(u64::MAX).as_secs(), 158);

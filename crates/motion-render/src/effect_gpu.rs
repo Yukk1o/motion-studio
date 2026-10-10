@@ -3,7 +3,7 @@ use crate::{
     renderer::GpuImage,
     RenderError,
 };
-use motion_core::Scene;
+use crate::Scene;
 use motion_effects::Registry;
 use std::collections::HashMap;
 

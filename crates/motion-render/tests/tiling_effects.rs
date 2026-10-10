@@ -1,4 +1,5 @@
-use motion_core::{Content, EffectInstance, Layer, Project, Scene};
+use motion_core::{Content, EffectInstance, Layer, Project};
+use motion_render::Scene;
 use motion_render::{
     effect_plan::{scratch_capacity_bytes, PlanBuilder},
     Renderer,
@@ -44,7 +45,7 @@ fn set(p: &mut Project, id: &str, value: f32) {
 }
 fn sample(p: &Project, frame: f64) -> Scene {
     let mut scene = Scene::new(p);
-    scene.sample(p, frame, None).unwrap();
+    scene.sample(p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
     scene
 }
 fn pixels() -> Vec<u8> {

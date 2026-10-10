@@ -1,4 +1,5 @@
-use motion_core::{Asset, Composition, CompositionClip, Content, Layer, Project, Scene};
+use motion_core::{Asset, Composition, CompositionClip, Content, Layer, Project};
+use motion_render::Scene;
 use motion_render::{image_resources::Resolution, Renderer};
 use std::{
     fs,
@@ -37,12 +38,12 @@ fn particle_sprite_is_demanded_without_an_image_layer_and_released_when_disabled
     project.rebuild_plugin_dependencies();
     project.validate().unwrap();
     let mut scene = Scene::new(&project);
-    scene.sample(&project, 0., None).unwrap();
+    scene.sample(&project, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(scene.layers.iter().all(|layer| layer.asset != Some(7)));
     assert!(motion_render::image_resources::scene_assets(&scene).contains(&7));
 
     project.layers[0].effects[0].enabled = false;
-    scene.sample(&project, 1., None).unwrap();
+    scene.sample(&project, 1., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(!motion_render::image_resources::scene_assets(&scene).contains(&7));
 }
 #[test]
@@ -121,7 +122,7 @@ fn active_images_share_proxies_with_nested_instances_and_full_output_is_explicit
     p.rebuild_plugin_dependencies();
     p.validate().unwrap();
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let mut r = pollster::block_on(Renderer::headless()).unwrap();
     r.configure_assets(&p, root.path()).unwrap();
     assert_eq!(r.image_count(), 1);
@@ -147,7 +148,7 @@ fn active_images_share_proxies_with_nested_instances_and_full_output_is_explicit
         "nested Tint was not applied to the image"
     );
     for frame in [1., 12., 4., 29., 0.] {
-        scene.sample(&p, frame, None).unwrap();
+        scene.sample(&p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
         assert!(r
             .prepare_scene_assets(&scene, Resolution::Preview(2048), true)
             .unwrap());
@@ -164,7 +165,7 @@ fn active_images_share_proxies_with_nested_instances_and_full_output_is_explicit
     assert_eq!(r.capture(&scene, &target).unwrap().0, proxy);
     // 2 x 64 MiB plus the solid texture does not fit: never downsample export.
     p.layers[1].content = Content::Image { asset: 8 };
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(r
         .prepare_scene_assets(&scene, Resolution::Full, false)
         .unwrap_err()
@@ -178,12 +179,12 @@ fn active_images_share_proxies_with_nested_instances_and_full_output_is_explicit
     assert_eq!(r.asset_ids(), [0, 99, 7, 8]);
     // Drop every reference: the proxy stays in the bounded idle GPU cache.
     p.layers.retain(|l| l.id == 2);
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)
         .unwrap();
     assert_eq!(r.image_dimensions(7), Some((2048, 2048)));
     p.layers.push(image_layer(4, 7));
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     let hits = r.image_memory_cache_hits;
     let uploaded = r.image_upload_bytes;
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)

@@ -1,5 +1,6 @@
 //! Read-only editing geometry in the current parent/camera coordinate system.
-use crate::{ensure, Error, ExpressionTarget, Project, Property, Result, Scene, Track, Tween};
+use motion_model::{ensure, Error, ExpressionTarget, Project, Property, Result, Track, Tween};
+use crate::Scene;
 use glam::{Mat4, Vec3};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -182,9 +183,9 @@ pub fn sample(
                 };
                 (t, sampled, true)
             };
-            let mut prefix = crate::hierarchy::prefix(evaluated, object, frame)?;
+            let mut prefix = motion_model::hierarchy::prefix(evaluated, object, frame)?;
             if !spatial {
-                prefix = crate::scene::flat_matrix(prefix);
+                prefix = motion_model::geometry::flat_matrix(prefix);
             }
             let projection = if spatial {
                 scene.camera.view_projection

@@ -1,7 +1,8 @@
 //! Exact back-to-front ordering of flat 3D layers, including intersections.
 //! BSP splitting preserves texture coordinates and premultiplied alpha order.
 //! No per-pixel lists, extra fullscreen passes, or unbounded geometry growth.
-use crate::{ensure, ProjectionKind, Result, Scene, MAX_LAYERS};
+use motion_model::{ensure, ProjectionKind, Result, MAX_LAYERS};
+use crate::Scene;
 use glam::{DVec2, DVec3};
 use std::ops::Range;
 

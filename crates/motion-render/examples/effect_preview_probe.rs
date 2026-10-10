@@ -1,6 +1,7 @@
 //! Reproducible GPU-only effect playback probe. MediaCodec and display pacing
 //! are deliberately outside this desktop measurement; use a phone for FPS.
-use motion_core::{EffectInstance, Layer, Project, Scene, VideoSample};
+use motion_core::{EffectInstance, Layer, Project, VideoSample};
+use motion_render::Scene;
 use motion_render::{
     ChromaLayout, GpuTimer, Presenter, PreviewMode, PreviewPolicy, Renderer, Yuv420Frame,
 };
@@ -132,7 +133,7 @@ fn measure(
     let start_upload_bytes = renderer.video_upload_bytes;
     for i in 0..WARMUP + FRAMES {
         let started = Instant::now();
-        scene.sample(p, i as f64, None).map_err(|e| e.to_string())?;
+        scene.sample(p, i as f64, None, &motion_core::ExpressionEvaluator).map_err(|e| e.to_string())?;
         scene.layers[0].video = Some(VideoSample {
             asset: 1,
             source_time_us: i * 1_000_000 / 30,

@@ -1,4 +1,5 @@
-use motion_core::{Layer, Project, Scene};
+use motion_core::{Layer, Project};
+use motion_render::Scene;
 use motion_render::{GpuTimer, Presenter, Renderer};
 #[test]
 fn full_resolution_composition_fits_the_surface_and_yields_real_pass_timings() {
@@ -20,7 +21,7 @@ fn full_resolution_composition_fits_the_surface_and_yields_real_pass_timings() {
         [0.5, 0.8, 0.2, 1.0],
     ));
     let mut scene = Scene::new(&p);
-    scene.sample(&p, 72.0, None).unwrap();
+    scene.sample(&p, 72.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let source = r.render_target(128, 256).unwrap();
     assert_eq!(source.texture_bytes(), 128 * 256 * 4);
     let output = r.capture_target(256, 256).unwrap();

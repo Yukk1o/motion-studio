@@ -1,6 +1,7 @@
 //! Selection uses the same affine mapping as supported image effects, leaving
 //! stored transforms and the logical anchor unchanged.
-use crate::{DrawLayer, SampledEffect, Scene};
+use motion_model::SampledEffect;
+use crate::{DrawLayer, Scene};
 use motion_effects::Registry;
 use glam::{Mat4, Vec2, Vec3};
 

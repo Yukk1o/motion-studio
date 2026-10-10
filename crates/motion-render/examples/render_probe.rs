@@ -1,4 +1,5 @@
-use motion_core::{Command, Engine, Project, Scene};
+use motion_core::{Command, Engine, Project};
+use motion_render::Scene;
 use motion_render::Renderer;
 use std::{path::PathBuf, time::Instant};
 
@@ -35,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(command) = movement {
             engine.apply(command)?;
         }
-        scene.sample(engine.project(), 0.0, None)?;
+        scene.sample(engine.project(), 0.0, None, &motion_core::ExpressionEvaluator)?;
         let start = Instant::now();
         let (pixels, stats) = renderer.capture(&scene, &target)?;
         image::save_buffer(

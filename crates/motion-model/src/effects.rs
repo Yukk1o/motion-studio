@@ -267,7 +267,7 @@ pub enum EffectImageInput {
 impl EffectImageInput {
     pub fn layer(self) -> Option<u64> { if let Self::Layer { layer, .. } = self { Some(layer) } else { None } }
 }
-pub(crate) fn clear_layer_image_inputs(layers: &mut [Layer], source: u64) {
+pub fn clear_layer_image_inputs(layers: &mut [Layer], source: u64) {
     for layer in layers {
         for effect in &mut layer.effects {
             if effect.image_input.and_then(EffectImageInput::layer) == Some(source) {
@@ -510,7 +510,7 @@ fn param_mut<'a>(layer: &'a mut Layer, id: u64, param: &str) -> Result<&'a mut E
         .get_mut(param)
         .ok_or_else(|| Error::Invalid("effect parameter does not exist".into()))
 }
-pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Result<()> {
+pub fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Result<()> {
     ensure(!layer.locked, "object is locked")?;
     ensure(
         !matches!(layer.content, crate::Content::Null),
@@ -804,7 +804,7 @@ pub struct SampledEffect {
     pub particle_history_error: Option<String>,
 }
 impl SampledEffect {
-    pub(crate) fn new(layer: u64, e: &EffectInstance) -> Self {
+    pub fn new(layer: u64, e: &EffectInstance) -> Self {
         Self {
             layer,
             local_frame: 0.0,
@@ -824,7 +824,7 @@ impl SampledEffect {
             particle_history_error: None,
         }
     }
-    pub(crate) fn matches(&self, layer: u64, e: &EffectInstance) -> bool {
+    pub fn matches(&self, layer: u64, e: &EffectInstance) -> bool {
         self.layer == layer
             && self.instance == e.id
             && self.plugin == e.plugin

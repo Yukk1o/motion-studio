@@ -1,5 +1,5 @@
 use crate::{cache_path, Result, MAX_BLOCK_FRAMES, OUTPUT_RATE};
-use motion_core::{AudioAsset, Project};
+use motion_model::{AudioAsset, Project};
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -28,7 +28,7 @@ pub struct AudioMixer {
     sources: Vec<Source>,
     bytes: Vec<u8>,
     samples: Vec<f32>,
-    voices: Vec<motion_core::composition::AudioVoice>,
+    voices: Vec<motion_model::composition::AudioVoice>,
 }
 impl AudioMixer {
     pub fn new(project: Project, root: &Path) -> Result<Self> {

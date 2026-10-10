@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/motion-effects",
+    "crates/motion-model",
     "crates/motion-core",
     "crates/motion-render",
     "crates/motion-media",

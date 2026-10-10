@@ -164,7 +164,7 @@ impl PreviewPolicy {
 }
 
 pub(crate) fn preview_layer_scale(
-    layer: &motion_core::DrawLayer,
+    layer: &crate::DrawLayer,
     width: u32,
     height: u32,
     scale: f32,

@@ -5,8 +5,9 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+serde.workspace = true
 motion-effects = { path = "../motion-effects" }
-motion-core = { path = "../motion-core" }
+motion-model = { path = "../motion-model" }
 wgpu.workspace = true
 glam.workspace = true
 bytemuck.workspace = true
@@ -19,6 +20,7 @@ serde_json.workspace = true
 lyon_tessellation = "1.0.22"
 
 [dev-dependencies]
+motion-core = { path = "../motion-core" }
 motion-media = { path = "../motion-media" }
 serde.workspace = true
 tempfile = "3.17"

@@ -1,6 +1,6 @@
 //! Frozen/export render plans, captures and packed geometry output.
 use crate::session::Result;
-use motion_core::Scene;
+use motion_render::Scene;
 use motion_render::Renderer;
 use serde_json::json;
 
@@ -29,7 +29,7 @@ pub fn render_plan_info(id: i64) -> Result<serde_json::Value> {
                 }
             }
             let mut scene = Scene::new(&node);
-            scene.sample(&node, 0., None).map_err(|e| e.to_string())?;
+            scene.sample(&node, 0., None, &motion_core::ExpressionEvaluator).map_err(|e| e.to_string())?;
             s.effects.synchronize(&scene)?;
         }
         s.effects
@@ -140,7 +140,7 @@ pub fn capture(id: i64) -> Result<serde_json::Value> {
         s.effects
             .synchronize_scene_alpha(&s.scene, p, &s.root)?;
         let mut scene = Scene::new(p);
-        scene.sample(p, s.frame, None).map_err(|e| e.to_string())?;
+        scene.sample(p, s.frame, None, &motion_core::ExpressionEvaluator).map_err(|e| e.to_string())?;
         let mut temporary = None;
         if s.graphics.is_none() {
             temporary = Some(pollster::block_on(Renderer::headless()).map_err(|e| e.to_string())?);
@@ -228,7 +228,7 @@ pub fn sample_into_inner(
         }
         s.frame = f64::from(frame);
         s.scene
-            .sample(s.engine.project(), s.frame, None)
+            .sample(s.engine.project(), s.frame, None, &motion_core::ExpressionEvaluator)
             .map_err(|e| e.to_string())?;
         if s.scene
             .layers

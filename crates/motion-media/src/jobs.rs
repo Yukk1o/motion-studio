@@ -1,5 +1,5 @@
 use crate::{cache_path, contained_dir, DecodeAudio, Result};
-use motion_core::{AudioAsset, AudioClip, Command, Content, Engine, Layer, LayerTimeline};
+use motion_model::{AudioAsset, AudioClip, Command, Content, EditSink, Layer, LayerTimeline};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -25,7 +25,7 @@ pub struct Limits {
 impl Default for Limits {
     fn default() -> Self {
         Self {
-            source_bytes: motion_core::storage::MAX_MEDIA_ASSET,
+            source_bytes: motion_model::storage::MAX_MEDIA_ASSET,
             cache_bytes: 48_000 * 2 * 4 * 3600,
         }
     }
@@ -113,7 +113,7 @@ impl AudioJobs {
     /// Platform adapters use the same transactions, cancellation and cache rebuild path.
     pub fn with_decoder(root: PathBuf, limits: Limits, decode: DecodeAudio) -> Result<Self> {
         if limits.source_bytes == 0
-            || limits.source_bytes > motion_core::storage::MAX_MEDIA_ASSET
+            || limits.source_bytes > motion_model::storage::MAX_MEDIA_ASSET
             || limits.cache_bytes == 0
         {
             return Err("invalid audio resource limits".into());
@@ -274,7 +274,7 @@ impl AudioJobs {
                         let stage = Stage::new(&root)?;
                         let source = stage.path.join("source");
                         let mut out = File::create(&source).map_err(|e| e.to_string())?;
-                        let mut buffer = vec![0; motion_core::storage::TRANSFER_BUFFER_BYTES];
+                        let mut buffer = vec![0; motion_model::storage::TRANSFER_BUFFER_BYTES];
                         let mut bytes = 0u64;
                         loop {
                             update(
@@ -379,7 +379,7 @@ impl AudioJobs {
     }
     /// Called on the editor's owning worker. Cancel and commit serialize on the
     /// task lock, so a completed cancellation cannot subsequently publish a layer.
-    pub fn commit(&self, id: &str, engine: &mut Engine) -> Result<TaskStatus> {
+    pub fn commit(&self, id: &str, engine: &mut impl EditSink) -> Result<TaskStatus> {
         let task = self.task(id)?;
         let mut t = task.lock().map_err(|_| "audio task poisoned")?;
         if t.status.terminal() {

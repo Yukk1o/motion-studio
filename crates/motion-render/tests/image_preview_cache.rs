@@ -1,4 +1,5 @@
-use motion_core::{Asset, Content, Layer, LayerTimeline, Project, Scene};
+use motion_core::{Asset, Content, Layer, LayerTimeline, Project};
+use motion_render::Scene;
 use motion_render::{
     image_resources::{self, Resolution},
     ChromaLayout, Renderer, Yuv420Frame,
@@ -56,7 +57,7 @@ fn recent_textures_are_lru_bounded_and_yuv_allocations_reclaim_idle_images() {
     let mut colors = vec![];
     for asset in [1, 2, 1, 3, 4] {
         p.layers[0].content = Content::Image { asset };
-        scene.sample(&p, 0., None).unwrap();
+        scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
         assert!(r
             .prepare_scene_assets(&scene, Resolution::Preview(2048), false)
             .unwrap());
@@ -81,15 +82,15 @@ fn recent_textures_are_lru_bounded_and_yuv_allocations_reclaim_idle_images() {
     assert_eq!(r.texture_bytes(), 112 * 1024 * 1024 + 4);
     // Return to the registered dimensions and restore the recent working set.
     p.layers[0].content = Content::Image { asset: 3 };
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)
         .unwrap();
     p.layers[0].content = Content::Image { asset: 1 };
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)
         .unwrap();
     p.layers[0].content = Content::Image { asset: 4 };
-    scene.sample(&p, 0., None).unwrap();
+    scene.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)
         .unwrap();
     // 4K output + decoder planes = 88 MiB. With three images it would exceed
@@ -143,7 +144,7 @@ fn prefetched_clip_renders_immediately_and_invalid_future_source_only_fails_when
     let mut scene = Scene::new(&p);
     let mut r = pollster::block_on(Renderer::headless()).unwrap();
     r.configure_assets(&p, root.path()).unwrap();
-    scene.sample(&p, 1., None).unwrap();
+    scene.sample(&p, 1., None, &motion_core::ExpressionEvaluator).unwrap();
     r.set_image_prefetch(image_resources::upcoming_assets(&p, 1.));
     r.prepare_scene_assets(&scene, Resolution::Preview(2048), false)
         .unwrap();
@@ -157,7 +158,7 @@ fn prefetched_clip_renders_immediately_and_invalid_future_source_only_fails_when
         std::thread::sleep(Duration::from_millis(1));
     }
     let uploaded = r.image_upload_bytes;
-    scene.sample(&p, 16., None).unwrap();
+    scene.sample(&p, 16., None, &motion_core::ExpressionEvaluator).unwrap();
     r.set_image_prefetch(image_resources::upcoming_assets(&p, 16.));
     assert!(r
         .prepare_scene_assets(&scene, Resolution::Preview(2048), true)
@@ -176,7 +177,7 @@ fn prefetched_clip_renders_immediately_and_invalid_future_source_only_fails_when
         r.image_prefetches, 2,
         "failed speculation retried every render"
     );
-    scene.sample(&p, 18., None).unwrap();
+    scene.sample(&p, 18., None, &motion_core::ExpressionEvaluator).unwrap();
     loop {
         match r.prepare_scene_assets(&scene, Resolution::Preview(2048), true) {
             Err(error) => {

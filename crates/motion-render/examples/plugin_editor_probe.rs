@@ -1,9 +1,7 @@
 //! JSON-lines desktop driver for the packaged editor's browser integration tests.
 //! It is not exposed to plugin pages or included in the Android bridge.
-use motion_core::{
-    plugin_editor::{EditorRequest, PluginEditorSession},
-    Command, EffectAction, EffectInstance, Engine, Layer, Project, Scene,
-};
+use motion_core::{plugin_editor::{EditorRequest, PluginEditorSession}, Command, EffectAction, EffectInstance, Engine, Layer, Project};
+use motion_render::Scene;
 use motion_effects::{builtin, Registry};
 use motion_render::Renderer;
 use image::ImageEncoder;
@@ -113,7 +111,7 @@ impl Probe {
                 return Err("invalid preview size".into());
             }
             let mut scene = Scene::new(engine.project());
-            scene.sample(engine.project(), self.frame.into(), None)?;
+            scene.sample(engine.project(), self.frame.into(), None, &motion_core::ExpressionEvaluator)?;
             let target = self.renderer.capture_target(width, height)?;
             let (rgba, stats) = self.renderer.capture(&scene, &target)?;
             let mut png = Vec::new();

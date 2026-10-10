@@ -1,0 +1,13 @@
+[package]
+name = "motion-model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+motion-effects = { path = "../motion-effects" }
+serde.workspace = true
+serde_json.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+zip = { version = "2.4", default-features = false, features = ["deflate"] }

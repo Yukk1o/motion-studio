@@ -1,7 +1,6 @@
-use motion_core::{
-    Command, EffectInstance, Engine, ExpressionTarget, Layer, Project, Property,
-    PropertyExpression, Scene, EXPRESSION_PROFILE,
-};
+use motion_core::ProjectExpressions;
+use motion_core::{Command, EffectInstance, Engine, ExpressionTarget, Layer, Project, Property, PropertyExpression, EXPRESSION_PROFILE};
+use motion_render::Scene;
 use motion_render::{effect_plan::PlanBuilder, Renderer};
 #[test]
 fn expressions_drive_geometry_effects_and_the_shared_export_plan() {
@@ -65,9 +64,9 @@ fn expressions_drive_geometry_effects_and_the_shared_export_plan() {
     let mut scene = Scene::new(engine.project());
     let mut renderer = pollster::block_on(Renderer::headless()).unwrap();
     let target = renderer.capture_target(64, 64).unwrap();
-    scene.sample(engine.project(), 0.0, None).unwrap();
+    scene.sample(engine.project(), 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (start, _) = renderer.capture(&scene, &target).unwrap();
-    scene.sample(engine.project(), 30.0, None).unwrap();
+    scene.sample(engine.project(), 30.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let (end, _) = renderer.capture(&scene, &target).unwrap();
     let px = |v: &[u8], x: usize| v[(32 * 64 + x) * 4..(32 * 64 + x) * 4 + 4].to_vec();
     assert!(px(&start, 16)[0] > 250 && px(&start, 16)[1] < 3);

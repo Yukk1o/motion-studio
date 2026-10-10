@@ -1,5 +1,6 @@
 //! Bounded image decoding. Dimensions describe the source, never the proxy.
-use motion_core::{Asset, Scene};
+use motion_model::Asset;
+use crate::Scene;
 use std::{
     collections::BTreeSet,
     fs::{self, File, OpenOptions},
@@ -21,10 +22,10 @@ pub const MAX_PREFETCH_IMAGES: usize = 2;
 
 /// Inspect clip dependencies without sampling expressions or animation. Times
 /// are mapped through nested clips in seconds, including mixed frame rates.
-pub fn upcoming_assets(project: &motion_core::Project, frame: f64) -> Vec<u64> {
+pub fn upcoming_assets(project: &motion_model::Project, frame: f64) -> Vec<u64> {
     fn visit(
-        document: &motion_core::Project,
-        layers: &[motion_core::Layer],
+        document: &motion_model::Project,
+        layers: &[motion_model::Layer],
         fps: u32,
         frames: u32,
         begin: f64,
@@ -33,7 +34,7 @@ pub fn upcoming_assets(project: &motion_core::Project, frame: f64) -> Vec<u64> {
         depth: usize,
         found: &mut std::collections::BTreeMap<u64, f64>,
     ) {
-        if depth >= motion_core::composition::MAX_COMPOSITION_DEPTH {
+        if depth >= motion_model::composition::MAX_COMPOSITION_DEPTH {
             return;
         }
         for layer in layers.iter().filter(|l| l.visible) {
@@ -45,8 +46,8 @@ pub fn upcoming_assets(project: &motion_core::Project, frame: f64) -> Vec<u64> {
             }
             let wait = delay + (start - begin) / f64::from(fps);
             match &layer.content {
-                motion_core::Content::Image { asset }
-                | motion_core::Content::Text {
+                motion_model::Content::Image { asset }
+                | motion_model::Content::Text {
                     raster_asset: asset,
                     ..
                 } => {
@@ -55,7 +56,7 @@ pub fn upcoming_assets(project: &motion_core::Project, frame: f64) -> Vec<u64> {
                         .and_modify(|t| *t = t.min(wait))
                         .or_insert(wait);
                 }
-                motion_core::Content::Composition { clip } => {
+                motion_model::Content::Composition { clip } => {
                     if let Some(child) = document
                         .compositions
                         .iter()
@@ -138,7 +139,7 @@ pub fn scene_assets(scene: &Scene) -> BTreeSet<u64> {
     fn collect(scene: &Scene, ids: &mut BTreeSet<u64>) {
         ids.extend(scene.layers.iter().filter_map(|l| l.asset));
         ids.extend(scene.effects.iter().filter(|e| e.enabled && scene.layers.iter().any(|l|l.id==e.layer))
-            .filter_map(|e| match e.image_input { Some(motion_core::EffectImageInput::Asset {asset}) => Some(asset), _ => None }));
+            .filter_map(|e| match e.image_input { Some(motion_model::EffectImageInput::Asset {asset}) => Some(asset), _ => None }));
         ids.extend(scene.effects.iter()
             .filter(|effect| effect.enabled && scene.layers.iter().any(|layer| layer.id == effect.layer))
             .filter_map(|effect| effect.scene.as_ref().and_then(|settings| settings.sprite_asset)));
@@ -161,7 +162,7 @@ pub struct Source {
 }
 impl Source {
     pub fn new(root: &Path, asset: &Asset) -> Result<Self, String> {
-        motion_core::storage::validate_relative_path(&asset.path).map_err(|e| e.to_string())?;
+        motion_model::storage::validate_relative_path(&asset.path).map_err(|e| e.to_string())?;
         let base = root.canonicalize().map_err(|e| e.to_string())?;
         let path = root
             .join(&asset.path)

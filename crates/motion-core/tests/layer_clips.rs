@@ -1,7 +1,5 @@
-use motion_core::{
-    Command, Content, Curve, CurveShape, CurveSpace, Ease, Easing, Engine, Layer, LayerTimeline,
-    Observer, Project, Property, Scene,
-};
+use motion_core::{Command, Content, Curve, CurveShape, CurveSpace, Ease, Easing, Engine, Layer, LayerTimeline, Observer, Project, Property};
+use motion_render::Scene;
 
 fn fixture() -> Engine {
     let mut p = Project::demo();
@@ -42,7 +40,7 @@ fn fixture() -> Engine {
 }
 fn scene(p: &Project, f: f64) -> Scene {
     let mut s = Scene::new(p);
-    s.sample(p, f, None).unwrap();
+    s.sample(p, f, None, &motion_core::ExpressionEvaluator).unwrap();
     s
 }
 fn compare(a: &Project, b: &Project, fa: f64, fb: f64, ia: u64, ib: u64) {
@@ -319,7 +317,7 @@ fn inactive_null_parent_and_camera_rig_sample_their_own_time() {
     observer.orbit(40.0, 10.0).unwrap();
     let mut observed = Scene::new(e.project());
     observed
-        .sample(e.project(), 150.0, Some(&observer))
+        .sample(e.project(), 150.0, Some(&observer), &motion_core::ExpressionEvaluator)
         .unwrap();
     assert!(observed.layers.iter().any(|l| l.id == 3));
 }

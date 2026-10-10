@@ -1,4 +1,5 @@
-use motion_core::{Layer, Project, Scene};
+use motion_core::{Layer, Project};
+use motion_render::Scene;
 use motion_render::{ChromaLayout, Renderer, VideoPlane, Yuv420Frame};
 
 fn frame(rotation: u32, standard: u32, range: u32) -> Yuv420Frame {
@@ -45,7 +46,7 @@ fn scene(width: u32, height: u32) -> Scene {
     // test supplies draw pixels directly to exercise conversion/compositing.
     p.layers.push(l);
     let mut s = Scene::new(&p);
-    s.sample(&p, 0., None).unwrap();
+    s.sample(&p, 0., None, &motion_core::ExpressionEvaluator).unwrap();
     s.layers[0].video = Some(motion_core::VideoSample {
         asset: 1,
         source_time_us: 0,

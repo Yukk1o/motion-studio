@@ -1,4 +1,5 @@
-use motion_core::{Asset, Content, Layer, Project, Scene};
+use motion_core::{Asset, Content, Layer, Project};
+use motion_render::Scene;
 use motion_render::image_resources::{self as images, Resolution, Source};
 use std::{fs, io::Write, time::Instant};
 
@@ -284,7 +285,7 @@ fn scene_demand_excludes_inactive_clips_and_unreferenced_library_assets() {
     p.layers.push(l);
     let mut scene = Scene::new(&p);
     for (frame, count) in [(0., 0), (5., 1), (9., 1), (10., 0)] {
-        scene.sample(&p, frame, None).unwrap();
+        scene.sample(&p, frame, None, &motion_core::ExpressionEvaluator).unwrap();
         let demand = images::scene_assets(&scene);
         assert_eq!(demand.len(), count);
         if count > 0 {

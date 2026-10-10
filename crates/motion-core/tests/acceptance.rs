@@ -1,6 +1,5 @@
-use motion_core::{
-    CameraMode, Command, Content, Ease, Engine, Layer, Observer, Project, Property, Scene, Track,
-};
+use motion_core::{CameraMode, Command, Content, Ease, Engine, Layer, Observer, Project, Property, Track};
+use motion_render::Scene;
 use glam::Vec3;
 
 fn close(a: f32, b: f32) {
@@ -159,7 +158,7 @@ fn a3_dolly_changes_near_scale_more_without_moving_layers_or_changing_fov() {
     let mut e = Engine::new(Project::demo()).unwrap();
     let before = e.snapshot();
     let mut scene = Scene::new(&before);
-    scene.sample(&before, 0.0, None).unwrap();
+    scene.sample(&before, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let measure = |s: &Scene, z: f32| {
         let a = s.project_point([490.0, 960.0, z]);
         let b = s.project_point([590.0, 960.0, z]);
@@ -172,7 +171,7 @@ fn a3_dolly_changes_near_scale_more_without_moving_layers_or_changing_fov() {
         amount: 200.0,
     })
     .unwrap();
-    scene.sample(e.project(), 0.0, None).unwrap();
+    scene.sample(e.project(), 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(measure(&scene, -500.0) / near_before > measure(&scene, 500.0) / far_before);
     assert_eq!(e.project().layers, before.layers);
     assert_eq!(e.project().camera.fov, before.camera.fov);
@@ -183,7 +182,7 @@ fn a4_pan_keeps_direction_and_produces_depth_dependent_parallax() {
     let mut e = Engine::new(Project::demo()).unwrap();
     let original = e.snapshot();
     let mut scene = Scene::new(&original);
-    scene.sample(&original, 0.0, None).unwrap();
+    scene.sample(&original, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let direction_before = (scene.camera.target - scene.camera.eye).normalize();
     let near = scene.project_point([540.0, 960.0, -500.0])[0];
     let far = scene.project_point([540.0, 960.0, 500.0])[0];
@@ -193,7 +192,7 @@ fn a4_pan_keeps_direction_and_produces_depth_dependent_parallax() {
         y: 20.0,
     })
     .unwrap();
-    scene.sample(e.project(), 0.0, None).unwrap();
+    scene.sample(e.project(), 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert!(
         (direction_before - (scene.camera.target - scene.camera.eye).normalize()).length() < 1e-5
     );
@@ -265,15 +264,15 @@ fn a6_observing_a_scene_does_not_modify_project_or_history() {
     let revision = e.revision();
     let mut observer = Observer::new(original.width, original.height);
     let mut scene = Scene::new(&original);
-    scene.sample(&original, 0.0, None).unwrap();
+    scene.sample(&original, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     let active = scene.camera.view_projection;
     observer.orbit(50.0, 20.0).unwrap();
-    scene.sample(e.project(), 0.0, Some(&observer)).unwrap();
+    scene.sample(e.project(), 0.0, Some(&observer), &motion_core::ExpressionEvaluator).unwrap();
     assert_ne!(scene.camera.view_projection, active);
     assert_eq!(e.project(), &original);
     assert_eq!(e.revision(), revision);
     assert!(!e.can_undo());
-    scene.sample(e.project(), 0.0, None).unwrap();
+    scene.sample(e.project(), 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(scene.camera.view_projection, active);
 }
 
@@ -300,8 +299,8 @@ fn anchor_compensation_preserves_rendered_geometry_through_animation() {
     let mut a = Scene::new(&before);
     let mut b = Scene::new(e.project());
     for frame in 0..before.frames {
-        a.sample(&before, frame as f64, None).unwrap();
-        b.sample(e.project(), frame as f64, None).unwrap();
+        a.sample(&before, frame as f64, None, &motion_core::ExpressionEvaluator).unwrap();
+        b.sample(e.project(), frame as f64, None, &motion_core::ExpressionEvaluator).unwrap();
         let am = a.layers.iter().find(|l| l.id == 2).unwrap().model;
         let bm = b.layers.iter().find(|l| l.id == 2).unwrap().model;
         for point in [
@@ -337,13 +336,13 @@ fn same_depth_uses_stack_order_and_distinct_depth_uses_camera_space() {
         layer.three_d = true;
     }
     let mut s = Scene::new(&p);
-    s.sample(&p, 0.0, None).unwrap();
+    s.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         s.layers.iter().map(|l| l.id).collect::<Vec<_>>(),
         vec![1, 2]
     );
     p.layers[0].transform.position.value[2] = -200.0;
-    s.sample(&p, 0.0, None).unwrap();
+    s.sample(&p, 0.0, None, &motion_core::ExpressionEvaluator).unwrap();
     assert_eq!(
         s.layers.iter().map(|l| l.id).collect::<Vec<_>>(),
         vec![2, 1]
@@ -406,8 +405,8 @@ fn invalid_edits_and_bad_import_metadata_are_rejected_without_mutation() {
         assert!(motion_core::storage::validate_relative_path(path).is_err());
     }
     let mut s = Scene::new(&p);
-    assert!(s.sample(&p, f64::NAN, None).is_err());
-    assert!(s.sample(&p, -1.0, None).is_err());
+    assert!(s.sample(&p, f64::NAN, None, &motion_core::ExpressionEvaluator).is_err());
+    assert!(s.sample(&p, -1.0, None, &motion_core::ExpressionEvaluator).is_err());
     e.apply(Command::Flags {
         object: 2,
         visible: true,
