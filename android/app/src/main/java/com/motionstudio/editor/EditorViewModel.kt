@@ -69,6 +69,10 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
     var selectedLayerIds by mutableStateOf<Set<Long>>(emptySet());private set
     var property by mutableStateOf("position")
     var panelOpen by mutableStateOf(false)
+    var curvePanelOpen by mutableStateOf(false)
+    var effectCurveRequest by mutableStateOf<Pair<Long,String>?>(null)
+    var showLayerCenters by mutableStateOf(layoutPreferences.getBoolean("show-layer-centers",true));private set
+    fun toggleLayerCenters(){showLayerCenters=!showLayerCenters;layoutPreferences.edit().putBoolean("show-layer-centers",showLayerCenters).apply()}
     var effectsOpen by mutableStateOf(false)
     var vectorOpen by mutableStateOf(false)
     var maskOpen by mutableStateOf(false)
@@ -1225,6 +1229,15 @@ class EditorViewModel @JvmOverloads constructor(app: Application,projectDirector
         }
     }
     fun chooseEffectParam(instance:Long,param:String){pause();property="effect:$instance:$param"}
+    internal fun positionGeometry(target:JSONObject,reply:(JSONObject?)->Unit) {
+        val directory=root;val composition=compositionId;val selectedObject=selected;val key=property;val at=frame
+        worker.post {
+            if(id==0L||closed.get())return@post
+            val result=runCatching{nativeData(CompositionBridge.request(id,JSONObject().put("version",1).put("composition",composition)
+                .put("op","position_path").put("target",target).toString()))}.getOrNull()
+            main.post{if(!closed.get()&&root==directory&&compositionId==composition&&selected==selectedObject&&property==key&&frame==at)reply(result)}
+        }
+    }
     fun installPlugin(uri:Uri) {
         pause();state=state.copy(busy=true);val sourceRoot=root
         viewModelScope.launch(Dispatchers.IO) {

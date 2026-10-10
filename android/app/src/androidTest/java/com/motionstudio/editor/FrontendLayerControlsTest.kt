@@ -51,8 +51,8 @@ class FrontendLayerControlsTest {
         compose.waitUntil(10000){vm.isSeparated()&&vm.state.saved}
     }
     private fun choose(prefix:String,name:String) {
-        compose.onNodeWithTag(prefix+"-menu").performClick()
-        compose.onNodeWithTag(prefix+"-"+name).performClick()
+        if(prefix!="rotation-axis")compose.onNodeWithTag(prefix+"-menu").performClick()
+        compose.onNodeWithTag(prefix+"-"+name).performScrollTo().performClick()
     }
     private fun openIndependentPad(key:String) {
         scenario.onActivity{vm.openProperty(key)}
@@ -264,7 +264,7 @@ class FrontendLayerControlsTest {
         separate();choose("rotation-axis","X")
         compose.onNodeWithContentDescription("关闭属性面板").assertIsDisplayed()
         compose.onNodeWithTag("layer-3d-toggle").assertIsDisplayed()
-        val bounds=compose.onNodeWithTag("rotation-axis-menu").fetchSemanticsNode().boundsInRoot
+        val bounds=compose.onNodeWithTag("rotation-axis-X").fetchSemanticsNode().boundsInRoot
         assertTrue(bounds.height>=48*density-.5f)
         photo("axis-layout")
         compose.onNodeWithTag("open-curves").performClick()

@@ -1,4 +1,4 @@
-use crate::{ensure, Ease, Easing, Error, Keyframe, Layer, Result, Track};
+use crate::{ensure, Ease, Easing, Error, Keyframe, Layer, Result, Track, Tween};
 use aem_effects::{EffectDefinition, ParamKind, MAX_EFFECTS_PER_LAYER, MAX_PARAMS};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -151,6 +151,7 @@ impl CurveTrack {
         )?;
         let mut last = None;
         for k in &self.keys {
+            ensure(k.spatial.is_none(), "color transfer curves do not support spatial tangents")?;
             ensure(last.is_none_or(|v| v < k.frame), "invalid curve key time")?;
             k.value.validate()?;
             if let Some(c) = k.curve {
@@ -199,6 +200,14 @@ impl EffectParam {
             "invalid effect parameter range",
         )?;
         self.track.validate_local()?;
+        for k in &self.track.keys {
+            if let Some(s) = &k.spatial {
+                ensure(matches!(self.kind, ParamKind::Vec2 | ParamKind::Vec3), "spatial paths require a vector parameter")?;
+                for tangent in s.incoming.iter().chain(&s.outgoing) {
+                    ensure(self.kind.valid_value(&k.value.add(*tangent), self.min, self.max), "spatial control exceeds effect parameter range")?;
+                }
+            }
+        }
         ensure(
             self.animatable || self.track.keys.is_empty(),
             "effect parameter is not animatable",
@@ -381,6 +390,7 @@ pub enum EffectAction {
         param: String,
         track: Track<[f32; 4]>,
     },
+    RestoreParameterTrack { effect: u64, param: String, track: Track<[f32; 4]> },
     Animate {
         effect: u64,
         param: String,
@@ -409,6 +419,12 @@ pub enum EffectAction {
         param: String,
         frame: u32,
         easing: Easing,
+    },
+    Spatial {
+        effect: u64,
+        param: String,
+        frame: u32,
+        tangents: Option<crate::SpatialTangents<[f32; 4]>>,
     },
     SetCurveObject {
         effect: u64,
@@ -442,6 +458,12 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
         clip.edit_frame(f)
     };
     match action {
+        EffectAction::RestoreParameterTrack { effect, param, track } => {
+            let p = param_mut(layer, effect, &param)?;
+            ensure(matches!(p.kind, ParamKind::Vec2 | ParamKind::Vec3), "parameter scope requires a vector parameter")?;
+            p.track = track;
+            p.validate(frames)?;
+        }
         EffectAction::RestoreColorTrack { effect, param, track } => {
             let p = param_mut(layer, effect, &param)?;
             ensure(p.kind == ParamKind::Color, "color restoration requires a color parameter")?;
@@ -536,6 +558,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
                         value: c.value.clone(),
                         ease: Ease::Linear,
                         curve: None,
+                        spatial: None,
                     });
                 } else if !enabled {
                     let frozen = c.sample(f64::from(frame));
@@ -631,6 +654,12 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
                 p.track.copy_key(from, to)?;
             }
         }
+        EffectAction::Spatial { effect, param, frame, tangents } => {
+            let frame = local(frame)?;
+            let p = param_mut(layer, effect, &param)?;
+            ensure(p.animatable && p.implemented && matches!(p.kind, ParamKind::Vec2 | ParamKind::Vec3), "spatial path requires an editable vector parameter")?;
+            p.track.set_spatial(frame, tangents)?;
+        }
         EffectAction::Curve {
             effect,
             param,
@@ -678,6 +707,7 @@ pub(crate) fn apply(layer: &mut Layer, action: EffectAction, frames: u32) -> Res
                     value,
                     ease: Ease::Linear,
                     curve: None,
+                    spatial: None,
                 };
                 match c.keys.binary_search_by_key(&frame, |k| k.frame) {
                     Ok(i) => c.keys[i] = key,

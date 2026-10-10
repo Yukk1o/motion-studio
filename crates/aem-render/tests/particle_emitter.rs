@@ -9,6 +9,7 @@ fn key<T>(frame: i32, value: T) -> Keyframe<T> {
         value,
         ease: Ease::Linear,
         curve: None,
+        spatial: None,
     }
 }
 fn project() -> Project {

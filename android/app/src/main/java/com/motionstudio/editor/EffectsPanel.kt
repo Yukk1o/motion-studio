@@ -82,8 +82,9 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
     BackHandler(enabled=backEnabled&&(current!=null||add)){back()}
     LaunchedEffect(instances.map{it.getLong("id")}){if(instanceId!=null&&current==null)instanceId=null}
     LaunchedEffect(instanceId,ordered){if(current!=null&&target?.second !in ordered&&ordered.isNotEmpty())vm.chooseEffectParam(current.getLong("id"),ordered.first())}
-    LaunchedEffect(curveMode){onCurveMode(curveMode)}
-    DisposableEffect(Unit){onDispose{onCurveMode(false)}}
+    LaunchedEffect(vm.effectCurveRequest){vm.effectCurveRequest?.takeIf{it==effectTarget(vm.property)}?.let{instanceId=it.first;curveMode=true;vm.effectCurveRequest=null}}
+    LaunchedEffect(curveMode){vm.curvePanelOpen=curveMode;onCurveMode(curveMode)}
+    DisposableEffect(Unit){onDispose{vm.curvePanelOpen=false;onCurveMode(false)}}
     Box(modifier.background(Panel).clipToBounds()) {
         Column(Modifier.fillMaxSize().padding(horizontal=8.dp).testTag("effects-panel")) {
             Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -161,6 +162,8 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                             when(kind) {
                                 "float"->EffectNumeric(vm,objectId,instance,desc,0,value,enabled,if(paramId=="effect_opacity")"不透明度"else desc.optString("name",paramId),onSelect=::select,onInput={select();numeric=Triple(instance,desc,0)})
                                 else->{
+                                    if(isPositionParameter(desc))EffectPositionControls(vm,objectId,instance,desc,value,enabled,::select)
+                                    else {
                                     if(!colorControl)Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
                                         TextButton(onClick=::select,modifier=Modifier.weight(1f).testTag("effect-select-$paramId")){Text(desc.optString("name",paramId),Modifier.fillMaxWidth(),color=if(vm.property==key)Accent else Ink,fontSize=14.sp)}
                                         if(kind=="bool")Switch(value.getDouble(0)>.5,{on->select();vm.effectAction(objectId,instance,"set",JSONObject().put("param",paramId).put("frame",floor(vm.frame).toInt()).put("value",JSONArray(value.toString()).put(0,if(on)1 else 0)))},enabled=enabled)
@@ -189,6 +192,7 @@ private fun effectLabel(vm:EditorViewModel,e:JSONObject)=vm.effectDefinition(e)?
                                             val label=when(kind){"vec2","vec3"->listOf("X","Y","Z")[axis];"color"->listOf("R","G","B","A")[axis];else->desc.optString("units")}
                                             EffectNumeric(vm,objectId,instance,desc,axis,value,enabled,label,onSelect=::select,onInput={select();numeric=Triple(instance,desc,axis)})
                                         }
+                                    }
                                     }
                                 }
                             }
